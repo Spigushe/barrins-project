@@ -1,10 +1,10 @@
 {
-    "cSpell.ignorePaths": [
-        "*.yml"
-    ],
-    "cSpell.words": [
-        "Barrin's",
-        "Tamiyo",
-        "Tolaria"
-    ]
+    "cSpell.customDictionaries": {
+        "project-words": {
+            "name": "project-words",
+            "path": "${workspaceRoot}/docs/cspell.json",
+            "description": "Words used in this project",
+            "addWords": true
+        }
+    }
 }

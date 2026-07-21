@@ -3,6 +3,12 @@ site_url: https://docs.barrins-codex.org/
 site_dir: site
 docs_dir: content
 
+hooks:
+  - hooks/sync_readmes.py
+
+exclude_docs: |
+  _links.md
+
 theme:
   name: material
   language: fr
