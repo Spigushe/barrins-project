@@ -32,7 +32,7 @@ shared authentication (self-registration, email verification, JWT).
 | `POST` | `/auth/refresh` | — | Exchanges a refresh token for a new pair |
 | `POST` | `/auth/logout` | `user` | Instant revocation of all tokens |
 
-### Tamiyo Scroll — competitive MTG tracking BFF (`/api/v1/tamiyo-scroll`)
+### Tamiyo Scroll — competitive MTG tracking BFF (`/bff/tamiyo-scroll`)
 
 All routes require an authenticated user (`user`).
 
@@ -59,12 +59,9 @@ All routes require an authenticated user (`user`).
 
 ```bash
 # Clone and install (editable mode)
-git clone https://github.com/barrins-project/barrins_api.git
-cd barrins_api
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/macOS
-pip install -e ".[dev]"
+git clone https://github.com/spigushe/barrins-project.git
+cd ./apps/barrins_api
+uv sync --all-groups
 ```
 
 ## Configuration
@@ -128,17 +125,13 @@ app/
 alembic/versions/     # Migrations (3 in total: users, auth_email_verifications, ts_*)
 scripts/
   create_admin.py           # First admin bootstrap
-  workflow_ci.py            # Local CI pipeline (ruff, mypy, pytest)
+  workflow_ci.py            # Local CI pipeline (ruff, ty, pytest)
 tests/
 docs/
   auth_roles/               # JWT implementation plan and log
   signup_email_verification/ # Self-registration implementation plan and log
   tamiyo_scroll_tracker/     # Tamiyo Scroll BFF implementation plan and log
 ```
-
-> The rest of the monolith (generic MTGJSON/cards/sets/tournaments/decks/decklist/db-stats/ml API,
-> Tolaria News BFF) is kept on `archive/staging-full-monolith-2026-07-21` pending its
-> reintegration along the releases of the corresponding projects.
 
 ## Roles and access levels
 
