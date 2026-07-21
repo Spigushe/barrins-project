@@ -1,0 +1,35 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "ignorePaths": [
+        "*.yml"
+    ],
+    "words": [
+        "Aucun",
+        "Barrin's",
+        "barrins",
+        "Competitif",
+        "Confirmer",
+        "cooldown",
+        "Decklist",
+        "ellipsizing",
+        "Historique",
+        "matchups",
+        "Metagame",
+        "mkdocs",
+        "npmjs",
+        "oklch",
+        "personnelle",
+        "Pydantic",
+        "Renvoyer",
+        "retour",
+        "smtplib",
+        "stdlib",
+        "Suivi",
+        "Tamiyo",
+        "testées",
+        "Tolaria",
+        "Vérifiez",
+        "votre"
+    ]
+}

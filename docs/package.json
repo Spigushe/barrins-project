@@ -1,0 +1,11 @@
+{
+    "name": "barrins-codex-docs",
+    "private": true,
+    "scripts": {
+        "lint": "npx --yes markdownlint-cli2 \"content/**/*.md\" --config .markdownlint.jsonc",
+        "spellcheck": "npx --yes cspell --config cspell.json \"content/**/*.md\"",
+        "build": "uvx --with mkdocs-material mkdocs build --strict -f mkdocs.yml",
+        "serve": "uvx --with mkdocs-material mkdocs serve -f mkdocs.yml",
+        "ci": "npm run lint && npm run spellcheck && npm run build"
+    }
+}
