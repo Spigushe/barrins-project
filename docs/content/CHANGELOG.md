@@ -36,6 +36,10 @@ sub-repos with actual changes appear in a given release.
 - Root `.gitignore`: ignores the mkdocs-generated `index.md` pages,
   the `docs/site/` build output, and Python `__pycache__`/`*.pyc`
   files (produced by the new build hook).
+- `on_shutdown` hook in `docs/hooks/sync_readmes.py`: deletes the
+  generated `index.md` pages when the hook shuts down, since
+  `mkdocs serve` keeps rewriting them on every reload but never
+  removes them on its own.
 
 #### Changed
 
@@ -50,6 +54,12 @@ sub-repos with actual changes appear in a given release.
   hook (`asyncpg`, `cffi`, `decklist`, `getpass`, `metagame`,
   `Moxfield`, `MTGJSON`, `mypy`, `oxlint`, `pytest`, `Resends`,
   `venv`, `winrate`/`winrates`, among others).
+- `docs/cspell.json`: removed the blanket `*.yml` ignore in favor of a
+  `!docs/**/*.{yml,yaml}` exception (so files like `docs/mkdocs.yml`
+  are spell-checked) and added `**/*.toml` to `ignorePaths`; added
+  terms surfaced by the new auth/signup documentation (`checkfirst`,
+  `passlib`, `pyproject`, `Referer`, `STARTTLS`, `userrole`, `VARCHAR`,
+  among others).
 
 #### Fixed
 
@@ -63,6 +73,18 @@ sub-repos with actual changes appear in a given release.
   pages, which were causing `mkdocs build --strict` to fail.
 
 ### back/barrins_api
+
+#### Added
+
+- `docs/content/back/barrins_api/auth_roles.md`: documents the JWT
+  authentication and hierarchical role-based access control system
+  (role hierarchy, endpoint security matrix), replacing the ad hoc
+  `X-Admin-Key` header.
+- `docs/content/back/barrins_api/signup_email_verification.md`:
+  documents the self-registration and email verification flow
+  (`/auth/signup`, `/auth/signup/verify`, `/auth/signup/resend`).
+- Nav entries (`docs/mkdocs.yml`) and `_links.md` sidecar links for the
+  two pages above.
 
 #### Changed
 

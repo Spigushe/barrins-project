@@ -25,6 +25,8 @@ nav:
       - Barrin's API:
           - Home: back/barrins_api/index.md
           - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
+          - JWT Authentication & Roles: back/barrins_api/auth_roles.md
+          - Signup & Email Verification: back/barrins_api/signup_email_verification.md
       - Barrin's Identity:
           - Home: back/barrins_identity/index.md
           - Platform: back/barrins_identity/platform.md
