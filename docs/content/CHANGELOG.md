@@ -193,6 +193,15 @@ appear in a given release.
   cases, the `barrins_api` contract test, manual verification commands),
   kept separate from `platform.md` per the tests-first rule so it can be
   reviewed and confirmed on its own before implementation starts.
+- Implementation of the standalone service per `platform.md` §6–§8 and the
+  confirmed `tests.md` plan: FastAPI app (`app/`), RS256 JWT signing +
+  Argon2id hashing (`app/core/security.py`), `User`/`ServiceAccount`
+  models, human-login and service-account routes, `GET
+  /.well-known/jwks.json`, per-IP rate limiting on `/auth/token`
+  (slowapi), Alembic initial migration, `scripts/create_admin.py`, and
+  the full test suite (`tests/`). Does **not** include the `barrins_api`
+  cutover (§9, deferred — live-data migration requiring a confirmed
+  maintenance window) or `tolaria_news` routes (§10, front not final).
 
 ### front/tamiyo_scroll
 

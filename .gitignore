@@ -5,14 +5,17 @@ __pycache__/
 **/*.egg*
 **/.env
 
-# Python test coverage reports
-.coverage
-
 # mkdocs build output
 docs/site/
 
 # api logs
 apps/barrins_api/logs/
+apps/barrins_identity/logs/
+
+# pytest coverage html reports
+**/.coverage*
+**/reports*/
+**/.mypy_cache
 
 # Generated from apps/<app>/README.md by docs/hooks/sync_readmes.py on every build.
 # Add a new line here whenever an app gets a doc page under docs/content/**/<app>/.
