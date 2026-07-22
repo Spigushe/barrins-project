@@ -1,0 +1,94 @@
+---
+# Dedicated playbook for the barrins_api backend — the single place that
+# deploys/restarts it. Frontend playbooks (tolaria.yml, tamiyo_scroll.yml)
+# only point their VITE_API_BASE_URL at whatever this playbook already has
+# running; they must never redeploy the backend themselves (see the root
+# README's "Multiple frontends sharing one backend" section).
+- hosts: spigushe
+  become: "yes"
+  gather_facts: "no"
+  vars:
+    username: spigushe
+    # Generated on GitHub (Settings > Developer settings > Personal access
+    # tokens), scope: repo (read-only is enough). It must be renewed every
+    # 30 days: run
+    #   ansible-vault encrypt_string '<new_token>' --name 'github_token'
+    # and replace the block below with the new output.
+    github_token: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      REPLACE_WITH_ANSIBLE_VAULT_ENCRYPT_STRING_OUTPUT
+
+    # Defaults to a full production deploy — the latest GitHub release tag
+    # of barrins_api (Constitution ss25/ss27: production only ever deploys
+    # released versions). Pass -e deploy_env=staging to deploy a
+    # side-by-side staging instance instead, from a branch (develop by
+    # default — staging exists specifically to preview pre-release code).
+    #   ansible-playbook barrins_api.yml -e deploy_env=staging \
+    #     -e fb_git_branch=my-feature
+    # Roll production back to an older release:
+    #   ansible-playbook barrins_api.yml -e fb_release_tag=v1.2.3
+    deploy_env: production
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'develop' if deploy_env == 'staging' else 'main' }}"
+    backend_port: "{{ 8511 if deploy_env == 'staging' else 8011 }}"
+    backend_domain: "api{{ env_suffix }}.barrins-codex.org"
+    # Local, git-ignored .env — deployed to ~/projects/{{ backend_domain
+    # }}/.env on every run if present on this machine, skipped otherwise.
+    # See secrets/README.md to create it.
+    backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
+
+  roles:
+    - role: register-ssl
+      tags:
+        - backend
+        - certs
+      rs_server_name: "{{ backend_domain }}"
+
+    - role: fastapi-backend
+      tags:
+        - backend
+      fb_repo: barrins-project/barrins_api
+      fb_server_name: "{{ backend_domain }}"
+      fb_app_name: "api{{ env_suffix }}"
+      fb_port: "{{ backend_port }}"
+      fb_use_release_tag: "{{ deploy_env == 'production' }}"
+      fb_git_branch: "{{ env_branch }}"
+      fb_entrypoint: "app.main:app"
+      fb_env_file: "{{ backend_env_file }}"
+
+    - role: backend-website
+      tags:
+        - backend
+      bw_server_name: "{{ backend_domain }}"
+      bw_port: "{{ backend_port }}"
+
+  post_tasks:
+    - name: Reminder — pending steps this playbook does not automate
+      debug:
+        msg:
+          - "This playbook never runs Alembic. SSH in and run, from"
+          - "~/projects/{{ backend_domain }}: 'source .venv/bin/activate &&"
+          - "alembic upgrade head' (or 'uv run alembic upgrade head' if"
+          - "using uv) to apply pending migrations."
+      tags: [backend, deploy]
+
+    - name: Reminder — every frontend served by this backend
+      debug:
+        msg:
+          - "barrins_api is shared by every frontend pointing its"
+          - "VITE_API_BASE_URL at {{ backend_domain }} (currently Tolaria"
+          - "News and Tamiyo Scroll). Restarting it here affects all of"
+          - "them at once. ALLOWED_ORIGINS/FRONTEND_BASE_URL in"
+          - "{{ backend_env_file }} must list every one of those origins —"
+          - "see docs/content/ops/deployment/backend.md."
+      tags: [backend, deploy]
+
+    - name: Reminder — .env is local-only, not managed by git
+      debug:
+        msg:
+          - "{{ backend_env_file }} is git-ignored (Constitution ss34) —"
+          - "if this is a fresh checkout and that file doesn't exist yet on"
+          - "this machine, the .env step above was skipped and the"
+          - "server's existing .env (if any) was left untouched. See"
+          - "secrets/README.md."
+      tags: [backend, deploy]

@@ -1,0 +1,7 @@
+---
+r:
+  server_name: "{{bw_server_name}}"
+  alternate_server_name: "{{bw_alternate_server_name|default(False)}}"
+  port: "{{bw_port}}"
+  site_root: "/home/{{username}}/projects/{{bw_server_name}}"
+  is_websocket: "{{bw_is_websocket | default(False)}}"

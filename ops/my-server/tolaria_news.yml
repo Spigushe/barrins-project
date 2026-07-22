@@ -1,0 +1,103 @@
+---
+- hosts: spigushe
+  become: "yes"
+  gather_facts: "no"
+  vars:
+    username: spigushe
+    # Generated on GitHub (Settings > Developer settings > Personal access
+    # tokens), scope: repo (read-only is enough). It must be renewed every
+    # 30 days: run
+    #   ansible-vault encrypt_string '<new_token>' --name 'github_token'
+    # and replace the block below with the new output.
+    github_token: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      REPLACE_WITH_ANSIBLE_VAULT_ENCRYPT_STRING_OUTPUT
+
+    # Defaults to a full production deploy — the latest GitHub release tag
+    # of each app (Constitution ss25/ss27: production only ever deploys
+    # released versions). Pass -e deploy_env=staging to deploy a
+    # side-by-side staging stack instead — "-staging"-suffixed subdomains,
+    # its own backend port/systemd unit (so it can never step on the
+    # production service or database), and a branch (develop by default,
+    # since staging exists to preview pre-release code):
+    #   ansible-playbook tolaria.yml -e deploy_env=staging \
+    #     -e rf_git_branch=my-feature -e fb_git_branch=my-feature
+    # Roll production back to older releases:
+    #   ansible-playbook tolaria.yml -e fb_release_tag=v1.2.3 -e rf_release_tag=v0.9.0
+    # This playbook still redeploys its own copy of the shared barrins_api
+    # backend below (tamiyo_scroll.yml no longer does — see barrins_api.yml
+    # and the root README's "Multiple frontends sharing one backend"
+    # section). Both converge on the same systemd unit/nginx vhost, so
+    # running this alongside barrins_api.yml is safe and idempotent, but
+    # it's the one remaining duplicate copy of that block — consider
+    # migrating this playbook to stop redeploying it too, the same way
+    # tamiyo_scroll.yml did.
+    deploy_env: production
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'develop' if deploy_env == 'staging' else 'main' }}"
+    backend_port: "{{ 8511 if deploy_env == 'staging' else 8011 }}"
+    backend_domain: "api{{ env_suffix }}.barrins-codex.org"
+    frontend_domain: "tolaria{{ env_suffix }}.barrins-codex.org"
+
+  roles:
+    - role: register-ssl
+      tags:
+        - frontend
+        - certs
+      rs_server_name: "{{ backend_domain }}"
+
+    - role: register-ssl
+      tags:
+        - frontend
+        - certs
+      rs_server_name: "{{ frontend_domain }}"
+
+    - role: fastapi-backend
+      tags:
+        - backend
+      fb_repo: barrins-project/barrins_api
+      fb_server_name: "{{ backend_domain }}"
+      fb_app_name: "api{{ env_suffix }}"
+      fb_port: "{{ backend_port }}"
+      fb_use_release_tag: "{{ deploy_env == 'production' }}"
+      fb_git_branch: "{{ env_branch }}"
+      # Verified against the repo: the project's distribution name is
+      # barrins_project, but the FastAPI instance actually lives at
+      # app/main.py (top-level package literally named `app`).
+      fb_entrypoint: "app.main:app"
+
+    - role: backend-website
+      tags:
+        - backend
+      bw_server_name: "{{ backend_domain }}"
+      bw_port: "{{ backend_port }}"
+
+    - role: react-frontend
+      tags:
+        - frontend
+      rf_repo: barrins-project/tolaria_news
+      rf_server_name: "{{ frontend_domain }}"
+      rf_app_name: "tolaria{{ env_suffix }}"
+      rf_use_release_tag: "{{ deploy_env == 'production' }}"
+      rf_git_branch: "{{ env_branch }}"
+      # Assumed Vite build output. Update to "build" if this ends up being
+      # a Create React App project.
+      rf_build_dir: dist
+
+  post_tasks:
+    - name: Reminder — pending steps this playbook does not automate
+      debug:
+        msg:
+          - "fastapi-backend does not run Alembic. SSH in and run, from"
+          - "~/projects/{{ backend_domain }}: 'source .venv/bin/activate &&"
+          - "alembic upgrade head' (or 'uv run alembic upgrade head' if"
+          - "using uv) to apply pending migrations."
+          - "app/config/base.py's ALLOWED_ORIGINS must include"
+          - "https://{{ frontend_domain }} (and the tamiyo origin for this"
+          - "same deploy_env) in the server's"
+          - "~/projects/{{ backend_domain }}/.env. This playbook's own"
+          - "fastapi-backend invocation doesn't set fb_env_file, so it"
+          - "relies on barrins_api.yml having already deployed that .env"
+          - "(local, git-ignored — see secrets/README.md) — run"
+          - "barrins_api.yml first if it hasn't."
+      tags: [backend, deploy]

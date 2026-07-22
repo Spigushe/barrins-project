@@ -40,6 +40,19 @@ nav:
               - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
   - Ops:
       - Home: ops/index.md
+      - Architecture:
+          - Home: ops/architecture/index.md
+          - Infrastructure Independence: ops/architecture/independence.md
+          - Decision Records: ops/architecture/decisions.md
+      - Deployment:
+          - Home: ops/deployment/index.md
+          - Backend: ops/deployment/backend.md
+          - Frontend: ops/deployment/frontend.md
+          - Rollback: ops/deployment/rollback.md
+      - Security:
+          - Home: ops/security/index.md
+          - Secrets Management: ops/security/secrets.md
+      - Operations: ops/operations/index.md
       - Deployment Strategy: ops/deployment_strategy.md
   - Changelog: CHANGELOG.md
 

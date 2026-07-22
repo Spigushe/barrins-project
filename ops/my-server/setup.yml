@@ -1,0 +1,15 @@
+---
+- hosts: all
+  become: "yes"
+  gather_facts: "no"
+  vars:
+    username: spigushe
+  roles:
+    - role: setup-packages
+
+- hosts: all
+  gather_facts: "no"
+  vars:
+    username: spigushe
+  roles:
+    - role: create-ssh-key

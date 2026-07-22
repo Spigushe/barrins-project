@@ -1,0 +1,128 @@
+---
+# Everything below runs as root (the play's default become user). This keeps
+# every redeploy idempotent: ownership is only ever handed to www-data as the
+# very last step, so root can always re-clone/rebuild on the next run even
+# though the previous run left the folder owned by www-data (nginx needs
+# www-data ownership to traverse into /home/{{username}}/... and serve dist/).
+
+- name: Ensure site root folder is present
+  file:
+    state: directory
+    path: "{{ r.site_root }}"
+    mode: 0755
+
+- name: Resolve the latest release tag
+  when: r.use_release_tag and r.release_tag | length == 0
+  delegate_to: localhost
+  become: "no"
+  no_log: true
+  uri:
+    url: "https://api.github.com/repos/{{ r.repo }}/releases/latest"
+    headers:
+      Authorization: "token {{ r.github_token }}"
+      Accept: "application/vnd.github+json"
+    status_code: [200, 404]
+  register: rf_latest_release
+
+- name: Fail if a release-tag deploy was requested but no release exists yet
+  fail:
+    msg: >-
+      {{ r.repo }} has no GitHub release yet, but this deploy requires one
+      (rf_use_release_tag=true — see the Constitution's release policy).
+      Cut a release on GitHub first, or pin one explicitly with
+      rf_release_tag=<tag>.
+  when: >-
+    r.use_release_tag and r.release_tag | length == 0 and
+    rf_latest_release.status == 404
+
+- name: Compute the ref to deploy — pinned/latest release tag
+  set_fact:
+    rf_deploy_ref: "{{ r.release_tag if r.release_tag | length > 0 else rf_latest_release.json.tag_name }}"
+  when: r.use_release_tag
+
+- name: Compute the ref to deploy — branch
+  set_fact:
+    rf_deploy_ref: "{{ r.git_branch }}"
+  when: not r.use_release_tag
+
+- name: Clone/update application repository
+  no_log: true
+  tags:
+    - deploy
+  git:
+    repo: "https://{{ r.github_token }}@github.com/{{ r.repo }}.git"
+    dest: "{{ r.site_root }}"
+    version: "{{ rf_deploy_ref }}"
+    update: "yes"
+
+- name: Ensure nvm is installed
+  environment:
+    NVM_DIR: /opt/nvm
+  shell: |
+    set -o pipefail
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+  args:
+    executable: /bin/bash
+    creates: /opt/nvm/nvm.sh
+
+- name: Install Node {{ r.node_version }} via nvm
+  shell: |
+    export NVM_DIR=/opt/nvm
+    source "$NVM_DIR/nvm.sh"
+    nvm install {{ r.node_version }}
+  args:
+    executable: /bin/bash
+
+- name: Write build-time environment file
+  copy:
+    dest: "{{ r.site_root }}/.env"
+    mode: 0600
+    content: |
+      {% for key, value in r.build_env.items() %}
+      {{ key }}={{ value }}
+      {% endfor %}
+  when: r.build_env | length > 0
+
+- name: Install dependencies and build the application
+  tags:
+    - deploy
+  shell: |
+    export NVM_DIR=/opt/nvm
+    source "$NVM_DIR/nvm.sh"
+    nvm use {{ r.node_version }}
+    {{ r.package_manager }} install
+    {{ r.build_command }}
+  args:
+    executable: /bin/bash
+    chdir: "{{ r.site_root }}"
+
+- name: Point dist/ to the actual build output folder
+  file:
+    src: "{{ r.site_root }}/{{ r.build_dir }}"
+    dest: "{{ r.site_root }}/dist"
+    state: link
+    force: "yes"
+  when: r.build_dir != 'dist'
+
+- name: Change file ownership so nginx (www-data) can serve the build
+  tags:
+    - deploy
+  file:
+    state: directory
+    path: "{{ r.site_root }}"
+    owner: www-data
+    group: www-data
+    mode: "u=rwX,g=rX,o=rX"
+    recurse: "yes"
+
+- name: Add HTTPS site configuration
+  template:
+    src: https.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ r.server_name }}.https.conf"
+
+- name: Reload nginx
+  tags:
+    - deploy
+  service:
+    name: nginx
+    state: reloaded
