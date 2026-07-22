@@ -50,7 +50,7 @@ dev = [
     "alembic>=1.18.5",
     "bandit[toml]>=1.9.4",
     "ruff>=0.15.22",
-    "ty>=0.0.61",
+    "ty>=0.0.62",
     "zest.releaser[recommended]>=9.9.1",
 ]
 
