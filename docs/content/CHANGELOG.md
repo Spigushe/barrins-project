@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Within each release, changes are grouped by sub-repo (`docs`,
-`back/barrins_api`, `back/barrins_identity`, `back/tolaria_news`,
+`back/barrins_api`, `back/barrins_identity`,
 `front/tamiyo_scroll`, `front/tolaria_news`, `front/goblin_guide`, `ops`),
 then by the standard Keep a Changelog categories (Added, Changed,
 Deprecated, Removed, Fixed, Security). Only sub-repos with actual changes
@@ -47,6 +47,11 @@ appear in a given release.
 - `docs/content/CLAUDE.md` §16.4 "Tests-first sequencing": tests must be
   planned, confirmed by the user, and implemented before the
   corresponding production logic is built.
+- Frontend documentation landing pages for `tolaria_news` and
+  `goblin_guide`, including the new `docs/content/front/tolaria_news/`
+  and `docs/content/front/goblin_guide/` index pages and their linked
+  navigation sidecars, so the docs site reflects the current app split
+  between backend planning and frontend-facing experiences.
 
 #### Changed
 
@@ -54,7 +59,6 @@ appear in a given release.
   replaced the earlier "wait for a second account-based app, build
   OAuth2/OIDC" guidance with the validated decision to extract
   `barrins-identity` now as a JWT RS256 + JWKS service.
-
 - `docs/package.json`: merged `spellcheck` and `spellcheck-app` into a
   single `spellcheck` script covering both `content/**/*.md` and
   `../apps/**/*.md`.
@@ -150,23 +154,29 @@ appear in a given release.
   kept separate from `platform.md` per the tests-first rule so it can be
   reviewed and confirmed on its own before implementation starts.
 
-### back/tolaria_news
-
-#### Added
-
-- `platform.md`: documents the two backend pieces behind `tolaria_news`
-  — BFF routes inside `barrins_api` (not yet built) and a companion
-  periodic-calculation backend (proposed `apps/karn_tablets/`, name
-  unconfirmed) that reads tournament/decklist data from `barrins_api`
-  and writes computed results back. Flags five open items (app name,
-  auth mechanism, schedule, write-back payload shape, missing
-  underlying data pipeline) rather than assuming answers.
-
 ### front/tamiyo_scroll
 
 #### Changed
 
 - Translated `README.md` from French to English.
+
+### front/tolaria_news
+
+#### Added
+
+- `platform.md`: documents `tolaria_news`'s frontend architecture — its
+  two direct backend dependencies (`barrins_api` for tournament/report
+  data via BFF routes, not yet built; `barrins_identity` for
+  authentication) — plus, as backend-side detail the frontend never
+  calls directly, the companion periodic-calculation backend (proposed
+  `apps/karn_tablets/`, name unconfirmed) that reads tournament/decklist
+  data from `barrins_api` and writes computed results back. Flags five
+  open items on the calculation backend (app name, auth mechanism,
+  schedule, write-back payload shape, missing underlying data pipeline)
+  and one on the frontend (own login UI vs. embedding `goblin_guide` as
+  a widget) rather than assuming answers. Originally drafted at
+  `back/tolaria_news/platform.md` and moved here once it became clear
+  `tolaria_news` itself is a frontend app.
 
 ### front/goblin_guide
 

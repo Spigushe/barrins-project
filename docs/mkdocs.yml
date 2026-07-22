@@ -4,55 +4,55 @@ site_dir: site
 docs_dir: content
 
 hooks:
-  - hooks/sync_readmes.py
+    - hooks/sync_readmes.py
 
 exclude_docs: |
-  _links.md
+    _links.md
 
 theme:
-  name: material
-  language: fr
-  features:
-    - navigation.tabs
-    - navigation.top
-    - search.suggest
+    name: material
+    language: fr
+    features:
+        - navigation.tabs
+        - navigation.top
+        - search.suggest
 
 nav:
-  - Home: index.md
-  - Constitution: CLAUDE.md
-  - Backend:
-      - Home: back/index.md
-      - Barrin's API:
-          - Home: back/barrins_api/index.md
-          - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
-          - JWT Authentication & Roles: back/barrins_api/auth_roles.md
-          - Signup & Email Verification: back/barrins_api/signup_email_verification.md
-      - Barrin's Identity:
-          - Home: back/barrins_identity/index.md
-          - Platform: back/barrins_identity/platform.md
-          - Tests: back/barrins_identity/tests.md
-      - Tolaria News:
-          - Home: back/tolaria_news/index.md
-          - Platform: back/tolaria_news/platform.md
-  - Frontend:
-      - Home: front/index.md
-      - Tamiyo Scroll:
-          - Home: front/tamiyo_scroll/index.md
-          - Bootstrap: front/tamiyo_scroll/bootstrap.md
-          - Incidents:
-              - Home: front/tamiyo_scroll/incidents/index.md
-              - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
-      - Goblin Guide:
-          - Home: front/goblin_guide/index.md
-          - Bootstrap: front/goblin_guide/bootstrap.md
-  - Ops:
-      - Home: ops/index.md
-      - Deployment Strategy: ops/deployment_strategy.md
-  - Changelog: CHANGELOG.md
+    - Home: index.md
+    - Constitution: CLAUDE.md
+    - Backend:
+          - Home: back/index.md
+          - Barrin's API:
+                - Home: back/barrins_api/index.md
+                - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
+                - JWT Authentication & Roles: back/barrins_api/auth_roles.md
+                - Signup & Email Verification: back/barrins_api/signup_email_verification.md
+          - Barrin's Identity:
+                - Home: back/barrins_identity/index.md
+                - Platform: back/barrins_identity/platform.md
+                - Tests: back/barrins_identity/tests.md
+    - Frontend:
+          - Home: front/index.md
+          - Tamiyo Scroll:
+                - Home: front/tamiyo_scroll/index.md
+                - Bootstrap: front/tamiyo_scroll/bootstrap.md
+                - Incidents:
+                      - Home: front/tamiyo_scroll/incidents/index.md
+                      - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
+          - Tolaria News:
+                - Home: front/tolaria_news/index.md
+                - Platform: front/tolaria_news/platform.md
+          - Goblin Guide:
+                - Home: front/goblin_guide/index.md
+                - Bootstrap: front/goblin_guide/bootstrap.md
+    - Ops:
+          - Home: ops/index.md
+          - Deployment Strategy: ops/deployment_strategy.md
+    - Changelog: CHANGELOG.md
 
 markdown_extensions:
-  - toc:
-      permalink: true
-  - admonition
-  - tables
-  - pymdownx.superfences
+    - toc:
+          permalink: true
+    - admonition
+    - tables
+    - pymdownx.superfences

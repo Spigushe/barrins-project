@@ -266,10 +266,11 @@ must depend on a `barrins-identity` service-token (scope, e.g.
 
 `tolaria_news` will also gain a second, independent backend: a periodic
 calculation service reading from and writing back to `barrins_api`. See
-[Tolaria News platform.md](../tolaria_news/platform.md) — this is the first
-concrete second-backend consumer of the service-account design in §4, which
-until now only had `tolaria_news`'s (not-yet-built) BFF routes as a
-hypothetical justification.
+[Tolaria News platform.md
+§3](../../front/tolaria_news/platform.md#3-backend-side-detail-karn_tablets-informational-only)
+— this is the first concrete second-backend consumer of the service-account
+design in §4, which until now only had `tolaria_news`'s (not-yet-built) BFF
+routes as a hypothetical justification.
 
 ---
 

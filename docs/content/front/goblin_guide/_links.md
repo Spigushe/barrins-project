@@ -1,1 +1,2 @@
 - [Bootstrap](./bootstrap.md)
+- [Barrin's Identity Platform](../../back/barrins_identity/platform.md)

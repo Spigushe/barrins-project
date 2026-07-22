@@ -52,7 +52,7 @@ def on_shutdown(**kwargs):
     _generated_files.clear()
 
 
-def _write_index(app_name, readme, target_dir):
+def _write_index(app_name: str, readme: Path, target_dir: Path) -> None:
     sections = [
         GENERATED_MARKER.format(app=app_name),
         "",
@@ -66,6 +66,15 @@ def _write_index(app_name, readme, target_dir):
             sections += ["", "## See also", "", links]
 
     sections.append("")
+    content = "\n".join(sections)
     index_path = target_dir / "index.md"
-    index_path.write_text("\n".join(sections), encoding="utf-8")
+
+    if index_path.is_file() and index_path.read_text(encoding="utf-8") == content:
+        # Unchanged: skip the write. `mkdocs serve` watches docs_dir, so an
+        # unconditional write here would re-trigger this same hook on every
+        # rebuild — an infinite rebuild loop with no source file changing.
+        _generated_files.add(index_path)
+        return
+
+    index_path.write_text(content, encoding="utf-8")
     _generated_files.add(index_path)
