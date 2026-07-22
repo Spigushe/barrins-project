@@ -6,10 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Within each release, changes are grouped by sub-repo (`docs`,
-`back/barrins_api`, `back/barrins_identity`, `front/tamiyo_scroll`,
-`front/tolaria_news`, `ops`), then by the standard Keep a Changelog
-categories (Added, Changed, Deprecated, Removed, Fixed, Security). Only
-sub-repos with actual changes appear in a given release.
+`back/barrins_api`, `back/barrins_identity`, `back/tolaria_news`,
+`front/tamiyo_scroll`, `front/tolaria_news`, `front/goblin_guide`, `ops`),
+then by the standard Keep a Changelog categories (Added, Changed,
+Deprecated, Removed, Fixed, Security). Only sub-repos with actual changes
+appear in a given release.
 
 ## [Unreleased]
 
@@ -40,8 +41,19 @@ sub-repos with actual changes appear in a given release.
   generated `index.md` pages when the hook shuts down, since
   `mkdocs serve` keeps rewriting them on every reload but never
   removes them on its own.
+- Root `CLAUDE.md` and `CHANGELOG.md` aliases (`@docs/content/CLAUDE.md`,
+  `@docs/content/CHANGELOG.md`), so both are discoverable from the repo
+  root without duplicating their content.
+- `docs/content/CLAUDE.md` §16.4 "Tests-first sequencing": tests must be
+  planned, confirmed by the user, and implemented before the
+  corresponding production logic is built.
 
 #### Changed
+
+- `docs/content/CLAUDE.md` §40 "Authentication Future Evolution":
+  replaced the earlier "wait for a second account-based app, build
+  OAuth2/OIDC" guidance with the validated decision to extract
+  `barrins-identity` now as a JWT RS256 + JWKS service.
 
 - `docs/package.json`: merged `spellcheck` and `spellcheck-app` into a
   single `spellcheck` script covering both `content/**/*.md` and
@@ -114,8 +126,55 @@ sub-repos with actual changes appear in a given release.
 
 - Translated `README.md` from French to English.
 
+### back/barrins_identity
+
+#### Changed
+
+- `platform.md` rewritten from a "future consideration" proposal
+  (OAuth2/OIDC, deferred until a second account-based app existed) into
+  an implementation plan: JWT RS256 + JWKS, `client_credentials`-style
+  service accounts, adapted for this monorepo's existing
+  `apps/barrins_identity/` scaffold (no separate repo needed). Documents
+  the RS256-vs-HS256 and revocation-TTL decisions, the target
+  architecture, configuration, data model (`User`, `ServiceAccount`,
+  `role_c` → `moderator` rename), routes, the `barrins_api` cutover plan,
+  and three open questions (shared vs. copy-per-app `identity_client/`,
+  `tolaria_news` scope, final role name) that need confirming before
+  implementation.
+- `README.md`: corrected the stale "OAuth service" label.
+
+#### Added
+
+- `tests.md`: dedicated test plan (coverage targets, required negative
+  cases, the `barrins_api` contract test, manual verification commands),
+  kept separate from `platform.md` per the tests-first rule so it can be
+  reviewed and confirmed on its own before implementation starts.
+
+### back/tolaria_news
+
+#### Added
+
+- `platform.md`: documents the two backend pieces behind `tolaria_news`
+  — BFF routes inside `barrins_api` (not yet built) and a companion
+  periodic-calculation backend (proposed `apps/karn_tablets/`, name
+  unconfirmed) that reads tournament/decklist data from `barrins_api`
+  and writes computed results back. Flags five open items (app name,
+  auth mechanism, schedule, write-back payload shape, missing
+  underlying data pipeline) rather than assuming answers.
+
 ### front/tamiyo_scroll
 
 #### Changed
 
 - Translated `README.md` from French to English.
+
+### front/goblin_guide
+
+#### Added
+
+- `bootstrap.md`: placeholder documentation for Goblin Guide, the
+  planned login/account UI for Barrin's Identity — stack,
+  standalone-vs-widget shape, and pages/flows are explicitly left open.
+- `apps/goblin_guide/README.md`: placeholder app scaffold (README only,
+  no code), matching the convention used for `barrins_identity` and
+  `tolaria_news`.

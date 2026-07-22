@@ -1,2 +1,1 @@
 - [Platform](./platform.md)
-- [Tests](./tests.md)

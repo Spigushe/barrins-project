@@ -938,6 +938,29 @@ Impact on:
 
 ---
 
+## 16.4 Tests-first sequencing
+
+Implementation is test-driven at the planning level, not only at the code
+level.
+
+For every feature-level plan produced under this constitution:
+
+1. Tests are planned first — as part of the architecture/documentation
+   phase, before any application code is written.
+2. The test plan is confirmed by the user before implementation starts.
+3. Tests are implemented before the missing production logic is built to
+   satisfy them.
+
+Only once tests are planned, confirmed and implemented does an agent write
+the logic that makes them pass.
+
+A feature-level plan should therefore ship with its own dedicated test-plan
+document, separate from the architecture document, so it can be reviewed
+and confirmed on its own (see `docs/content/back/barrins_identity/tests.md`
+for an example of this split).
+
+---
+
 ## 17. Agent Collaboration Workflow
 
 ### 17.1 Before implementation
@@ -1803,7 +1826,7 @@ Extensible tomorrow.
 
 ### Current implementation
 
-Shared Barrin's identity.
+Shared Barrin's identity, currently owned by Barrin's API.
 
 Current requirements:
 
@@ -1812,6 +1835,21 @@ Current requirements:
 - password;
 - email verification;
 - account level.
+
+### Decision: extraction in progress
+
+This section previously recommended *not* extracting a dedicated identity
+service until a second account-based application existed, and proposed a
+full OAuth2/OIDC provider as the eventual shape.
+
+That guidance is superseded. The extraction is now planned and in progress:
+a dedicated app, `apps/barrins_identity/`, will own authentication for
+Barrin's API, Tolaria News and Tamiyo Scroll, using JWT RS256 + JWKS (not a
+full OIDC provider). See
+`docs/content/back/barrins_identity/platform.md` for the architecture and
+decision rationale, and
+`docs/content/back/barrins_identity/tests.md` for the test plan that must
+be confirmed before implementation starts (§16.4).
 
 #### Future requirements
 

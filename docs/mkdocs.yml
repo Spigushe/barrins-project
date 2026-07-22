@@ -30,6 +30,10 @@ nav:
       - Barrin's Identity:
           - Home: back/barrins_identity/index.md
           - Platform: back/barrins_identity/platform.md
+          - Tests: back/barrins_identity/tests.md
+      - Tolaria News:
+          - Home: back/tolaria_news/index.md
+          - Platform: back/tolaria_news/platform.md
   - Frontend:
       - Home: front/index.md
       - Tamiyo Scroll:
@@ -38,6 +42,9 @@ nav:
           - Incidents:
               - Home: front/tamiyo_scroll/incidents/index.md
               - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
+      - Goblin Guide:
+          - Home: front/goblin_guide/index.md
+          - Bootstrap: front/goblin_guide/bootstrap.md
   - Ops:
       - Home: ops/index.md
       - Deployment Strategy: ops/deployment_strategy.md
