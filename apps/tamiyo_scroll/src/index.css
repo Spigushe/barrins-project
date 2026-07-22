@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens de design — source de vérité : handoff design
+ * "Suivi Competitif MTG.dc.html" (haute fidélité, fond sombre uniquement,
+ * pas de mode clair prévu par le design).
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-background: oklch(0.16 0.012 260);
+  --color-card: oklch(0.21 0.014 260);
+  --color-input: oklch(0.24 0.014 260);
+  --color-input-inline: oklch(0.2 0.014 260);
+  --color-border: oklch(0.32 0.014 260);
+  --color-border-dashed: oklch(0.4 0.014 260);
+
+  --color-foreground: oklch(0.93 0.006 260);
+  --color-muted-foreground: oklch(0.62 0.012 260);
+  --color-subtle-foreground: oklch(0.53 0.012 260);
+
+  --color-accent: oklch(0.75 0.14 85);
+  --color-accent-foreground: oklch(0.18 0.02 85);
+
+  --color-destructive: oklch(0.63 0.17 25);
+  --color-destructive-foreground: oklch(0.98 0.01 25);
+  --color-warning: oklch(0.65 0.15 55);
+  --color-success: oklch(0.62 0.15 145);
+
+  --color-archetype-aggro: oklch(0.62 0.16 25);
+  --color-archetype-midrange: oklch(0.65 0.14 140);
+  --color-archetype-control: oklch(0.65 0.13 250);
+  --color-archetype-combo: oklch(0.62 0.15 310);
+
+  --color-winrate-80: oklch(0.62 0.15 145);
+  --color-winrate-60: oklch(0.68 0.14 105);
+  --color-winrate-40: oklch(0.75 0.1 85);
+  --color-winrate-20: oklch(0.65 0.15 55);
+  --color-winrate-0: oklch(0.6 0.18 25);
+
+  --radius-input: 6px;
+  --radius-button: 8px;
+  --radius-card: 12px;
+  --radius-login-card: 16px;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+}
