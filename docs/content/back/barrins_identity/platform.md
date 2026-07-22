@@ -12,11 +12,13 @@
 > and Phase 10 (Tolaria News routes) are **not** implemented — §9 is
 > explicitly a live-data migration requiring a user-confirmed maintenance
 > window, and §10 depends on front specification that isn't final yet.
-> **§14–§18 (below) are proposed, not implemented** — password reset,
-> account deletion, global account settings, and per-app settings. The
-> open design questions in §18 are now **confirmed by the user**
-> (2026-07-22); implementation is still blocked on the [test plan](./tests.md)
-> extension (§7–§11 there) being confirmed, per constitution §16.4.
+> **§14–§17 (below) are implemented** (2026-07-22) — password reset,
+> account deletion, global account settings, and per-app settings, per the
+> design decisions confirmed in §18 and the [test plan](./tests.md) §7–§11.
+> New router `app/api/v1/users.py` (`/users/*`), three new tables
+> (`auth_password_reset_codes`, `auth_email_change_requests`,
+> `app_settings`). 296 tests passing, 100% coverage on `app/models/` and
+> `app/schemas/`, 98.75% overall.
 > **Supersedes**: the "Future Architecture Proposal" previously on this page
 > (OAuth2/OIDC, "wait for a second account-based app") and constitution §40 in
 > their prior form. See [Superseded decision](#2-superseded-decision) below
@@ -375,9 +377,9 @@ document and must not be reintroduced:
 
 ## 14. Password reset
 
-> **Status**: 🟦 Proposed, mechanism confirmed by the user (§18.3). Not
-> implemented — still blocked on the [test plan](./tests.md) (§7–§8)
-> being confirmed.
+> **Status**: 🟩 Implemented (2026-07-22) — `app/models/password_reset.py`,
+> routes in `app/api/v1/auth.py`, tests in
+> `tests/test_routes_password_reset.py` (tests.md §7–§8).
 
 ### 14.1 Mechanism
 
@@ -459,9 +461,9 @@ string flag.
 
 ## 15. Account deletion
 
-> **Status**: 🟦 Proposed, soft-delete confirmed by the user (§18.2). Not
-> implemented — still blocked on the [test plan](./tests.md) (§9) being
-> confirmed.
+> **Status**: 🟩 Implemented (2026-07-22) — `DELETE /users/me` in
+> `app/api/v1/users.py`, tests in `tests/test_routes_users.py`
+> (tests.md §9).
 
 ### 15.1 Soft vs. hard delete
 
@@ -519,11 +521,10 @@ because it's independently necessary here.
 
 ## 16. Global account settings
 
-> **Status**: 🟦 Proposed — no open alternative here (the intermediate
-> email-change state is forced by the constitution's own "old address
-> stays authoritative until confirmed" requirement, §16.2 below). Not
-> implemented — still blocked on the [test plan](./tests.md) (§10) being
-> confirmed.
+> **Status**: 🟩 Implemented (2026-07-22) — `PATCH /users/me` and the
+> `/users/me/email-change/*` routes in `app/api/v1/users.py`, new
+> `EmailChangeRequest` table, tests in `tests/test_routes_users.py`
+> (tests.md §10).
 
 ### 16.1 Route split: `/auth/me` vs. `/users/me`
 
@@ -602,10 +603,11 @@ string.
 
 ## 17. Per-app settings
 
-> **Status**: 🟦 Proposed, data shape confirmed by the user (§18.1). Not
-> implemented — still blocked on the [test plan](./tests.md) (§11) being
-> confirmed, and on the `barrins_api` BFF wiring timing (§18.4, also
-> confirmed).
+> **Status**: 🟩 Implemented, `barrins_identity` side only (2026-07-22) —
+> `GET`/`PUT /users/me/settings/{app_key}` in `app/api/v1/users.py`, new
+> `AppSettings`/`AppKey` in `app/models/app_settings.py`, tests in
+> `tests/test_routes_app_settings.py` (tests.md §11). The `barrins_api`
+> BFF wiring stays a documented, unwired follow-up for Phase 9 (§18.4).
 
 ### 17.1 Data shape
 

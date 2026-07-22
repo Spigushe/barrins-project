@@ -8,9 +8,8 @@
 >
 > §7–§11 below extend this plan to cover password reset, account
 > deletion, global account settings, and per-app settings
-> ([platform.md](./platform.md) §14–§17) — proposed, not yet implemented,
-> and blocked on the same sign-off as the architecture doc (platform.md
-> §18).
+> ([platform.md](./platform.md) §14–§17) — confirmed by the user and
+> **implemented** (2026-07-22).
 
 ---
 
