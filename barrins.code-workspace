@@ -1,0 +1,17 @@
+{
+    "folders": [
+        {
+            "name": "barrins-project",
+            "path": "."
+        },
+        {
+            "name": "barrins_api (tests)",
+            "path": "apps/barrins_api"
+        },
+        {
+            "name": "barrins_identity (tests)",
+            "path": "apps/barrins_identity"
+        }
+    ],
+    "settings": {}
+}
