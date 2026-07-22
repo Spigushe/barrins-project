@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/apps/barrins_api"
+    target-branch: "staging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "npm"
+    directory: "/apps/tamiyo_scroll"
+    target-branch: "staging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    target-branch: "staging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "staging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
