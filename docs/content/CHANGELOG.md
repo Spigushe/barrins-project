@@ -146,6 +146,21 @@ sub-repos with actual changes appear in a given release.
 - `.github/workflows/CI.yml`: translated remaining French inline comments
   and step names to English.
 
+#### Fixed
+
+- `.github/workflows/CI.yml`: the `back` job never provisioned a
+  Postgres service or a real `SECRET_KEY`, so any PR touching
+  `apps/barrins_api` was doomed to fail — `pytest` errors out while
+  `tests/conftest.py` imports `app.config.settings` (the placeholder
+  `SECRET_KEY` is rejected), and even past that the session-scoped
+  `test_engine` fixture needs a reachable database. This went
+  unnoticed because no PR had touched `apps/barrins_api` since the CI
+  pipeline was wired up. Added a `postgres:17` service container
+  (`localhost:5432`, health-checked via `pg_isready`), job-level
+  `DATABASE_URL`/`TEST_DATABASE_URL` env vars pointing at it, and a
+  step generating an ephemeral `SECRET_KEY` via `openssl rand -hex 32`
+  before `workflow_ci.py` runs.
+
 ### front/tamiyo_scroll
 
 #### Fixed
