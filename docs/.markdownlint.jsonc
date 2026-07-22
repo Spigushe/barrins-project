@@ -1,0 +1,12 @@
+{
+    "MD013": {
+        "tables": false
+    },
+    "MD024": {
+        "siblings_only": true
+    },
+    "MD060": {
+        "aligned_delimiter": false,
+        "style": "compact"
+    }
+}
