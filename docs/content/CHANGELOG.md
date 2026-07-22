@@ -116,6 +116,31 @@ sub-repos with actual changes appear in a given release.
 
 ### ops
 
+#### Added
+
+- `.github/workflows/CI.yml`: path-filtered CI pipeline
+  (`dorny/paths-filter`) that runs checks only for the parts of the
+  monorepo a change actually touches — `back` (lint, security, types,
+  tests via `uv run scripts/workflow_ci.py` for `barrins_api`/
+  `barrins_identity`), `front` (`npm run lint`/`build`/`test` for
+  `tamiyo_scroll`/`tolaria_news`), `ops` (`ansible-lint` for
+  `ops/my-server`), and `docs` (markdownlint, cspell, `mkdocs build
+  --strict`) — on every push/PR to `staging` and `main`. A
+  `ci-required` job aggregates the per-job results into a single
+  fail-closed status check, so branch protection has one check to
+  depend on even though the individual jobs are conditionally skipped.
+- `.github/dependabot.yml`: weekly dependency update PRs for
+  `apps/barrins_api` (uv), `apps/tamiyo_scroll` (npm), `docs` (npm),
+  and `.github/workflows` (github-actions), all targeting `staging` so
+  updates go through the same CI gate as any other change before
+  reaching `main`. Dependabot only ever opens pull requests — it never
+  pushes commits directly to a branch.
+- `.github/workflows/deploy-docs.yml`: manual (`workflow_dispatch`)
+  MkDocs build-and-deploy workflow to GitHub Pages, intentionally kept
+  out of the required CI checks. The hosting target (GitHub Pages +
+  custom domain `docs.barrins-codex.org`) is a placeholder pending
+  confirmation.
+
 #### Changed
 
 - `.github/workflows/CI.yml`: translated remaining French inline comments

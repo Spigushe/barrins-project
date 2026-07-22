@@ -1,0 +1,110 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      back: ${{ steps.filter.outputs.back }}
+      front: ${{ steps.filter.outputs.front }}
+      ops: ${{ steps.filter.outputs.ops }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            back:
+              - 'apps/barrins_api/**'
+              - 'apps/barrins_identity/**'
+            front:
+              - 'apps/tamiyo_scroll/**'
+              - 'apps/tolaria_news/**'
+            ops:
+              - 'ops/my-server/**'
+            docs:
+              - 'docs/**'
+
+  back:
+    needs: changes
+    if: needs.changes.outputs.back == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/barrins_api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4 # TO UPDATE if a newer version exists
+        with:
+          enable-cache: true
+      - name: Install deps
+        run: uv sync --all-extras --dev # requires pyproject.toml + uv.lock in apps/barrins_api
+      - name: CI checks (lint, security, types, tests)
+        run: uv run python scripts/workflow_ci.py --no-fix
+
+  front:
+    needs: changes
+    if: needs.changes.outputs.front == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/tamiyo_scroll
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20" # TO UPDATE
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run build --if-present
+      - run: npm test --if-present
+
+  ops:
+    needs: changes
+    if: needs.changes.outputs.ops == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Lint playbooks
+        run: uvx ansible-lint ops/myserver # TO UPDATE with the exact path to your playbooks
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Markdownlint
+        run: npx --yes markdownlint-cli2 "docs/content/**/*.md" "!docs/content/**/_links.md" --config docs/.markdownlint.jsonc
+      - name: Spellcheck (cspell)
+        run: npx --yes cspell --config docs/cspell.json "docs/content/**/*.md" --exclude "docs/content/**/_links.md"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Build MkDocs
+        run: uvx --with mkdocs-material mkdocs build --strict -f docs/mkdocs.yml
+
+  ci-required:
+    if: always()
+    needs: [changes, back, front, ops, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no triggered job failed
+        run: |
+          for r in "${{ needs.back.result }}" "${{ needs.front.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "A required job failed or was cancelled: $r"
+              exit 1
+            fi
+          done
+          echo "OK — all triggered jobs passed (non-triggered ones were correctly skipped)."
