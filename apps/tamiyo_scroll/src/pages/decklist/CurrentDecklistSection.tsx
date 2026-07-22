@@ -19,9 +19,9 @@ export function CurrentDecklistSection() {
   if (activeDeckId === null) {
     return (
       <Card>
-        <CardTitle>Decklist courante</CardTitle>
+        <CardTitle>Current decklist</CardTitle>
         <CardDescription className="mt-1">
-          Sélectionnez ou créez un deck personnel dans l&apos;en-tête pour afficher sa
+          Select or create a personal deck in the header to display its
           decklist.
         </CardDescription>
       </Card>
@@ -33,7 +33,7 @@ export function CurrentDecklistSection() {
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CardTitle>Decklist courante</CardTitle>
+        <CardTitle>Current decklist</CardTitle>
         {latest && (
           <div className="flex items-center gap-2">
             <Badge variant="accent">VERSION {latest.version}</Badge>
@@ -60,7 +60,7 @@ export function CurrentDecklistSection() {
 
       {!latest && (
         <p className="mt-4 text-muted-foreground">
-          Aucune version enregistrée pour ce deck.
+          No version saved for this deck.
         </p>
       )}
 
@@ -75,7 +75,7 @@ export function CurrentDecklistSection() {
             </p>
           ))}
           {(lines?.length ?? 0) === 0 && (
-            <p className="text-muted-foreground">Version vide.</p>
+            <p className="text-muted-foreground">Empty version.</p>
           )}
         </div>
       )}

@@ -1,9 +1,9 @@
 @import 'tailwindcss';
 
 /*
- * Tokens de design — source de vérité : handoff design
- * "Suivi Competitif MTG.dc.html" (haute fidélité, fond sombre uniquement,
- * pas de mode clair prévu par le design).
+ * Design tokens — source of truth: design handoff
+ * "Suivi Competitif MTG.dc.html" (high fidelity, dark background only,
+ * no light mode planned in the design).
  */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;

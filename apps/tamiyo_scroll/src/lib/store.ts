@@ -1,7 +1,7 @@
 /**
- * Petit store pub-sub générique, compatible useSyncExternalStore.
- * Utilisé pour l'état de session et l'état "vue partagée" — lus en dehors
- * de React (dans le client HTTP) et suivis en réactivité depuis React.
+ * Small generic pub-sub store, compatible with useSyncExternalStore.
+ * Used for session state and "shared view" state — read outside of
+ * React (in the HTTP client) and reactively subscribed to from React.
  */
 export interface Store<T> {
   get: () => T

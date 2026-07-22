@@ -88,7 +88,7 @@ function GameResultSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={GAME_NOT_PLAYED}>— non jouée —</SelectItem>
+          <SelectItem value={GAME_NOT_PLAYED}>— not played —</SelectItem>
           {GAME_OPTIONS.map((result) => (
             <SelectItem key={result} value={result}>
               {GAME_RESULT_LABELS[result]}
@@ -115,7 +115,7 @@ export function MatchFormFields({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label>Mon deck</Label>
+          <Label>My deck</Label>
           <Select
             value={draft.personalDeckId}
             onValueChange={(value) => {
@@ -123,7 +123,7 @@ export function MatchFormFields({
             }}
           >
             <SelectTrigger className="w-52">
-              <SelectValue placeholder="— sélectionner —" />
+              <SelectValue placeholder="— select —" />
             </SelectTrigger>
             <SelectContent>
               {personalDeckOptions.map((deck) => (
@@ -135,7 +135,7 @@ export function MatchFormFields({
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label>Adversaire</Label>
+          <Label>Opponent</Label>
           <Select
             value={draft.opponentDeckId}
             onValueChange={(value) => {
@@ -143,7 +143,7 @@ export function MatchFormFields({
             }}
           >
             <SelectTrigger className="w-52">
-              <SelectValue placeholder="— sélectionner —" />
+              <SelectValue placeholder="— select —" />
             </SelectTrigger>
             <SelectContent>
               {metaDeckOptions.map((deck) => (
@@ -155,7 +155,7 @@ export function MatchFormFields({
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label>Sur la pioche</Label>
+          <Label>Play/Draw</Label>
           <Select
             value={draft.onPlay ? 'otp' : 'otd'}
             onValueChange={(value) => {
@@ -175,21 +175,21 @@ export function MatchFormFields({
 
       <div className="flex flex-wrap gap-3">
         <GameResultSelect
-          label="Manche 1"
+          label="Game 1"
           value={draft.game1}
           onChange={(value) => {
             onChange({ ...draft, game1: value })
           }}
         />
         <GameResultSelect
-          label="Manche 2"
+          label="Game 2"
           value={draft.game2}
           onChange={(value) => {
             onChange({ ...draft, game2: value })
           }}
         />
         <GameResultSelect
-          label="Manche 3"
+          label="Game 3"
           value={draft.game3}
           onChange={(value) => {
             onChange({ ...draft, game3: value })
@@ -199,7 +199,7 @@ export function MatchFormFields({
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="opening-hand">Mains de départ</Label>
+          <Label htmlFor="opening-hand">Opening hand</Label>
           <Textarea
             id="opening-hand"
             rows={3}
@@ -210,7 +210,7 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="turning-point">Point pivot</Label>
+          <Label htmlFor="turning-point">Turning point</Label>
           <Textarea
             id="turning-point"
             rows={3}
@@ -221,7 +221,7 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="final-turn">Tour final</Label>
+          <Label htmlFor="final-turn">Final turn</Label>
           <Textarea
             id="final-turn"
             rows={3}

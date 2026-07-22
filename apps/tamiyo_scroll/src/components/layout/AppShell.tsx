@@ -23,9 +23,9 @@ import { cn } from '@/lib/utils'
 const SELF_VALUE = '__self__'
 
 const TABS = [
-  { to: '/app/metagame', label: 'Métagame' },
-  { to: '/app/suivi-bo3', label: 'Suivi BO3' },
-  { to: '/app/decklist', label: 'Ma decklist' },
+  { to: '/app/metagame', label: 'Metagame' },
+  { to: '/app/suivi-bo3', label: 'BO3 Tracking' },
+  { to: '/app/decklist', label: 'My decklist' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -43,10 +43,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [newDeckName, setNewDeckName] = useState('')
   const canEdit = viewingOwner === null
 
-  // Sélection du deck actif : persistée via /me/settings pour ses propres
-  // données, mais purement locale en mode "vue partagée" — le backend
-  // n'expose pas la préférence de deck actif d'un tiers (elle est privée),
-  // donc on choisit localement quel deck du tiers consulter.
+  // Active deck selection: persisted via /me/settings for one's own data,
+  // but purely local in "shared view" mode — the backend does not expose a
+  // third party's active-deck preference (it's private), so we locally
+  // pick which of their decks to view.
   const [localSelectedDeckId, setLocalSelectedDeckId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,14 +95,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div>
           <h1 className="text-[22px] font-extrabold text-foreground">Tamiyo Scroll</h1>
           <p className="text-[13px] text-muted-foreground">
-            Compétitif · Suivi tests · Duel Commander
+            Competitive · Test tracking · Duel Commander
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {viewingOwner !== null && (
             <Badge variant="warning">
-              Consultation : {viewingOwner.label} · lecture seule
+              Viewing: {viewingOwner.label} · read only
             </Badge>
           )}
 
@@ -115,11 +115,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={SELF_VALUE}>
-                Mon compte ({currentUser?.email ?? '…'})
+                My account ({currentUser?.email ?? '…'})
               </SelectItem>
               {sharedUsers?.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
-                  Voir : {user.display_name ?? user.email}
+                  View: {user.display_name ?? user.email}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -132,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 void updateSettings.mutateAsync({ data_shared: checked === true })
               }}
             />
-            Partager mes données
+            Share my data
           </label>
 
           <Button
@@ -141,21 +141,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="border-warning text-warning hover:bg-warning hover:text-accent-foreground"
             onClick={handleLogout}
           >
-            Déconnexion
+            Log out
           </Button>
         </div>
       </header>
 
       <div className="mt-5 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="active-deck">Mon deck personnel</Label>
+          <Label htmlFor="active-deck">My personal deck</Label>
           <Select
             value={activeDeckId ?? undefined}
             onValueChange={handleActiveDeckChange}
             disabled={!canEdit}
           >
             <SelectTrigger id="active-deck" className="w-64">
-              <SelectValue placeholder="— aucun sélectionné —" />
+              <SelectValue placeholder="— none selected —" />
             </SelectTrigger>
             <SelectContent>
               {personalDecks?.map((deck) => (
@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }}
           >
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-deck-name">Nom du nouveau deck perso</Label>
+              <Label htmlFor="new-deck-name">New personal deck name</Label>
               <Input
                 id="new-deck-name"
                 value={newDeckName}
@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
             </div>
             <Button type="submit" disabled={createDeck.isPending}>
-              Créer
+              Create
             </Button>
           </form>
         )}

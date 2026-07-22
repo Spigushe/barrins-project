@@ -96,10 +96,10 @@ export function CardTestsSection() {
   if (activeDeckId === null) {
     return (
       <Card>
-        <CardTitle>Cartes testées — retours individuels</CardTitle>
+        <CardTitle>Tested cards — individual feedback</CardTitle>
         <CardDescription className="mt-1">
-          Sélectionnez ou créez un deck personnel ci-dessus pour voir ses retours de
-          tests.
+          Select or create a personal deck above to see its test
+          feedback.
         </CardDescription>
       </Card>
     )
@@ -125,7 +125,7 @@ export function CardTestsSection() {
 
   return (
     <Card>
-      <CardTitle>Cartes testées — retours individuels</CardTitle>
+      <CardTitle>Tested cards — individual feedback</CardTitle>
 
       {canEdit && (
         <form
@@ -135,7 +135,7 @@ export function CardTestsSection() {
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-tester">Pseudo</Label>
+            <Label htmlFor="test-tester">Nickname</Label>
             <Input
               id="test-tester"
               value={newDraft.tester}
@@ -146,7 +146,7 @@ export function CardTestsSection() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-card">Nom de carte</Label>
+            <Label htmlFor="test-card">Card name</Label>
             <Input
               id="test-card"
               value={newDraft.cardName}
@@ -168,7 +168,7 @@ export function CardTestsSection() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_MATCHUP}>— aucun —</SelectItem>
+                <SelectItem value={NO_MATCHUP}>— none —</SelectItem>
                 {deckOptions.map((deck) => (
                   <SelectItem key={deck.id} value={deck.id}>
                     {deck.name}
@@ -178,7 +178,7 @@ export function CardTestsSection() {
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Efficacité</Label>
+            <Label>Effectiveness</Label>
             <Select
               value={String(newDraft.rating)}
               onValueChange={(value) => {
@@ -208,7 +208,7 @@ export function CardTestsSection() {
             />
           </div>
           <Button type="submit" disabled={createTest.isPending}>
-            Ajouter
+            Add
           </Button>
         </form>
       )}
@@ -216,10 +216,10 @@ export function CardTestsSection() {
       <Table className="mt-3">
         <TableHeader>
           <TableRow>
-            <TableHead>Pseudo</TableHead>
-            <TableHead>Carte</TableHead>
+            <TableHead>Nickname</TableHead>
+            <TableHead>Card</TableHead>
             <TableHead>Match-up</TableHead>
-            <TableHead className="w-32">Efficacité</TableHead>
+            <TableHead className="w-32">Effectiveness</TableHead>
             <TableHead>Notes</TableHead>
             {canEdit && <TableHead className="w-36" />}
           </TableRow>
@@ -257,7 +257,7 @@ export function CardTestsSection() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={NO_MATCHUP}>— aucun —</SelectItem>
+                        <SelectItem value={NO_MATCHUP}>— none —</SelectItem>
                         {deckOptions.map((deck) => (
                           <SelectItem key={deck.id} value={deck.id}>
                             {deck.name}
@@ -302,7 +302,7 @@ export function CardTestsSection() {
                         void handleSaveEdit(test.id)
                       }}
                     >
-                      Enregistrer
+                      Save
                     </Button>
                     <Button
                       type="button"
@@ -312,7 +312,7 @@ export function CardTestsSection() {
                         setEditingId(null)
                       }}
                     >
-                      Annuler
+                      Cancel
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -343,7 +343,7 @@ export function CardTestsSection() {
                         startEdit(test)
                       }}
                     >
-                      Éditer
+                      Edit
                     </Button>
                     <Button
                       type="button"
@@ -363,7 +363,7 @@ export function CardTestsSection() {
           {(cardTests?.length ?? 0) === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="text-center text-muted-foreground">
-                Aucun retour de test.
+                No test feedback.
               </TableCell>
             </TableRow>
           )}

@@ -7,7 +7,7 @@ export interface ActiveDeckContextValue {
 
 export const ActiveDeckContext = createContext<ActiveDeckContextValue | null>(null)
 
-/** Deck personnel actuellement sélectionné dans le header, et si l'édition est permise. */
+/** Currently selected personal deck in the header, and whether editing is allowed. */
 export function useActiveDeck(): ActiveDeckContextValue {
   const value = useContext(ActiveDeckContext)
   if (!value) {

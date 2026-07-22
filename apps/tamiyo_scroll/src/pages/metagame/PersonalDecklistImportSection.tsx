@@ -19,9 +19,9 @@ export function PersonalDecklistImportSection() {
   if (activeDeckId === null) {
     return (
       <Card>
-        <CardTitle>Decklist personnelle</CardTitle>
+        <CardTitle>Personal decklist</CardTitle>
         <CardDescription className="mt-1">
-          Sélectionnez ou créez un deck personnel ci-dessus pour importer une decklist.
+          Select or create a personal deck above to import a decklist.
         </CardDescription>
       </Card>
     )
@@ -46,8 +46,8 @@ export function PersonalDecklistImportSection() {
     <Card>
       <CardTitle>Decklist personnelle</CardTitle>
       <CardDescription className="mt-1">
-        Importez un lien Moxfield (scrap via l&apos;API) ou collez le texte brut de la
-        liste pour créer une nouvelle version du deck sélectionné ci-dessus.
+        Import a Moxfield link (scraped via the API) or paste the raw decklist
+        text to create a new version of the deck selected above.
       </CardDescription>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -57,7 +57,7 @@ export function PersonalDecklistImportSection() {
             void handleImport(event)
           }}
         >
-          <Label htmlFor="moxfield-url">Lien Moxfield</Label>
+          <Label htmlFor="moxfield-url">Moxfield link</Label>
           <Input
             id="moxfield-url"
             placeholder="https://moxfield.com/decks/…"
@@ -67,7 +67,7 @@ export function PersonalDecklistImportSection() {
             }}
           />
           <Button type="submit" disabled={importMoxfield.isPending} className="w-fit">
-            {importMoxfield.isPending ? 'Import en cours…' : 'Importer depuis Moxfield'}
+            {importMoxfield.isPending ? 'Importing…' : 'Import from Moxfield'}
           </Button>
         </form>
 
@@ -77,7 +77,7 @@ export function PersonalDecklistImportSection() {
             void handleSaveRaw(event)
           }}
         >
-          <Label htmlFor="raw-decklist">Texte brut</Label>
+          <Label htmlFor="raw-decklist">Raw text</Label>
           <Textarea
             id="raw-decklist"
             rows={4}
@@ -87,7 +87,7 @@ export function PersonalDecklistImportSection() {
             }}
           />
           <Button type="submit" disabled={createVersion.isPending} className="w-fit">
-            Enregistrer cette version
+            Save this version
           </Button>
         </form>
       </div>

@@ -82,13 +82,13 @@ export function MetaDecksRosterSection() {
 
   return (
     <Card>
-      <CardTitle>Roster des decks (MUR)</CardTitle>
+      <CardTitle>Deck roster (MUR)</CardTitle>
       <Table className="mt-3">
         <TableHeader>
           <TableRow>
             <TableHead className="w-20">Tier</TableHead>
             <TableHead>Deck</TableHead>
-            <TableHead className="w-44">Archétype</TableHead>
+            <TableHead className="w-44">Archetype</TableHead>
             <TableHead>Decklist / notes</TableHead>
             {canEdit && <TableHead className="w-10" />}
           </TableRow>
@@ -135,7 +135,7 @@ export function MetaDecksRosterSection() {
             </SelectContent>
           </Select>
           <Input
-            placeholder="Nom du deck adverse"
+            placeholder="Opponent deck name"
             value={newName}
             onChange={(event) => {
               setNewName(event.target.value)
@@ -269,15 +269,15 @@ export function ExpectedMetagameSection() {
 
   return (
     <Card>
-      <CardTitle>Métagame attendu</CardTitle>
+      <CardTitle>Expected metagame</CardTitle>
       <Table className="mt-3">
         <TableHeader>
           <TableRow>
             <TableHead>Deck</TableHead>
             <TableHead className="w-24">Top 8</TableHead>
-            <TableHead className="w-24">Présence</TableHead>
+            <TableHead className="w-24">Presence</TableHead>
             <TableHead className="w-24">Conversion</TableHead>
-            <TableHead className="w-44">Attendu</TableHead>
+            <TableHead className="w-44">Expected</TableHead>
             <TableHead>Tests</TableHead>
           </TableRow>
         </TableHeader>

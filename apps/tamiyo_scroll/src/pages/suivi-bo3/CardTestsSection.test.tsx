@@ -25,6 +25,6 @@ describe('CardTestsSection', () => {
   it('prefills the tester input with the current user display name', () => {
     render(<CardTestsSection />)
 
-    expect(screen.getByLabelText('Pseudo')).toHaveValue('Alice')
+    expect(screen.getByLabelText('Nickname')).toHaveValue('Alice')
   })
 })

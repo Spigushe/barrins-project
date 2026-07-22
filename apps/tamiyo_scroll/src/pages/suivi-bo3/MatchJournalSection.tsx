@@ -21,7 +21,7 @@ import {
   type MatchDraft,
 } from './MatchForm'
 
-/** Résultat de match dérivé de la majorité des manches — affichage seul (badge/bordure), pas un calcul métier persisté. */
+/** Match outcome derived from the majority of games — display only (badge/border), not a persisted business calculation. */
 function matchOutcome(match: Match): GameResult | null {
   const games = [match.game1, match.game2, match.game3].filter(
     (game): game is GameResult => game !== null,
@@ -82,7 +82,7 @@ export function MatchJournalSection() {
 
   return (
     <Card>
-      <CardTitle>Journal des parties</CardTitle>
+      <CardTitle>Match log</CardTitle>
       <div className="mt-3 flex flex-col gap-3">
         {matches?.map((match) => {
           if (editingId === match.id && editDraft) {
@@ -105,10 +105,10 @@ export function MatchJournalSection() {
                       void handleSaveEdit(match.id)
                     }}
                   >
-                    Enregistrer
+                    Save
                   </Button>
                   <Button type="button" variant="outline" onClick={cancelEdit}>
-                    Annuler
+                    Cancel
                   </Button>
                 </div>
               </div>
@@ -159,7 +159,7 @@ export function MatchJournalSection() {
                       startEdit(match)
                     }}
                   >
-                    Éditer
+                    Edit
                   </Button>
                   <Button
                     type="button"
@@ -169,7 +169,7 @@ export function MatchJournalSection() {
                       void deleteMatch.mutateAsync(match.id)
                     }}
                   >
-                    Supprimer
+                    Delete
                   </Button>
                 </div>
               )}
@@ -177,7 +177,7 @@ export function MatchJournalSection() {
           )
         })}
         {(matches?.length ?? 0) === 0 && (
-          <p className="text-center text-muted-foreground">Aucune partie enregistrée.</p>
+          <p className="text-center text-muted-foreground">No game saved.</p>
         )}
       </div>
     </Card>

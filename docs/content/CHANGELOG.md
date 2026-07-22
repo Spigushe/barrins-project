@@ -114,6 +114,13 @@ sub-repos with actual changes appear in a given release.
 
 - Translated `README.md` from French to English.
 
+### ops
+
+#### Changed
+
+- `.github/workflows/CI.yml`: translated remaining French inline comments
+  and step names to English.
+
 ### front/tamiyo_scroll
 
 #### Added
@@ -143,3 +150,10 @@ sub-repos with actual changes appear in a given release.
 #### Changed
 
 - Translated `README.md` from French to English.
+- Translated remaining French UI text (labels, buttons, placeholders,
+  error messages) and code comments across the app — `index.css`,
+  `active-deck-context.tsx`, `lib/mtg-format.ts`,
+  `schemas/tamiyoScroll.ts`, `LoginPage.tsx`, `VerifyEmailPage.tsx`,
+  the decklist, metagame, and Suivi BO3 sections, `AppShell.tsx`,
+  `lib/store.ts`, `lib/queryClient.ts`, `api/client.ts`,
+  `api/viewingOwner.ts`, and `hooks/useViewingOwner.ts` — to English.

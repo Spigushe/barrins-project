@@ -20,11 +20,11 @@ import {
 } from '@/components/ui/table'
 
 const WINRATE_BANDS = [
-  { label: 'Très positif (80-100%)', className: 'bg-winrate-80' },
-  { label: 'Positif (60-79%)', className: 'bg-winrate-60' },
-  { label: 'Équilibré (40-59%)', className: 'bg-winrate-40' },
-  { label: 'Négatif (20-39%)', className: 'bg-winrate-20' },
-  { label: 'Très négatif (0-19%)', className: 'bg-winrate-0' },
+  { label: 'Very positive (80-100%)', className: 'bg-winrate-80' },
+  { label: 'Positive (60-79%)', className: 'bg-winrate-60' },
+  { label: 'Balanced (40-59%)', className: 'bg-winrate-40' },
+  { label: 'Negative (20-39%)', className: 'bg-winrate-20' },
+  { label: 'Very negative (0-19%)', className: 'bg-winrate-0' },
 ]
 
 export function ArchetypeSummarySection() {
@@ -32,7 +32,7 @@ export function ArchetypeSummarySection() {
 
   return (
     <Card>
-      <CardTitle>Répartition par archétype</CardTitle>
+      <CardTitle>Breakdown by archetype</CardTitle>
       <div
         className="mt-3 grid gap-4"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
@@ -76,7 +76,7 @@ export function ArchetypeSummarySection() {
                 </li>
               ))}
               {summary.decks.length === 0 && (
-                <li className="text-[12.5px] text-muted-foreground">Aucun deck.</li>
+                <li className="text-[12.5px] text-muted-foreground">No deck.</li>
               )}
             </ul>
           </div>
@@ -92,7 +92,7 @@ export function MatchupSummarySection() {
 
   return (
     <Card>
-      <CardTitle>Synthèse des match-ups</CardTitle>
+      <CardTitle>Match-up summary</CardTitle>
       <Table className="mt-3">
         <TableHeader>
           <TableRow>
@@ -100,9 +100,9 @@ export function MatchupSummarySection() {
             <TableHead>Winrate global</TableHead>
             <TableHead>Winrate OTP</TableHead>
             <TableHead>Winrate OTD</TableHead>
-            <TableHead>V/D OTP</TableHead>
-            <TableHead>V/D OTD</TableHead>
-            <TableHead>Parties</TableHead>
+            <TableHead>W/L OTP</TableHead>
+            <TableHead>W/L OTD</TableHead>
+            <TableHead>Games</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -128,14 +128,14 @@ export function MatchupSummarySection() {
           {(data?.rows.length ?? 0) === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground">
-                Aucune donnée.
+                No data.
               </TableCell>
             </TableRow>
           )}
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell>Winrate moyen</TableCell>
+            <TableCell>Average winrate</TableCell>
             <TableCell
               colSpan={6}
               className={cn('font-mono', winrateTextClass(data?.average_winrate ?? null))}

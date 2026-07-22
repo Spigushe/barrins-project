@@ -124,7 +124,7 @@ describe('apiRequest', () => {
       .fn()
       .mockResolvedValue(
         jsonResponse(
-          { error: { code: 'NOT_FOUND', message: 'Deck personnel introuvable.' } },
+          { error: { code: 'NOT_FOUND', message: 'Personal deck not found.' } },
           { status: 404 },
         ),
       )
@@ -132,7 +132,7 @@ describe('apiRequest', () => {
 
     await expect(
       apiRequest('/bff/tamiyo-scroll/personal-decks/xyz', responseSchema),
-    ).rejects.toThrow('Deck personnel introuvable.')
+    ).rejects.toThrow('Personal deck not found.')
   })
 
   it('returns undefined for 204 responses without parsing the body', async () => {

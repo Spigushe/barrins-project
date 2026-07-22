@@ -3,9 +3,9 @@ import { createStore } from '@/lib/store'
 const VIEWING_OWNER_KEY = 'tamiyo_viewing_owner'
 
 /**
- * Utilisateur "vu" en lecture seule (sélecteur "Voir : {utilisateur}" du
- * header) — `null` signifie "mes propres données". Stocké en sessionStorage
- * (par onglet, pas besoin de persister entre sessions).
+ * User being "viewed" in read-only mode (the "View: {user}" selector in the
+ * header) — `null` means "my own data". Stored in sessionStorage (per tab,
+ * no need to persist across sessions).
  */
 export interface ViewingOwner {
   id: string

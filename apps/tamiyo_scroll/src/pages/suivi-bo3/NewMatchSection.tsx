@@ -39,7 +39,7 @@ export function NewMatchSection() {
 
   return (
     <Card>
-      <CardTitle>Nouvelle partie (BO3)</CardTitle>
+      <CardTitle>New game (BO3)</CardTitle>
       <div className="mt-3">
         <MatchFormFields
           draft={draft}
@@ -55,7 +55,7 @@ export function NewMatchSection() {
             void handleSubmit()
           }}
         >
-          Enregistrer la partie
+          Save the game
         </Button>
       </div>
     </Card>

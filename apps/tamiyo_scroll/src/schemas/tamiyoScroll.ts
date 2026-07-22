@@ -137,9 +137,9 @@ export const matchupSummarySchema = z.object({
 export type MatchupSummary = z.infer<typeof matchupSummarySchema>
 
 // ---------------------------------------------------------------------------
-// Payloads d'écriture — miroir des schémas de requête Pydantic (MetaDeckWrite,
-// MatchWrite, CardTestWrite). Validés côté client avant envoi ; le backend
-// reste la source de vérité et revalide intégralement.
+// Write payloads — mirror of the Pydantic request schemas (MetaDeckWrite,
+// MatchWrite, CardTestWrite). Validated client-side before sending; the
+// backend remains the source of truth and fully revalidates.
 // ---------------------------------------------------------------------------
 
 export const metaDeckWriteSchema = z.object({

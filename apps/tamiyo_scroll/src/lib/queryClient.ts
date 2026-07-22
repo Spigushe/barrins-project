@@ -5,8 +5,8 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {
-        // Ne pas retenter sur les erreurs client (4xx) — seules les erreurs
-        // réseau/serveur (5xx, timeout) valent la peine d'être rejouées.
+        // Don't retry on client errors (4xx) — only network/server errors
+        // (5xx, timeout) are worth retrying.
         if (error instanceof ApiError && error.status < 500) return false
         return failureCount < 2
       },

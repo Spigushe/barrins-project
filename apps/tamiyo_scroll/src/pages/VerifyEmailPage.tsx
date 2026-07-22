@@ -36,7 +36,7 @@ export function VerifyEmailPage() {
     setError(null)
 
     if (!email || !/^\d{6}$/.test(code)) {
-      setError('Email et code à 6 chiffres requis.')
+      setError('Email and 6-digit code required.')
       return
     }
 
@@ -44,7 +44,7 @@ export function VerifyEmailPage() {
       await verify.mutateAsync({ email, code })
       navigate('/app/metagame')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Une erreur est survenue.')
+      setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
   }
 
@@ -52,7 +52,7 @@ export function VerifyEmailPage() {
     setError(null)
     setResendMessage(null)
     if (!email) {
-      setError('Renseignez votre email pour recevoir un nouveau code.')
+      setError('Enter your email to receive a new code.')
       return
     }
     try {
@@ -60,7 +60,7 @@ export function VerifyEmailPage() {
       setResendMessage(response.detail)
       setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Une erreur est survenue.')
+      setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
   }
 
@@ -68,11 +68,11 @@ export function VerifyEmailPage() {
     <div className="flex min-h-svh items-center justify-center px-4">
       <div className="w-full max-w-[400px] rounded-(--radius-login-card) border border-border bg-card p-8">
         <h1 className="text-center text-xl font-extrabold text-foreground">
-          Vérifiez votre email
+          Verify your email
         </h1>
         <p className="mt-1 text-center text-[13px] text-muted-foreground">
-          Saisissez le code à 6 chiffres envoyé à votre adresse — ou suivez le lien reçu
-          par email puis confirmez ci-dessous.
+          Enter the 6-digit code sent to your address — or follow the link received
+          by email and confirm below.
         </p>
 
         <form className="mt-6 flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -91,7 +91,7 @@ export function VerifyEmailPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="code">Code de vérification</Label>
+            <Label htmlFor="code">Verification code</Label>
             <Input
               id="code"
               inputMode="numeric"
@@ -115,7 +115,7 @@ export function VerifyEmailPage() {
             disabled={verify.isPending}
             className="mt-2 h-auto w-full rounded-[8px] py-3 font-bold"
           >
-            Confirmer mon compte
+            Confirm my account
           </Button>
 
           <Button
@@ -126,8 +126,8 @@ export function VerifyEmailPage() {
             className="h-auto w-full rounded-[8px] py-2.5 text-sm"
           >
             {cooldown > 0
-              ? `Renvoyer le code (${String(cooldown)}s)`
-              : 'Renvoyer le code'}
+              ? `Resend code (${String(cooldown)}s)`
+              : 'Resend code'}
           </Button>
         </form>
 
@@ -139,12 +139,12 @@ export function VerifyEmailPage() {
               navigate('/login')
             }}
           >
-            Retour à la connexion
+            Back to login
           </button>
         </p>
 
         <p className="mt-6 border-t border-border pt-4 text-center text-[11.5px] text-subtle-foreground">
-          Compte géré par barrins_api.
+          Account managed by barrins_api.
         </p>
       </div>
     </div>

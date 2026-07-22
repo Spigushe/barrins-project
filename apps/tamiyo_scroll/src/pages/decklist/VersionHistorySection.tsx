@@ -17,7 +17,7 @@ export function VersionHistorySection() {
 
   return (
     <Card>
-      <CardTitle>Historique des versions</CardTitle>
+      <CardTitle>Version history</CardTitle>
       <div className="mt-3 flex flex-col gap-2">
         {versions?.map((version) => (
           <div
@@ -50,7 +50,7 @@ export function VersionHistorySection() {
           </div>
         ))}
         {(versions?.length ?? 0) === 0 && (
-          <p className="text-center text-muted-foreground">Aucune version enregistrée.</p>
+          <p className="text-center text-muted-foreground">No version saved.</p>
         )}
       </div>
     </Card>

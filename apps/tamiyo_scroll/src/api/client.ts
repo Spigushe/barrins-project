@@ -23,21 +23,21 @@ export async function parseErrorMessage(response: Response): Promise<string> {
       error?: { message?: string }
       detail?: string
     }
-    return data.error?.message ?? data.detail ?? `Erreur ${response.status.toString()}`
+    return data.error?.message ?? data.detail ?? `Error ${response.status.toString()}`
   } catch {
-    return `Erreur ${response.status.toString()}`
+    return `Error ${response.status.toString()}`
   }
 }
 
-// Une seule tentative de refresh en vol — les requêtes concurrentes qui
-// reçoivent un 401 pendant le refresh attendent la même promesse.
+// Only one refresh attempt in flight — concurrent requests that get a 401
+// during the refresh await the same promise.
 let refreshPromise: Promise<void> | null = null
 
 async function performRefresh(): Promise<void> {
   const { refreshToken } = sessionStore.get()
   if (!refreshToken) {
     clearSession()
-    throw new ApiError(401, 'Session expirée.')
+    throw new ApiError(401, 'Session expired.')
   }
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
     method: 'POST',
@@ -46,7 +46,7 @@ async function performRefresh(): Promise<void> {
   })
   if (!response.ok) {
     clearSession()
-    throw new ApiError(401, 'Session expirée.')
+    throw new ApiError(401, 'Session expired.')
   }
   setSession(tokenPairSchema.parse(await response.json()))
 }
@@ -58,8 +58,8 @@ export interface RequestConfig {
   body?: unknown
   params?: QueryParams
   /**
-   * Applique automatiquement `owner_id` (vue partagée) — GET uniquement.
-   * Ne jamais activer sur une mutation : cf.
+   * Automatically applies `owner_id` (shared view) — GET only.
+   * Never enable on a mutation: see
    * barrins_api/docs/tamiyo_scroll_tracker/00_plan_general.md, Option B.
    */
   applyOwnerParam?: boolean

@@ -22,7 +22,7 @@ export function LoginPage() {
     setError(null)
 
     if (!email || !password) {
-      setError('Identifiant et mot de passe requis.')
+      setError('Email and password required.')
       return
     }
 
@@ -39,7 +39,7 @@ export function LoginPage() {
         navigate('/app/metagame')
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Une erreur est survenue.')
+      setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
   }
 
@@ -47,10 +47,10 @@ export function LoginPage() {
     <div className="flex min-h-svh items-center justify-center px-4">
       <div className="w-full max-w-[400px] rounded-(--radius-login-card) border border-border bg-card p-8">
         <h1 className="text-center text-xl font-extrabold text-foreground">
-          Suivi Compétitif MTG
+          Competitive MTG Tracker
         </h1>
         <p className="mt-1 text-center text-[13px] text-muted-foreground">
-          {isSignup ? 'Créer un compte' : 'Connexion à votre suivi'}
+          {isSignup ? 'Create an account' : 'Log in to your tracker'}
         </p>
 
         <form className="mt-6 flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -69,7 +69,7 @@ export function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Mot de passe</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -89,12 +89,12 @@ export function LoginPage() {
             disabled={pending}
             className="mt-2 h-auto w-full rounded-[8px] py-3 font-bold"
           >
-            {isSignup ? 'Créer le compte' : 'Se connecter'}
+            {isSignup ? 'Create account' : 'Log in'}
           </Button>
         </form>
 
         <p className="mt-4 text-center text-[13px] text-muted-foreground">
-          {isSignup ? 'Déjà un compte ?' : 'Pas encore de compte ?'}{' '}
+          {isSignup ? 'Already have an account?' : "Don't have an account yet?"}{' '}
           <button
             type="button"
             className="cursor-pointer font-semibold text-accent hover:underline"
@@ -103,12 +103,12 @@ export function LoginPage() {
               setError(null)
             }}
           >
-            {isSignup ? 'Se connecter' : 'Créer un compte'}
+            {isSignup ? 'Log in' : 'Create an account'}
           </button>
         </p>
 
         <p className="mt-6 border-t border-border pt-4 text-center text-[11.5px] text-subtle-foreground">
-          Compte géré par barrins_identity.
+          Account managed by barrins_identity.
         </p>
       </div>
     </div>
