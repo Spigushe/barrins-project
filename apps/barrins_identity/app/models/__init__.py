@@ -7,11 +7,13 @@ operations (used by Alembic's env.py and by tests/conftest.py).
 
 from app.database import Base
 from app.models._types import JSONBCompat, JsonValue, jsonb_column
+from app.models.email_verification import EmailVerification
 from app.models.service_account import ServiceAccount
 from app.models.user import User, UserRole
 
 __all__ = [
     "Base",
+    "EmailVerification",
     "JSONBCompat",
     "JsonValue",
     "ServiceAccount",

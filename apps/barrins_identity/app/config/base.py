@@ -8,11 +8,18 @@ Classes:
     BaseAppSettings: Pydantic Settings class for core application config
 """
 
-from typing import Literal
+from typing import Literal, Self
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from pydantic import Field, PostgresDsn, SecretStr, computed_field, field_validator
+from pydantic import (
+    Field,
+    PostgresDsn,
+    SecretStr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings
 
 
@@ -88,6 +95,52 @@ class BaseAppSettings(BaseSettings):
     log_to_console: bool = Field(default=True, description="Enable console logging")
     log_to_file: bool = Field(default=True, description="Enable file logging")
 
+    # --- Self-registration & email verification ---
+    require_email_verification: bool = Field(
+        default=True,
+        description=(
+            "If False, POST /auth/signup creates an already-verified account "
+            "and logs the user in immediately (tokens in the response), "
+            "without creating an EmailVerification row or sending an email. "
+            "Temporary workaround while SMTP isn't configured."
+        ),
+    )
+    smtp_host: str | None = Field(
+        default=None,
+        description=(
+            "SMTP relay host. Empty in dev/test -> console logging instead "
+            "of actually sending. Required in production."
+        ),
+    )
+    smtp_port: int = Field(default=587, description="SMTP port (STARTTLS).")
+    smtp_username: str | None = Field(
+        default=None, description="SMTP username (dedicated address)."
+    )
+    smtp_password: SecretStr | None = Field(
+        default=None, description="SMTP app password — never logged."
+    )
+    smtp_use_tls: bool = Field(default=True, description="STARTTLS.")
+    smtp_from_address: str = Field(
+        default="barrins-identity@gmail.com",
+        description="Sender address — must match smtp_username for most relays.",
+    )
+    verification_code_ttl_minutes: int = Field(
+        default=15, ge=1, description="Verification code validity duration."
+    )
+    verification_max_attempts: int = Field(
+        default=5, ge=1, description="Attempts allowed before the code is invalidated."
+    )
+    verification_resend_cooldown_seconds: int = Field(
+        default=60, ge=0, description="Minimum delay between two code resends."
+    )
+    frontend_base_url: str = Field(
+        default="http://localhost:5173",
+        description=(
+            "Base used to build the confirmation link sent by email "
+            "({frontend_base_url}/verify-email)."
+        ),
+    )
+
     @field_validator("jwt_private_key")
     @classmethod
     def jwt_private_key_must_be_a_valid_rsa_key(cls, v: SecretStr) -> SecretStr:
@@ -107,6 +160,24 @@ class BaseAppSettings(BaseSettings):
     def database_url_sync(self) -> str:
         """Synchronous PostgreSQL connection URL (psycopg2) for Alembic."""
         return str(self.database_url).replace("+asyncpg", "+psycopg2")
+
+    @model_validator(mode="after")
+    def _production_requires_real_smtp_and_frontend_url(self) -> Self:
+        if self.environment != "production":
+            return self
+        if not self.require_email_verification:
+            return self
+        if not self.smtp_host:
+            raise ValueError(
+                "SMTP_HOST is required in production (sending verification codes)."
+            )
+        if self.frontend_base_url == "http://localhost:5173":
+            raise ValueError(
+                "FRONTEND_BASE_URL must be set in production — the default "
+                "value would point the email confirmation link to a "
+                "development environment."
+            )
+        return self
 
     model_config = {
         "env_file": ".env",

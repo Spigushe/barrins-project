@@ -16,10 +16,13 @@ from app.core.security import (
     dummy_verify,
     generate_client_id,
     generate_client_secret,
+    generate_verification_code,
     get_jwks,
     hash_password,
+    hash_verification_code,
     needs_rehash,
     verify_password,
+    verify_verification_code,
 )
 
 # ===========================================================================
@@ -206,3 +209,41 @@ class TestGetJwks:
         assert key["kid"] == "test-kid"
         assert isinstance(key["n"], str)
         assert isinstance(key["e"], str)
+
+
+# ===========================================================================
+# Email verification code
+# ===========================================================================
+
+
+class TestVerificationCode:
+    def test_generate_returns_six_digits(self):
+        code = generate_verification_code()
+        assert len(code) == 6
+        assert code.isdigit()
+
+    def test_generate_is_zero_padded(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr("app.core.security.secrets.randbelow", lambda _n: 42)
+        assert generate_verification_code() == "000042"
+
+    def test_hash_roundtrip_succeeds(self):
+        user_id = uuid.uuid4()
+        code = "123456"
+        stored = hash_verification_code(code, user_id)
+        assert verify_verification_code(code, user_id, stored)
+
+    def test_hash_differs_per_user(self):
+        code = "123456"
+        assert hash_verification_code(code, uuid.uuid4()) != hash_verification_code(
+            code, uuid.uuid4()
+        )
+
+    def test_verify_rejects_wrong_code(self):
+        user_id = uuid.uuid4()
+        stored = hash_verification_code("123456", user_id)
+        assert verify_verification_code("654321", user_id, stored) is False
+
+    def test_verify_rejects_wrong_user(self):
+        code = "123456"
+        stored = hash_verification_code(code, uuid.uuid4())
+        assert verify_verification_code(code, uuid.uuid4(), stored) is False

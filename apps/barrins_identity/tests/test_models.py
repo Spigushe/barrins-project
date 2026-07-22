@@ -1,7 +1,9 @@
 """Tests for app/models/ — 100% coverage target (tests.md §1)."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
+from app.models.email_verification import EmailVerification
 from app.models.service_account import ServiceAccount
 from app.models.user import User, UserRole
 
@@ -72,3 +74,31 @@ class TestServiceAccountModel:
             scopes=[],
         )
         assert account.id == account_id
+
+
+class TestEmailVerificationModel:
+    async def test_defaults_after_flush(self, db_session):
+        user = User(email="c@example.com", hashed_password="hashed")
+        db_session.add(user)
+        await db_session.flush()
+
+        verification = EmailVerification(
+            user_id=user.id,
+            code_hash="deadbeef",
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        )
+        db_session.add(verification)
+        await db_session.flush()
+        await db_session.refresh(verification)
+
+        assert verification.attempts == 0
+
+    def test_explicit_id(self):
+        verification_id = uuid.uuid4()
+        verification = EmailVerification(
+            id=verification_id,
+            user_id=uuid.uuid4(),
+            code_hash="deadbeef",
+            expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        )
+        assert verification.id == verification_id

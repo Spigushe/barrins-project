@@ -9,10 +9,16 @@ from pydantic import ValidationError
 
 from app.schemas.auth import (
     PASSWORD_RULE,
+    ResendVerificationRequest,
+    ResendVerificationResponse,
     ServiceTokenData,
+    SignupResponse,
     TokenData,
+    TokenPair,
     UserCreate,
     UserRead,
+    UserSignup,
+    VerifyEmailRequest,
 )
 from app.schemas.service_account import (
     ServiceAccountCreate,
@@ -169,3 +175,72 @@ class TestServiceTokenResponse:
     def test_defaults(self):
         resp = ServiceTokenResponse(access_token="tok", expires_in=900)
         assert resp.token_type == "bearer"
+
+
+# ===========================================================================
+# Self-registration & email verification schemas
+# ===========================================================================
+
+
+class TestUserSignup:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            UserSignup.model_validate(
+                {
+                    "email": "a@example.com",
+                    "password": "ValidPass#1word",
+                    "role": "admin",
+                }
+            )
+
+    def test_valid(self):
+        payload = UserSignup(email="a@example.com", password="ValidPass#1word")
+        assert payload.display_name is None
+
+
+class TestSignupResponse:
+    def test_defaults(self):
+        resp = SignupResponse()
+        assert resp.verification_required is True
+        assert resp.tokens is None
+
+    def test_with_tokens(self):
+        resp = SignupResponse(
+            verification_required=False,
+            tokens=TokenPair(access_token="a", refresh_token="b"),
+        )
+        assert resp.tokens is not None
+
+
+class TestVerifyEmailRequest:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            VerifyEmailRequest.model_validate(
+                {"email": "a@example.com", "code": "123456", "injected": "evil"}
+            )
+
+    def test_invalid_code_pattern_rejected(self):
+        with pytest.raises(ValidationError):
+            VerifyEmailRequest(email="a@example.com", code="abc123")
+
+    def test_valid(self):
+        req = VerifyEmailRequest(email="a@example.com", code="123456")
+        assert req.code == "123456"
+
+
+class TestResendVerificationRequest:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            ResendVerificationRequest.model_validate(
+                {"email": "a@example.com", "injected": "evil"}
+            )
+
+    def test_valid(self):
+        req = ResendVerificationRequest(email="a@example.com")
+        assert req.email == "a@example.com"
+
+
+class TestResendVerificationResponse:
+    def test_default_message(self):
+        resp = ResendVerificationResponse()
+        assert "If an account exists" in resp.detail

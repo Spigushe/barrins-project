@@ -65,6 +65,23 @@ class UserCreate(BaseModel):
     display_name: str | None = None
 
 
+class UserSignup(BaseModel):
+    """Self-registration payload (POST /auth/signup).
+
+    Deliberately restricted subset of UserCreate:
+    - `role` absent -> forced to UserRole.user server-side (no escalation).
+    - `is_verified` absent -> forced to False server-side.
+    - `extra="forbid"` -> explicit HTTP 422 if an undeclared field is sent
+      (detects a role-escalation attempt even if the handler would block it).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: PasswordStr
+    display_name: str | None = None
+
+
 class UserRead(BaseModel):
     """Public representation of a user (without password)."""
 
@@ -112,3 +129,50 @@ class ServiceTokenData(BaseModel):
     sub: str  # client_id
     scopes: list[str]
     token_version: int  # claim "tkv" — revocation check
+
+
+# ---------------------------------------------------------------------------
+# Self-registration & email verification schemas
+# ---------------------------------------------------------------------------
+
+
+class SignupResponse(BaseModel):
+    """Response of POST /auth/signup.
+
+    `verification_required=True` (default): unverified account created, code
+    sent by email, `tokens` absent — the client must go through
+    POST /auth/signup/verify. `verification_required=False`
+    (`REQUIRE_EMAIL_VERIFICATION=false`): account already verified, `tokens`
+    present — the client is logged in immediately, no additional call needed.
+    """
+
+    detail: str = "Account created. Check your inbox to activate your account."
+    verification_required: bool = True
+    tokens: TokenPair | None = None
+
+
+class VerifyEmailRequest(BaseModel):
+    """Payload of POST /auth/signup/verify."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    code: str = Field(pattern=r"^\d{6}$", description="6-digit code received by email.")
+
+
+class ResendVerificationRequest(BaseModel):
+    """Payload of POST /auth/signup/resend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class ResendVerificationResponse(BaseModel):
+    """Generic response of POST /auth/signup/resend.
+
+    The message never varies based on whether the account exists
+    (constitution §23.2 — anti-enumeration).
+    """
+
+    detail: str = "If an account exists for this address, a new code has been sent."

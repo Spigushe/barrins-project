@@ -6,7 +6,10 @@ load — not on every token decode or every JWKS request (platform.md §8,
 """
 
 import base64
+import hashlib
+import hmac
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -50,9 +53,14 @@ def verify_password(plain: str, hashed: str) -> bool:
     Returns False for any invalid or malformed hash — never raises.
     Note: the argon2-cffi argument order is verify(hashed, plain).
     """
+    # `# fmt: skip`: keeps the parenthesized tuple form — PEP 758 (3.14)
+    # makes the parens optional and ruff's formatter (targeting this
+    # project's declared >=3.14) wants to drop them, but the parenthesized
+    # form is valid on every Python version, including whichever 3.13.x
+    # this repo's CI/local tooling may still run before a full 3.14 cutover.
     try:
         return _hasher.verify(hashed, plain)
-    except (VerificationError, InvalidHashError):
+    except (VerificationError, InvalidHashError):  # fmt: skip
         return False
 
 
@@ -75,7 +83,7 @@ def dummy_verify(plain: str) -> None:
     """
     try:
         _hasher.verify(_DUMMY_HASH, plain)
-    except (VerificationError, InvalidHashError):
+    except (VerificationError, InvalidHashError):  # fmt: skip
         pass
 
 
@@ -243,3 +251,28 @@ def generate_client_id() -> str:
 def generate_client_secret() -> str:
     """Generate a new service-account client_secret (shown once, plaintext)."""
     return secrets.token_urlsafe(32)
+
+
+# ---------------------------------------------------------------------------
+# Email verification code (self-registration)
+# ---------------------------------------------------------------------------
+# A 6-digit OTP doesn't need Argon2: the protection comes from the throttle
+# (attempts/cooldown, cf. app/api/v1/auth.py), not the hash cost.
+
+
+def generate_verification_code() -> str:
+    """Generate a 6-digit verification code (CSPRNG, zero-padded)."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def hash_verification_code(code: str, user_id: uuid.UUID) -> str:
+    """Hash a verification code, bound to the user.
+
+    The binding to `user_id` prevents a hash from being reused across accounts.
+    """
+    return hashlib.sha256(f"{code}:{user_id}".encode()).hexdigest()
+
+
+def verify_verification_code(code: str, user_id: uuid.UUID, code_hash: str) -> bool:
+    """Compare a plaintext code to its hash in constant time."""
+    return hmac.compare_digest(hash_verification_code(code, user_id), code_hash)

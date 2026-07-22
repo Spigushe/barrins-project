@@ -183,13 +183,17 @@ Consumers (`apps/barrins_api/app/config/base.py`, later `tolaria_news`,
 - `ServiceAccount` (new) — `client_id`, hashed `client_secret` (Argon2id,
   same mechanism as user passwords — never stored or logged in plaintext),
   `scopes`, `is_active`, `token_version`.
+- `EmailVerification` — same shape as
+  `apps/barrins_api/app/models/email_verification.py`, one pending row per
+  unverified account (`UNIQUE(user_id)`), used by the self-registration
+  flow in §8.
 
 Stack: SQLAlchemy 2.x (`Mapped[...]` / `mapped_column`), Alembic
-(hand-written initial migration, two tables — no autogenerate needed for a
-schema this small), Pydantic v2 schemas with `extra="forbid"` on every input
-schema, PyJWT (not `python-jose` — picks up the `barrins_api` TODO item to
-drop `python-jose`, but only in the new service; `barrins_api` itself drops
-the dependency entirely once it only verifies tokens, see §9).
+(hand-written migrations — no autogenerate needed for a schema this small),
+Pydantic v2 schemas with `extra="forbid"` on every input schema, PyJWT (not
+`python-jose` — picks up the `barrins_api` TODO item to drop
+`python-jose`, but only in the new service; `barrins_api` itself drops the
+dependency entirely once it only verifies tokens, see §9).
 
 ---
 
@@ -211,6 +215,32 @@ account) return the same `401` with the same message, in the order
 distinguished from a wrong password by timing or status code — same
 anti-enumeration pattern already used in `barrins_api` (see
 [auth_roles.md](../barrins_api/auth_roles.md)).
+
+### Self-registration & email verification (`.../auth.py`)
+
+Ported as-is from `barrins_api`'s existing, working implementation
+(constitution §13.2–§13.3), gated behind `REQUIRE_EMAIL_VERIFICATION`
+(default `true`) so the flow can be enabled without a code change once
+SMTP is configured:
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| `POST` | `/signup` | none | Creates an unverified account, sends a 6-digit code by email. Returns `409` if the email is already registered, `502` (no account created) if the email fails to send. |
+| `POST` | `/signup/verify` | none | Validates the code, sets `is_verified=True`, returns a token pair. `400` for any invalid/expired/missing code (single message), `409` if already verified, `429` beyond `VERIFICATION_MAX_ATTEMPTS`. |
+| `POST` | `/signup/resend` | none | Always returns the same generic `202` message regardless of whether the account exists, is already verified, or is in cooldown (anti-enumeration). |
+
+If `REQUIRE_EMAIL_VERIFICATION=false` (temporary workaround while SMTP
+isn't configured), `/signup` creates an already-verified account and logs
+the user in immediately — no email sent, no `EmailVerification` row
+created. `SMTP_HOST`/`FRONTEND_BASE_URL` are only required in production
+while this flag is `true` (same `_production_requires_real_smtp_and_frontend_url`
+model validator as `barrins_api`).
+
+Email sending goes through an `EmailSender` protocol
+(`app/services/email/`) — `ConsoleEmailSender` (logs instead of sending,
+used whenever `SMTP_HOST` is empty) or `SMTPEmailSender` (stdlib
+`smtplib`, no new dependency). New table: `auth_email_verifications`
+(one row per pending account, `UNIQUE(user_id)`).
 
 ### Service accounts (`.../routers/service_accounts.py`)
 

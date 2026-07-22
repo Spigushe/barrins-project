@@ -9,6 +9,11 @@ Tests doc for the test plan.
 - Human login: `POST /api/v1/auth/token`, `POST /api/v1/auth/refresh`,
   `POST /api/v1/auth/register` (admin), `GET /api/v1/auth/me`,
   `POST /api/v1/auth/logout`.
+- Self-registration + email verification, gated by `REQUIRE_EMAIL_VERIFICATION`
+  (default `true`): `POST /api/v1/auth/signup`,
+  `POST /api/v1/auth/signup/verify`, `POST /api/v1/auth/signup/resend`.
+  When `false` (no SMTP configured yet), signup creates an already-verified
+  account and logs the user in immediately.
 - Service accounts (machine-to-machine, `client_credentials`-style):
   `POST /api/v1/service-accounts` (create, admin),
   `GET /api/v1/service-accounts` (list, admin),
@@ -29,11 +34,9 @@ RS256 signing, Argon2id password/secret hashing, per-IP rate limiting on
   data; it was intentionally left for a follow-up task.
 - `tolaria_news` routes and their `service-token` scope checks —
   platform.md §10 (front is still under specification).
-- Self-service registration + email verification (constitution §13.2–13.3).
-  `platform.md` §8 only documents an admin-only `/register`; the
-  self-signup + email-verification flow from `barrins_api` was not carried
-  over to this new service. See the implementation decision log for
-  details.
+- Password reset, account deletion, global account settings, and per-app
+  settings — none of these are part of `platform.md`'s scope and haven't
+  been designed yet.
 
 ## Quickstart
 

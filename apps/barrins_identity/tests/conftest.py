@@ -87,6 +87,18 @@ def _reset_rate_limiter() -> None:
     limiter.reset()
 
 
+@pytest.fixture(autouse=True)
+def _stable_test_settings(monkeypatch: pytest.MonkeyPatch):
+    """Forces reproducible test defaults for the signup/verification routes.
+
+    Tests must control their own application configuration and must not
+    depend on the repo's `.env` file to behave correctly.
+    """
+    monkeypatch.setattr(settings.base, "require_email_verification", True)
+    monkeypatch.setattr(settings.base, "smtp_host", None)
+    monkeypatch.setattr(settings.base, "frontend_base_url", "http://localhost:5173")
+
+
 # ---------------------------------------------------------------------------
 # Engine & tables (session-scoped — created once per test run, SYNC)
 # ---------------------------------------------------------------------------
