@@ -27,10 +27,15 @@ import os
 
 from tests.helpers import ensure_test_db_exists, generate_ephemeral_rsa_private_key_pem
 
-os.environ.setdefault("ALLOWED_ORIGINS", '["http://localhost:5173"]')
-os.environ.setdefault("JWT_PRIVATE_KEY", generate_ephemeral_rsa_private_key_pem())
-os.environ.setdefault("JWT_KID", "test-kid")
-os.environ.setdefault("LOG_TO_FILE", "false")
+# Unconditional, not setdefault: VS Code's Python extension auto-loads this
+# app's .env into the test-runner process (python.terminal.useEnvFile +
+# equivalent test/debug env loading), so these vars are often already
+# present with real values by the time this module runs. setdefault would
+# silently keep those real values instead of the test-safe ones below.
+os.environ["ALLOWED_ORIGINS"] = '["http://localhost:5173"]'
+os.environ["JWT_PRIVATE_KEY"] = generate_ephemeral_rsa_private_key_pem()
+os.environ["JWT_KID"] = "test-kid"
+os.environ["LOG_TO_FILE"] = "false"
 
 from collections.abc import AsyncGenerator, Generator
 from importlib import import_module
