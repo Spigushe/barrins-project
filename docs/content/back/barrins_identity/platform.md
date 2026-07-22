@@ -13,10 +13,10 @@
 > explicitly a live-data migration requiring a user-confirmed maintenance
 > window, and §10 depends on front specification that isn't final yet.
 > **§14–§18 (below) are proposed, not implemented** — password reset,
-> account deletion, global account settings, and per-app settings. Per
-> constitution §16.4, they require explicit user sign-off on the open
-> design questions in §18 and a confirmed [test plan](./tests.md) extension
-> before any code is written.
+> account deletion, global account settings, and per-app settings. The
+> open design questions in §18 are now **confirmed by the user**
+> (2026-07-22); implementation is still blocked on the [test plan](./tests.md)
+> extension (§7–§11 there) being confirmed, per constitution §16.4.
 > **Supersedes**: the "Future Architecture Proposal" previously on this page
 > (OAuth2/OIDC, "wait for a second account-based app") and constitution §40 in
 > their prior form. See [Superseded decision](#2-superseded-decision) below
@@ -375,9 +375,9 @@ document and must not be reintroduced:
 
 ## 14. Password reset
 
-> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on the
-> mechanism choice below (§18.3) and a confirmed test plan
-> ([tests.md](./tests.md) §7–§8) before implementation.
+> **Status**: 🟦 Proposed, mechanism confirmed by the user (§18.3). Not
+> implemented — still blocked on the [test plan](./tests.md) (§7–§8)
+> being confirmed.
 
 ### 14.1 Mechanism
 
@@ -431,6 +431,19 @@ which also does not gate login on `is_verified` today (only `is_active`
 is checked). It does implicitly require `is_active=True` to find a
 matching row, for the reason above.
 
+**No `REQUIRE_EMAIL_VERIFICATION` bypass for reset itself.** Unlike
+signup (§8) and email change (§16.2), password reset always goes through
+the code + throttle mechanism — there is no flag that skips proving inbox
+ownership here, because unlike those two flows, "forgot password" is
+specifically the scenario where the requester has no other credential to
+fall back on. The "console instead of a real email in dev/staging"
+behavior already exists independently of that flag: `get_email_sender()`
+returns `ConsoleEmailSender` (logs the code instead of sending it)
+whenever `SMTP_HOST` is empty, and `SMTPEmailSender` otherwise — the same
+selection every other code-based flow already uses. Dev/staging without
+SMTP configured sees the code in the console log; nothing about
+`REQUIRE_EMAIL_VERIFICATION` changes that.
+
 ### 14.4 Email delivery
 
 New `EmailSender` protocol method, `send_password_reset_code(*, to_email,
@@ -446,8 +459,9 @@ string flag.
 
 ## 15. Account deletion
 
-> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on soft vs.
-> hard delete (§18.2) before implementation.
+> **Status**: 🟦 Proposed, soft-delete confirmed by the user (§18.2). Not
+> implemented — still blocked on the [test plan](./tests.md) (§9) being
+> confirmed.
 
 ### 15.1 Soft vs. hard delete
 
@@ -505,7 +519,11 @@ because it's independently necessary here.
 
 ## 16. Global account settings
 
-> **Status**: 🟦 Proposed. Not implemented.
+> **Status**: 🟦 Proposed — no open alternative here (the intermediate
+> email-change state is forced by the constitution's own "old address
+> stays authoritative until confirmed" requirement, §16.2 below). Not
+> implemented — still blocked on the [test plan](./tests.md) (§10) being
+> confirmed.
 
 ### 16.1 Route split: `/auth/me` vs. `/users/me`
 
@@ -584,8 +602,10 @@ string.
 
 ## 17. Per-app settings
 
-> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on the data
-> shape (§18.1) before implementation.
+> **Status**: 🟦 Proposed, data shape confirmed by the user (§18.1). Not
+> implemented — still blocked on the [test plan](./tests.md) (§11) being
+> confirmed, and on the `barrins_api` BFF wiring timing (§18.4, also
+> confirmed).
 
 ### 17.1 Data shape
 
@@ -659,32 +679,36 @@ is not wired today (§18.4, §5 non-goals).
 
 ---
 
-## 18. Open design decisions requiring sign-off
+## 18. Open design decisions — sign-off record
 
-Per constitution §16.2/§16.3, these are presented as alternatives with a
-recommendation — not silently decided. Implementation of §14–§17 above
-does not start until the user has signed off on 18.1–18.3, and until the
-[test plan](./tests.md) extension (§7–§11 there) is confirmed.
+Per constitution §16.2/§16.3, these were presented as alternatives with a
+recommendation, not silently decided. **All four are now confirmed by the
+user** (2026-07-22); implementation of §14–§17 may proceed once the
+[test plan](./tests.md) extension (§7–§11) is also confirmed.
 
-### 18.1 Per-app settings data shape (§17.1)
+### 18.1 Per-app settings data shape (§17.1) — confirmed
 
-Recommended: **(a) opaque JSON blob**, matching the existing
-`ServiceAccount.scopes` `JSONBCompat` precedent.
+**(a) Opaque JSON blob**, matching the existing `ServiceAccount.scopes`
+`JSONBCompat` precedent.
 
-### 18.2 Account deletion: soft vs. hard delete (§15.1)
+### 18.2 Account deletion: soft vs. hard delete (§15.1) — confirmed
 
-Recommended: **soft delete** with anonymized `email`/`display_name`,
-given `barrins_identity` is the FK anchor for every other app's
-user-owned data.
+**Soft delete** with anonymized `email`/`display_name`, given
+`barrins_identity` is the FK anchor for every other app's user-owned
+data.
 
-### 18.3 Password reset mechanism (§14.1)
+### 18.3 Password reset mechanism (§14.1) — confirmed
 
-Recommended: **6-digit code + throttle, new sibling table
-`PasswordResetCode`** — reuses the existing hashing/throttle helpers,
-avoids widening `auth_email_verifications`'s unique constraint on an
-already-shipped table.
+**6-digit code + throttle, new sibling table `PasswordResetCode`** —
+reuses the existing hashing/throttle helpers, avoids widening
+`auth_email_verifications`'s unique constraint on an already-shipped
+table. Always required, in every environment — confirmed there is no
+`REQUIRE_EMAIL_VERIFICATION`-style bypass for reset itself (§14.3):
+dev/staging without `SMTP_HOST` configured sees the code via
+`ConsoleEmailSender`'s log line rather than a real email, same as every
+other code-based flow already gets — not a separate, weaker path.
 
-### 18.4 `barrins_api` BFF ↔ `barrins_identity` settings contract timing
+### 18.4 `barrins_api` BFF ↔ `barrins_identity` settings contract timing — confirmed
 
 The user-ID mismatch: `barrins_api`'s own `users` table (local,
 pre-cutover) and `barrins_identity`'s `users` table are not the same rows
@@ -698,11 +722,11 @@ today — this is the same gap Phase 9 (§9) exists to close. A BFF route in `ba
 | **1. Design + implement `barrins_identity`-side only now (chosen)** | Routes, schemas, tests for §14–§17 ship in `barrins_identity`. `barrins_api`'s BFF wiring to this contract is a documented, unwired follow-up for Phase 9. | Lowest risk, no dependency on the cutover timeline. |
 | 2. Wire a working BFF integration now, via a `barrins_identity` service-account token | `barrins_api` would call `barrins_identity`'s settings API server-to-server on a user's behalf. | **Blocked**, not just deprioritized: this only works if `barrins_api` passes a real `barrins_identity` user UUID, which it doesn't have pre-cutover. The only way around that is a temporary ID-mapping table — throwaway complexity ahead of a cutover (§9) that makes it unnecessary. Not recommended. |
 
-Recommended: **option 1**. This is not really a subjective trade-off
-between two viable paths (option 2 is mechanically blocked today) — it's
-flagged here for explicit sign-off because it means `tamiyo_scroll`'s
+**Confirmed: option 1.** This was not really a subjective trade-off
+between two viable paths (option 2 is mechanically blocked today) — it
+was flagged for explicit sign-off because it means `tamiyo_scroll`'s
 existing `TSUserSettings` BFF route stays exactly as it is, unmodified,
-until Phase 9, which is worth confirming the user is fine waiting for.
+until Phase 9. The user confirmed this is fine.
 
 ### 18.5 Flagged, not resolved: `username` field
 
