@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Within each release, changes are grouped by sub-repo (`docs`,
-`back/barrins_api`, `back/barrins_identity`,
+`back/barrins_api`, `back/barrins_identity`, `back/karn_tablets`,
 `front/tamiyo_scroll`, `front/tolaria_news`, `front/goblin_guide`, `ops`),
 then by the standard Keep a Changelog categories (Added, Changed,
 Deprecated, Removed, Fixed, Security). Only sub-repos with actual changes
@@ -52,6 +52,20 @@ appear in a given release.
   and `docs/content/front/goblin_guide/` index pages and their linked
   navigation sidecars, so the docs site reflects the current app split
   between backend planning and frontend-facing experiences.
+- `docs/content/CLAUDE.md` §21.3 "Relative links in app READMEs":
+  documents the constraint that `apps/<app>/README.md` files render in
+  two different locations with two different base paths — directly on
+  GitHub, and copied by `docs/hooks/sync_readmes.py` into their
+  generated `docs/content/**/<app>/index.md` page — so a single
+  relative link cannot be correct in both. App READMEs must reference
+  other docs pages in prose only; the sibling `_links.md` file is the
+  only place raw cross-page links belong.
+- `docs/content/back/karn_tablets/` docs page (`_links.md` linking to
+  `front/tolaria_news/platform.md` §3 and `back/barrins_identity/`'s
+  platform/tests docs, plus the corresponding `mkdocs.yml` nav entry
+  and `back/index.md` listing), giving
+  `docs/hooks/sync_readmes.py` a target to sync
+  `apps/karn_tablets/README.md` into.
 
 #### Changed
 
@@ -76,6 +90,11 @@ appear in a given release.
   terms surfaced by the new auth/signup documentation (`checkfirst`,
   `passlib`, `pyproject`, `Referer`, `STARTTLS`, `userrole`, `VARCHAR`,
   among others).
+- `docs/hooks/sync_readmes.py`: docstring now states the relative-link
+  constraint explicitly, next to the mechanism that causes it (see
+  `docs/content/CLAUDE.md` §21.3).
+- `docs/content/back/index.md`: added Karn Tablets to the backend app
+  list.
 
 #### Fixed
 
@@ -87,6 +106,10 @@ appear in a given release.
   `back/barrins_api/bff/tamiyo_scroll.md`); also added the missing nav
   entries for `front/tamiyo_scroll/bootstrap.md` and the incidents
   pages, which were causing `mkdocs build --strict` to fail.
+- Root `.gitignore`: added the missing generated-`index.md` entries for
+  `front/tolaria_news` and `front/goblin_guide` (both already had doc
+  pages but were absent from the ignore list) alongside the new
+  `back/karn_tablets/index.md`.
 
 ### back/barrins_api
 
@@ -129,6 +152,17 @@ appear in a given release.
 #### Changed
 
 - Translated `README.md` from French to English.
+
+### back/karn_tablets
+
+#### Added
+
+- `README.md`: placeholder for the periodic ML/analytics calculation
+  backend described in `front/tolaria_news/platform.md` §3 — reads
+  tournament/decklist data from `barrins_api` and writes computed
+  results back. Flags the same five open items (app name/location,
+  auth mechanism, schedule, write-back payload shape, underlying data
+  pipeline) as informational-only, pending confirmation.
 
 ### back/barrins_identity
 

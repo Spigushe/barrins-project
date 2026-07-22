@@ -31,6 +31,8 @@ nav:
                 - Home: back/barrins_identity/index.md
                 - Platform: back/barrins_identity/platform.md
                 - Tests: back/barrins_identity/tests.md
+          - Karn Tablets:
+                - Home: back/karn_tablets/index.md
     - Frontend:
           - Home: front/index.md
           - Tamiyo Scroll:

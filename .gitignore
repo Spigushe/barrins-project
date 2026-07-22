@@ -18,4 +18,7 @@ apps/barrins_api/logs/
 # Add a new line here whenever an app gets a doc page under docs/content/**/<app>/.
 docs/content/back/barrins_api/index.md
 docs/content/back/barrins_identity/index.md
+docs/content/back/karn_tablets/index.md
 docs/content/front/tamiyo_scroll/index.md
+docs/content/front/tolaria_news/index.md
+docs/content/front/goblin_guide/index.md

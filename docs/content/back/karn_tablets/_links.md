@@ -1,0 +1,2 @@
+- [Tolaria News Platform §3 — karn_tablets detail](../../front/tolaria_news/platform.md#3-backend-side-detail-karn_tablets-informational-only)
+- [Barrin's Identity Platform](../barrins_identity/platform.md)

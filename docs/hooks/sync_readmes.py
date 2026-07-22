@@ -4,6 +4,13 @@ docs/content/**/<app>/index.md is generated output — do not edit it directly.
 Nav links that need to survive the copy live in a sibling `_links.md` file
 (excluded from the built site via `exclude_docs` in mkdocs.yml) and are
 appended under a "## See also" section.
+
+Constraint: an app README is rendered in two places with two different
+base paths — on GitHub relative to `apps/<app>/`, and here relative to the
+generated `index.md`'s directory. A relative link cannot be correct in
+both, so README files must not embed raw relative links into
+`docs/content/`; put those in the sibling `_links.md` instead (see
+docs/content/CLAUDE.md §21.3).
 """
 
 from pathlib import Path

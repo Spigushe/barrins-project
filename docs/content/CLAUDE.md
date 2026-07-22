@@ -1226,6 +1226,28 @@ Examples:
 - security flow;
 - deployment changes.
 
+### 21.3 Relative links in app READMEs
+
+`apps/<app>/README.md` files are rendered in two different locations:
+
+- directly on GitHub, relative to `apps/<app>/`;
+- copied verbatim by `docs/hooks/sync_readmes.py` into
+  `docs/content/<section>/<app>/index.md` during the mkdocs build,
+  relative to that different directory — whenever a matching docs page
+  already exists there.
+
+A single relative link cannot be correct in both places at once.
+Therefore:
+
+- App READMEs must not contain raw relative links into `docs/content/`.
+- Links to other documentation pages belong in the sibling `_links.md`
+  file next to the target `index.md` (see `docs/hooks/sync_readmes.py`);
+  these are appended under a generated "## See also" section and are
+  relative to `docs_dir`, so they resolve correctly in the built site.
+- If no docs page exists yet for the app, refer to the other document by
+  name in prose only — do not promise a link the sync step cannot
+  produce.
+
 ---
 
 ## 22. Dependency Management
