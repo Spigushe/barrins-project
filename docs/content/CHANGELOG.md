@@ -114,8 +114,46 @@ sub-repos with actual changes appear in a given release.
 
 - Translated `README.md` from French to English.
 
+### ops
+
+#### Changed
+
+- `.github/workflows/CI.yml`: translated remaining French inline comments
+  and step names to English.
+
 ### front/tamiyo_scroll
+
+#### Added
+
+- Initial scaffold of the Tamiyo Scroll frontend (React 19, TypeScript,
+  Vite, React Router, TanStack Query, Zod, TailwindCSS, shadcn/ui
+  components).
+- Authentication flow: login page, self-registration email verification
+  page, and a `ProtectedRoute` guard backed by a session store
+  consuming the `barrins_api` `/api/v1/auth` endpoints.
+- Metagame tab: personal decks list with Moxfield decklist import, a
+  meta/opponent deck roster, and aggregated archetype/matchup
+  statistics sections.
+- Suivi BO3 tab: match journal, new-match form, and card-test feedback
+  section, backed by the BO3 match log and card-test BFF endpoints.
+- Decklist tab: current decklist view (colored by card-test feedback)
+  and version history section.
+- Read-only "viewing owner" selector (header) and `active-deck-context`
+  for sharing another user's data without allowing edits, per the
+  BFF's read-only sharing settings.
+- App shell layout with tab navigation, and a centralized typed API
+  client (`src/api/client.ts`) with Zod-validated request/response
+  schemas (`src/schemas/tamiyoScroll.ts`).
+- Test suite (Vitest + Testing Library) covering the API client, card
+  tests, active-deck context, match form, and card-tests section.
 
 #### Changed
 
 - Translated `README.md` from French to English.
+- Translated remaining French UI text (labels, buttons, placeholders,
+  error messages) and code comments across the app — `index.css`,
+  `active-deck-context.tsx`, `lib/mtg-format.ts`,
+  `schemas/tamiyoScroll.ts`, `LoginPage.tsx`, `VerifyEmailPage.tsx`,
+  the decklist, metagame, and Suivi BO3 sections, `AppShell.tsx`,
+  `lib/store.ts`, `lib/queryClient.ts`, `api/client.ts`,
+  `api/viewingOwner.ts`, and `hooks/useViewingOwner.ts` — to English.
