@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v4 # TO UPDATE if a newer version exists
+        uses: astral-sh/setup-uv@v7 # TO UPDATE if a newer version exists
         with:
           enable-cache: true
       - name: Install deps
@@ -72,7 +72,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
       - name: Lint playbooks
         run: uvx ansible-lint ops/myserver # TO UPDATE with the exact path to your playbooks
 
@@ -90,7 +90,7 @@ jobs:
       - name: Spellcheck (cspell)
         run: npx --yes cspell --config docs/cspell.json "docs/content/**/*.md" --exclude "docs/content/**/_links.md"
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
       - name: Build MkDocs
         run: uvx --with mkdocs-material mkdocs build --strict -f docs/mkdocs.yml
 
