@@ -1,0 +1,74 @@
+"""Tests for app/models/ — 100% coverage target (tests.md §1)."""
+
+import uuid
+
+from app.models.service_account import ServiceAccount
+from app.models.user import User, UserRole
+
+
+class TestUserRoleLevel:
+    def test_user_level(self):
+        assert UserRole.user.level == 1
+
+    def test_moderator_level(self):
+        assert UserRole.moderator.level == 2
+
+    def test_ml_developer_level(self):
+        assert UserRole.ml_developer.level == 3
+
+    def test_admin_level(self):
+        assert UserRole.admin.level == 4
+
+    def test_str_value(self):
+        assert UserRole.admin == "admin"
+        assert UserRole.user == "user"
+
+
+class TestUserModel:
+    async def test_defaults_after_flush(self, db_session):
+        """Column defaults (role, is_active, is_verified, token_version) are
+        applied by SQLAlchemy at flush time, not at __init__ — see
+        db_session-backed assertion here rather than a bare constructor
+        check."""
+        user = User(email="a@example.com", hashed_password="hashed")
+        db_session.add(user)
+        await db_session.flush()
+        await db_session.refresh(user)
+
+        assert user.role == UserRole.user
+        assert user.is_active is True
+        assert user.is_verified is False
+        assert user.token_version == 0
+        assert user.display_name is None
+
+    def test_explicit_id(self):
+        user_id = uuid.uuid4()
+        user = User(id=user_id, email="b@example.com", hashed_password="hashed")
+        assert user.id == user_id
+
+
+class TestServiceAccountModel:
+    async def test_defaults_after_flush(self, db_session):
+        account = ServiceAccount(
+            client_id="sa_test",
+            hashed_client_secret="hashed",
+            scopes=["tolaria:read"],
+        )
+        db_session.add(account)
+        await db_session.flush()
+        await db_session.refresh(account)
+
+        assert account.is_active is True
+        assert account.token_version == 0
+        assert account.description is None
+        assert account.scopes == ["tolaria:read"]
+
+    def test_explicit_id(self):
+        account_id = uuid.uuid4()
+        account = ServiceAccount(
+            id=account_id,
+            client_id="sa_test2",
+            hashed_client_secret="hashed",
+            scopes=[],
+        )
+        assert account.id == account_id

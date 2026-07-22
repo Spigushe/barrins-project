@@ -5,8 +5,13 @@
 > `apps/barrins_api/` and, once built, by `apps/tolaria_news/` and
 > `apps/tamiyo_scroll/`. Frontend: `apps/goblin_guide/` (placeholder, see
 > [Goblin Guide](../../front/goblin_guide/bootstrap.md)).
-> **Status**: ⬜ Planned — documentation prepared, implementation not started
-> (2026-07-22)
+> **Status**: 🟨 Partially implemented (2026-07-22) — the standalone
+> `barrins-identity` service (§6–§8: config, models, RS256 security, human
+> login, service accounts, JWKS) is built on `feat/barrins-identity` per
+> the confirmed [test plan](./tests.md). Phase 9 (`barrins_api` cutover)
+> and Phase 10 (Tolaria News routes) are **not** implemented — §9 is
+> explicitly a live-data migration requiring a user-confirmed maintenance
+> window, and §10 depends on front specification that isn't final yet.
 > **Supersedes**: the "Future Architecture Proposal" previously on this page
 > (OAuth2/OIDC, "wait for a second account-based app") and constitution §40 in
 > their prior form. See [Superseded decision](#2-superseded-decision) below
@@ -276,18 +281,16 @@ routes as a hypothetical justification.
 
 ## 11. Open questions before implementation starts
 
-1. **Shared `identity_client/` package vs. copy-per-app** (§4) — since every
-   consumer already lives in this monorepo, is a copied module still the
-   right call, or should it be a shared `libs/` package now that there's no
-   separate-repo packaging problem to avoid? Needs a decision before
-   Phase 9.
-2. **`apps/tolaria_news` scope and timeline** — this plan assumes
-   `tolaria_news` gets backend routes inside `apps/barrins_api` (BFF-style,
-   like `tamiyo_scroll`'s `ts_router`). Confirm this is still the intended
-   shape before Phase 11 is scheduled, since front is currently under
-   specification.
-3. **Role rename `role_c` → `moderator`** (§7) — confirm final name before
-   Phase 3, since it's easier to pick once than to rename twice.
+1. **Shared `identity_client/` package vs. copy-per-app** (§4) — still open,
+   deferred to Phase 9 (not started tonight). Leaning towards copy-per-app
+   as documented, but not yet decided.
+2. **`apps/tolaria_news` scope and timeline** — still open, deferred to
+   Phase 10/11 (front under specification).
+3. **Role rename `role_c` → `moderator`** — **resolved**: `moderator` is
+   the name implemented in `app/models/user.py` (this app's `UserRole`
+   enum). See the implementation decision log in this app's README /
+   session notes for the full list of choices made during the unattended
+   implementation pass on 2026-07-22, flagged for review.
 
 ---
 
