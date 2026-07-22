@@ -153,6 +153,12 @@ appear in a given release.
 
 - Translated `README.md` from French to English.
 
+#### Fixed
+
+- `app/main.py`: replaced the deprecated `AsyncIterator` return-type
+  annotation on the `lifespan` context manager with `AsyncGenerator`,
+  per `@asynccontextmanager`'s updated typing guidance.
+
 ### back/karn_tablets
 
 #### Added

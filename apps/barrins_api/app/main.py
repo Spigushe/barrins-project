@@ -12,7 +12,7 @@ Endpoints:
 
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     # Startup checks
     logger.info(settings.project_version)
     logger.info(settings.base.__repr__())
