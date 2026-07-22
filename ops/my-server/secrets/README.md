@@ -21,13 +21,20 @@ secrets/
     production.env           # real values, git-ignored, local-only
     staging.env.example
     staging.env
+  postgresql_pgadmin/
+    admin_password.txt.example  # plaintext template, committed
+    admin_password.txt          # real value, git-ignored, local-only
 ```
 
 `*.env.example` files are plain templates (no real secrets) copied from
 the app's own `.env.example` in the `barrins-project` repo — kept here so
 the required keys are visible without checking out a second repo. `*.env`
 (without `.example`) holds the real values and must **never** be
-committed, encrypted or not.
+committed, encrypted or not. Some secrets are a single value rather than a
+full `.env` (e.g. `postgresql_pgadmin`'s admin password) — same rule, just
+a bare-value file instead of `KEY=VALUE` lines. `.gitignore` allow-lists
+`*.example`/`README.md` under `secrets/` and ignores everything else by
+default, so a new secret file is safe regardless of what it's named.
 
 ## Creating a local `.env`
 
@@ -54,9 +61,10 @@ local copy at the same path.
 
 ## Safety
 
-- **Never commit a `secrets/**/*.env` file** (`.example` files are fine).
-  Run `./scripts/check_no_secrets_committed.sh` before committing to
-  verify none are staged. Wire it up as a pre-commit hook with
+- **Never commit a real secret file under `secrets/`** (`.example` files
+  and `README.md` are the only exceptions). Run
+  `./scripts/check_no_secrets_committed.sh` before committing to verify
+  none are staged. Wire it up as a pre-commit hook with
   `ln -s ../../scripts/check_no_secrets_committed.sh .git/hooks/pre-commit`.
 - If you do encrypt a file with `ansible-vault`, back up
   `.vault-password-file.txt` somewhere safe outside this repo (a password

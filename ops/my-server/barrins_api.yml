@@ -5,8 +5,8 @@
 # running; they must never redeploy the backend themselves (see the root
 # README's "Multiple frontends sharing one backend" section).
 - hosts: spigushe
-  become: "yes"
-  gather_facts: "no"
+  become: true
+  gather_facts: false
   vars:
     username: spigushe
     # Generated on GitHub (Settings > Developer settings > Personal access

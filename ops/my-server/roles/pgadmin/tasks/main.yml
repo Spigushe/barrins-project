@@ -1,0 +1,140 @@
+---
+- name: Install Docker
+  apt:
+    name: docker.io
+    state: present
+
+- name: Ensure Docker is running and enabled
+  systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Check whether the isolated pgAdmin Docker network already exists
+  command: "docker network inspect {{ r.docker_network }}"
+  register: pga_net_check
+  changed_when: false
+  failed_when: false
+
+- name: Create an isolated Docker network for pgAdmin
+  command: "docker network create --subnet={{ r.docker_subnet }} {{ r.docker_network }}"
+  when: pga_net_check.rc != 0
+
+- name: Create the pgAdmin persistent data volume
+  command: "docker volume create {{ r.volume_name }}"
+  changed_when: false
+
+- name: Locate the PostgreSQL configuration directory
+  find:
+    paths: /etc/postgresql
+    file_type: directory
+    patterns: "main"
+    recurse: true
+  register: pga_pg_conf_dirs
+
+- name: Fail if no PostgreSQL installation was found
+  fail:
+    msg: >-
+      No /etc/postgresql/<version>/main directory found — run setup-packages
+      on this host first (it installs postgresql).
+  when: pga_pg_conf_dirs.files | length == 0
+
+- name: Let PostgreSQL accept connections from the pgAdmin Docker network
+  lineinfile:
+    path: "{{ pga_pg_conf_dirs.files[0].path }}/postgresql.conf"
+    regexp: "^#?\\s*listen_addresses\\s*="
+    line: "listen_addresses = 'localhost,{{ r.docker_gateway_ip }}'"
+  notify: restart postgresql
+
+- name: Allow password auth for the pgAdmin Docker network
+  lineinfile:
+    path: "{{ pga_pg_conf_dirs.files[0].path }}/pg_hba.conf"
+    line: "host    all             all             {{ r.docker_subnet }}            scram-sha-256"
+    insertafter: EOF
+  notify: restart postgresql
+
+- name: Flush handlers so PostgreSQL is listening before pgAdmin starts
+  meta: flush_handlers
+
+- name: Ensure the pgAdmin config directory exists
+  file:
+    path: /etc/pgadmin4
+    state: directory
+    mode: "0755"
+
+- name: Deploy the pgAdmin credentials env file
+  no_log: true
+  template:
+    src: pgadmin4.env.j2
+    dest: /etc/pgadmin4/pgadmin4.env
+    mode: "0600"
+    owner: root
+    group: root
+
+- name: Deploy the pgAdmin systemd service
+  template:
+    src: pgadmin4.service.j2
+    dest: /etc/systemd/system/pgadmin4.service
+
+- name: Deploy the pgAdmin auto-update service
+  template:
+    src: pgadmin4-update.service.j2
+    dest: /etc/systemd/system/pgadmin4-update.service
+
+- name: Deploy the pgAdmin auto-update timer
+  template:
+    src: pgadmin4-update.timer.j2
+    dest: /etc/systemd/system/pgadmin4-update.timer
+
+- name: Reload systemd and (re)start pgAdmin
+  tags: [deploy]
+  systemd:
+    name: pgadmin4.service
+    daemon_reload: true
+    enabled: true
+    state: restarted
+
+- name: Enable the pgAdmin auto-update timer
+  tags: [deploy]
+  systemd:
+    name: pgadmin4-update.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Add pgAdmin nginx site configuration
+  template:
+    src: https.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ r.server_name }}.https.conf"
+
+- name: Reload nginx
+  tags: [deploy]
+  service:
+    name: nginx
+    state: reloaded
+
+- name: Install unattended-upgrades
+  apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Enable periodic APT updates and unattended-upgrades
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Also auto-apply regular (non-security) Debian point releases, e.g. PostgreSQL updates
+  copy:
+    dest: /etc/apt/apt.conf.d/51-enable-updates
+    content: |
+      Unattended-Upgrade::Origins-Pattern:: "origin=Debian,codename=${distro_codename}-updates,label=Debian";
+    mode: "0644"
+
+- name: Ensure unattended-upgrades service is enabled
+  systemd:
+    name: unattended-upgrades
+    enabled: true
+    state: started

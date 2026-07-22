@@ -5,8 +5,8 @@
 # whenever barrins_api itself changes; see the root README's "Multiple
 # frontends sharing one backend" section and docs/content/ops/deployment/frontend.md).
 - hosts: spigushe
-  become: "yes"
-  gather_facts: "no"
+  become: true
+  gather_facts: false
   vars:
     username: spigushe
     # Generated on GitHub (Settings > Developer settings > Personal access

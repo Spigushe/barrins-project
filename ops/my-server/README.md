@@ -124,8 +124,8 @@ Minimal template for a new API playbook (`my_api.yml`):
 ```yaml
 ---
 - hosts: spigushe
-  become: 'yes'
-  gather_facts: 'no'
+  become: true
+  gather_facts: false
   vars:
     username: spigushe
     deploy_env: production
@@ -156,8 +156,8 @@ And a separate frontend playbook (`my_app.yml`):
 ```yaml
 ---
 - hosts: spigushe
-  become: 'yes'
-  gather_facts: 'no'
+  become: true
+  gather_facts: false
   vars:
     username: spigushe
     deploy_env: production
@@ -303,3 +303,28 @@ ansible-playbook barrins_api.yml -e deploy_env=staging
 
 This mechanism (`fb_env_file` on the `fastapi-backend` role) is generic —
 any future backend app can use the same pattern, see the role's README.
+
+## Database administration — pgAdmin
+
+`postgresql_pgadmin.yml` deploys [pgAdmin4](https://www.pgadmin.org/) (in
+Docker, reverse-proxied by nginx) for the PostgreSQL server `setup-packages`
+already installs on the host — it does not install PostgreSQL itself, only
+exposes a web UI for it and wires the two together (isolated Docker
+network, `pg_hba.conf`/`listen_addresses` updated to accept password auth
+from that network only — never from the internet). It also enables
+`unattended-upgrades` for the whole host, keeping the OS-level PostgreSQL
+package patched automatically.
+
+```bash
+echo -n '<strong password>' > secrets/postgresql_pgadmin/admin_password.txt
+chmod 600 secrets/postgresql_pgadmin/admin_password.txt
+ansible-playbook postgresql_pgadmin.yml
+```
+
+Same secrets policy as backend `.env` files: the admin password is a local,
+git-ignored file (`secrets/postgresql_pgadmin/admin_password.txt`), never
+committed — see [`secrets/README.md`](secrets/README.md). Creating an
+actual PostgreSQL role/password to connect *to* is a deliberate manual step
+(no secret is ever generated silently) — see
+[`../../docs/content/ops/deployment/database.md`](../../docs/content/ops/deployment/database.md)
+and `roles/pgadmin/README.md` for the full guide.

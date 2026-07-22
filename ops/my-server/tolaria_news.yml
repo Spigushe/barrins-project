@@ -1,7 +1,7 @@
 ---
 - hosts: spigushe
-  become: "yes"
-  gather_facts: "no"
+  become: true
+  gather_facts: false
   vars:
     username: spigushe
     # Generated on GitHub (Settings > Developer settings > Personal access

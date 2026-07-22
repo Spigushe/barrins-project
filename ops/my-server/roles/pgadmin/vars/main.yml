@@ -1,0 +1,11 @@
+---
+r:
+  server_name: "{{ pga_server_name }}"
+  port: "{{ pga_port | default(5050) }}"
+  admin_email: "{{ pga_admin_email }}"
+  admin_password: "{{ pga_admin_password }}"
+  image_tag: "{{ pga_image_tag | default('latest') }}"
+  volume_name: "{{ pga_volume_name | default('pgadmin4_data') }}"
+  docker_network: "{{ pga_docker_network | default('pgadmin_net') }}"
+  docker_subnet: "{{ pga_docker_subnet | default('172.30.99.0/24') }}"
+  docker_gateway_ip: "{{ pga_docker_gateway_ip | default('172.30.99.1') }}"

@@ -1,0 +1,65 @@
+---
+# Deploys pgAdmin4 (web UI) for the PostgreSQL server setup-packages
+# already installs on this host, and wires the two together. Does not
+# install PostgreSQL itself — that happens once, at host bootstrap, via
+# setup.yml/setup-packages (idempotent, safe to re-run).
+- hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    pgadmin_domain: pgadmin.barrins-codex.org
+    pgadmin_admin_email: martin.cuchet@gmail.com
+    # Local, git-ignored file holding just the pgAdmin admin password —
+    # never committed (Constitution ss34). See secrets/README.md to
+    # create it: echo -n '<strong password>' > <this path>
+    pgadmin_admin_password_file: "{{ playbook_dir }}/secrets/postgresql_pgadmin/admin_password.txt"
+
+  pre_tasks:
+    - name: Check the local pgAdmin admin password file exists
+      delegate_to: localhost
+      become: false
+      stat:
+        path: "{{ pgadmin_admin_password_file }}"
+      register: pgadmin_pw_stat
+
+    - name: Fail fast if it's missing
+      fail:
+        msg: >-
+          {{ pgadmin_admin_password_file }} does not exist. Create it with:
+          echo -n '<strong password>' > {{ pgadmin_admin_password_file }} &&
+          chmod 600 {{ pgadmin_admin_password_file }} — see secrets/README.md.
+      when: not pgadmin_pw_stat.stat.exists
+
+    - name: Read the local pgAdmin admin password
+      become: false
+      no_log: true
+      set_fact:
+        pgadmin_admin_password: "{{ lookup('file', pgadmin_admin_password_file) }}"
+
+  roles:
+    - role: register-ssl
+      tags: [pgadmin, certs]
+      rs_server_name: "{{ pgadmin_domain }}"
+
+    - role: pgadmin
+      tags: [pgadmin, deploy]
+      pga_server_name: "{{ pgadmin_domain }}"
+      pga_admin_email: "{{ pgadmin_admin_email }}"
+      pga_admin_password: "{{ pgadmin_admin_password }}"
+
+  post_tasks:
+    - name: Reminder — pending steps this playbook does not automate
+      debug:
+        msg:
+          - "PostgreSQL now accepts password auth from the pgAdmin Docker"
+          - "network, but no role/password was created for it. SSH in and"
+          - 'run: sudo -u postgres psql -c "ALTER USER postgres WITH'
+          - 'PASSWORD ''<strong password>'';" (use a password distinct from'
+          - "{{ pgadmin_admin_email }}'s pgAdmin login above)."
+          - "Then open https://{{ pgadmin_domain }}, log into pgAdmin with"
+          - "{{ pgadmin_admin_email }}, and add a server: Host ="
+          - "host.docker.internal (NOT localhost — that's the container's"
+          - "own network namespace), Port = 5432, using the role/password"
+          - "from the previous step."
+      tags: [pgadmin, deploy]

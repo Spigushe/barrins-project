@@ -5,6 +5,8 @@ each with its own Preparation / Deployment / Validation / Rollback:
 
 - [Backend — barrins_api](backend.md)
 - [Frontend — Tamiyo Scroll / Tolaria News](frontend.md)
+- [Database Administration — PostgreSQL & pgAdmin](database.md) —
+  infrastructure/admin tooling, not release-tagged.
 - [Rollback](rollback.md) — the shared release-tag rollback mechanism, and
   the backend-specific database caveat.
 

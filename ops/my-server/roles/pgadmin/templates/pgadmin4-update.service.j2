@@ -1,0 +1,7 @@
+[Unit]
+Description=Pull the latest pgAdmin4 image and restart the service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker pull dpage/pgadmin4:{{ r.image_tag }}
+ExecStart=/bin/systemctl restart pgadmin4.service

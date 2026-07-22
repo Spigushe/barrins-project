@@ -14,7 +14,7 @@
 - name: Resolve the latest release tag
   when: r.use_release_tag and r.release_tag | length == 0
   delegate_to: localhost
-  become: "no"
+  become: false
   no_log: true
   uri:
     url: "https://api.github.com/repos/{{ r.repo }}/releases/latest"
@@ -53,7 +53,7 @@
     repo: "https://{{ r.github_token }}@github.com/{{ r.repo }}.git"
     dest: "{{ r.site_root }}"
     version: "{{ rf_deploy_ref }}"
-    update: "yes"
+    update: true
 
 - name: Ensure nvm is installed
   environment:
@@ -101,7 +101,7 @@
     src: "{{ r.site_root }}/{{ r.build_dir }}"
     dest: "{{ r.site_root }}/dist"
     state: link
-    force: "yes"
+    force: true
   when: r.build_dir != 'dist'
 
 - name: Change file ownership so nginx (www-data) can serve the build
@@ -113,7 +113,7 @@
     owner: www-data
     group: www-data
     mode: "u=rwX,g=rX,o=rX"
-    recurse: "yes"
+    recurse: true
 
 - name: Add HTTPS site configuration
   template:

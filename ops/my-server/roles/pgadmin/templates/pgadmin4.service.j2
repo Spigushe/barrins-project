@@ -1,0 +1,20 @@
+[Unit]
+Description=pgAdmin4 web (Docker container)
+After=docker.service network-online.target postgresql.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker rm -f pgadmin4
+ExecStart=/usr/bin/docker run --rm --name pgadmin4 \
+  --network {{ r.docker_network }} \
+  --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:{{ r.port }}:80 \
+  --env-file /etc/pgadmin4/pgadmin4.env \
+  -v {{ r.volume_name }}:/var/lib/pgadmin \
+  dpage/pgadmin4:{{ r.image_tag }}
+ExecStop=/usr/bin/docker stop pgadmin4
+
+[Install]
+WantedBy=multi-user.target

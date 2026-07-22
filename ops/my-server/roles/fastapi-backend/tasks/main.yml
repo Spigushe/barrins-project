@@ -9,7 +9,7 @@
 - name: Resolve the latest release tag
   when: r.use_release_tag and r.release_tag | length == 0
   delegate_to: localhost
-  become: "no"
+  become: false
   no_log: true
   uri:
     url: "https://api.github.com/repos/{{ r.repo }}/releases/latest"
@@ -41,7 +41,7 @@
   when: not r.use_release_tag
 
 - name: Clone/update application repository
-  become: "no"
+  become: false
   no_log: true
   tags:
     - deploy
@@ -49,10 +49,10 @@
     repo: "https://{{ r.github_token }}@github.com/{{ r.repo }}.git"
     dest: "{{ r.app_root }}"
     version: "{{ fb_deploy_ref }}"
-    update: "yes"
+    update: true
 
 - name: Ensure uv is installed
-  become: "no"
+  become: false
   shell: |
     set -o pipefail
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -66,7 +66,7 @@
   register: fb_pyproject
 
 - name: Install dependencies with uv
-  become: "no"
+  become: false
   tags:
     - deploy
   command: "/home/{{ username }}/.local/bin/uv sync"
@@ -75,7 +75,7 @@
   when: fb_pyproject.stat.exists
 
 - name: Install dependencies with pip
-  become: "no"
+  become: false
   tags:
     - deploy
   pip:
@@ -89,7 +89,7 @@
 - name: Check whether a local .env file is available for this deploy
   when: r.env_file | length > 0
   delegate_to: localhost
-  become: "no"
+  become: false
   stat:
     path: "{{ r.env_file }}"
   register: fb_env_file_stat
@@ -125,6 +125,6 @@
     - deploy
   systemd:
     name: "{{ r.app_name }}"
-    daemon_reload: "yes"
-    enabled: "yes"
+    daemon_reload: true
+    enabled: true
     state: restarted

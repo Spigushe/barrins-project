@@ -35,7 +35,7 @@ against the whole host (see `setup.yml`).
 ```yaml
 # setup.yml
 - hosts: all
-  become: "yes"
+  become: true
   vars:
     username: spigushe
   roles:

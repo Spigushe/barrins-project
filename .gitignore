@@ -15,10 +15,14 @@ docs/site/
 apps/barrins_api/logs/
 
 # Ansible ops (ops/my-server) — Constitution ss34: secrets never live in git,
-# even encrypted. Only *.env.example templates under secrets/ are tracked.
+# even encrypted. Allow-list rather than block-list: everything under
+# secrets/ is ignored except *.example templates and READMEs, so a new
+# secret file is safe by default regardless of what it's named.
 ops/my-server/venv/
 ops/my-server/.vault-password-file.txt
-ops/my-server/secrets/**/*.env
+ops/my-server/secrets/**
+!ops/my-server/secrets/**/*.example
+!ops/my-server/secrets/**/README.md
 
 # Generated from apps/<app>/README.md by docs/hooks/sync_readmes.py on every build.
 # Add a new line here whenever an app gets a doc page under docs/content/**/<app>/.

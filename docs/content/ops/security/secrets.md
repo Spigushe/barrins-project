@@ -8,9 +8,11 @@ operator workflow (creating/editing local `.env` files).
 
 ## What's never in git
 
-- `ops/my-server/secrets/**/*.env` — real backend configuration values.
-  Git-ignored. Only `*.env.example` templates (no real values) are
-  tracked.
+- `ops/my-server/secrets/**` — real configuration values, whether a
+  backend's full `.env` (`barrins_api`) or a single value (`postgresql_pgadmin`'s
+  admin password). Git-ignored by an allow-list rule (everything under
+  `secrets/` is ignored except `*.example` templates and `README.md`), so
+  a new secret file is safe by default regardless of what it's named.
 - `ops/my-server/.vault-password-file.txt` — the optional local
   `ansible-vault` password, if an operator chooses to encrypt their
   `.env` files at rest. Git-ignored, never shared via any channel this
@@ -21,8 +23,8 @@ operator workflow (creating/editing local `.env` files).
 
 ## Enforcement
 
-`ops/my-server/scripts/check_no_secrets_committed.sh` fails if any
-`secrets/**/*.env` (other than `.env.example`) is ever staged. Run it
+`ops/my-server/scripts/check_no_secrets_committed.sh` fails if any file
+under `secrets/` other than `*.example`/`README.md` is ever staged. Run it
 before committing, or symlink it as a pre-commit hook:
 
 ```bash

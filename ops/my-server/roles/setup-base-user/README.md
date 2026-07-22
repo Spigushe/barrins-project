@@ -33,7 +33,7 @@ bootstrap only — not something you re-run per app.
 ```yaml
 # initial.yml
 - hosts: all
-  become: "yes"
+  become: true
   vars:
     username: spigushe
   roles:
