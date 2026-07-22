@@ -140,11 +140,54 @@ sub-repos with actual changes appear in a given release.
   out of the required CI checks. The hosting target (GitHub Pages +
   custom domain `docs.barrins-codex.org`) is a placeholder pending
   confirmation.
+- Ansible VPS deployment (`ops/my-server/`), moved in-repo from the
+  previous separate `Spigushe/myserver` repository (now deprecated) so
+  infrastructure changes land alongside the application changes that
+  require them (Constitution §26.1). Playbooks: `initial.yml`,
+  `setup.yml`, `barrins_api.yml`, `tamiyo_scroll.yml`,
+  `tolaria_news.yml`; roles: `create-ssh-key`, `setup-base-user`,
+  `setup-packages`, `register-ssl`, `backend-website`,
+  `react-frontend`, `fastapi-backend`. `scripts/check_no_secrets_committed.sh`
+  guards against ever staging a real secrets file. Documented under
+  the new Constitution §38-mandated `docs/content/ops/` tree
+  (`architecture/independence.md`, `architecture/decisions.md` for the
+  ADRs below, `deployment/{backend,frontend,rollback}.md`,
+  `security/secrets.md`, `operations/index.md` — the last honestly
+  documenting current gaps: no health endpoint, no monitoring, no
+  tested backups).
+- `ops/my-server/postgresql_pgadmin.yml` and the `pgadmin` role: a
+  Docker-based pgAdmin4 deployment/administration playbook (isolated
+  Docker network, `pg_hba.conf`/`listen_addresses` wiring, weekly
+  auto-update timer, `unattended-upgrades` for the host), porting the
+  `pgadmin` role from myserver's unmerged
+  `postgresql-pgadmin-playbook` branch. PostgreSQL itself is already
+  installed by `setup-packages` at host bootstrap; this playbook only
+  exposes it via pgAdmin. Documented at
+  `docs/content/ops/deployment/database.md`.
 
 #### Changed
 
 - `.github/workflows/CI.yml`: translated remaining French inline comments
   and step names to English.
+- Constitution §34 (Secrets Management), applied while moving
+  `ops/my-server/` in-repo and decided with the user rather than
+  guessed (§16.2, recorded as an ADR in
+  `docs/content/ops/architecture/decisions.md`): backend `.env` files
+  are local-only and git-ignored
+  (`ops/my-server/secrets/**/*.env`), never committed even encrypted.
+  `fastapi-backend`'s `fb_env_file` step uses one if present on the
+  operator's machine, skips gracefully otherwise.
+- Constitution §25/§27/§31 (Release Policy), same ADR process:
+  production deploys resolve the latest GitHub release tag by default
+  (`fb_use_release_tag`/`rf_use_release_tag`, wired to
+  `deploy_env == 'production'` in every playbook), or a pinned tag for
+  rollback. Staging keeps deploying a branch, since it exists to
+  preview code before release.
+- `.gitignore` and `scripts/check_no_secrets_committed.sh`
+  generalized: allow-list `secrets/**/*.example` and `README.md`
+  instead of listing each secret filename individually, so a new
+  secret file (e.g. pgAdmin's admin password) is caught by default
+  without a new gitignore line.
 
 #### Fixed
 
@@ -160,6 +203,12 @@ sub-repos with actual changes appear in a given release.
   `DATABASE_URL`/`TEST_DATABASE_URL` env vars pointing at it, and a
   step generating an ephemeral `SECRET_KEY` via `openssl rand -hex 32`
   before `workflow_ci.py` runs.
+- `ops/my-server` playbooks/roles/READMEs: `become: 'no'`/`'yes'` (and
+  `gather_facts`/`update`/`force`/`recurse`/`daemon_reload`/`enabled`/
+  `update_cache` using the same quoted-string pattern) are YAML
+  strings, not booleans — schema/lint tools correctly flagged them as
+  "Incorrect type. Expected boolean." Replaced every instance with
+  real `true`/`false`.
 
 ### front/tamiyo_scroll
 

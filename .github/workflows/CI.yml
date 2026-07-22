@@ -93,7 +93,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Lint playbooks
-        run: uvx ansible-lint ops/myserver # TO UPDATE with the exact path to your playbooks
+        run: uvx ansible-lint ops/my-server
 
   docs:
     needs: changes
