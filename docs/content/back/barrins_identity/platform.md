@@ -12,6 +12,11 @@
 > and Phase 10 (Tolaria News routes) are **not** implemented — §9 is
 > explicitly a live-data migration requiring a user-confirmed maintenance
 > window, and §10 depends on front specification that isn't final yet.
+> **§14–§18 (below) are proposed, not implemented** — password reset,
+> account deletion, global account settings, and per-app settings. Per
+> constitution §16.4, they require explicit user sign-off on the open
+> design questions in §18 and a confirmed [test plan](./tests.md) extension
+> before any code is written.
 > **Supersedes**: the "Future Architecture Proposal" previously on this page
 > (OAuth2/OIDC, "wait for a second account-based app") and constitution §40 in
 > their prior form. See [Superseded decision](#2-superseded-decision) below
@@ -160,6 +165,16 @@ barrins-identity  (new app: apps/barrins_identity/)
 | `ARGON2_MEMORY_COST_KIB` / `ARGON2_TIME_COST` / `ARGON2_PARALLELISM` | Argon2id cost params | `65536` / `3` / `4` |
 | `LOGIN_RATE_LIMIT` | `/token` limit | `5/minute per IP` |
 | `ALLOWED_ORIGINS` | CORS | required |
+| `PASSWORD_RESET_CODE_TTL_MINUTES` | Reset code validity (§14) | `15` |
+| `PASSWORD_RESET_MAX_ATTEMPTS` | Attempts allowed before a reset code is invalidated (§14) | `5` |
+| `PASSWORD_RESET_RESEND_COOLDOWN_SECONDS` | Minimum delay between two reset code sends (§14) | `60` |
+| `PASSWORD_RESET_RATE_LIMIT` | `/auth/password-reset/request` limit, per IP (§14) | `5/minute` |
+| `MAX_APP_SETTINGS_BYTES` | Size cap on a per-app settings blob (§17) | `16384` |
+
+Email-change confirmation (§16) reuses the existing
+`VERIFICATION_CODE_TTL_MINUTES` / `VERIFICATION_MAX_ATTEMPTS` /
+`VERIFICATION_RESEND_COOLDOWN_SECONDS` settings from §8 — no new config for
+that flow.
 
 Consumers (`apps/barrins_api/app/config/base.py`, later `tolaria_news`,
 `tamiyo_scroll`):
@@ -355,3 +370,344 @@ document and must not be reintroduced:
 - Deployment follows the same independent-deployment principle as the rest
   of the ecosystem (constitution §26–§33): `barrins-identity` is deployable
   and rollback-able independently of `barrins_api`.
+
+---
+
+## 14. Password reset
+
+> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on the
+> mechanism choice below (§18.3) and a confirmed test plan
+> ([tests.md](./tests.md) §7–§8) before implementation.
+
+### 14.1 Mechanism
+
+Two things must be decided: what kind of token proves "this request came
+from the email owner," and how it's delivered.
+
+| Option | Description | Verdict |
+| ------ | ----------- | ------- |
+| **6-digit code + throttle (chosen)** | Reuses the exact machinery already built for signup (`generate_verification_code`, `hash_verification_code`, `verify_verification_code`, attempts/cooldown) against a **new sibling table**, `PasswordResetCode` | No new crypto primitive, no new email-link-vs-code UX pattern to design from scratch; the throttle/attempts semantics are already implemented and tested |
+| Signed JWT reset link | A short-lived JWT (`type: "password_reset"`) embedded in an emailed link, verified via `app/core/security.py` | Rejected — introduces a second "prove you own this inbox" pattern alongside the code mechanism for no functional gain; a link-based flow also can't reuse the attempts/cooldown throttle already built for codes without inventing an equivalent for JWTs (replay window, single-use tracking) |
+| Purpose column on existing `EmailVerification` table | Add a `purpose: Literal["signup", "password_reset"]` discriminator to `auth_email_verifications`, widen `UNIQUE(user_id)` to `UNIQUE(user_id, purpose)` | Rejected — `auth_email_verifications` already shipped (migration `b2c3d4e5f6a7`, this branch); altering its unique constraint touches a live table for a benefit (avoiding one more small table) that doesn't outweigh the migration risk. A new additive table is lower-risk and keeps each flow's row genuinely single-purpose (readability) |
+
+**Decision**: 6-digit code, same throttle mechanism, new table `PasswordResetCode`
+(mirrors `EmailVerification`'s shape exactly: `id`, `user_id` `UNIQUE`,
+`code_hash`, `expires_at`, `attempts`, `last_sent_at`, `created_at`).
+`hash_verification_code`'s existing binding to `user_id` (not to a
+"purpose") is still sufficient here: each flow's code lives in its own
+table, looked up by the route that owns that flow, so there is no
+cross-flow replay surface to close.
+
+TTL 15 minutes (`PASSWORD_RESET_CODE_TTL_MINUTES`), 5 attempts
+(`PASSWORD_RESET_MAX_ATTEMPTS`), 60s resend cooldown
+(`PASSWORD_RESET_RESEND_COOLDOWN_SECONDS`) — same defaults as signup
+verification, configured separately so they can be tuned independently.
+
+### 14.2 Routes
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| `POST` | `/auth/password-reset/request` | none | Body: `{email}`. Always returns the same generic `202` message, rate-limited per IP (`PASSWORD_RESET_RATE_LIMIT`, same pattern as `LOGIN_RATE_LIMIT`) |
+| `POST` | `/auth/password-reset/confirm` | none | Body: `{email, code, new_password}`. `400` for any invalid/expired/missing code (single message), `429` beyond `PASSWORD_RESET_MAX_ATTEMPTS`. On success: hashes `new_password`, bumps `token_version` (all outstanding sessions invalidated — a password reset implies "assume the account was compromised"), deletes the `PasswordResetCode` row, and returns a fresh `TokenPair` (same auto-login UX as `/auth/signup/verify`) |
+
+### 14.3 Anti-enumeration
+
+`POST /auth/password-reset/request` never reveals whether the email
+exists, whether the account is verified, or whether it's active — same
+generic response in every case (pattern already used by
+`/auth/signup/resend`). No account existence check leaks through timing
+either (the code generation + email send only happens on the success
+path; the "user not found" path returns immediately, same shape of
+short-circuit already accepted for `/auth/signup/resend`).
+
+A consequence of the account-deletion design (§15): a soft-deleted
+account's `email` column is overwritten with an anonymized value at
+deletion time, so a reset request against the original address simply
+finds no matching row and gets the generic response — no special-casing
+needed for "can't reset a deleted account."
+
+Password reset does not check `is_verified` — consistent with `/auth/token`,
+which also does not gate login on `is_verified` today (only `is_active`
+is checked). It does implicitly require `is_active=True` to find a
+matching row, for the reason above.
+
+### 14.4 Email delivery
+
+New `EmailSender` protocol method, `send_password_reset_code(*, to_email,
+code, reset_link)`, implemented by both `ConsoleEmailSender` and
+`SMTPEmailSender` alongside the existing `send_verification_code`. Kept as
+a distinct method rather than a `purpose` parameter on the existing one:
+the email copy differs ("reset your password" vs. "confirm your
+account") and a distinct method name keeps that difference explicit
+(constitution §4.6) instead of branching inside a single method on a
+string flag.
+
+---
+
+## 15. Account deletion
+
+> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on soft vs.
+> hard delete (§18.2) before implementation.
+
+### 15.1 Soft vs. hard delete
+
+| Option | Description | Verdict |
+| ------ | ----------- | ------- |
+| **Soft delete (chosen)** | `is_active=False`, `token_version += 1`, `email` and `display_name` anonymized (`email = f"deleted-{uuid4()}@barrins.invalid"`, `display_name = None`), `hashed_password` overwritten with the hash of a random, never-issued secret. Row (and `id`) kept. | `barrins_identity` is the FK anchor for every other app's user-owned data (tournament results, decklists, ...); a hard delete would orphan those rows or require every consumer to handle a "deleted user" sentinel on day one. Anonymizing frees the original email/display_name for reuse without destroying the anchor. |
+| Hard delete | Row removed entirely. `email` immediately reusable. | Rejected — destroys the audit trail and any FK relationship other apps hold on this `user_id`, ahead of those apps having a defined "deleted user" story. Simpler, but permanent in a way the ecosystem isn't ready to assume (constitution §48 — prefer migration paths over destructive rewrites). |
+
+**Decision**: soft delete, as above. A data-retention/cleanup job for
+anonymized rows is explicitly out of scope for this task (§5 non-goals) —
+the schema choice must not block one being added later, and it doesn't:
+nothing here prevents a future scheduled job from hard-deleting rows past
+some retention window.
+
+Cascading cleanup of **app-owned** data (e.g. `barrins_api`'s
+`TSPersonalDeck` rows for a deleted user) is explicitly **out of scope**
+for `barrins_identity` — each consuming app owns its own data retention
+policy on account deletion (constitution §4.1: identity doesn't own app
+business data). `barrins_identity` never reaches into another app's
+database.
+
+### 15.2 Route
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| `DELETE` | `/users/me` | user | Body: `{current_password}`. `401` if the password doesn't match. On success: soft-deletes as in §15.1, `204 No Content`. |
+
+**Re-auth mechanism** — current password in the request body, not a
+"recent token" freshness check. A freshness check (e.g. rejecting access
+tokens older than N minutes) would need a new `iat` claim threaded through
+`create_access_token`/`TokenData`, and only proves a device recently
+authenticated — not that the caller currently knows the password. Password
+re-entry is simpler (reuses `verify_password`, already used everywhere
+else) and is the stronger guarantee for a destructive, irreversible-feeling
+action. This is a UX/implementation call, not one of the headline open
+questions, but is flagged here for visibility.
+
+**Verb** — `DELETE` with a JSON body, not `POST /users/me/delete`. FastAPI
+and this project's actual clients (its own frontends/BFFs, not third-party
+integrators) support a body on `DELETE` without the proxy-stripping
+concerns that make `DELETE`+body risky for public-facing APIs behind
+arbitrary intermediaries. Deleting the `/users/me` resource with `DELETE`
+is the more direct mapping once `/users/me` exists as a resource at all
+(see §16).
+
+Once deleted (`is_active=False`), `get_current_user` already rejects every
+outstanding token on that account via its existing `is_active` check
+(`app/dependencies/auth.py`) — before it even reaches the `token_version`
+comparison. Bumping `token_version` too is redundant for that reason
+alone, but is done anyway for consistency with the existing
+`revoke_service_account` pattern (which sets both simultaneously) — not
+because it's independently necessary here.
+
+---
+
+## 16. Global account settings
+
+> **Status**: 🟦 Proposed. Not implemented.
+
+### 16.1 Route split: `/auth/me` vs. `/users/me`
+
+`GET /auth/me` (existing, unchanged) stays the read endpoint for
+session/auth context. A new `/users` router (`app/api/v1/users.py`, mounted
+at `/api/v1/users`) owns account-resource mutation: `PATCH /users/me`
+(this section), `DELETE /users/me` (§15), `GET`/`PUT
+/users/me/settings/{app_key}` (§17). This keeps `/auth/*` scoped to
+authentication/session lifecycle (token issuance, refresh, logout,
+"who am I") and `/users/*` scoped to account-resource management — both
+operate on the same `User` row via the same `CurrentUser` dependency, so
+this is a route-surface split, not duplicated logic.
+
+### 16.2 `PATCH /users/me`
+
+Request schema `AccountSettingsUpdate` (`extra="forbid"`):
+
+```python
+class AccountSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str | None = None
+    email: EmailStr | None = None
+```
+
+Partial-update semantics via `model_fields_set` (same pattern as
+`barrins_api`'s `UserSettingsUpdate` in
+`app/api/bff/ts_router/settings.py`, see §17.4 for that file's other
+role in this document): a field absent from the payload is left
+untouched; `display_name` explicitly set to `null` clears it.
+
+**`display_name`**: applied immediately, no verification — display name
+carries no security meaning.
+
+**`email`**: this is the part that needs an explicit intermediate-state
+decision, because the constitution requires the old address to "stay
+active/authoritative until the new one is confirmed" — which rules out
+simply overwriting `user.email` and re-running the signup verification
+flow against it (that would lock the user out of their own account with
+their old, working address the moment they fat-finger the new one).
+
+| Behavior | `REQUIRE_EMAIL_VERIFICATION=true` (default) | `REQUIRE_EMAIL_VERIFICATION=false` |
+| -------- | -------------------------------------------- | ----------------------------------- |
+| On `PATCH /users/me` with a new `email` | `user.email` **unchanged**. A new row is written to `EmailChangeRequest` (below) and a code is emailed to the **new** address. `PATCH` response reflects the still-current (old) email. | `user.email` overwritten immediately, no code, no `EmailChangeRequest` row — same gating precedent as `/auth/signup` (§8). |
+| Uniqueness check | `409` if the new email is already registered to a *different* account — checked at request time, and re-checked at confirm time (§16.3) to close the race where someone else registers it in between. | `409` at request time (same check, no confirm step to re-check at). |
+
+New table `EmailChangeRequest` (one pending change per user,
+`UNIQUE(user_id)` — a second `PATCH` with a new email before confirming
+replaces the pending request, same "resend replaces" precedent as
+`EmailVerification`): `id`, `user_id`, `new_email`, `code_hash`,
+`expires_at`, `attempts`, `last_sent_at`, `created_at`. Reuses the
+existing `VERIFICATION_CODE_TTL_MINUTES` / `VERIFICATION_MAX_ATTEMPTS` /
+`VERIFICATION_RESEND_COOLDOWN_SECONDS` settings (§8) — this is explicitly
+"the *existing* verification-code mechanism," not a new one.
+
+### 16.3 Confirming the email change
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| `POST` | `/users/me/email-change/verify` | user | Body: `{code}` — no `email` param needed, unlike `/auth/signup/verify`, because the caller is already authenticated as the account with the pending change. Re-checks `new_email` uniqueness (race close), then sets `user.email = new_email`, deletes the `EmailChangeRequest` row. `400` invalid/expired code, `404` no pending change, `429` beyond max attempts. `409` if the address was claimed by someone else in the interim — in that case the pending `EmailChangeRequest` row is also deleted (the queued address is now permanently unusable for this request); the user must `PATCH /users/me` again with a different address to create a fresh request. |
+| `POST` | `/users/me/email-change/resend` | user | Resends the code to the pending `new_email`, cooldown-gated. Not anti-enumeration-sensitive (the caller is already authenticated) — `404` if there's no pending change is fine here, unlike the public, unauthenticated `/auth/signup/resend`. |
+
+`user.email`'s value inside already-issued access tokens (the `email`
+claim in `_claims()`) is not force-invalidated on an email change —
+consistent with the existing "short TTL, not per-request introspection"
+revocation model (§4): the claim is informational, never used for
+authorization, so a stale claim for up to one access-token TTL is
+accepted, same as it already is for a display-only field.
+
+New `EmailSender` method, `send_email_change_code(*, to_email, code,
+verify_link)` — distinct from `send_verification_code` (signup) and
+`send_password_reset_code` (§14.4) for the same reason: different email
+copy, explicit method name over a shared method branching on a purpose
+string.
+
+---
+
+## 17. Per-app settings
+
+> **Status**: 🟦 Proposed. Not implemented. Requires sign-off on the data
+> shape (§18.1) before implementation.
+
+### 17.1 Data shape
+
+| Option | Description | Verdict |
+| ------ | ----------- | ------- |
+| **(a) Opaque JSON blob per `(user_id, app_key)` (chosen)** | `barrins_identity` stores and serves the JSON verbatim, validates nothing about its internal shape beyond overall size; each consuming app/BFF owns its own schema for what's inside. Matches the existing `ServiceAccount.scopes` `JSONBCompat` precedent (`app/models/_types.py`). | Minimal new surface area in `barrins_identity`; a malformed payload from one app can't corrupt another app's row (separate rows), only its own. No server-side validation of content is the accepted trade-off. |
+| (b) One typed table per app | Stronger validation; every new app or new setting requires a migration + endpoint in `barrins_identity`. | Rejected — couples app-specific concerns into the identity service, working against constitution §4.1 (identity shouldn't accumulate app business logic) and against keeping `barrins_identity` a thin, app-agnostic store. |
+
+**Decision**: (a). New table `AppSettings`: `id`, `user_id` (FK
+`users.id`, `ondelete="CASCADE"` — schema-level integrity; in practice the
+row is never actually deleted since accounts are soft-deleted, §15),
+`app_key` (`String`, not a Postgres native `ENUM` — see §17.2), `data`
+(`JSONBCompat`, default `{}`), `created_at`, `updated_at`.
+`UNIQUE(user_id, app_key)`.
+
+### 17.2 `app_key`
+
+A fixed set, not a free-form string (prevents typo'd/unbounded key
+sprawl): a Python `StrEnum` (`AppKey`, `app/models/app_settings.py`) with
+members `tamiyo_scroll`, `tolaria_news` today. Stored as a plain `String`
+column rather than a Postgres native `ENUM` type: a DB-level enum needs an
+`ALTER TYPE ... ADD VALUE` migration every time a new Barrin's app is
+added, which is exactly the kind of migration friction this design should
+avoid for something that's really just an API-level allow-list.
+
+The route's path parameter is typed `str`, not `AppKey`, deliberately:
+FastAPI's default behavior for an enum-typed path parameter that doesn't
+match any member is `422`, but the contract calls for `404` on an unknown
+`app_key` (unknown resource, not a malformed request) — so membership is
+checked manually in the handler, raising `404` explicitly.
+
+### 17.3 Routes
+
+| Method | Path | Auth | Notes |
+| ------ | ---- | ---- | ----- |
+| `GET` | `/users/me/settings/{app_key}` | user | Returns the stored blob, or `{}` if no row exists yet — a `GET` never creates a row (only `PUT` does, avoiding empty-row churn from read-only clients). `404` for an unknown `app_key`. |
+| `PUT` | `/users/me/settings/{app_key}` | user | Full replace (upsert: creates the row if absent, else overwrites `data` and bumps `updated_at`). Body: raw JSON object, capped at `MAX_APP_SETTINGS_BYTES` (default 16 KiB). `404` unknown `app_key`, `413` payload too large. |
+
+The size cap is enforced in the route handler, not via a Pydantic
+validator on the request schema: Pydantic validation failures are always
+`422`, but "too large" is semantically a `413`, so the handler
+deserializes the body, computes its serialized size, and raises `413`
+explicitly when it exceeds the cap — kept separate from "malformed JSON"
+(still `422`, from normal body parsing).
+
+Authentication for now is `CurrentUser` (human access token) only. The
+service-account-token path described in the original request/response
+contract sketch (`settings:{app_key}:read` / `settings:{app_key}:write`
+scopes) is **not implemented** — see §18.4: it only becomes usable once
+`barrins_api`'s BFF has real `barrins_identity` user UUIDs to pass, i.e.
+after the Phase 9 cutover (§9).
+
+### 17.4 Concrete example: `tamiyo_scroll`'s current BFF settings
+
+`barrins_api`'s existing (unrelated, not wired to this contract — see
+§18.4) `TSUserSettings`
+(`apps/barrins_api/app/models/tamiyo_scroll.py`,
+`apps/barrins_api/app/api/bff/ts_router/settings.py`) is used here only to
+sanity-check the blob shape against a real payload:
+
+```json
+{
+  "data_shared": false,
+  "active_personal_deck_id": null
+}
+```
+
+This is the kind of shape `tamiyo_scroll`'s BFF would `PUT` to
+`/users/me/settings/tamiyo_scroll` if it were wired to this contract — it
+is not wired today (§18.4, §5 non-goals).
+
+---
+
+## 18. Open design decisions requiring sign-off
+
+Per constitution §16.2/§16.3, these are presented as alternatives with a
+recommendation — not silently decided. Implementation of §14–§17 above
+does not start until the user has signed off on 18.1–18.3, and until the
+[test plan](./tests.md) extension (§7–§11 there) is confirmed.
+
+### 18.1 Per-app settings data shape (§17.1)
+
+Recommended: **(a) opaque JSON blob**, matching the existing
+`ServiceAccount.scopes` `JSONBCompat` precedent.
+
+### 18.2 Account deletion: soft vs. hard delete (§15.1)
+
+Recommended: **soft delete** with anonymized `email`/`display_name`,
+given `barrins_identity` is the FK anchor for every other app's
+user-owned data.
+
+### 18.3 Password reset mechanism (§14.1)
+
+Recommended: **6-digit code + throttle, new sibling table
+`PasswordResetCode`** — reuses the existing hashing/throttle helpers,
+avoids widening `auth_email_verifications`'s unique constraint on an
+already-shipped table.
+
+### 18.4 `barrins_api` BFF ↔ `barrins_identity` settings contract timing
+
+The user-ID mismatch: `barrins_api`'s own `users` table (local,
+pre-cutover) and `barrins_identity`'s `users` table are not the same rows
+today — this is the same gap Phase 9 (§9) exists to close. A BFF route in `barrins_api`
+(`app/api/bff/ts_router/settings.py`) authenticates against
+`barrins_api`'s local `CurrentUser`, whose `id` does not exist in
+`barrins_identity`'s database.
+
+| Option | Description | Verdict |
+| ------ | ----------- | ------- |
+| **1. Design + implement `barrins_identity`-side only now (chosen)** | Routes, schemas, tests for §14–§17 ship in `barrins_identity`. `barrins_api`'s BFF wiring to this contract is a documented, unwired follow-up for Phase 9. | Lowest risk, no dependency on the cutover timeline. |
+| 2. Wire a working BFF integration now, via a `barrins_identity` service-account token | `barrins_api` would call `barrins_identity`'s settings API server-to-server on a user's behalf. | **Blocked**, not just deprioritized: this only works if `barrins_api` passes a real `barrins_identity` user UUID, which it doesn't have pre-cutover. The only way around that is a temporary ID-mapping table — throwaway complexity ahead of a cutover (§9) that makes it unnecessary. Not recommended. |
+
+Recommended: **option 1**. This is not really a subjective trade-off
+between two viable paths (option 2 is mechanically blocked today) — it's
+flagged here for explicit sign-off because it means `tamiyo_scroll`'s
+existing `TSUserSettings` BFF route stays exactly as it is, unmodified,
+until Phase 9, which is worth confirming the user is fine waiting for.
+
+### 18.5 Flagged, not resolved: `username` field
+
+Constitution §13.2 mentions a `username` field; the already-implemented
+`User` model (this branch) only has `email` — there is no `username`
+anywhere in `barrins_identity`. This task does not add one (§5 non-goals).
+Flagged here for visibility per the task's own instruction, not silently
+reconciled.

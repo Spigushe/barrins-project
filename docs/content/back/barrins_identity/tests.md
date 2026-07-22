@@ -5,6 +5,12 @@
 > before any implementation phase in [platform.md](./platform.md) starts**
 > (constitution §16.4 — tests are planned, confirmed, then implemented,
 > before the missing production logic is built).
+>
+> §7–§11 below extend this plan to cover password reset, account
+> deletion, global account settings, and per-app settings
+> ([platform.md](./platform.md) §14–§17) — proposed, not yet implemented,
+> and blocked on the same sign-off as the architecture doc (platform.md
+> §18).
 
 ---
 
@@ -140,3 +146,115 @@ pytest tests/  # zero regression on existing routes (db_stats, mtgjson, ml,
 curl http://localhost:8000/api/v1/tolaria/meta
 # must return 401 without Authorization
 ```
+
+---
+
+## 7. New test files — lifecycle & per-app settings ([platform.md](./platform.md) §14–§17)
+
+Same ≥92%/100% coverage bar (§1) applies; 100% on any new file under
+`app/models/` and `app/schemas/`.
+
+| Path | Covers |
+| ---- | ------ |
+| `tests/test_routes_password_reset.py` | `/auth/password-reset/request`, `/auth/password-reset/confirm` |
+| `tests/test_routes_users.py` | `PATCH /users/me`, `DELETE /users/me`, `/users/me/email-change/verify`, `/users/me/email-change/resend` |
+| `tests/test_routes_app_settings.py` | `GET`/`PUT /users/me/settings/{app_key}` |
+| `tests/test_models.py` (extended) | `PasswordResetCode`, `EmailChangeRequest`, `AppSettings`, `AppKey` |
+| `tests/test_schemas.py` (extended) | `AccountSettingsUpdate`, password-reset request/confirm schemas, app-settings request/response schemas |
+| `tests/test_email_service.py` (extended) | `send_password_reset_code`, `send_email_change_code` on both `ConsoleEmailSender` and `SMTPEmailSender` |
+
+## 8. Required negative cases — password reset
+
+- `POST /auth/password-reset/request`: unknown email → same generic `202`
+  as a known email (anti-enumeration — no timing/response-shape
+  difference).
+- `POST /auth/password-reset/request`: email of an existing but
+  soft-deleted (anonymized) account → same generic `202` — the lookup by
+  the original address naturally finds no row (platform.md §14.3), no
+  special-casing needed; this test exists to prove that consequence
+  holds, not to add a branch.
+- `POST /auth/password-reset/request`: exceeding `PASSWORD_RESET_RATE_LIMIT`
+  → `429`.
+- `POST /auth/password-reset/confirm`: wrong code → `400`, generic
+  message (does not distinguish "wrong code" from "no pending reset").
+- `POST /auth/password-reset/confirm`: expired code → `400`.
+- `POST /auth/password-reset/confirm`: exceeding `PASSWORD_RESET_MAX_ATTEMPTS`
+  → `429`.
+- `POST /auth/password-reset/confirm`: replaying an already-consumed code
+  (row deleted after first successful confirm) → `400` (row no longer
+  exists, same as "no pending reset").
+- `POST /auth/password-reset/confirm` success → all previously-issued
+  access/refresh tokens for that account rejected afterward
+  (`token_version` mismatch, mirrors the existing `/auth/logout` test
+  pattern) and the response includes a fresh, usable `TokenPair`.
+- `new_password` failing `PasswordStr` complexity rules → `422` (same
+  validator already covered for `/auth/register`/`/auth/signup`).
+
+## 9. Required negative cases — account deletion
+
+- `DELETE /users/me` with wrong `current_password` → `401`, account not
+  modified (still `is_active=True`, `email` unchanged).
+- `DELETE /users/me` without a token → `401` (standard `CurrentUser`
+  dependency behavior, no new logic to test beyond wiring).
+- `DELETE /users/me` success → `204`; a second call with the
+  now-stale access token → `401` (already-rejected by `is_active=False`
+  before the `token_version` check is even reached — assert this
+  ordering, not just the end result, since platform.md §15.2 relies on
+  it).
+- `DELETE /users/me` success → `email` and `display_name` anonymized in
+  the database row (not visible via any API response — there is no
+  `GET` for a deleted user, this is a direct DB-row assertion).
+- After deletion, the original email is immediately available again for
+  a brand-new `POST /auth/signup` (proves the anonymization actually
+  frees the unique constraint).
+
+## 10. Required negative cases — global account settings (email change)
+
+- `PATCH /users/me` with only `display_name` → applied immediately,
+  `email` untouched, no `EmailChangeRequest` row created.
+- `PATCH /users/me` with an `email` already registered to a *different*
+  account → `409`, `user.email` unchanged.
+- `PATCH /users/me` with a new `email`, `REQUIRE_EMAIL_VERIFICATION=true`
+  → `200`, response still shows the **old** email, `EmailChangeRequest`
+  row created, code sent to the **new** address only.
+- `PATCH /users/me` with a new `email`, `REQUIRE_EMAIL_VERIFICATION=false`
+  → `email` overwritten immediately, no `EmailChangeRequest` row, no email
+  sent.
+- A second `PATCH /users/me` with yet another new email before confirming
+  the first → replaces the pending `EmailChangeRequest` row (same
+  "resend replaces" precedent as `EmailVerification`), old pending code
+  invalidated.
+- `POST /users/me/email-change/verify` with wrong/expired code → `400`.
+- `POST /users/me/email-change/verify` with no pending request → `404`.
+- `POST /users/me/email-change/verify` when the target `new_email` was
+  registered by a *different* account in the interim (race between
+  request and confirm) → `409`, `user.email` unchanged, and the pending
+  `EmailChangeRequest` row is deleted (the queued address is now
+  permanently unusable for this request, so keeping it around just holds
+  stale state — the user must `PATCH /users/me` again with a different
+  address, which creates a fresh request).
+- `POST /users/me/email-change/verify` success → `user.email` updated,
+  `EmailChangeRequest` row deleted, existing access tokens **not**
+  invalidated (email claim is informational only, platform.md §16.3).
+
+## 11. Required negative cases — per-app settings
+
+- `GET /users/me/settings/{app_key}` for an app_key never written →
+  `200`, `{}`.
+- `GET`/`PUT /users/me/settings/{app_key}` with an unknown `app_key`
+  (not in the `AppKey` enum) → `404`, not `422`.
+- `PUT /users/me/settings/{app_key}` with a body exceeding
+  `MAX_APP_SETTINGS_BYTES` → `413`.
+- `PUT /users/me/settings/{app_key}` with a non-JSON-object body (e.g. a
+  bare string or array) → `422`.
+- `PUT /users/me/settings/{app_key}` twice with different payloads →
+  second call fully replaces the first (no field-level merge — full
+  replace semantics, unlike `PATCH /users/me`).
+- User A's `GET`/`PUT /users/me/settings/{app_key}` never returns or
+  modifies user B's row for the same `app_key` (row scoped by
+  `user_id` from `CurrentUser`, not a caller-supplied id — explicit test,
+  not just an implied consequence of the dependency).
+- A call to `/users/me/settings/{app_key}` with a service-account token
+  instead of a user token → `401` (only `CurrentUser` is wired for now,
+  platform.md §17.3 — the service-account path is documented, not
+  implemented).
