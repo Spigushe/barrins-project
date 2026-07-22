@@ -148,6 +148,15 @@ sub-repos with actual changes appear in a given release.
 
 ### front/tamiyo_scroll
 
+#### Fixed
+
+- `vite.config.ts`: stubbed `VITE_API_BASE_URL` via Vitest's `test.env`
+  so `src/api/client.ts` doesn't build requests against `"undefined"`
+  during tests. The variable was only ever supplied by a local,
+  gitignored `.env` file, so every CI run (including the `front` job
+  for otherwise-unrelated Dependabot bumps) failed 6 `client.test.ts`
+  tests with `TypeError: Invalid URL`.
+
 #### Added
 
 - Initial scaffold of the Tamiyo Scroll frontend (React 19, TypeScript,
