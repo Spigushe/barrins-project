@@ -26,3 +26,31 @@ class ConsoleEmailSender:
             code,
             verify_link,
         )
+
+    def send_password_reset_code(
+        self,
+        *,
+        to_email: str,
+        code: str,
+        reset_link: str,
+    ) -> None:
+        logger.info(
+            "ConsoleEmailSender — password reset code for %s: %s (link: %s)",
+            to_email,
+            code,
+            reset_link,
+        )
+
+    def send_email_change_code(
+        self,
+        *,
+        to_email: str,
+        code: str,
+        verify_link: str,
+    ) -> None:
+        logger.info(
+            "ConsoleEmailSender — email change code for %s: %s (link: %s)",
+            to_email,
+            code,
+            verify_link,
+        )

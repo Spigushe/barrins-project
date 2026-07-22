@@ -141,6 +141,31 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- Password reset (platform.md §14) ---
+    password_reset_code_ttl_minutes: int = Field(
+        default=15, ge=1, description="Password reset code validity duration."
+    )
+    password_reset_max_attempts: int = Field(
+        default=5,
+        ge=1,
+        description="Attempts allowed before a reset code is invalidated.",
+    )
+    password_reset_resend_cooldown_seconds: int = Field(
+        default=60, ge=0, description="Minimum delay between two reset code sends."
+    )
+    password_reset_rate_limit: str = Field(
+        default="5/minute",
+        description=(
+            "slowapi rate limit spec applied to POST /auth/password-reset/request, "
+            "per IP."
+        ),
+    )
+
+    # --- Per-app settings (platform.md §17) ---
+    max_app_settings_bytes: int = Field(
+        default=16384, ge=1, description="Size cap (bytes) on a per-app settings blob."
+    )
+
     @field_validator("jwt_private_key")
     @classmethod
     def jwt_private_key_must_be_a_valid_rsa_key(cls, v: SecretStr) -> SecretStr:

@@ -53,6 +53,32 @@ class TestConsoleEmailSender:
         assert "123456" in caplog.text
         assert "test@example.com" in caplog.text
 
+    def test_logs_password_reset_code_without_network_call(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        sender = ConsoleEmailSender()
+        with caplog.at_level("INFO"):
+            sender.send_password_reset_code(
+                to_email="test@example.com",
+                code="654321",
+                reset_link="http://localhost:5173/reset-password?code=654321",
+            )
+        assert "654321" in caplog.text
+        assert "test@example.com" in caplog.text
+
+    def test_logs_email_change_code_without_network_call(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        sender = ConsoleEmailSender()
+        with caplog.at_level("INFO"):
+            sender.send_email_change_code(
+                to_email="new@example.com",
+                code="112233",
+                verify_link="http://localhost:5173/confirm-email-change?code=112233",
+            )
+        assert "112233" in caplog.text
+        assert "new@example.com" in caplog.text
+
 
 class TestSMTPEmailSender:
     def test_sends_via_smtp_with_tls_and_auth(self, monkeypatch: pytest.MonkeyPatch):
@@ -107,6 +133,60 @@ class TestSMTPEmailSender:
         fake = _FakeSMTP.instances[0]
         assert fake.started_tls is False
         assert fake.login_call is None
+
+    def test_sends_password_reset_code(self, monkeypatch: pytest.MonkeyPatch):
+        _FakeSMTP.instances.clear()
+        monkeypatch.setattr(smtplib, "SMTP", _FakeSMTP)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_host", "smtp.gmail.com")
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_use_tls", False)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_username", None)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_password", None)
+
+        sender = SMTPEmailSender()
+        sender.send_password_reset_code(
+            to_email="player@example.com", code="654321", reset_link="http://x/reset"
+        )
+
+        fake = _FakeSMTP.instances[0]
+        assert fake.sent_message is not None
+        assert fake.sent_message["To"] == "player@example.com"
+
+    def test_send_password_reset_code_raises_without_smtp_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_host", None)
+        sender = SMTPEmailSender()
+        with pytest.raises(RuntimeError):
+            sender.send_password_reset_code(
+                to_email="player@example.com", code="654321", reset_link="http://x"
+            )
+
+    def test_sends_email_change_code(self, monkeypatch: pytest.MonkeyPatch):
+        _FakeSMTP.instances.clear()
+        monkeypatch.setattr(smtplib, "SMTP", _FakeSMTP)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_host", "smtp.gmail.com")
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_use_tls", False)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_username", None)
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_password", None)
+
+        sender = SMTPEmailSender()
+        sender.send_email_change_code(
+            to_email="new@example.com", code="112233", verify_link="http://x/confirm"
+        )
+
+        fake = _FakeSMTP.instances[0]
+        assert fake.sent_message is not None
+        assert fake.sent_message["To"] == "new@example.com"
+
+    def test_send_email_change_code_raises_without_smtp_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(f"{_SETTINGS}.smtp_host", None)
+        sender = SMTPEmailSender()
+        with pytest.raises(RuntimeError):
+            sender.send_email_change_code(
+                to_email="new@example.com", code="112233", verify_link="http://x"
+            )
 
 
 class TestGetEmailSender:

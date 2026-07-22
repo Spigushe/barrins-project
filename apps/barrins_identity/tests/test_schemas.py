@@ -7,8 +7,12 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.app_settings import AppSettingsRead
 from app.schemas.auth import (
     PASSWORD_RULE,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
     ResendVerificationRequest,
     ResendVerificationResponse,
     ServiceTokenData,
@@ -26,6 +30,12 @@ from app.schemas.service_account import (
     ServiceAccountRead,
     ServiceTokenRequest,
     ServiceTokenResponse,
+)
+from app.schemas.users import (
+    AccountDeleteRequest,
+    AccountSettingsUpdate,
+    EmailChangeResendResponse,
+    EmailChangeVerifyRequest,
 )
 
 # ===========================================================================
@@ -244,3 +254,128 @@ class TestResendVerificationResponse:
     def test_default_message(self):
         resp = ResendVerificationResponse()
         assert "If an account exists" in resp.detail
+
+
+# ===========================================================================
+# Password reset schemas
+# ===========================================================================
+
+
+class TestPasswordResetRequest:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            PasswordResetRequest.model_validate(
+                {"email": "a@example.com", "injected": "evil"}
+            )
+
+    def test_valid(self):
+        req = PasswordResetRequest(email="a@example.com")
+        assert req.email == "a@example.com"
+
+
+class TestPasswordResetRequestResponse:
+    def test_default_message(self):
+        resp = PasswordResetRequestResponse()
+        assert "If an account exists" in resp.detail
+
+
+class TestPasswordResetConfirm:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            PasswordResetConfirm.model_validate(
+                {
+                    "email": "a@example.com",
+                    "code": "123456",
+                    "new_password": "ValidPass#1word",
+                    "injected": "evil",
+                }
+            )
+
+    def test_invalid_code_pattern_rejected(self):
+        with pytest.raises(ValidationError):
+            PasswordResetConfirm(
+                email="a@example.com", code="abc123", new_password="ValidPass#1word"
+            )
+
+    def test_weak_password_rejected(self):
+        with pytest.raises(ValidationError, match=PASSWORD_RULE):
+            PasswordResetConfirm(
+                email="a@example.com", code="123456", new_password="short"
+            )
+
+    def test_valid(self):
+        req = PasswordResetConfirm(
+            email="a@example.com", code="123456", new_password="ValidPass#1word"
+        )
+        assert req.code == "123456"
+
+
+# ===========================================================================
+# Account-resource management schemas (app/schemas/users.py)
+# ===========================================================================
+
+
+class TestAccountSettingsUpdate:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            AccountSettingsUpdate.model_validate(
+                {"display_name": "Alice", "injected": "evil"}
+            )
+
+    def test_partial_update_tracks_fields_set(self):
+        payload = AccountSettingsUpdate(display_name="Alice")
+        assert payload.model_fields_set == {"display_name"}
+
+    def test_defaults(self):
+        payload = AccountSettingsUpdate()
+        assert payload.display_name is None
+        assert payload.email is None
+
+
+class TestAccountDeleteRequest:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            AccountDeleteRequest.model_validate(
+                {"current_password": "x", "injected": "evil"}
+            )
+
+    def test_valid(self):
+        req = AccountDeleteRequest(current_password="x")
+        assert req.current_password == "x"
+
+
+class TestEmailChangeVerifyRequest:
+    def test_extra_field_rejected(self):
+        with pytest.raises(ValidationError):
+            EmailChangeVerifyRequest.model_validate(
+                {"code": "123456", "injected": "evil"}
+            )
+
+    def test_invalid_code_pattern_rejected(self):
+        with pytest.raises(ValidationError):
+            EmailChangeVerifyRequest(code="abc123")
+
+    def test_valid(self):
+        req = EmailChangeVerifyRequest(code="123456")
+        assert req.code == "123456"
+
+
+class TestEmailChangeResendResponse:
+    def test_default_message(self):
+        resp = EmailChangeResendResponse()
+        assert "new code has been sent" in resp.detail
+
+
+# ===========================================================================
+# Per-app settings schemas (app/schemas/app_settings.py)
+# ===========================================================================
+
+
+class TestAppSettingsRead:
+    def test_valid(self):
+        resp = AppSettingsRead(data={"data_shared": True})
+        assert resp.data == {"data_shared": True}
+
+    def test_default_empty_not_required(self):
+        resp = AppSettingsRead(data={})
+        assert resp.data == {}

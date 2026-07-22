@@ -176,3 +176,37 @@ class ResendVerificationResponse(BaseModel):
     """
 
     detail: str = "If an account exists for this address, a new code has been sent."
+
+
+# ---------------------------------------------------------------------------
+# Password reset schemas (platform.md §14)
+# ---------------------------------------------------------------------------
+
+
+class PasswordResetRequest(BaseModel):
+    """Payload of POST /auth/password-reset/request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class PasswordResetRequestResponse(BaseModel):
+    """Generic response of POST /auth/password-reset/request.
+
+    The message never varies based on whether the account exists, is
+    active, or has a pending reset already (anti-enumeration, same
+    pattern as `ResendVerificationResponse`).
+    """
+
+    detail: str = "If an account exists for this address, a reset code has been sent."
+
+
+class PasswordResetConfirm(BaseModel):
+    """Payload of POST /auth/password-reset/confirm."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    code: str = Field(pattern=r"^\d{6}$", description="6-digit code received by email.")
+    new_password: PasswordStr

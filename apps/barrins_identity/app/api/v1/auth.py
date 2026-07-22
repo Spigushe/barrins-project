@@ -26,8 +26,12 @@ from app.core.security import (
 from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser, CurrentUser
 from app.models.email_verification import EmailVerification
+from app.models.password_reset import PasswordResetCode
 from app.models.user import User, UserRole
 from app.schemas.auth import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
     RefreshRequest,
     ResendVerificationRequest,
     ResendVerificationResponse,
@@ -399,3 +403,144 @@ async def resend_verification(
 
     await session.commit()
     return generic_response
+
+
+# ---------------------------------------------------------------------------
+# Password reset (platform.md §14)
+# ---------------------------------------------------------------------------
+
+
+def _password_reset_rate_limit() -> str:
+    """Read lazily so tests can monkeypatch settings.base.password_reset_rate_limit."""
+    return settings.base.password_reset_rate_limit
+
+
+def _build_reset_link(email: str, code: str) -> str:
+    query = urlencode({"email": email, "code": code})
+    return f"{settings.base.frontend_base_url}/reset-password?{query}"
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=PasswordResetRequestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+@limiter.limit(_password_reset_rate_limit)
+async def request_password_reset(
+    request: Request,
+    payload: PasswordResetRequest,
+    session: DatabaseSession,
+    email_sender: EmailSenderDep,
+) -> PasswordResetRequestResponse:
+    """Request a password reset code.
+
+    Always responds with the same generic message — never discloses
+    whether an account exists, is active, or already has a pending reset
+    (constitution §23.2). A soft-deleted account's `email` has already
+    been anonymized (platform.md §15), so a lookup by the original
+    address naturally finds no row here — no special-casing needed.
+    """
+    generic_response = PasswordResetRequestResponse()
+
+    user_result = await session.execute(select(User).where(User.email == payload.email))
+    user = user_result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        return generic_response
+
+    reset_result = await session.execute(
+        select(PasswordResetCode).where(PasswordResetCode.user_id == user.id)
+    )
+    reset_code = reset_result.scalar_one_or_none()
+
+    now = datetime.now(UTC)
+    cooldown = timedelta(seconds=settings.base.password_reset_resend_cooldown_seconds)
+    if reset_code is not None and now < reset_code.last_sent_at + cooldown:
+        return generic_response
+
+    code = generate_verification_code()
+    expires_at = now + timedelta(minutes=settings.base.password_reset_code_ttl_minutes)
+    if reset_code is None:
+        reset_code = PasswordResetCode(
+            user_id=user.id,
+            code_hash=hash_verification_code(code, user.id),
+            expires_at=expires_at,
+            last_sent_at=now,
+        )
+    else:
+        reset_code.code_hash = hash_verification_code(code, user.id)
+        reset_code.expires_at = expires_at
+        reset_code.attempts = 0
+        reset_code.last_sent_at = now
+    session.add(reset_code)
+
+    try:
+        email_sender.send_password_reset_code(
+            to_email=user.email,
+            code=code,
+            reset_link=_build_reset_link(user.email, code),
+        )
+    except Exception as err:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to send the reset email. Please try again later.",
+        ) from err
+
+    await session.commit()
+    return generic_response
+
+
+@router.post("/password-reset/confirm", response_model=TokenPair)
+async def confirm_password_reset(
+    payload: PasswordResetConfirm,
+    session: DatabaseSession,
+) -> TokenPair:
+    """Validate the reset code and set the new password.
+
+    Returns HTTP 400 for an invalid/expired/missing code (single message,
+    doesn't indicate the exact cause), HTTP 429 beyond the maximum number
+    of attempts. On success: bumps `token_version` (all outstanding
+    sessions invalidated — a password reset implies "assume the account
+    was compromised"), deletes the `PasswordResetCode` row, and returns a
+    fresh token pair (same auto-login UX as `/auth/signup/verify`).
+    """
+    invalid_code_exc = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired code.",
+    )
+
+    user_result = await session.execute(select(User).where(User.email == payload.email))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise invalid_code_exc
+
+    reset_result = await session.execute(
+        select(PasswordResetCode).where(PasswordResetCode.user_id == user.id)
+    )
+    reset_code = reset_result.scalar_one_or_none()
+    if reset_code is None or reset_code.expires_at < datetime.now(UTC):
+        raise invalid_code_exc
+
+    if reset_code.attempts >= settings.base.password_reset_max_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Request a new code.",
+        )
+
+    if not verify_verification_code(payload.code, user.id, reset_code.code_hash):
+        reset_code.attempts += 1
+        session.add(reset_code)
+        await session.commit()
+        raise invalid_code_exc
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.token_version += 1
+    session.add(user)
+    await session.delete(reset_code)
+    await session.commit()
+    await session.refresh(user)
+
+    return TokenPair(
+        access_token=create_access_token(_claims(user)),
+        refresh_token=create_refresh_token(_claims(user)),
+    )
