@@ -415,6 +415,11 @@ sub-repos with actual changes appear in a given release.
   schemas (`src/schemas/tamiyoScroll.ts`).
 - Test suite (Vitest + Testing Library) covering the API client, card
   tests, active-deck context, match form, and card-tests section.
+- `LoginPage.tsx`: live password requirements checklist on signup,
+  mirroring `PASSWORD_PATTERN` in `apps/barrins_api/app/schemas/auth.py`
+  (12+ characters, upper/lowercase, digit, symbol) so users see which
+  rules they still need to satisfy as they type. UX feedback only —
+  the backend remains the sole source of truth on submit.
 
 #### Changed
 

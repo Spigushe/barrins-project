@@ -5,6 +5,17 @@ import { useLogin, useSignup } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+
+// Mirrors PASSWORD_PATTERN in apps/barrins_api/app/schemas/auth.py — UX
+// feedback only, the backend remains the sole source of truth on submit.
+const PASSWORD_RULES = [
+  { label: 'At least 12 characters', test: (v: string) => v.length >= 12 },
+  { label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
+  { label: 'One lowercase letter', test: (v: string) => /[a-z]/.test(v) },
+  { label: 'One digit', test: (v: string) => /\d/.test(v) },
+  { label: 'One symbol', test: (v: string) => /[^\w\s]/.test(v) },
+]
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -80,6 +91,25 @@ export function LoginPage() {
               }}
               className="rounded-[8px] text-sm"
             />
+            {isSignup && (
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {PASSWORD_RULES.map((rule) => {
+                  const met = rule.test(password)
+                  return (
+                    <li
+                      key={rule.label}
+                      className={cn(
+                        'flex items-center gap-1.5 text-[12px]',
+                        met ? 'text-success' : 'text-muted-foreground',
+                      )}
+                    >
+                      <span aria-hidden="true">{met ? '✓' : '○'}</span>
+                      {rule.label}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
 
           {error !== null && <p className="text-[12.5px] text-destructive">{error}</p>}
