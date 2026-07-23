@@ -57,6 +57,12 @@
     version: "{{ react_frontend_deploy_ref }}"
     update: true
 
+- name: Ensure /opt/nvm directory exists
+  ansible.builtin.file:
+    state: directory
+    path: /opt/nvm
+    mode: "0755"
+
 - name: Ensure nvm is installed
   environment:
     NVM_DIR: /opt/nvm

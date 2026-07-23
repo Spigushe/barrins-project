@@ -176,6 +176,12 @@ sub-repos with actual changes appear in a given release.
   installed by `setup_packages` at host bootstrap; this playbook only
   exposes it via pgAdmin. Documented at
   `docs/content/ops/deployment/database.md`.
+- `ops/my-server/secrets/tamiyo_scroll/{staging,production}.env.example`:
+  documentation templates mirroring `apps/tamiyo_scroll/.env.example`,
+  for parity with `barrins_api`'s per-app `secrets/` layout. Unlike
+  `fastapi_backend_env_file`, `react_frontend` has no `env_file`
+  mechanism — `tamiyo_scroll.yml` does not read these; `VITE_API_BASE_URL`
+  is already computed automatically by the playbook and isn't secret.
 
 #### Changed
 
@@ -380,6 +386,14 @@ sub-repos with actual changes appear in a given release.
   `uv python install 3.14` step the role already performs before
   `uv sync` (idempotent, a no-op when already installed) — the
   README previously only mentioned `uv sync` itself.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: the "Ensure nvm
+  is installed" task set `NVM_DIR=/opt/nvm` (shared across apps) but
+  never created that directory first; nvm's `install.sh` only
+  auto-creates `$NVM_DIR` when it matches its own default
+  (`$HOME/.nvm`), so it exited with "You have $NVM_DIR set... but that
+  directory does not exist" on a fresh host. Surfaced while deploying
+  `tamiyo_scroll.yml -e deploy_env=staging` to a fresh server. Added a
+  task creating `/opt/nvm` before the install step.
 
 ### front/tamiyo_scroll
 
