@@ -1,4 +1,10 @@
 ---
+- name: Template shared TLS parameters snippet
+  ansible.builtin.template:
+    src: ssl-params.conf.j2
+    dest: /etc/nginx/snippets/ssl-params.conf
+    mode: "0644"
+
 - name: Add HTTP site configuration
   ansible.builtin.template:
     src: http.conf.j2

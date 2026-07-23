@@ -17,10 +17,10 @@ file, and `secrets/` relative to it.
 Create a venv in this directory:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install ansible
-ansible-galaxy collection install -r requirements.yml
+ansible-galaxy collection install -r requirements.yml --force
 ```
 
 Create a `.vault-password-file.txt` in this directory (only needed if you

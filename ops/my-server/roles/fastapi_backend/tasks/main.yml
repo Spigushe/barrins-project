@@ -68,6 +68,15 @@
     path: "{{ fastapi_backend_config.work_dir }}/pyproject.toml"
   register: fastapi_backend_pyproject
 
+- name: Ensure Python 3.14 is installed via uv
+  become: false
+  tags:
+    - deploy
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv python install 3.14"
+  register: fastapi_backend_uv_python_install
+  changed_when: "'Already' not in fastapi_backend_uv_python_install.stdout"
+  when: fastapi_backend_pyproject.stat.exists
+
 - name: Install dependencies with uv
   become: false
   tags:
@@ -89,6 +98,16 @@
     virtualenv: "{{ fastapi_backend_config.work_dir }}/.venv"
     virtualenv_command: /usr/bin/python3 -m venv
   when: not fastapi_backend_pyproject.stat.exists
+
+- name: Apply database migrations
+  become: false
+  tags:
+    - deploy
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv run alembic upgrade head"
+  args:
+    chdir: "{{ fastapi_backend_config.work_dir }}"
+  when: fastapi_backend_pyproject.stat.exists
+  changed_when: true
 
 - name: Check whether a local .env file is available for this deploy
   when: fastapi_backend_config.env_file | length > 0

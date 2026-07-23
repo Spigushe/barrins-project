@@ -207,6 +207,10 @@ sub-repos with actual changes appear in a given release.
   nginx vhost, or database. Decided with the user (§16.2) after
   `tolaria_news.yml`'s embedded-backend exception (see Fixed below)
   was judged to need fixing rather than being grandfathered.
+- `ops/my-server/ansible.cfg`: normalized `key=value` spacing under
+  `[defaults]` — `inventory`, `vault_password_file`, `timeout`, and
+  `ansible_ssh_user` had stray spaces around `=` that every other key
+  in the file didn't.
 
 #### Fixed
 
@@ -309,6 +313,32 @@ sub-repos with actual changes appear in a given release.
   (build output lands at `<site_root>/<subdir>/dist`, not
   `<site_root>/dist`) — the condition now compares full resolved
   paths instead.
+- `ops/my-server/roles/register_ssl/tasks/main.yml`: the role's own
+  README documents templating `/etc/nginx/snippets/ssl-params.conf` as
+  step 1 — shared by every HTTPS-serving role via
+  `include snippets/ssl-params.conf;` (`backend_website`,
+  `react_frontend`, `pgadmin`) — but the task that actually templates
+  it was dropped when the Ansible deployment moved in-repo; `tasks/main.yml`
+  went straight from the HTTP vhost to reload to certbot. Any HTTPS
+  vhost reload on a host missing that snippet failed nginx's config
+  test outright (`open() "/etc/nginx/snippets/ssl-params.conf" failed
+  (2: No such file or directory)`), surfaced when deploying
+  `barrins_api.yml -e deploy_env=staging` to a fresh domain. Restored
+  the missing task, ordered first as the README already described.
+- Two WSL-specific gotchas surfaced while diagnosing the above from a
+  `/mnt/c` (DrvFs) checkout, not repo bugs but worth recording for any
+  operator deploying from WSL: DrvFs mounts report their directories
+  as world-writable by default, so Ansible silently ignores a
+  same-directory `ansible.cfg` (`inventory`/`ansible_ssh_user` never
+  applied, inventory host pattern left unmatched); and DrvFs's default
+  file permissions can leave the *owner*-execute bit set even after
+  narrowing `fmask`, which makes Ansible mistake
+  `.vault-password-file.txt` for a vault password *script* rather than
+  a plain password file. Both resolved by setting
+  `metadata,umask=22,fmask=111` under `[automount]` in `/etc/wsl.conf`
+  (`fmask=111` clears execute for owner/group/other alike, vs. a
+  narrower `fmask=11` which left owner's execute bit set) followed by
+  `wsl --shutdown`.
 - `ops/my-server/tolaria_news.yml`: dropped the embedded copy of the
   `barrins_api` backend role block (previously documented as a known
   exception to "one playbook per app" — see Constitution §26.1
@@ -320,6 +350,36 @@ sub-repos with actual changes appear in a given release.
   (the file has always been `tolaria_news.yml`): `README.md`,
   `architecture/independence.md`, `deployment/frontend.md`,
   `deployment/rollback.md`.
+- `ops/my-server/roles/fastapi_backend/tasks/main.yml`: no task ever
+  ran `alembic upgrade head` — the role installed dependencies,
+  deployed `.env`, and restarted the service, leaving any pending
+  schema migration unapplied against the newly deployed code
+  (Constitution §31.1/§37.1 both list migrations as a required
+  deployment step). Added an "Apply database migrations" task
+  (`uv run alembic upgrade head`, `chdir` at the resolved work dir)
+  right after dependency installation and before the `.env`/service
+  steps, gated on the same `fastapi_backend_pyproject.stat.exists`
+  check as the `uv sync` task.
+- `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
+  `tolaria_news.yml`: `env_branch` defaulted staging deploys to a
+  `develop` branch that doesn't exist in this repo (the actual branch
+  is `staging`) — any `-e deploy_env=staging` run would have failed at
+  the `git clone`/checkout step. Also populated the three playbooks'
+  `github_token` vault block, still a `REPLACE_WITH_...` placeholder
+  ciphertext since the ops migration in-repo, with the real
+  `ansible-vault encrypt_string` output.
+- `ops/my-server/README.md`: the venv setup instructions created a
+  bare `venv/` directory, which nothing but a stale,
+  since-superseded `.gitignore` line covers — every role actually
+  uses `uv`'s `.venv` convention (caught by the repo-wide
+  `**/.venv/` pattern). Renamed to `.venv`, and added `--force` to
+  the `ansible-galaxy collection install` step so it actually
+  reinstalls collections pinned in `requirements.yml` instead of
+  silently skipping already-installed ones.
+- `ops/my-server/roles/fastapi_backend/README.md`: documented the
+  `uv python install 3.14` step the role already performs before
+  `uv sync` (idempotent, a no-op when already installed) — the
+  README previously only mentioned `uv sync` itself.
 
 ### front/tamiyo_scroll
 
