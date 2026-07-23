@@ -362,10 +362,21 @@ sub-repos with actual changes appear in a given release.
   schema migration unapplied against the newly deployed code
   (Constitution §31.1/§37.1 both list migrations as a required
   deployment step). Added an "Apply database migrations" task
-  (`uv run alembic upgrade head`, `chdir` at the resolved work dir)
-  right after dependency installation and before the `.env`/service
-  steps, gated on the same `fastapi_backend_pyproject.stat.exists`
-  check as the `uv sync` task.
+  (`uv run alembic upgrade head`, `chdir` at the resolved work dir),
+  gated on the same `fastapi_backend_pyproject.stat.exists` check as
+  the `uv sync` task.
+- `ops/my-server/roles/fastapi_backend/tasks/main.yml`: the migrations
+  task above initially ran right after dependency installation, before
+  the `.env` deploy step — so `alembic upgrade head` connected using
+  whatever `.env` (if any) was already sitting on the server from a
+  previous deploy, not the one this run just copied. Surfaced while
+  deploying `barrins_api.yml -e deploy_env=staging`: migrations failed
+  with `password authentication failed for user "REPLACE_USER"` even
+  after the local `secrets/barrins_api/staging.env` was fixed, because
+  the corrected file hadn't been copied to the server yet at the point
+  migrations ran. Reordered so "Deploy the local .env file" (and its
+  "no local .env found" fallback) runs before "Apply database
+  migrations".
 - `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
   `tolaria_news.yml`: `env_branch` defaulted staging deploys to a
   `develop` branch that doesn't exist in this repo (the actual branch

@@ -99,16 +99,6 @@
     virtualenv_command: /usr/bin/python3 -m venv
   when: not fastapi_backend_pyproject.stat.exists
 
-- name: Apply database migrations
-  become: false
-  tags:
-    - deploy
-  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv run alembic upgrade head"
-  args:
-    chdir: "{{ fastapi_backend_config.work_dir }}"
-  when: fastapi_backend_pyproject.stat.exists
-  changed_when: true
-
 - name: Check whether a local .env file is available for this deploy
   when: fastapi_backend_config.env_file | length > 0
   delegate_to: localhost
@@ -137,6 +127,16 @@
       operators' machines. {{ fastapi_backend_config.work_dir }}/.env on the server is left
       as-is.
   when: fastapi_backend_config.env_file | length > 0 and not fastapi_backend_env_file_stat.stat.exists
+
+- name: Apply database migrations
+  become: false
+  tags:
+    - deploy
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv run alembic upgrade head"
+  args:
+    chdir: "{{ fastapi_backend_config.work_dir }}"
+  when: fastapi_backend_pyproject.stat.exists
+  changed_when: true
 
 - name: Add service
   ansible.builtin.template:
