@@ -413,9 +413,16 @@ sub-repos with actual changes appear in a given release.
   ownership in repository at ...`, Git's CVE-2022-24765 protection).
   Surfaced on a redeploy of `tamiyo_scroll.yml -e deploy_env=staging`
   after the initial deploy had already flipped ownership to `www-data`.
-  Added a `git config --global --add safe.directory {{ site_root }}` task
-  (as root) before the clone/update step, so every future run is immune
-  to the ownership check regardless of who last owned the checkout.
+  Added a task setting `safe.directory` in root's global gitconfig (as
+  root) before the clone/update step, so every future run is immune to
+  the ownership check regardless of who last owned the checkout. First
+  written as an `ansible.builtin.command: git config --global --add
+  safe.directory ...` task, which passed locally but failed PR #17's
+  `ops` CI job under `ansible-lint`'s `command-instead-of-module` rule;
+  switched to `community.general.git_config` (`add_mode: add`, which
+  maps to `git config --add` and is idempotent — it skips when the
+  value is already present), adding `community.general` to
+  `ops/my-server/requirements.yml`.
 - `ops/my-server/roles/react_frontend/tasks/main.yml`: with the ownership
   check above resolved, the same "Clone/update application repository"
   task then failed with `Local modifications exist in the destination

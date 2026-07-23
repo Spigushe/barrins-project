@@ -53,8 +53,11 @@
   # step) no longer owns the directory and git refuses it as "dubious
   # ownership" (CVE-2022-24765 protection). Whitelisting it in root's global
   # gitconfig makes root's git calls immune to that ownership check.
-  ansible.builtin.command: git config --global --add safe.directory {{ react_frontend_config.site_root }}
-  changed_when: false
+  community.general.git_config:
+    name: safe.directory
+    scope: global
+    value: "{{ react_frontend_config.site_root }}"
+    add_mode: add
 
 - name: Clone/update application repository
   no_log: true
