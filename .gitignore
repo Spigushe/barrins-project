@@ -29,3 +29,14 @@ ops/my-server/secrets/**
 docs/content/back/barrins_api/index.md
 docs/content/back/barrins_identity/index.md
 docs/content/front/tamiyo_scroll/index.md
+
+# Generated from ops/my-server/roles/<role>/README.md by docs/hooks/sync_readmes.py
+# on every build. Add a new line here whenever a role is added.
+docs/content/ops/roles/backend_website/index.md
+docs/content/ops/roles/create_ssh_key/index.md
+docs/content/ops/roles/fastapi_backend/index.md
+docs/content/ops/roles/pgadmin/index.md
+docs/content/ops/roles/react_frontend/index.md
+docs/content/ops/roles/register_ssl/index.md
+docs/content/ops/roles/setup_base_user/index.md
+docs/content/ops/roles/setup_packages/index.md

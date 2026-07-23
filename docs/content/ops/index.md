@@ -7,6 +7,8 @@ structured per Constitution §38:
   and the decision records behind how secrets and releases are handled.
 - [Deployment](deployment/index.md) — backend, frontend, and rollback
   runbooks.
+- [Roles](roles/index.md) — the Ansible roles those playbooks invoke, one
+  page per role, generated from each role's own README.
 - [Security](security/index.md) — secrets management, TLS, CORS.
 - [Operations](operations/index.md) — logging, monitoring, backups
   (including current gaps, documented honestly).

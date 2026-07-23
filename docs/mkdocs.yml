@@ -50,6 +50,16 @@ nav:
                 - Frontend: ops/deployment/frontend.md
                 - Database (PostgreSQL & pgAdmin): ops/deployment/database.md
                 - Rollback: ops/deployment/rollback.md
+          - Roles:
+                - Home: ops/roles/index.md
+                - Backend Website: ops/roles/backend_website/index.md
+                - Create SSH Key: ops/roles/create_ssh_key/index.md
+                - FastAPI Backend: ops/roles/fastapi_backend/index.md
+                - pgAdmin: ops/roles/pgadmin/index.md
+                - React Frontend: ops/roles/react_frontend/index.md
+                - Register SSL: ops/roles/register_ssl/index.md
+                - Setup Base User: ops/roles/setup_base_user/index.md
+                - Setup Packages: ops/roles/setup_packages/index.md
           - Security:
                 - Home: ops/security/index.md
                 - Secrets Management: ops/security/secrets.md

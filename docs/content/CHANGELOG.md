@@ -36,6 +36,15 @@ sub-repos with actual changes appear in a given release.
 - Root `.gitignore`: ignores the mkdocs-generated `index.md` pages,
   the `docs/site/` build output, and Python `__pycache__`/`*.pyc`
   files (produced by the new build hook).
+- `docs/hooks/sync_readmes.py` extended to also sync each
+  `ops/my-server/roles/<role>/README.md` into
+  `docs/content/ops/roles/<role>/index.md` (target directories created
+  and cleaned up on demand, since — unlike the app pages — no
+  `_links.md` sidecar pre-creates them). New **Ops → Roles** nav
+  section (`docs/mkdocs.yml`, placed after Deployment) and
+  `docs/content/ops/roles/index.md` overview page link the eight
+  generated role pages; `.gitignore` and the generated-marker comment
+  in the hook itself were generalized to cover both README sources.
 - `on_shutdown` hook in `docs/hooks/sync_readmes.py`: deletes the
   generated `index.md` pages when the hook shuts down, since
   `mkdocs serve` keeps rewriting them on every reload but never
