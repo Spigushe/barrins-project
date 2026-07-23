@@ -26,13 +26,17 @@ redeploys stay idempotent even though the last step hands ownership to
    already present — **shared across every `react_frontend` invocation on
    the host**, so multiple apps don't each install their own copy.
 5. Installs the requested Node version via `nvm install`.
-6. If `react_frontend_build_env` is non-empty, writes it as a `.env` file in the repo
-   root before building (for build-time variables baked into the bundle,
-   e.g. Vite's `VITE_*`).
-7. Runs `<react_frontend_package_manager> install` then `react_frontend_build_command`.
-8. If the build output isn't literally named `dist`, symlinks
-   `<site_root>/dist -> <site_root>/<react_frontend_build_dir>` (the nginx template
-   always serves `dist/`).
+6. If `react_frontend_build_env` is non-empty, writes it as a `.env` file at
+   the app's working directory (the repo root, or `react_frontend_repo_subdir`
+   within it) before building (for build-time variables baked into the
+   bundle, e.g. Vite's `VITE_*`).
+7. Runs `<react_frontend_package_manager> install` then `react_frontend_build_command`
+   from that same working directory.
+8. Symlinks `<site_root>/dist -> <working_dir>/<react_frontend_build_dir>`
+   whenever that doesn't already resolve to `<site_root>/dist` on its own
+   (i.e. always when `react_frontend_repo_subdir` is set, or when the build
+   output isn't literally named `dist`) — the nginx template always serves
+   `<site_root>/dist`.
 9. Recursively chowns the site root to `www-data` so nginx can read it —
    this is the **last** task with `tags: deploy`, done every deploy run.
 10. Templates the HTTPS vhost and reloads nginx.
@@ -42,6 +46,7 @@ redeploys stay idempotent even though the last step hands ownership to
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `react_frontend_repo` | yes | — | GitHub repo, `org/name` form (private, HTTPS). |
+| `react_frontend_repo_subdir` | no | `''` (repo root is the app) | Path within the cloned repo where this app actually lives — set this when `react_frontend_repo` is a monorepo (e.g. `apps/tamiyo_scroll`). The build (`npm install`/build command, `build_env` file) runs from `<site_root>/<repo_subdir>` instead of the repo root; the `dist` symlink served by nginx is adjusted to match. The full repo is still cloned to `<site_root>` either way. |
 | `react_frontend_server_name` | yes | — | Public domain; also used for the site root path. Certificate must already exist (run `register_ssl` first). |
 | `react_frontend_app_name` | no | `react_frontend_server_name` | Currently informational only (no systemd unit — this role has no long-running process). |
 | `react_frontend_use_release_tag` | no | `false` | `true` deploys a GitHub release tag instead of a branch — the production convention. |

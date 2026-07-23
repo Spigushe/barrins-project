@@ -22,7 +22,9 @@ publicly.
 4. Installs [`uv`](https://docs.astral.sh/uv/) via its official installer
    if not already present (`~/.local/bin/uv`, idempotent via `creates`).
 5. Detects the dependency manager by checking for `pyproject.toml` at the
-   repo root:
+   app's working directory — the repo root, or `fastapi_backend_repo_subdir`
+   within it for a monorepo checkout (see `fastapi_backend_repo_subdir`
+   below):
    - **present** → `uv sync` (creates and populates `.venv` automatically).
    - **absent** → falls back to `pip install -r requirements.txt` into a
      `.venv` created with `python3 -m venv` (Debian's system pip refuses
@@ -51,6 +53,7 @@ publicly.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `fastapi_backend_repo` | yes | — | GitHub repo, `org/name` form (private, HTTPS). |
+| `fastapi_backend_repo_subdir` | no | `''` (repo root is the app) | Path within the cloned repo where this app actually lives — set this when `fastapi_backend_repo` is a monorepo (e.g. `apps/barrins_api`). `pyproject.toml`/`requirements.txt` detection, dependency install, the deployed `.env`, and the systemd unit's `WorkingDirectory` all resolve relative to `<app_root>/<repo_subdir>` instead of the repo root. The full repo is still cloned to `<app_root>` either way. |
 | `fastapi_backend_server_name` | yes | — | Used to build the app root path (`/home/<username>/projects/<fastapi_backend_server_name>`) and, unless `fastapi_backend_app_name` is set, the service name. Usually the API's domain. |
 | `fastapi_backend_port` | yes | — | Local port `uvicorn` binds to. Pick one not already in use (see the root README for a per-app port ledger). |
 | `fastapi_backend_entrypoint` | yes | — | `module:app` uvicorn target, e.g. `my_api.main:app`. |
@@ -69,8 +72,8 @@ publicly.
   Token" section) or passed per-invocation via `fastapi_backend_github_token`. If
   `fastapi_backend_use_release_tag: true`, that token also needs read access to the
   repo's Releases (the same `repo` scope covers this).
-- The repo must contain either a `pyproject.toml` (uv-managed) or a
-  `requirements.txt` (pip-managed) at its root.
+- The repo (or `fastapi_backend_repo_subdir` within it) must contain either a
+  `pyproject.toml` (uv-managed) or a `requirements.txt` (pip-managed).
 - If `fastapi_backend_use_release_tag: true`, the repo needs at least one GitHub
   Release published — the role fails with a clear message otherwise.
 - Pair with `backend_website` (and `register_ssl` for the domain) to make

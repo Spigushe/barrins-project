@@ -1,6 +1,6 @@
 ---
 # Dedicated playbook for the barrins_api backend — the single place that
-# deploys/restarts it. Frontend playbooks (tolaria.yml, tamiyo_scroll.yml)
+# deploys/restarts it. Frontend playbooks (tolaria_news.yml, tamiyo_scroll.yml)
 # only point their VITE_API_BASE_URL at whatever this playbook already has
 # running; they must never redeploy the backend themselves (see the root
 # README's "Multiple frontends sharing one backend" section).
@@ -34,8 +34,8 @@
     backend_port: "{{ 8511 if deploy_env == 'staging' else 8011 }}"
     backend_domain: "api{{ env_suffix }}.barrins-codex.org"
     # Local, git-ignored .env — deployed to ~/projects/{{ backend_domain
-    # }}/.env on every run if present on this machine, skipped otherwise.
-    # See secrets/README.md to create it.
+    # }}/apps/barrins_api/.env on every run if present on this machine,
+    # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
 
   roles:
@@ -48,7 +48,10 @@
     - role: fastapi_backend
       tags:
         - backend
-      fastapi_backend_repo: barrins-project/barrins_api
+      # This monorepo (Spigushe/barrins-project), not a dedicated barrins_api
+      # repo — barrins_api lives at apps/barrins_api within it.
+      fastapi_backend_repo: Spigushe/barrins-project
+      fastapi_backend_repo_subdir: apps/barrins_api
       fastapi_backend_server_name: "{{ backend_domain }}"
       fastapi_backend_app_name: "api{{ env_suffix }}"
       fastapi_backend_port: "{{ backend_port }}"
@@ -68,9 +71,10 @@
       ansible.builtin.debug:
         msg:
           - "This playbook never runs Alembic. SSH in and run, from"
-          - "~/projects/{{ backend_domain }}: 'source .venv/bin/activate &&"
-          - "alembic upgrade head' (or 'uv run alembic upgrade head' if"
-          - "using uv) to apply pending migrations."
+          - "~/projects/{{ backend_domain }}/apps/barrins_api:"
+          - "'source .venv/bin/activate && alembic upgrade head' (or"
+          - "'uv run alembic upgrade head' if using uv) to apply pending"
+          - "migrations."
       tags: [backend, deploy]
 
     - name: Reminder — every frontend served by this backend

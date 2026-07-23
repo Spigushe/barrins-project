@@ -6,7 +6,7 @@ After=network-online.target
 Type=simple
 User={{ username }}
 Restart=always
-WorkingDirectory={{ fastapi_backend_config.app_root }}
+WorkingDirectory={{ fastapi_backend_config.work_dir }}
 {% for key, value in fastapi_backend_config.env_vars.items() %}
 Environment={{ key }}={{ value }}
 {% endfor %}

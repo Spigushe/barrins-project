@@ -71,7 +71,7 @@ ansible-vault encrypt_string '<ghp_token>' --name 'github_token'
 ```
 
 Copy the resulting string into the playbook's `github_token` var (see
-`tolaria.yml`). Every `fastapi_backend`/`react_frontend` role invocation uses
+`tolaria_news.yml`). Every `fastapi_backend`/`react_frontend` role invocation uses
 that same token by default; pass `fastapi_backend_github_token`/`react_frontend_github_token` on a
 specific role invocation if one app lives in a different org and needs its
 own token. Tokens expire and must be renewed periodically: repeat the
@@ -83,14 +83,14 @@ deploy` to skip the certificate/nginx setup steps and just redeploy code).
 | App | Playbook | Production (release tag) | Staging (`-e deploy_env=staging`, branch) |
 | --- | -------- | ------------------------- | ------------------------------------------ |
 | barrins_api (shared backend) | `barrins_api.yml` (canonical — see "Multiple frontends sharing one backend" below) | `api.barrins-codex.org` (`:8011`) | `api-staging.barrins-codex.org` (`:8511`) |
-| Tolaria News (frontend) | `tolaria.yml` | `tolaria.barrins-codex.org` | `tolaria-staging.barrins-codex.org` |
+| Tolaria News (frontend) | `tolaria_news.yml` | `tolaria.barrins-codex.org` | `tolaria-staging.barrins-codex.org` |
 | Tamiyo Scroll (frontend) | `tamiyo_scroll.yml` | `tamiyo.barrins-codex.org` | `tamiyo-staging.barrins-codex.org` |
 
 One playbook per application: each of the three files above deploys
-exactly one app and nothing else — deploying Tamiyo Scroll never restarts
-`barrins_api`, and vice versa (Constitution §26.1, "Deployment
-Independence"). The one exception is `tolaria.yml`, a leftover from before
-this split — see "Multiple frontends sharing one backend" below.
+exactly one app and nothing else — deploying Tamiyo Scroll (or Tolaria
+News) never restarts `barrins_api`, and vice versa (Constitution §26.1,
+"Deployment Independence") — see "Multiple frontends sharing one backend"
+below for how they still call the same shared backend without deploying it.
 
 Production always deploys the latest GitHub release tag (or a pinned one —
 see "Release-tag deploys" below); staging always deploys a branch. Full
@@ -119,6 +119,19 @@ bootstrap, not app-specific — see `setup.yml`/`initial.yml`. Roles for stacks
 not currently in use (Flask, PHP, plain background workers, public-repo
 static sites) were removed; check `git log -- ops/my-server/roles/` if one
 of them needs resurrecting later.
+
+**This monorepo, not a dedicated app repo.** Every app deployed today
+(`barrins_api`, `tamiyo_scroll`, `tolaria_news`) lives inside this same
+repository (`Spigushe/barrins-project`) under `apps/<name>/`, not in its own
+GitHub repo — so every playbook sets `fastapi_backend_repo`/
+`react_frontend_repo` to `Spigushe/barrins-project` plus
+`fastapi_backend_repo_subdir`/`react_frontend_repo_subdir: apps/<name>`
+(see `barrins_api.yml`/`tamiyo_scroll.yml` for the pattern). The role still
+clones the whole repo to `app_root`/`site_root`, but resolves
+`pyproject.toml`/`requirements.txt`/the build command/the systemd
+`WorkingDirectory` relative to the subdirectory. If a future app *does* get
+its own dedicated repo, just omit `*_repo_subdir` — the repo root is used
+as the app root by default, same as before.
 
 Minimal template for a new API playbook (`my_api.yml`):
 
@@ -185,7 +198,7 @@ Ports already in use: `8011`/`8511` (`api.barrins-codex.org`, production/staging
 
 ### Staging
 
-`barrins_api.yml`, `tolaria.yml` and `tamiyo_scroll.yml` all accept
+`barrins_api.yml`, `tolaria_news.yml` and `tamiyo_scroll.yml` all accept
 `-e deploy_env=staging`:
 
 ```bash
@@ -257,13 +270,11 @@ above); `tamiyo_scroll.yml` just points its `VITE_API_BASE_URL` at whatever
 backend itself, so deploying the frontend can never take the backend (or
 the other frontend) down.
 
-`tolaria.yml` is the one exception: it predates this split and still embeds
-its own copy of the backend role block (`fastapi_backend_app_name`/`fastapi_backend_server_name`/
-`fastapi_backend_port` identical to `barrins_api.yml`'s, on purpose — both converge on
-the same systemd unit/nginx vhost, and every role invocation here is
-idempotent, so running either or both is safe). It hasn't been migrated to
-drop that duplicate copy yet; do so the same way `tamiyo_scroll.yml` was
-if you're touching that file next.
+`tolaria_news.yml` used to embed its own copy of the backend role block too
+(a leftover from before this split) but has since been migrated the same
+way `tamiyo_scroll.yml` was: it only points its `VITE_API_BASE_URL` at
+whatever `barrins_api.yml` already has running, and never redeploys or
+restarts the backend itself.
 
 One backend-level thing this repo still does **not** automate: **Alembic
 migrations**. `fastapi_backend` never runs it — run it by hand over SSH
@@ -271,8 +282,8 @@ after every deploy that changes the schema:
 
 ```bash
 ssh spigushe.org
-cd ~/projects/api.barrins-codex.org   # or api-staging.barrins-codex.org
-uv run alembic upgrade head           # or: source .venv/bin/activate && alembic upgrade head
+cd ~/projects/api.barrins-codex.org/apps/barrins_api   # or api-staging.barrins-codex.org/apps/barrins_api
+uv run alembic upgrade head                            # or: source .venv/bin/activate && alembic upgrade head
 ```
 
 ## Secrets — backend `.env` files

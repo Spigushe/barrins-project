@@ -43,7 +43,10 @@
 
     - role: react_frontend
       tags: [frontend]
-      react_frontend_repo: barrins-project/tamiyo_scroll
+      # This monorepo (Spigushe/barrins-project), not a dedicated tamiyo_scroll
+      # repo — Tamiyo Scroll lives at apps/tamiyo_scroll within it.
+      react_frontend_repo: Spigushe/barrins-project
+      react_frontend_repo_subdir: apps/tamiyo_scroll
       react_frontend_server_name: "{{ frontend_domain }}"
       react_frontend_app_name: "tamiyo{{ env_suffix }}"
       react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"

@@ -65,7 +65,7 @@
 
 - name: Check for a uv/pyproject project
   ansible.builtin.stat:
-    path: "{{ fastapi_backend_config.app_root }}/pyproject.toml"
+    path: "{{ fastapi_backend_config.work_dir }}/pyproject.toml"
   register: fastapi_backend_pyproject
 
 - name: Install dependencies with uv
@@ -74,7 +74,7 @@
     - deploy
   ansible.builtin.command: "/home/{{ username }}/.local/bin/uv sync"
   args:
-    chdir: "{{ fastapi_backend_config.app_root }}"
+    chdir: "{{ fastapi_backend_config.work_dir }}"
   when: fastapi_backend_pyproject.stat.exists
   changed_when: true
 
@@ -83,10 +83,10 @@
   tags:
     - deploy
   ansible.builtin.pip:
-    chdir: "{{ fastapi_backend_config.app_root }}"
-    requirements: "{{ fastapi_backend_config.app_root }}/requirements.txt"
+    chdir: "{{ fastapi_backend_config.work_dir }}"
+    requirements: "{{ fastapi_backend_config.work_dir }}/requirements.txt"
     state: present
-    virtualenv: "{{ fastapi_backend_config.app_root }}/.venv"
+    virtualenv: "{{ fastapi_backend_config.work_dir }}/.venv"
     virtualenv_command: /usr/bin/python3 -m venv
   when: not fastapi_backend_pyproject.stat.exists
 
@@ -103,7 +103,7 @@
     - deploy
   ansible.builtin.copy:
     src: "{{ fastapi_backend_config.env_file }}"
-    dest: "{{ fastapi_backend_config.app_root }}/.env"
+    dest: "{{ fastapi_backend_config.work_dir }}/.env"
     owner: "{{ username }}"
     mode: "0600"
   when: fastapi_backend_config.env_file | length > 0 and fastapi_backend_env_file_stat.stat.exists
@@ -115,7 +115,7 @@
     msg: >-
       {{ fastapi_backend_config.env_file }} not found locally, skipping — this file is
       git-ignored on purpose (see secrets/README.md) and only ever lives on
-      operators' machines. {{ fastapi_backend_config.app_root }}/.env on the server is left
+      operators' machines. {{ fastapi_backend_config.work_dir }}/.env on the server is left
       as-is.
   when: fastapi_backend_config.env_file | length > 0 and not fastapi_backend_env_file_stat.stat.exists
 

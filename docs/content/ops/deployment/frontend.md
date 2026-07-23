@@ -1,17 +1,17 @@
 # Frontend Deployment — Tamiyo Scroll / Tolaria News
 
-Operational guide for `ops/my-server/tamiyo_scroll.yml` and `tolaria.yml`.
-Structured per Constitution §37.2. Both frontends call the shared
-`barrins_api` backend — see [`backend.md`](backend.md) for deploying that
-first.
+Operational guide for `ops/my-server/tamiyo_scroll.yml` and
+`tolaria_news.yml`. Structured per Constitution §37.2. Both frontends call
+the shared `barrins_api` backend — see [`backend.md`](backend.md) for
+deploying that first.
 
 | | Tamiyo Scroll | Tolaria News |
 | --- | --- | --- |
-| Playbook | `tamiyo_scroll.yml` | `tolaria.yml` |
+| Playbook | `tamiyo_scroll.yml` | `tolaria_news.yml` |
 | Production domain | `tamiyo.barrins-codex.org` | `tolaria.barrins-codex.org` |
 | Staging domain | `tamiyo-staging.barrins-codex.org` | `tolaria-staging.barrins-codex.org` |
 | Source | latest GitHub release tag (or `-e react_frontend_release_tag=<tag>`) | same |
-| Deploys the backend too? | No — frontend-only, see [`../architecture/independence.md`](../architecture/independence.md) | Yes — a known, documented exception (embeds its own `barrins_api` copy) |
+| Deploys the backend too? | No — frontend-only, see [`../architecture/independence.md`](../architecture/independence.md) | No — frontend-only, same as Tamiyo Scroll |
 
 All commands below run from `ops/my-server/`.
 
@@ -52,7 +52,7 @@ ansible-playbook tamiyo_scroll.yml -e deploy_env=staging -e react_frontend_git_b
 ansible-playbook tamiyo_scroll.yml
 ```
 
-Same pattern for `tolaria.yml`.
+Same pattern for `tolaria_news.yml`.
 
 ## Validation
 
@@ -94,4 +94,4 @@ database migration to reason about, just a rebuild from the older tag.
 - [`backend.md`](backend.md) — the shared backend these frontends call.
 - [`rollback.md`](rollback.md) — full rollback procedure.
 - `ops/my-server/README.md` — "Multiple frontends sharing one backend"
-  for why `tolaria.yml` still embeds its own backend copy.
+  for how both frontends call the shared backend without deploying it.
