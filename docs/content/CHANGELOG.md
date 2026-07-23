@@ -176,6 +176,12 @@ sub-repos with actual changes appear in a given release.
   installed by `setup_packages` at host bootstrap; this playbook only
   exposes it via pgAdmin. Documented at
   `docs/content/ops/deployment/database.md`.
+- `ops/my-server/secrets/tamiyo_scroll/{staging,production}.env.example`:
+  documentation templates mirroring `apps/tamiyo_scroll/.env.example`,
+  for parity with `barrins_api`'s per-app `secrets/` layout. Unlike
+  `fastapi_backend_env_file`, `react_frontend` has no `env_file`
+  mechanism — `tamiyo_scroll.yml` does not read these; `VITE_API_BASE_URL`
+  is already computed automatically by the playbook and isn't secret.
 
 #### Changed
 
@@ -356,10 +362,21 @@ sub-repos with actual changes appear in a given release.
   schema migration unapplied against the newly deployed code
   (Constitution §31.1/§37.1 both list migrations as a required
   deployment step). Added an "Apply database migrations" task
-  (`uv run alembic upgrade head`, `chdir` at the resolved work dir)
-  right after dependency installation and before the `.env`/service
-  steps, gated on the same `fastapi_backend_pyproject.stat.exists`
-  check as the `uv sync` task.
+  (`uv run alembic upgrade head`, `chdir` at the resolved work dir),
+  gated on the same `fastapi_backend_pyproject.stat.exists` check as
+  the `uv sync` task.
+- `ops/my-server/roles/fastapi_backend/tasks/main.yml`: the migrations
+  task above initially ran right after dependency installation, before
+  the `.env` deploy step — so `alembic upgrade head` connected using
+  whatever `.env` (if any) was already sitting on the server from a
+  previous deploy, not the one this run just copied. Surfaced while
+  deploying `barrins_api.yml -e deploy_env=staging`: migrations failed
+  with `password authentication failed for user "REPLACE_USER"` even
+  after the local `secrets/barrins_api/staging.env` was fixed, because
+  the corrected file hadn't been copied to the server yet at the point
+  migrations ran. Reordered so "Deploy the local .env file" (and its
+  "no local .env found" fallback) runs before "Apply database
+  migrations".
 - `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
   `tolaria_news.yml`: `env_branch` defaulted staging deploys to a
   `develop` branch that doesn't exist in this repo (the actual branch
@@ -380,6 +397,43 @@ sub-repos with actual changes appear in a given release.
   `uv python install 3.14` step the role already performs before
   `uv sync` (idempotent, a no-op when already installed) — the
   README previously only mentioned `uv sync` itself.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: the "Ensure nvm
+  is installed" task set `NVM_DIR=/opt/nvm` (shared across apps) but
+  never created that directory first; nvm's `install.sh` only
+  auto-creates `$NVM_DIR` when it matches its own default
+  (`$HOME/.nvm`), so it exited with "You have $NVM_DIR set... but that
+  directory does not exist" on a fresh host. Surfaced while deploying
+  `tamiyo_scroll.yml -e deploy_env=staging` to a fresh server. Added a
+  task creating `/opt/nvm` before the install step.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: the "Clone/update
+  application repository" task runs as root (the play's `become: true`
+  default), but the role's last task hands `site_root` to `www-data`
+  recursively — including the `.git/` directory — so on the next run root
+  no longer owns the repo and git refuses it outright (`detected dubious
+  ownership in repository at ...`, Git's CVE-2022-24765 protection).
+  Surfaced on a redeploy of `tamiyo_scroll.yml -e deploy_env=staging`
+  after the initial deploy had already flipped ownership to `www-data`.
+  Added a task setting `safe.directory` in root's global gitconfig (as
+  root) before the clone/update step, so every future run is immune to
+  the ownership check regardless of who last owned the checkout. First
+  written as an `ansible.builtin.command: git config --global --add
+  safe.directory ...` task, which passed locally but failed PR #17's
+  `ops` CI job under `ansible-lint`'s `command-instead-of-module` rule;
+  switched to `community.general.git_config` (`add_mode: add`, which
+  maps to `git config --add` and is idempotent — it skips when the
+  value is already present), adding `community.general` to
+  `ops/my-server/requirements.yml`.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: with the ownership
+  check above resolved, the same "Clone/update application repository"
+  task then failed with `Local modifications exist in the destination
+  ... (force=no)` on a second deploy — the build step (`npm install`/
+  build command) can leave the working tree dirty (e.g. a regenerated
+  lockfile), and Ansible's `git` module refuses to update over local
+  modifications unless told to. Since this checkout exists solely to be
+  rebuilt from source control on every deploy, added `force: true` so it
+  always resets cleanly to the target ref. Verified with a full
+  `tamiyo_scroll.yml -e deploy_env=staging` redeploy, which completed
+  successfully end to end.
 
 ### front/tamiyo_scroll
 

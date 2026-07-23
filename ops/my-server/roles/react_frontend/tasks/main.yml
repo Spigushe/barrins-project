@@ -47,6 +47,18 @@
     react_frontend_deploy_ref: "{{ react_frontend_config.git_branch }}"
   when: not react_frontend_config.use_release_tag
 
+- name: Mark site root as a safe git directory for root
+  # The "Change file ownership" task below hands the repo to www-data at the
+  # end of each run, so on the next run root (which owns the clone/update
+  # step) no longer owns the directory and git refuses it as "dubious
+  # ownership" (CVE-2022-24765 protection). Whitelisting it in root's global
+  # gitconfig makes root's git calls immune to that ownership check.
+  community.general.git_config:
+    name: safe.directory
+    scope: global
+    value: "{{ react_frontend_config.site_root }}"
+    add_mode: add
+
 - name: Clone/update application repository
   no_log: true
   tags:
@@ -56,6 +68,18 @@
     dest: "{{ react_frontend_config.site_root }}"
     version: "{{ react_frontend_deploy_ref }}"
     update: true
+    # The build step (below) can leave the working tree dirty (e.g. the
+    # package manager rewriting the lockfile), and this checkout only ever
+    # exists to be rebuilt from source control — nothing here is meant to
+    # survive between deploys. Without force, git refuses the next
+    # clone/update outright ("Local modifications exist ... (force=no)").
+    force: true
+
+- name: Ensure /opt/nvm directory exists
+  ansible.builtin.file:
+    state: directory
+    path: /opt/nvm
+    mode: "0755"
 
 - name: Ensure nvm is installed
   environment:
