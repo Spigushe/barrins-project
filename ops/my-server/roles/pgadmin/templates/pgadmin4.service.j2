@@ -8,12 +8,12 @@ Wants=network-online.target
 Restart=always
 ExecStartPre=-/usr/bin/docker rm -f pgadmin4
 ExecStart=/usr/bin/docker run --rm --name pgadmin4 \
-  --network {{ r.docker_network }} \
+  --network {{ pgadmin_config.docker_network }} \
   --add-host=host.docker.internal:host-gateway \
-  -p 127.0.0.1:{{ r.port }}:80 \
+  -p 127.0.0.1:{{ pgadmin_config.port }}:80 \
   --env-file /etc/pgadmin4/pgadmin4.env \
-  -v {{ r.volume_name }}:/var/lib/pgadmin \
-  dpage/pgadmin4:{{ r.image_tag }}
+  -v {{ pgadmin_config.volume_name }}:/var/lib/pgadmin \
+  dpage/pgadmin4:{{ pgadmin_config.image_tag }}
 ExecStop=/usr/bin/docker stop pgadmin4
 
 [Install]

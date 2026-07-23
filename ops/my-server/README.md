@@ -20,6 +20,7 @@ Create a venv in this directory:
 python3 -m venv venv
 source venv/bin/activate
 pip install ansible
+ansible-galaxy collection install -r requirements.yml
 ```
 
 Create a `.vault-password-file.txt` in this directory (only needed if you
@@ -61,7 +62,7 @@ And add it to the Deploy Keys (Settings > Deploy Keys) of the Github repository.
 
 #### GitHub Token (private repo checkout)
 
-`fastapi-backend` and `react-frontend` clone their repo over HTTPS using a
+`fastapi_backend` and `react_frontend` clone their repo over HTTPS using a
 GitHub Personal Access Token (`repo` read scope is enough), instead of the
 server's SSH deploy key. Generate one on GitHub and vault it:
 
@@ -70,8 +71,8 @@ ansible-vault encrypt_string '<ghp_token>' --name 'github_token'
 ```
 
 Copy the resulting string into the playbook's `github_token` var (see
-`tolaria.yml`). Every `fastapi-backend`/`react-frontend` role invocation uses
-that same token by default; pass `fb_github_token`/`rf_github_token` on a
+`tolaria.yml`). Every `fastapi_backend`/`react_frontend` role invocation uses
+that same token by default; pass `fastapi_backend_github_token`/`react_frontend_github_token` on a
 specific role invocation if one app lives in a different org and needs its
 own token. Tokens expire and must be renewed periodically: repeat the
 `encrypt_string` step and redeploy (`ansible-playbook <playbook>.yml --tags
@@ -108,12 +109,12 @@ the roles that match your app:
 
 | Role | Use case | Key variables |
 | --- | --- | --- |
-| `register-ssl` | Let's Encrypt certificate for a domain (needed by every publicly reachable role below) | `rs_server_name` |
-| `react-frontend` | Node/React (or any `npm run build`-based) static frontend, served by nginx with SPA fallback | `rf_repo`, `rf_server_name`, `rf_build_dir`, `rf_use_release_tag` |
-| `fastapi-backend` | Python/FastAPI API, git-cloned, `uv`/`pip` venv, run via `uvicorn` under systemd | `fb_repo`, `fb_server_name`, `fb_port`, `fb_entrypoint`, `fb_use_release_tag`, `fb_env_file` (secrets, see below) |
-| `backend-website` | nginx vhost that serves `dist/` and reverse-proxies everything else to a backend port (pair with `fastapi-backend`) | `bw_server_name`, `bw_port` |
+| `register_ssl` | Let's Encrypt certificate for a domain (needed by every publicly reachable role below) | `register_ssl_server_name` |
+| `react_frontend` | Node/React (or any `npm run build`-based) static frontend, served by nginx with SPA fallback | `react_frontend_repo`, `react_frontend_server_name`, `react_frontend_build_dir`, `react_frontend_use_release_tag` |
+| `fastapi_backend` | Python/FastAPI API, git-cloned, `uv`/`pip` venv, run via `uvicorn` under systemd | `fastapi_backend_repo`, `fastapi_backend_server_name`, `fastapi_backend_port`, `fastapi_backend_entrypoint`, `fastapi_backend_use_release_tag`, `fastapi_backend_env_file` (secrets, see below) |
+| `backend_website` | nginx vhost that serves `dist/` and reverse-proxies everything else to a backend port (pair with `fastapi_backend`) | `backend_website_server_name`, `backend_website_port` |
 
-Other roles (`setup-base-user`, `setup-packages`, `create-ssh-key`) are host
+Other roles (`setup_base_user`, `setup_packages`, `create_ssh_key`) are host
 bootstrap, not app-specific — see `setup.yml`/`initial.yml`. Roles for stacks
 not currently in use (Flask, PHP, plain background workers, public-repo
 static sites) were removed; check `git log -- ops/my-server/roles/` if one
@@ -132,23 +133,23 @@ Minimal template for a new API playbook (`my_api.yml`):
     backend_env_file: "{{ playbook_dir }}/secrets/my_api/{{ deploy_env }}.env"
 
   roles:
-    - role: register-ssl
+    - role: register_ssl
       tags: [backend, certs]
-      rs_server_name: my-api.barrins-codex.org
+      register_ssl_server_name: my-api.barrins-codex.org
 
-    - role: fastapi-backend
+    - role: fastapi_backend
       tags: [backend]
-      fb_repo: my-org/my-api
-      fb_server_name: my-api.barrins-codex.org
-      fb_port: 8012
-      fb_entrypoint: "my_api.main:app"
-      fb_use_release_tag: "{{ deploy_env == 'production' }}"
-      fb_env_file: "{{ backend_env_file }}"
+      fastapi_backend_repo: my-org/my-api
+      fastapi_backend_server_name: my-api.barrins-codex.org
+      fastapi_backend_port: 8012
+      fastapi_backend_entrypoint: "my_api.main:app"
+      fastapi_backend_use_release_tag: "{{ deploy_env == 'production' }}"
+      fastapi_backend_env_file: "{{ backend_env_file }}"
 
-    - role: backend-website
+    - role: backend_website
       tags: [backend]
-      bw_server_name: my-api.barrins-codex.org
-      bw_port: 8012
+      backend_website_server_name: my-api.barrins-codex.org
+      backend_website_port: 8012
 ```
 
 And a separate frontend playbook (`my_app.yml`):
@@ -163,16 +164,16 @@ And a separate frontend playbook (`my_app.yml`):
     deploy_env: production
 
   roles:
-    - role: register-ssl
+    - role: register_ssl
       tags: [frontend, certs]
-      rs_server_name: my-app.barrins-codex.org
+      register_ssl_server_name: my-app.barrins-codex.org
 
-    - role: react-frontend
+    - role: react_frontend
       tags: [frontend]
-      rf_repo: my-org/my-app
-      rf_server_name: my-app.barrins-codex.org
-      rf_use_release_tag: "{{ deploy_env == 'production' }}"
-      rf_build_env:
+      react_frontend_repo: my-org/my-app
+      react_frontend_server_name: my-app.barrins-codex.org
+      react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"
+      react_frontend_build_env:
         VITE_API_BASE_URL: "https://my-api.barrins-codex.org"
 ```
 
@@ -180,7 +181,7 @@ Both need the play-level `github_token` var too — see "GitHub Token" above.
 Add a `secrets/my_api/production.env.example` template (see "Secrets"
 below) documenting the keys the new app needs.
 
-Ports already in use: `8011`/`8511` (`api.barrins-codex.org`, production/staging — see `barrins_api.yml`) — pick a free pair for the next app's `fb_port`/staging port (production port +500 is the convention below).
+Ports already in use: `8011`/`8511` (`api.barrins-codex.org`, production/staging — see `barrins_api.yml`) — pick a free pair for the next app's `fastapi_backend_port`/staging port (production port +500 is the convention below).
 
 ### Staging
 
@@ -192,7 +193,7 @@ ansible-playbook barrins_api.yml -e deploy_env=staging
 ansible-playbook tamiyo_scroll.yml -e deploy_env=staging
 # preview a specific branch instead of the staging default (develop):
 ansible-playbook tamiyo_scroll.yml -e deploy_env=staging \
-  -e rf_git_branch=my-feature
+  -e react_frontend_git_branch=my-feature
 ```
 
 This deploys a fully side-by-side stack, isolated from production:
@@ -222,23 +223,23 @@ role invocations instead of literal domains/ports.
 
 Constitution §§25/27/31 require production to deploy released versions
 only, never a branch head. Every role that clones a repo
-(`fastapi-backend`, `react-frontend`) implements this via
-`fb_use_release_tag`/`rf_use_release_tag`:
+(`fastapi_backend`, `react_frontend`) implements this via
+`fastapi_backend_use_release_tag`/`react_frontend_use_release_tag`:
 
 - **`true`** (production, wired automatically as `deploy_env == 'production'`
-  in every playbook here) — deploys `fb_release_tag`/`rf_release_tag` if
+  in every playbook here) — deploys `fastapi_backend_release_tag`/`react_frontend_release_tag` if
   pinned, else queries the GitHub API for the repo's latest release and
   deploys that tag. Fails with a clear message if the repo has no release
   yet — cut one on GitHub first.
-- **`false`** (staging, the default) — deploys `fb_git_branch`/
-  `rf_git_branch` as before, since staging exists specifically to preview
+- **`false`** (staging, the default) — deploys `fastapi_backend_git_branch`/
+  `react_frontend_git_branch` as before, since staging exists specifically to preview
   code that hasn't been released yet.
 
 **Rollback**: pass the previous tag explicitly to redeploy it —
 
 ```bash
-ansible-playbook barrins_api.yml -e fb_release_tag=v1.2.3
-ansible-playbook tamiyo_scroll.yml -e rf_release_tag=v0.9.0
+ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=v1.2.3
+ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=v0.9.0
 ```
 
 See
@@ -247,7 +248,7 @@ for the full rollback procedure, including the database-migration caveat.
 
 ### Multiple frontends sharing one backend
 
-Not every app needs its own `fastapi-backend`. Two frontends —
+Not every app needs its own `fastapi_backend`. Two frontends —
 `tolaria.barrins-codex.org` and `tamiyo.barrins-codex.org` — call the
 *same* `barrins_api` backend. `barrins_api.yml` is the canonical, single
 place that deploys it (one playbook per application — see "Applications"
@@ -257,15 +258,15 @@ backend itself, so deploying the frontend can never take the backend (or
 the other frontend) down.
 
 `tolaria.yml` is the one exception: it predates this split and still embeds
-its own copy of the backend role block (`fb_app_name`/`fb_server_name`/
-`fb_port` identical to `barrins_api.yml`'s, on purpose — both converge on
+its own copy of the backend role block (`fastapi_backend_app_name`/`fastapi_backend_server_name`/
+`fastapi_backend_port` identical to `barrins_api.yml`'s, on purpose — both converge on
 the same systemd unit/nginx vhost, and every role invocation here is
 idempotent, so running either or both is safe). It hasn't been migrated to
 drop that duplicate copy yet; do so the same way `tamiyo_scroll.yml` was
 if you're touching that file next.
 
 One backend-level thing this repo still does **not** automate: **Alembic
-migrations**. `fastapi-backend` never runs it — run it by hand over SSH
+migrations**. `fastapi_backend` never runs it — run it by hand over SSH
 after every deploy that changes the schema:
 
 ```bash
@@ -301,13 +302,13 @@ ansible-playbook barrins_api.yml
 ansible-playbook barrins_api.yml -e deploy_env=staging
 ```
 
-This mechanism (`fb_env_file` on the `fastapi-backend` role) is generic —
+This mechanism (`fastapi_backend_env_file` on the `fastapi_backend` role) is generic —
 any future backend app can use the same pattern, see the role's README.
 
 ## Database administration — pgAdmin
 
 `postgresql_pgadmin.yml` deploys [pgAdmin4](https://www.pgadmin.org/) (in
-Docker, reverse-proxied by nginx) for the PostgreSQL server `setup-packages`
+Docker, reverse-proxied by nginx) for the PostgreSQL server `setup_packages`
 already installs on the host — it does not install PostgreSQL itself, only
 exposes a web UI for it and wires the two together (isolated Docker
 network, `pg_hba.conf`/`listen_addresses` updated to accept password auth

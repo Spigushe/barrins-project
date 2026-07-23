@@ -1,5 +1,6 @@
 ---
-- hosts: all
+- name: Bootstrap a fresh host — base user, SSH hardening
+  hosts: all
   become: true
   # become_method: su
   gather_facts: false
@@ -14,15 +15,15 @@
         - skip_ansible_lint
 
   roles:
-    - role: setup-base-user
+    - role: setup_base_user
 
   post_tasks:
     - name: Remove SSH access for root user
-      lineinfile:
+      ansible.builtin.lineinfile:
         dest: /etc/ssh/sshd_config
         regexp: "^#?PermitRootLogin"
         line: "PermitRootLogin no"
     - name: Restart SSH
-      service:
+      ansible.builtin.service:
         name: ssh
         state: restarted

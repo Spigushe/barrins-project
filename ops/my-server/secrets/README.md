@@ -4,8 +4,8 @@ Per-app, per-environment `.env` files, **local-only and git-ignored** —
 Constitution §34 ("Secrets Management") is explicit that secrets must
 never be stored inside a repository, so nothing under `secrets/` except
 the `*.env.example` templates is ever committed (enforced by `.gitignore`
-and `scripts/check_no_secrets_committed.sh`). `fastapi-backend`'s
-`fb_env_file` (see `roles/fastapi-backend/README.md`) copies whichever of
+and `scripts/check_no_secrets_committed.sh`). `fastapi_backend`'s
+`fastapi_backend_env_file` (see `roles/fastapi_backend/README.md`) copies whichever of
 these files exists on your machine straight to `<app_root>/.env` during
 deploy, and skips the step with a note if it doesn't — "use it if
 available," never a hard requirement. Nobody needs to SSH in and hand-edit
@@ -14,7 +14,7 @@ their own local copy.
 
 ## Layout
 
-```
+```text
 secrets/
   <app>/
     production.env.example   # plaintext template, committed
@@ -44,7 +44,7 @@ cp secrets/barrins_api/production.env.example secrets/barrins_api/production.env
 ```
 
 Optionally encrypt it at rest with `ansible-vault` for extra protection on
-your own disk (`fb_env_file`/the `copy` module transparently decrypt a
+your own disk (`fastapi_backend_env_file`/the `copy` module transparently decrypt a
 vault-encrypted source given `.vault-password-file.txt`, so this is
 compatible either way):
 

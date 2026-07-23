@@ -1367,6 +1367,52 @@ Agent 3 owns:
 
 Agent 3 must report security concerns immediately.
 
+### 26.4 Ansible coding standards
+
+`ops/my-server/` must stay clean under `ansible-lint` (the `ops` CI job
+runs `ansible-lint ops/my-server`, no relaxed profile). Rules below were
+extracted from bringing the repo from 114 failures down to zero; follow
+them when writing new playbooks/roles rather than reintroducing the gap.
+
+- **Role names**: lowercase letters, digits, underscores only
+  (`^[a-z][a-z0-9_]*$`) — no hyphens. `ansible-lint`'s `role-name` rule
+  rejects `fastapi-backend`; use `fastapi_backend`.
+- **FQCN everywhere**: every module action uses its Fully Qualified
+  Collection Name — `ansible.builtin.copy`, not `copy`;
+  `ansible.builtin.systemd`, not `systemd`. Modules that moved out of
+  `ansible.builtin` (`community.crypto.openssh_keypair`,
+  `ansible.posix.authorized_key`, …) must be declared in
+  `ops/my-server/requirements.yml` and installed via
+  `ansible-galaxy collection install -r requirements.yml` — otherwise
+  `ansible-lint` fails with `syntax-check[unknown-module]` and the
+  playbook fails at runtime the same way.
+- **Var naming inside roles**: any var a role sets (role input vars,
+  `register`, `set_fact`) must be prefixed with the *full* role name
+  plus underscore — `fastapi_backend_repo`, not `fb_repo` or bare
+  `repo`. This includes an internal computed-config dict: name it
+  `<role>_config` (e.g. `pgadmin_config`), never a bare single-letter
+  var like `r` — `ansible-lint`'s `var-naming[no-role-prefix]` checks
+  the literal prefix, abbreviations and short names don't satisfy it.
+- **File permissions**: every `template`/`copy` task sets an explicit
+  `mode:`. Octal values must be quoted strings — `mode: "0755"`, never
+  a bare `0755` (YAML parses unquoted leading-zero numbers ambiguously
+  across implementations).
+- **Idempotency**: every `command`/`shell` task declares `changed_when`
+  (explicit `true`/`false`, or relies on `creates`/`removes` for
+  built-in idempotency) — never leave a command silently reporting
+  "changed" on every run. Never pin `pip`/`apt` installs to
+  `state: latest`; use `present` (optionally with a pinned version) so
+  redeploys stay reproducible.
+- **Names**: every play and every task has a `name:`. If a task name
+  embeds a Jinja expression, the expression must be at the very end
+  (`name: Install Node via nvm — {{ node_version }}`, not
+  `name: Install Node {{ node_version }} via nvm`).
+- **Local verification**: `ansible-lint` needs the POSIX `grp` module
+  and does not run natively on Windows. Run it from WSL/Linux/macOS —
+  a throwaway venv (`pip install ansible-lint && ansible-galaxy
+  collection install -r ops/my-server/requirements.yml`) is enough to
+  reproduce CI locally before pushing.
+
 ---
 
 ## 27. Deployment Principles

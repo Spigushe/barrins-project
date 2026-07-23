@@ -8,15 +8,15 @@
 
 Constitution §30: every public service must be HTTPS, with automatic
 certificate renewal and no application-level changes required. The
-`register-ssl` role (Let's Encrypt via `certbot`) issues certificates;
+`register_ssl` role (Let's Encrypt via `certbot`) issues certificates;
 renewal is handled by certbot's own systemd timer/cron job installed with
 the Debian package, not by Ansible — see
-`ops/my-server/roles/register-ssl/README.md`.
+`ops/my-server/roles/register_ssl/README.md`.
 
 ## Reverse proxy
 
 nginx terminates TLS and reverse-proxies to each backend's local port
-(`127.0.0.1:<port>`) — see the `backend-website` role. Security headers
+(`127.0.0.1:<port>`) — see the `backend_website` role. Security headers
 (HSTS, `X-Content-Type-Options`, `X-Frame-Options`) recommended by
 Constitution §29.1 are **not yet templated** into the nginx vhosts this
 project generates — open item, not currently implemented.

@@ -9,7 +9,7 @@ Tolaria News and Tamiyo Scroll. Structured per Constitution §37.1.
 | Domain | `api.barrins-codex.org` | `api-staging.barrins-codex.org` |
 | Local port (`uvicorn`) | `8011` | `8511` |
 | systemd unit | `api` | `api-staging` |
-| Source | latest GitHub release tag (or `-e fb_release_tag=<tag>` to pin) | `develop` branch (or `-e fb_git_branch=<branch>`) |
+| Source | latest GitHub release tag (or `-e fastapi_backend_release_tag=<tag>` to pin) | `develop` branch (or `-e fastapi_backend_git_branch=<branch>`) |
 | `.env` (local, git-ignored) | `secrets/barrins_api/production.env` | `secrets/barrins_api/staging.env` |
 
 All commands below run from `ops/my-server/`.
@@ -19,12 +19,12 @@ All commands below run from `ops/my-server/`.
 **Server requirements** — `initial.yml` and `setup.yml` must have run on
 the host already (nginx, certbot, base user). One-time only.
 
-**Dependencies** — none beyond what `fastapi-backend`/`backend-website`
+**Dependencies** — none beyond what `fastapi_backend`/`backend_website`
 install automatically (`uv`, a Python venv). The role detects
 `pyproject.toml` vs `requirements.txt` and picks the right installer.
 
 **DNS** — an A record for the target domain pointing at the server
-(`146.59.146.57`). `register-ssl` (Let's Encrypt HTTP-01) fails silently
+(`146.59.146.57`). `register_ssl` (Let's Encrypt HTTP-01) fails silently
 if this isn't propagated yet.
 
 **GitHub token** — `barrins_api.yml`'s `github_token` var (vaulted) needs
@@ -95,7 +95,7 @@ uv run alembic upgrade head
 See [`rollback.md`](rollback.md) for the full procedure. Short version:
 
 ```bash
-ansible-playbook barrins_api.yml -e fb_release_tag=<previous-tag>
+ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=<previous-tag>
 ```
 
 This rolls back the *code*. It does **not** roll back the database — read
@@ -105,8 +105,8 @@ This rolls back the *code*. It does **not** roll back the database — read
 
 | Symptom | Likely cause |
 | --- | --- |
-| Playbook fails before touching the server, "repo has no GitHub release yet" | Cut a release on GitHub, or pin one with `-e fb_release_tag=<tag>`. |
-| `register-ssl` fails on "certbot certonly" | DNS not propagated to `146.59.146.57`, or port 80 unreachable from the internet. |
+| Playbook fails before touching the server, "repo has no GitHub release yet" | Cut a release on GitHub, or pin one with `-e fastapi_backend_release_tag=<tag>`. |
+| `register_ssl` fails on "certbot certonly" | DNS not propagated to `146.59.146.57`, or port 80 unreachable from the internet. |
 | Service won't start (`systemctl status api`/`api-staging` failing) | Placeholder `SECRET_KEY`, or (production only) missing `SMTP_HOST`/`FRONTEND_BASE_URL`. Check `journalctl -u <app_name> -n 50`. |
 | A frontend's SPA loads but every API call fails (CORS error in console) | That frontend's origin is missing from `ALLOWED_ORIGINS`. |
 | Email verification links point at the wrong frontend | `FRONTEND_BASE_URL` is shared across every frontend this backend serves — only one can be correct until this becomes per-app aware. |

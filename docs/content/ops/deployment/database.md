@@ -9,7 +9,7 @@ staging/production split. Structured per Constitution §37 where it applies.
 | --- | --- |
 | Playbook | `postgresql_pgadmin.yml` |
 | URL | `https://pgadmin.barrins-codex.org` |
-| PostgreSQL | Already installed natively by `setup-packages` (host bootstrap) — this playbook doesn't reinstall it, only makes it reachable from pgAdmin. |
+| PostgreSQL | Already installed natively by `setup_packages` (host bootstrap) — this playbook doesn't reinstall it, only makes it reachable from pgAdmin. |
 | pgAdmin | Runs in a Docker container (`dpage/pgadmin4`), on `127.0.0.1:5050`, behind nginx/TLS. |
 | Auto-updates | pgAdmin: weekly systemd timer that `docker pull`s + restarts. PostgreSQL (OS package): `unattended-upgrades`, enabled by this same playbook. |
 
@@ -101,7 +101,7 @@ concern, see [`rollback.md`](rollback.md)'s database caveat.
 
 | Symptom | Likely cause |
 | --- | --- |
-| `register-ssl` fails on "certbot certonly" | DNS not propagated, or port 80 unreachable. |
+| `register_ssl` fails on "certbot certonly" | DNS not propagated, or port 80 unreachable. |
 | pgAdmin shows "Unable to connect to server" when adding the Postgres server | `Host` set to `localhost` instead of `host.docker.internal`; or the manual `ALTER USER ... PASSWORD` step wasn't done; or PostgreSQL wasn't reloaded (`systemctl status postgresql`). |
 | `docker network create` fails on a re-run | Another Docker network already occupies `172.30.99.0/24` — change `pga_docker_subnet`/`pga_docker_gateway_ip` in `postgresql_pgadmin.yml`. |
 | pgAdmin container won't start | `journalctl -u pgadmin4 -n 50`; confirm Docker is running (`systemctl status docker`) and port `5050` is free. |

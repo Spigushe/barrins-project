@@ -4,7 +4,8 @@
 # barrins_api.yml's job exclusively (run it at least once, and again
 # whenever barrins_api itself changes; see the root README's "Multiple
 # frontends sharing one backend" section and docs/content/ops/deployment/frontend.md).
-- hosts: spigushe
+- name: Deploy the Tamiyo Scroll frontend
+  hosts: spigushe
   become: true
   gather_facts: false
   vars:
@@ -25,9 +26,9 @@
     # default — still pointed at barrins_api's own staging instance, run
     # barrins_api.yml -e deploy_env=staging separately to have one).
     #   ansible-playbook tamiyo_scroll.yml -e deploy_env=staging \
-    #     -e rf_git_branch=my-feature
+    #     -e react_frontend_git_branch=my-feature
     # Roll production back to an older release:
-    #   ansible-playbook tamiyo_scroll.yml -e rf_release_tag=v1.2.3
+    #   ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=v1.2.3
     deploy_env: production
     env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
     env_branch: "{{ 'develop' if deploy_env == 'staging' else 'main' }}"
@@ -36,23 +37,23 @@
     frontend_domain: "tamiyo{{ env_suffix }}.barrins-codex.org"
 
   roles:
-    - role: register-ssl
+    - role: register_ssl
       tags: [frontend, certs]
-      rs_server_name: "{{ frontend_domain }}"
+      register_ssl_server_name: "{{ frontend_domain }}"
 
-    - role: react-frontend
+    - role: react_frontend
       tags: [frontend]
-      rf_repo: barrins-project/tamiyo_scroll
-      rf_server_name: "{{ frontend_domain }}"
-      rf_app_name: "tamiyo{{ env_suffix }}"
-      rf_use_release_tag: "{{ deploy_env == 'production' }}"
-      rf_git_branch: "{{ env_branch }}"
-      rf_build_env:
+      react_frontend_repo: barrins-project/tamiyo_scroll
+      react_frontend_server_name: "{{ frontend_domain }}"
+      react_frontend_app_name: "tamiyo{{ env_suffix }}"
+      react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"
+      react_frontend_git_branch: "{{ env_branch }}"
+      react_frontend_build_env:
         VITE_API_BASE_URL: "https://{{ backend_domain }}"
 
   post_tasks:
     - name: Reminder — this playbook does not deploy barrins_api
-      debug:
+      ansible.builtin.debug:
         msg:
           - "This playbook only deploys the Tamiyo Scroll frontend. Run"
           - "'ansible-playbook barrins_api.yml{{ ' -e deploy_env=staging' if deploy_env == 'staging' else '' }}'"

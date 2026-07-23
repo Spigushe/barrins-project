@@ -19,7 +19,7 @@ Every application gets exactly one playbook under `ops/my-server/`:
 
 Running `tamiyo_scroll.yml` never touches `barrins_api`'s systemd service
 or nginx vhost, and vice versa. This is enforced structurally, not by
-convention: `tamiyo_scroll.yml` simply contains no `fastapi-backend` role
+convention: `tamiyo_scroll.yml` simply contains no `fastapi_backend` role
 invocation at all. `tolaria.yml` still embeds its own copy of the backend
 role block (a leftover from before this split — both converge on the same
 systemd unit/nginx vhost as `barrins_api.yml`'s, and every role invocation

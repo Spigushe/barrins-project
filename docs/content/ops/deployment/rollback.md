@@ -12,11 +12,11 @@ Rolling back means telling the playbook to deploy an older tag instead of
 
 ```bash
 # Backend
-ansible-playbook barrins_api.yml -e fb_release_tag=<previous-tag>
+ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=<previous-tag>
 
 # Frontend
-ansible-playbook tamiyo_scroll.yml -e rf_release_tag=<previous-tag>
-ansible-playbook tolaria.yml -e rf_release_tag=<previous-tag> -e fb_release_tag=<previous-tag>
+ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=<previous-tag>
+ansible-playbook tolaria.yml -e react_frontend_release_tag=<previous-tag> -e fastapi_backend_release_tag=<previous-tag>
 ```
 
 Find the previous tag with `git tag --sort=-creatordate | head` in the
@@ -60,8 +60,8 @@ of that requirement).
 - [ ] Identify the last known-good release tag.
 - [ ] For a backend rollback: check whether the release being rolled back
       included a migration, and if so, whether it's backward-compatible.
-- [ ] Run the playbook with `-e fb_release_tag=<tag>` /
-      `-e rf_release_tag=<tag>`.
+- [ ] Run the playbook with `-e fastapi_backend_release_tag=<tag>` /
+      `-e react_frontend_release_tag=<tag>`.
 - [ ] Validate (see the "Validation" section of
       [`backend.md`](backend.md) / [`frontend.md`](frontend.md)).
 - [ ] If the database needs a compensating action, take it and re-validate.

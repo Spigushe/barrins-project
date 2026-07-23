@@ -2,7 +2,7 @@
 
 Deploys [pgAdmin4](https://www.pgadmin.org/) (web/server mode) in a Docker
 container, reverse-proxied by nginx with TLS, wired up to reach the
-PostgreSQL server that `setup-packages` already installs on the host — plus
+PostgreSQL server that `setup_packages` already installs on the host — plus
 automatic updates for both.
 
 pgAdmin runs in Docker (rather than the OS package) because pgAdmin4's own
@@ -46,13 +46,13 @@ Docker keeps it self-contained and trivially updatable.
 7. Templates an nginx HTTPS vhost for `pga_server_name` that reverse-proxies
    to `127.0.0.1:<pga_port>` (`X-Scheme`/`Host`/`X-Real-IP` headers per
    [pgAdmin's documented reverse-proxy setup](https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html)).
-   Requires `register-ssl` to have run for the same domain first (same
+   Requires `register_ssl` to have run for the same domain first (same
    convention as every other HTTPS-serving role here).
 8. Installs and enables `unattended-upgrades` for the whole host, with
    `Debian-Security` *and* the regular `<codename>-updates` origin enabled
    (appended via `Unattended-Upgrade::Origins-Pattern::`, so it doesn't
    clobber Debian's own defaults) — this is what keeps the OS-level
-   PostgreSQL package (installed by `setup-packages`) automatically patched,
+   PostgreSQL package (installed by `setup_packages`) automatically patched,
    including point releases, not just CVEs.
 
 ## Variables
@@ -71,9 +71,9 @@ Docker keeps it self-contained and trivially updatable.
 
 ## Requirements
 
-- `setup-packages` must have run first (installs `nginx`, `certbot`,
+- `setup_packages` must have run first (installs `nginx`, `certbot`,
   `postgresql`).
-- `register-ssl` must have run for `pga_server_name` first (certificate
+- `register_ssl` must have run for `pga_server_name` first (certificate
   files this role's nginx vhost references).
 - Docker Engine ≥ 20.10 for `--add-host=host.docker.internal:host-gateway`
   support (true of `docker.io` on any current Debian release).
@@ -98,9 +98,9 @@ Docker keeps it self-contained and trivially updatable.
 ## Example
 
 ```yaml
-- role: register-ssl
+- role: register_ssl
   tags: [pgadmin, certs]
-  rs_server_name: pgadmin.barrins-codex.org
+  register_ssl_server_name: pgadmin.barrins-codex.org
 
 - role: pgadmin
   tags: [pgadmin, deploy]

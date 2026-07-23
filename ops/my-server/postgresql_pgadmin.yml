@@ -1,9 +1,10 @@
 ---
-# Deploys pgAdmin4 (web UI) for the PostgreSQL server setup-packages
+# Deploys pgAdmin4 (web UI) for the PostgreSQL server setup_packages
 # already installs on this host, and wires the two together. Does not
 # install PostgreSQL itself — that happens once, at host bootstrap, via
-# setup.yml/setup-packages (idempotent, safe to re-run).
-- hosts: spigushe
+# setup.yml/setup_packages (idempotent, safe to re-run).
+- name: Deploy pgAdmin and wire it to the host's PostgreSQL
+  hosts: spigushe
   become: true
   gather_facts: false
   vars:
@@ -19,12 +20,12 @@
     - name: Check the local pgAdmin admin password file exists
       delegate_to: localhost
       become: false
-      stat:
+      ansible.builtin.stat:
         path: "{{ pgadmin_admin_password_file }}"
       register: pgadmin_pw_stat
 
     - name: Fail fast if it's missing
-      fail:
+      ansible.builtin.fail:
         msg: >-
           {{ pgadmin_admin_password_file }} does not exist. Create it with:
           echo -n '<strong password>' > {{ pgadmin_admin_password_file }} &&
@@ -34,23 +35,23 @@
     - name: Read the local pgAdmin admin password
       become: false
       no_log: true
-      set_fact:
-        pgadmin_admin_password: "{{ lookup('file', pgadmin_admin_password_file) }}"
+      ansible.builtin.set_fact:
+        pgadmin_admin_password: "{{ lookup('ansible.builtin.file', pgadmin_admin_password_file) }}"
 
   roles:
-    - role: register-ssl
+    - role: register_ssl
       tags: [pgadmin, certs]
-      rs_server_name: "{{ pgadmin_domain }}"
+      register_ssl_server_name: "{{ pgadmin_domain }}"
 
     - role: pgadmin
       tags: [pgadmin, deploy]
-      pga_server_name: "{{ pgadmin_domain }}"
-      pga_admin_email: "{{ pgadmin_admin_email }}"
-      pga_admin_password: "{{ pgadmin_admin_password }}"
+      pgadmin_server_name: "{{ pgadmin_domain }}"
+      pgadmin_admin_email: "{{ pgadmin_admin_email }}"
+      pgadmin_admin_password: "{{ pgadmin_admin_password }}"
 
   post_tasks:
     - name: Reminder — pending steps this playbook does not automate
-      debug:
+      ansible.builtin.debug:
         msg:
           - "PostgreSQL now accepts password auth from the pgAdmin Docker"
           - "network, but no role/password was created for it. SSH in and"

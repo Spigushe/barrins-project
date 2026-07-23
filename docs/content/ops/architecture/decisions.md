@@ -46,7 +46,7 @@ left the operator's machine.
   own local copy, and a fresh checkout deploys with no `.env` until
   someone creates one (the playbook detects this and skips the step with
   a clear message rather than failing the whole run — see
-  `roles/fastapi-backend/README.md`'s "if available" behavior).
+  `roles/fastapi_backend/README.md`'s "if available" behavior).
 
 **Decision.** Option 2. `secrets/**/*.env` is git-ignored
 (`ops/my-server/.gitignore`); only `*.env.example` templates are tracked.
@@ -78,7 +78,7 @@ is.
 **Context.** Constitution §§25, 27.1 and 31.1 require production
 deployments to originate from released versions, never from untagged
 commits or development branches. The Ansible roles that clone application
-repositories (`fastapi-backend`, `react-frontend`) originally always
+repositories (`fastapi_backend`, `react_frontend`) originally always
 deployed a branch (`main` in production, `develop` in staging) via `git`
 module's `version:` parameter.
 
@@ -87,7 +87,7 @@ module's `version:` parameter.
 1. Keep deploying `main`/`develop` branches directly (status quo, not
    compliant with §§25/27/31).
 2. Require a human to always pass an explicit release tag
-   (`-e fb_release_tag=vX.Y.Z`) on every production deploy.
+   (`-e fastapi_backend_release_tag=vX.Y.Z`) on every production deploy.
 3. Auto-resolve the latest GitHub release tag by default, still allow
    pinning an explicit tag for rollback or a deliberate re-deploy of an
    older version.
@@ -109,9 +109,11 @@ module's `version:` parameter.
   requirement — it exists specifically to preview code before it's
   released, so it keeps deploying a branch.
 
-**Decision.** Option 3. `fb_use_release_tag`/`rf_use_release_tag` default
-to `false`; every playbook here sets them to `deploy_env == 'production'`.
-When `true`, the role resolves `fb_release_tag`/`rf_release_tag` if set,
+**Decision.** Option 3.
+`fastapi_backend_use_release_tag`/`react_frontend_use_release_tag`
+default to `false`; every playbook here sets them to
+`deploy_env == 'production'`. When `true`, the role resolves
+`fastapi_backend_release_tag`/`react_frontend_release_tag` if set,
 else calls `GET /repos/{repo}/releases/latest` on the GitHub API and
 deploys that tag. If the repo has no release yet, the role fails with a
 message telling the operator to cut one — it never silently falls back to
@@ -126,8 +128,9 @@ a branch in production.
   an open item (someone still has to manually create a GitHub Release,
   today via the GitHub UI/API, before every production deploy).
 - Rollback becomes a one-line command
-  (`-e fb_release_tag=<previous tag>`) instead of a manual git checkout on
-  the server — see [`../deployment/rollback.md`](../deployment/rollback.md).
+  (`-e fastapi_backend_release_tag=<previous tag>`) instead of a manual
+  git checkout on the server — see
+  [`../deployment/rollback.md`](../deployment/rollback.md).
 - The GitHub API call needs network egress from the control machine and a
   token with read access to Releases (the same `repo`-scoped PAT already
   used for cloning covers this).

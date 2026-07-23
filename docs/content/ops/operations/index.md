@@ -18,8 +18,8 @@ diagnose a failed deploy or a runtime error today — see the
 
 nginx access/error logs are sent to syslog (`access_log
 syslog:server=unix:/dev/log,nohostname;` in the generated vhosts — see
-`roles/backend-website/templates/https.conf.j2` and
-`roles/register-ssl/templates/http.conf.j2`), landing wherever the host's
+`roles/backend_website/templates/https.conf.j2` and
+`roles/register_ssl/templates/http.conf.j2`), landing wherever the host's
 syslog is configured to write (`journalctl` by default on this Debian
 host).
 

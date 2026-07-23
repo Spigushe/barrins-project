@@ -92,6 +92,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install uv
         uses: astral-sh/setup-uv@v7
+      - name: Install Ansible collections
+        run: uvx --from ansible-core ansible-galaxy collection install -r ops/my-server/requirements.yml
       - name: Lint playbooks
         run: uvx ansible-lint ops/my-server
 
