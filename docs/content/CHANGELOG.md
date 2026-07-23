@@ -405,6 +405,28 @@ sub-repos with actual changes appear in a given release.
   directory does not exist" on a fresh host. Surfaced while deploying
   `tamiyo_scroll.yml -e deploy_env=staging` to a fresh server. Added a
   task creating `/opt/nvm` before the install step.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: the "Clone/update
+  application repository" task runs as root (the play's `become: true`
+  default), but the role's last task hands `site_root` to `www-data`
+  recursively — including the `.git/` directory — so on the next run root
+  no longer owns the repo and git refuses it outright (`detected dubious
+  ownership in repository at ...`, Git's CVE-2022-24765 protection).
+  Surfaced on a redeploy of `tamiyo_scroll.yml -e deploy_env=staging`
+  after the initial deploy had already flipped ownership to `www-data`.
+  Added a `git config --global --add safe.directory {{ site_root }}` task
+  (as root) before the clone/update step, so every future run is immune
+  to the ownership check regardless of who last owned the checkout.
+- `ops/my-server/roles/react_frontend/tasks/main.yml`: with the ownership
+  check above resolved, the same "Clone/update application repository"
+  task then failed with `Local modifications exist in the destination
+  ... (force=no)` on a second deploy — the build step (`npm install`/
+  build command) can leave the working tree dirty (e.g. a regenerated
+  lockfile), and Ansible's `git` module refuses to update over local
+  modifications unless told to. Since this checkout exists solely to be
+  rebuilt from source control on every deploy, added `force: true` so it
+  always resets cleanly to the target ref. Verified with a full
+  `tamiyo_scroll.yml -e deploy_env=staging` redeploy, which completed
+  successfully end to end.
 
 ### front/tamiyo_scroll
 
