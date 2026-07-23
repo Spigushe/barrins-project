@@ -25,19 +25,22 @@ host).
 
 ## Health checks
 
-Constitution §31.2 expects the API to expose health information. There is
-currently **no dedicated `/health` route** — `barrins_api` redirects `/`
-to `/docs`, which is what the deployment guides' "Validation" steps check
-instead. Open item: add a real `/health` endpoint that reports service
-status (and, ideally, database connectivity) rather than relying on "the
-docs page loads" as a proxy signal.
+Constitution §31.2 expects the API to expose health information.
+`barrins_api` now exposes `GET /health` (`app/api/health.py`): returns
+`200 {"status": "ok"}` when the database is reachable, or `503` (via the
+standard `ServiceUnavailableError` error envelope) otherwise. The
+deployment guides' "Validation" steps can check this endpoint directly
+instead of relying on "the docs page loads" as a proxy signal.
 
 ## Monitoring
 
-**Not implemented.** No uptime monitoring, alerting, or certificate
-expiration monitoring (Constitution §30 requires the latter) currently
-exists for this infrastructure. This is an open gap, not a deliberate
-decision — flagged here so it isn't silently assumed to exist.
+**Configured, not yet live.** [HetrixTools](https://hetrixtools.com/)
+(private status pages, minimal signup PII) is set up with monitors
+against both `barrins_api`'s staging and production `/health` URLs.
+Both currently report `404` — expected, since the `/health` route itself
+(above) hasn't reached staging/production yet; this should flip to `200`
+once it's deployed (see the release plan's B5 step). Certificate
+expiration monitoring is part of the same HetrixTools setup.
 
 ## Backup strategy
 
@@ -54,8 +57,8 @@ that matters.
 
 | Item | Constitution ref | Status |
 | --- | --- | --- |
-| `/health` endpoint | §31.2 | Not implemented |
-| Uptime/alerting monitoring | — | Not implemented |
+| `/health` endpoint | §31.2 | Implemented (`GET /health`, `apps/barrins_api/app/api/health.py`) |
+| Uptime/alerting monitoring | — | Configured (HetrixTools), pending deploy — currently 404 on `/health` |
 | Certificate expiration monitoring | §30 | Not implemented (renewal itself is automatic via certbot) |
 | Database backups + verified restore | §36 | Not implemented |
 | nginx security headers (HSTS, etc.) | §29.1 | Not implemented |

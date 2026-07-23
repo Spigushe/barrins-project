@@ -25,9 +25,8 @@ exists for the production VPS.
   *Selection criterion*: free tier, with the least data exposure —
   private status page by default (no forced public incident page
   broadcasting our downtime history) and minimal account PII required at
-  signup. Final vendor pick (e.g. UptimeRobot, Freshping) happens at
-  implementation time by checking current privacy terms against this
-  criterion.
+  signup.
+  **Provider decided: [HetrixTools](https://hetrixtools.com/).**
   *Alternative rejected*: self-hosted Uptime Kuma (Docker, reusing the
   Docker install already present for pgAdmin) — keeps everything
   in-repo/on-VPS but can't alert on total VPS failure and adds another
@@ -35,16 +34,23 @@ exists for the production VPS.
 
 ## Tasks
 
-- [ ] Implement `GET /health` in `barrins_api` with the DB-connectivity
-      check.
-- [ ] Write `test_health_ok` / `test_health_db_down_returns_503`.
-- [ ] Select an external uptime-checker provider against the criterion
-      above.
-- [ ] Configure monitors for both apps' staging/production URLs plus
-      certificate-expiry alerting.
-- [ ] Update `docs/content/ops/operations/index.md`'s open-items table:
-      `/health` → implemented; monitoring → implemented (external
-      checker).
+- [x] Implement `GET /health` in `barrins_api` with the DB-connectivity
+      check (`app/api/health.py`, `app/schemas/responses_health.py`).
+- [x] Write `test_health_ok` / `test_health_db_down_returns_503`
+      (`tests/test_health.py`) — both pass; full suite (225 tests)
+      green, coverage 98.15%.
+- [x] Update `docs/content/ops/operations/index.md`'s open-items table:
+      `/health` → implemented.
+- [x] Select an external uptime-checker provider against the criterion
+      above — **HetrixTools**.
+- [x] Sign up / configure a HetrixTools account and add monitors for both
+      apps' staging/production URLs plus certificate-expiry alerting.
+      Monitors are live and currently report `404` on `/health` for both
+      staging and production — **expected**, since this branch (the
+      `/health` route itself) hasn't been deployed yet. Should flip to
+      `200` once B5 deploys this work.
+- [x] Update the open-items table's monitoring row to reflect monitors
+      configured (still pending a deploy to go green).
 
 ## Done statement
 

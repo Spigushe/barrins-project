@@ -6,8 +6,7 @@ for startup/shutdown events and request logging middleware.
 
 Endpoints:
     - GET /: Redirects to /docs (API documentation)
-    - GET /health/*: Health check endpoints (live, ready)
-    - GET /metrics: Prometheus metrics endpoint
+    - GET /health: Health check endpoint (reports database connectivity)
 """
 
 import time
@@ -19,6 +18,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
+from app.api.health import router as health_router
 from app.api.ts_router import router as ts_router
 from app.api.v1_router import router as v1_router
 from app.config import settings
@@ -101,5 +101,6 @@ def read_root() -> RedirectResponse:
 
 
 # Register the routes
+app.include_router(health_router)
 app.include_router(v1_router)
 app.include_router(ts_router)
