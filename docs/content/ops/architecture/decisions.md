@@ -139,3 +139,78 @@ a branch in production.
   frontends sharing one backend" section) — rolling back the *code* to an
   older release tag does not roll back the *database*. This is spelled
   out explicitly in the rollback runbook so it's never assumed away.
+
+## ADR-3: Production email uses a transactional provider, not self-hosted
+
+**Context.** `barrins_api` already implements signup email verification
+(see [Signup & Email Verification][signup-email-verification]): a
+`EmailSender` abstraction with a stdlib-`smtplib`-based
+`SMTPEmailSender` for prod/staging. Production currently has no relay
+configured (`SMTP_*` blank in
+`ops/my-server/secrets/barrins_api/production.env`); the only relay used
+so far is a temporary personal Gmail account
+(`barrins-identity@gmail.com`), adopted under time pressure before
+Tamiyo Scroll's launch. The domain `barrins-codex.org` is available to
+send from a proper address (e.g. `identity@barrins-codex.org`), which
+raised the question of whether to run a full mail server on the VPS
+instead.
+
+**Alternatives considered.**
+
+1. Self-host a full mail server (Postfix, optionally Dovecot) on the VPS,
+   managing `identity@barrins-codex.org` entirely in-house.
+2. Keep the personal Gmail relay as the long-term production setup.
+3. Use a dedicated transactional email provider (e.g. Brevo, Mailgun,
+   SES, Postmark) as the SMTP relay, with `identity@barrins-codex.org`
+   verified as the sending domain.
+
+**Trade-offs.**
+
+- Option 1 gives full control and no per-provider volume caps, but has
+  real hidden costs for a one-VPS setup: outbound port 25 is blocked by
+  default on most VPS providers and must be requested unblocked; a fresh
+  VPS IP has no sending reputation, so mail lands in spam even with
+  correct SPF/DKIM/DMARC/PTR until the IP "warms up" over weeks; and it
+  requires indefinite maintenance (spam filtering, security patching,
+  monitoring) for a purely outbound, low-volume use case (signup codes,
+  future password resets). This cost is only justified if a real inbox
+  (receiving mail at `identity@barrins-codex.org`) is ever required — not
+  the case today.
+- Option 2 (current temporary state, see signup_email_verification.md's
+  "Gmail specifics" and "Temporary workaround" sections) requires an app
+  password, ties the `From` header to the authenticated Gmail account,
+  and caps at ~500 emails/day. Acceptable as a stop-gap, not as the
+  long-term production identity: no `identity@barrins-codex.org` address,
+  and it depends on a personal account rather than the project's own
+  domain.
+- Option 3 keeps `identity@barrins-codex.org` as the visible sender,
+  delegates deliverability and IP reputation to the provider, costs €0 at
+  signup/reset volumes (free tiers: Brevo 300/day, SES ≈$0.10/1000
+  emails), and needs **no backend code change** — `SMTPEmailSender`
+  already speaks generic SMTP, so switching relay is purely a
+  configuration change (`SMTP_HOST`/`SMTP_USERNAME`/`SMTP_PASSWORD`/
+  `SMTP_FROM_ADDRESS` in the production secrets file). It does require
+  provisioning DNS records (SPF, DKIM, optionally DMARC) for
+  `barrins-codex.org` with the chosen provider.
+
+**Decision.** Option 3. Production email sending for
+`identity@barrins-codex.org` goes through a transactional provider's SMTP
+relay, never a self-hosted MTA, as long as the need stays one-directional
+(sending only). Provider selection (Brevo vs Mailgun vs SES vs Postmark)
+is not yet settled.
+
+**Consequences.**
+
+- No new dependency or code change: `get_email_sender()`
+  (`app/services/email/__init__.py`) already selects `SMTPEmailSender`
+  whenever `smtp_host` is set, regardless of which relay sits behind it.
+- Before go-live: verify `barrins-codex.org` with the chosen provider
+  (DNS records for SPF/DKIM/DMARC), fill `SMTP_*` in
+  `ops/my-server/secrets/barrins_api/production.env` (currently blank),
+  and flip `REQUIRE_EMAIL_VERIFICATION` back to `true` once confirmed
+  working end-to-end.
+- Self-hosting a full mail server is not ruled out permanently — it
+  becomes worth revisiting only if `identity@barrins-codex.org` needs to
+  *receive* mail as a real inbox, not just send it.
+
+[signup-email-verification]: ../back/barrins_api/signup_email_verification.md
