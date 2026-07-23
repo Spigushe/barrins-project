@@ -15,17 +15,14 @@ Every application gets exactly one playbook under `ops/my-server/`:
 | --- | --- |
 | `barrins_api` (shared backend) | `barrins_api.yml` |
 | Tamiyo Scroll (frontend) | `tamiyo_scroll.yml` |
-| Tolaria News (frontend) | `tolaria.yml` (a known, documented exception — see below) |
+| Tolaria News (frontend) | `tolaria_news.yml` |
 
-Running `tamiyo_scroll.yml` never touches `barrins_api`'s systemd service
-or nginx vhost, and vice versa. This is enforced structurally, not by
-convention: `tamiyo_scroll.yml` simply contains no `fastapi_backend` role
-invocation at all. `tolaria.yml` still embeds its own copy of the backend
-role block (a leftover from before this split — both converge on the same
-systemd unit/nginx vhost as `barrins_api.yml`'s, and every role invocation
-is idempotent, so running either or both is safe) — see
+Running `tamiyo_scroll.yml` (or `tolaria_news.yml`) never touches
+`barrins_api`'s systemd service or nginx vhost, and vice versa. This is
+enforced structurally, not by convention: neither playbook contains a
+`fastapi_backend` role invocation at all — see
 `ops/my-server/README.md`'s "Multiple frontends sharing one backend" for
-the full rationale and the open item to migrate it.
+how they still call the same shared backend without deploying it.
 
 ## Why this moved from a separate `myserver` repo into this monorepo
 

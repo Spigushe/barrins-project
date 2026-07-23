@@ -1336,6 +1336,28 @@ The Barrin's ecosystem must be deployable independently:
 
 A deployment of one component must not require rebuilding unrelated components.
 
+**One application, one playbook.** This objective is enforced structurally,
+not by convention: every application gets exactly one deployment playbook,
+and that playbook must contain no role invocation for any other
+application.
+
+Rules:
+
+- A frontend playbook must never embed a backend role invocation (or vice
+  versa), even when the frontend and backend are deployed together
+  operationally. If two applications share infrastructure (e.g. several
+  frontends calling the same backend), the shared component gets its own
+  dedicated playbook; every other playbook only references it (e.g. a
+  frontend's build-time API URL), it never redeploys or restarts it.
+- Running one application's playbook must never restart, rebuild, or
+  otherwise touch another application's systemd service, nginx vhost, or
+  database.
+- If an existing playbook is found to violate this (a known example:
+  `tolaria_news.yml` used to embed its own copy of the `barrins_api`
+  backend role, a leftover from before this rule was formalized — see
+  `docs/content/ops/architecture/independence.md`), it must be migrated to
+  comply rather than left as a permanent exception.
+
 ### 26.2 Current production target
 
 Production host:

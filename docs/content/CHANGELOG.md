@@ -69,6 +69,9 @@ sub-repos with actual changes appear in a given release.
   terms surfaced by the new auth/signup documentation (`checkfirst`,
   `passlib`, `pyproject`, `Referer`, `STARTTLS`, `userrole`, `VARCHAR`,
   among others).
+- `docs/cspell.json`: added `subdir`, introduced by the new
+  `*_repo_subdir` Ansible role variable documented below (ops
+  section).
 
 #### Fixed
 
@@ -197,6 +200,13 @@ sub-repos with actual changes appear in a given release.
   instead of listing each secret filename individually, so a new
   secret file (e.g. pgAdmin's admin password) is caught by default
   without a new gitignore line.
+- Constitution §26.1 (Infrastructure objective): added an explicit
+  "one application, one playbook" rule — a frontend playbook must
+  never embed a backend role invocation (or vice versa), and running
+  one app's playbook must never touch another's systemd service,
+  nginx vhost, or database. Decided with the user (§16.2) after
+  `tolaria_news.yml`'s embedded-backend exception (see Fixed below)
+  was judged to need fixing rather than being grandfathered.
 
 #### Fixed
 
@@ -280,6 +290,36 @@ sub-repos with actual changes appear in a given release.
   New Constitution subsection
   (`docs/content/CLAUDE.md` §26.4, "Ansible coding standards")
   distills these rules for future playbook/role work.
+- `ops/my-server/roles/fastapi_backend`, `react_frontend`:
+  `fastapi_backend_repo`/`react_frontend_repo` in `barrins_api.yml`,
+  `tamiyo_scroll.yml`, `tolaria_news.yml` pointed at
+  `barrins-project/barrins_api`, `barrins-project/tamiyo_scroll`,
+  `barrins-project/tolaria_news` — repos that don't exist; the apps
+  actually live under `apps/<name>/` in this monorepo
+  (`Spigushe/barrins-project`). The first deploy would have failed at
+  the `git clone` step. Both roles gained a `*_repo_subdir` var: the
+  full repo is still cloned to `app_root`/`site_root`, but dependency
+  detection/install, the deployed `.env`, the build command, and the
+  systemd `WorkingDirectory` now resolve against
+  `<root>/<repo_subdir>`; the three playbooks were repointed at
+  `Spigushe/barrins-project` with the matching `apps/<name>` subdir.
+  Also surfaced and fixed a related latent bug: `react_frontend`'s
+  `dist` symlink task only fired when `build_dir != 'dist'`, which
+  would have silently served nothing once a subdir is introduced
+  (build output lands at `<site_root>/<subdir>/dist`, not
+  `<site_root>/dist`) — the condition now compares full resolved
+  paths instead.
+- `ops/my-server/tolaria_news.yml`: dropped the embedded copy of the
+  `barrins_api` backend role block (previously documented as a known
+  exception to "one playbook per app" — see Constitution §26.1
+  above). It's frontend-only now, pointing `VITE_API_BASE_URL` at
+  whatever `barrins_api.yml` already has running, the same pattern
+  `tamiyo_scroll.yml` already used. Updated the SSH/Alembic path
+  reminders (`~/projects/<domain>/apps/barrins_api`, not the app
+  root) and every doc referencing the stray `tolaria.yml` filename
+  (the file has always been `tolaria_news.yml`): `README.md`,
+  `architecture/independence.md`, `deployment/frontend.md`,
+  `deployment/rollback.md`.
 
 ### front/tamiyo_scroll
 

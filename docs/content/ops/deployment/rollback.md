@@ -16,7 +16,7 @@ ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=<previous-tag>
 
 # Frontend
 ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=<previous-tag>
-ansible-playbook tolaria.yml -e react_frontend_release_tag=<previous-tag> -e fastapi_backend_release_tag=<previous-tag>
+ansible-playbook tolaria_news.yml -e react_frontend_release_tag=<previous-tag>
 ```
 
 Find the previous tag with `git tag --sort=-creatordate | head` in the

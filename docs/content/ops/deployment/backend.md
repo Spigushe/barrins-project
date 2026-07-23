@@ -73,7 +73,7 @@ Apply pending database migrations (never automated — Constitution §31.3):
 
 ```bash
 ssh spigushe.org
-cd ~/projects/api.barrins-codex.org   # or api-staging.barrins-codex.org
+cd ~/projects/api.barrins-codex.org/apps/barrins_api   # or api-staging.barrins-codex.org/apps/barrins_api
 uv run alembic upgrade head
 # or: source .venv/bin/activate && alembic upgrade head
 ```
