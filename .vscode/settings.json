@@ -105,6 +105,7 @@
         "**/.ruff_cache": true,
         "**/__pycache__": true,
         "**/*.egg-info": true,
+        "**/node_modules": true,
         "**/.venv": true
     },
     "search.exclude": {
@@ -113,9 +114,11 @@
         "**/.ruff_cache": true,
         "**/__pycache__": true,
         "**/*.egg-info": true,
+        "**/node_modules": true,
         "**/.venv": true
     },
     "files.watcherExclude": {
+        "**/node_modules": true,
         "**/.venv/**": true,
         "**/tests": true
     },
