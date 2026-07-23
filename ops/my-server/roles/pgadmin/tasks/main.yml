@@ -1,0 +1,145 @@
+---
+- name: Install Docker
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+
+- name: Ensure Docker is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Check whether the isolated pgAdmin Docker network already exists
+  ansible.builtin.command: "docker network inspect {{ pgadmin_config.docker_network }}"
+  register: pgadmin_net_check
+  changed_when: false
+  failed_when: false
+
+- name: Create an isolated Docker network for pgAdmin
+  ansible.builtin.command: "docker network create --subnet={{ pgadmin_config.docker_subnet }} {{ pgadmin_config.docker_network }}"
+  when: pgadmin_net_check.rc != 0
+  changed_when: true
+
+- name: Create the pgAdmin persistent data volume
+  ansible.builtin.command: "docker volume create {{ pgadmin_config.volume_name }}"
+  changed_when: false
+
+- name: Locate the PostgreSQL configuration directory
+  ansible.builtin.find:
+    paths: /etc/postgresql
+    file_type: directory
+    patterns: "main"
+    recurse: true
+  register: pgadmin_pg_conf_dirs
+
+- name: Fail if no PostgreSQL installation was found
+  ansible.builtin.fail:
+    msg: >-
+      No /etc/postgresql/<version>/main directory found — run setup_packages
+      on this host first (it installs postgresql).
+  when: pgadmin_pg_conf_dirs.files | length == 0
+
+- name: Let PostgreSQL accept connections from the pgAdmin Docker network
+  ansible.builtin.lineinfile:
+    path: "{{ pgadmin_pg_conf_dirs.files[0].path }}/postgresql.conf"
+    regexp: "^#?\\s*listen_addresses\\s*="
+    line: "listen_addresses = 'localhost,{{ pgadmin_config.docker_gateway_ip }}'"
+  notify: Restart postgresql
+
+- name: Allow password auth for the pgAdmin Docker network
+  ansible.builtin.lineinfile:
+    path: "{{ pgadmin_pg_conf_dirs.files[0].path }}/pg_hba.conf"
+    line: "host    all             all             {{ pgadmin_config.docker_subnet }}            scram-sha-256"
+    insertafter: EOF
+  notify: Restart postgresql
+
+- name: Flush handlers so PostgreSQL is listening before pgAdmin starts
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure the pgAdmin config directory exists
+  ansible.builtin.file:
+    path: /etc/pgadmin4
+    state: directory
+    mode: "0755"
+
+- name: Deploy the pgAdmin credentials env file
+  no_log: true
+  ansible.builtin.template:
+    src: pgadmin4.env.j2
+    dest: /etc/pgadmin4/pgadmin4.env
+    mode: "0600"
+    owner: root
+    group: root
+
+- name: Deploy the pgAdmin systemd service
+  ansible.builtin.template:
+    src: pgadmin4.service.j2
+    dest: /etc/systemd/system/pgadmin4.service
+    mode: "0644"
+
+- name: Deploy the pgAdmin auto-update service
+  ansible.builtin.template:
+    src: pgadmin4-update.service.j2
+    dest: /etc/systemd/system/pgadmin4-update.service
+    mode: "0644"
+
+- name: Deploy the pgAdmin auto-update timer
+  ansible.builtin.template:
+    src: pgadmin4-update.timer.j2
+    dest: /etc/systemd/system/pgadmin4-update.timer
+    mode: "0644"
+
+- name: Reload systemd and (re)start pgAdmin
+  tags: [deploy]
+  ansible.builtin.systemd:
+    name: pgadmin4.service
+    daemon_reload: true
+    enabled: true
+    state: restarted
+
+- name: Enable the pgAdmin auto-update timer
+  tags: [deploy]
+  ansible.builtin.systemd:
+    name: pgadmin4-update.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Add pgAdmin nginx site configuration
+  ansible.builtin.template:
+    src: https.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ pgadmin_config.server_name }}.https.conf"
+    mode: "0644"
+
+- name: Reload nginx
+  tags: [deploy]
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Enable periodic APT updates and unattended-upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Also auto-apply regular (non-security) Debian point releases, e.g. PostgreSQL updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/51-enable-updates
+    content: |
+      Unattended-Upgrade::Origins-Pattern:: "origin=Debian,codename=${distro_codename}-updates,label=Debian";
+    mode: "0644"
+
+- name: Ensure unattended-upgrades service is enabled
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    enabled: true
+    state: started

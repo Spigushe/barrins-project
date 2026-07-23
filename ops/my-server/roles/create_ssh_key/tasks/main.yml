@@ -1,0 +1,5 @@
+---
+- name: Create server SSH key
+  community.crypto.openssh_keypair:
+    path: "~/.ssh/id_rsa"
+  register: create_ssh_key_public_key

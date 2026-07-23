@@ -1,0 +1,17 @@
+---
+- name: Install base packages required by every role
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+  roles:
+    - role: setup_packages
+
+- name: Generate the server's SSH key pair
+  hosts: all
+  gather_facts: false
+  vars:
+    username: spigushe
+  roles:
+    - role: create_ssh_key

@@ -5,8 +5,12 @@ Technical documentation for the `barrins-project` monorepo.
 
 ## Sections
 
-- **barrins_api** — FastAPI / BFF API
-- **tamiyo_scroll** — React frontend
+- **back end**
+  - _`barrins_api`_: FastAPI / BFF API
+  - _`barrins_identity`_: FastAPI / Single user profile entry point
+- **front end**
+  - _`tamiyo_scroll`_: ReactJS / Test result tracker
+  - _`tolaria_news`_: ReactJS / Duel Commander data display & exploration !WIP!
 - **ops** — Deployment, infrastructure (Ansible / myserver)
 
 > This page and its associated `nav:` (in `mkdocs.yml`) are

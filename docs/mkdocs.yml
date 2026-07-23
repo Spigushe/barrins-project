@@ -4,48 +4,72 @@ site_dir: site
 docs_dir: content
 
 hooks:
-  - hooks/sync_readmes.py
+    - hooks/sync_readmes.py
 
 exclude_docs: |
-  _links.md
+    _links.md
 
 theme:
-  name: material
-  language: fr
-  features:
-    - navigation.tabs
-    - navigation.top
-    - search.suggest
+    name: material
+    language: fr
+    features:
+        - navigation.tabs
+        - navigation.top
+        - search.suggest
 
 nav:
-  - Home: index.md
-  - Constitution: CLAUDE.md
-  - Backend:
-      - Home: back/index.md
-      - Barrin's API:
-          - Home: back/barrins_api/index.md
-          - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
-          - JWT Authentication & Roles: back/barrins_api/auth_roles.md
-          - Signup & Email Verification: back/barrins_api/signup_email_verification.md
-      - Barrin's Identity:
-          - Home: back/barrins_identity/index.md
-          - Platform: back/barrins_identity/platform.md
-  - Frontend:
-      - Home: front/index.md
-      - Tamiyo Scroll:
-          - Home: front/tamiyo_scroll/index.md
-          - Bootstrap: front/tamiyo_scroll/bootstrap.md
-          - Incidents:
-              - Home: front/tamiyo_scroll/incidents/index.md
-              - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
-  - Ops:
-      - Home: ops/index.md
-      - Deployment Strategy: ops/deployment_strategy.md
-  - Changelog: CHANGELOG.md
+    - Home: index.md
+    - Constitution: CLAUDE.md
+    - Backend:
+          - Home: back/index.md
+          - Barrin's API:
+                - Home: back/barrins_api/index.md
+                - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
+                - JWT Authentication & Roles: back/barrins_api/auth_roles.md
+                - Signup & Email Verification: back/barrins_api/signup_email_verification.md
+          - Barrin's Identity:
+                - Home: back/barrins_identity/index.md
+                - Platform: back/barrins_identity/platform.md
+    - Frontend:
+          - Home: front/index.md
+          - Tamiyo Scroll:
+                - Home: front/tamiyo_scroll/index.md
+                - Bootstrap: front/tamiyo_scroll/bootstrap.md
+                - Incidents:
+                      - Home: front/tamiyo_scroll/incidents/index.md
+                      - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
+    - Ops:
+          - Home: ops/index.md
+          - Architecture:
+                - Home: ops/architecture/index.md
+                - Infrastructure Independence: ops/architecture/independence.md
+                - Decision Records: ops/architecture/decisions.md
+          - Deployment:
+                - Home: ops/deployment/index.md
+                - Backend: ops/deployment/backend.md
+                - Frontend: ops/deployment/frontend.md
+                - Database (PostgreSQL & pgAdmin): ops/deployment/database.md
+                - Rollback: ops/deployment/rollback.md
+          - Roles:
+                - Home: ops/roles/index.md
+                - Backend Website: ops/roles/backend_website/index.md
+                - Create SSH Key: ops/roles/create_ssh_key/index.md
+                - FastAPI Backend: ops/roles/fastapi_backend/index.md
+                - pgAdmin: ops/roles/pgadmin/index.md
+                - React Frontend: ops/roles/react_frontend/index.md
+                - Register SSL: ops/roles/register_ssl/index.md
+                - Setup Base User: ops/roles/setup_base_user/index.md
+                - Setup Packages: ops/roles/setup_packages/index.md
+          - Security:
+                - Home: ops/security/index.md
+                - Secrets Management: ops/security/secrets.md
+          - Operations: ops/operations/index.md
+          - Deployment Strategy: ops/deployment_strategy.md
+    - Changelog: CHANGELOG.md
 
 markdown_extensions:
-  - toc:
-      permalink: true
-  - admonition
-  - tables
-  - pymdownx.superfences
+    - toc:
+          permalink: true
+    - admonition
+    - tables
+    - pymdownx.superfences

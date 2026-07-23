@@ -36,6 +36,15 @@ sub-repos with actual changes appear in a given release.
 - Root `.gitignore`: ignores the mkdocs-generated `index.md` pages,
   the `docs/site/` build output, and Python `__pycache__`/`*.pyc`
   files (produced by the new build hook).
+- `docs/hooks/sync_readmes.py` extended to also sync each
+  `ops/my-server/roles/<role>/README.md` into
+  `docs/content/ops/roles/<role>/index.md` (target directories created
+  and cleaned up on demand, since — unlike the app pages — no
+  `_links.md` sidecar pre-creates them). New **Ops → Roles** nav
+  section (`docs/mkdocs.yml`, placed after Deployment) and
+  `docs/content/ops/roles/index.md` overview page link the eight
+  generated role pages; `.gitignore` and the generated-marker comment
+  in the hook itself were generalized to cover both README sources.
 - `on_shutdown` hook in `docs/hooks/sync_readmes.py`: deletes the
   generated `index.md` pages when the hook shuts down, since
   `mkdocs serve` keeps rewriting them on every reload but never
@@ -140,11 +149,54 @@ sub-repos with actual changes appear in a given release.
   out of the required CI checks. The hosting target (GitHub Pages +
   custom domain `docs.barrins-codex.org`) is a placeholder pending
   confirmation.
+- Ansible VPS deployment (`ops/my-server/`), moved in-repo from the
+  previous separate `Spigushe/myserver` repository (now deprecated) so
+  infrastructure changes land alongside the application changes that
+  require them (Constitution §26.1). Playbooks: `initial.yml`,
+  `setup.yml`, `barrins_api.yml`, `tamiyo_scroll.yml`,
+  `tolaria_news.yml`; roles: `create_ssh_key`, `setup_base_user`,
+  `setup_packages`, `register_ssl`, `backend_website`,
+  `react_frontend`, `fastapi_backend`. `scripts/check_no_secrets_committed.sh`
+  guards against ever staging a real secrets file. Documented under
+  the new Constitution §38-mandated `docs/content/ops/` tree
+  (`architecture/independence.md`, `architecture/decisions.md` for the
+  ADRs below, `deployment/{backend,frontend,rollback}.md`,
+  `security/secrets.md`, `operations/index.md` — the last honestly
+  documenting current gaps: no health endpoint, no monitoring, no
+  tested backups).
+- `ops/my-server/postgresql_pgadmin.yml` and the `pgadmin` role: a
+  Docker-based pgAdmin4 deployment/administration playbook (isolated
+  Docker network, `pg_hba.conf`/`listen_addresses` wiring, weekly
+  auto-update timer, `unattended-upgrades` for the host), porting the
+  `pgadmin` role from myserver's unmerged
+  `postgresql-pgadmin-playbook` branch. PostgreSQL itself is already
+  installed by `setup_packages` at host bootstrap; this playbook only
+  exposes it via pgAdmin. Documented at
+  `docs/content/ops/deployment/database.md`.
 
 #### Changed
 
 - `.github/workflows/CI.yml`: translated remaining French inline comments
   and step names to English.
+- Constitution §34 (Secrets Management), applied while moving
+  `ops/my-server/` in-repo and decided with the user rather than
+  guessed (§16.2, recorded as an ADR in
+  `docs/content/ops/architecture/decisions.md`): backend `.env` files
+  are local-only and git-ignored
+  (`ops/my-server/secrets/**/*.env`), never committed even encrypted.
+  `fastapi_backend`'s `fastapi_backend_env_file` step uses one if present on the
+  operator's machine, skips gracefully otherwise.
+- Constitution §25/§27/§31 (Release Policy), same ADR process:
+  production deploys resolve the latest GitHub release tag by default
+  (`fastapi_backend_use_release_tag`/`react_frontend_use_release_tag`, wired to
+  `deploy_env == 'production'` in every playbook), or a pinned tag for
+  rollback. Staging keeps deploying a branch, since it exists to
+  preview code before release.
+- `.gitignore` and `scripts/check_no_secrets_committed.sh`
+  generalized: allow-list `secrets/**/*.example` and `README.md`
+  instead of listing each secret filename individually, so a new
+  secret file (e.g. pgAdmin's admin password) is caught by default
+  without a new gitignore line.
 
 #### Fixed
 
@@ -160,6 +212,74 @@ sub-repos with actual changes appear in a given release.
   `DATABASE_URL`/`TEST_DATABASE_URL` env vars pointing at it, and a
   step generating an ephemeral `SECRET_KEY` via `openssl rand -hex 32`
   before `workflow_ci.py` runs.
+- `ops/my-server` playbooks/roles/READMEs: `become: 'no'`/`'yes'` (and
+  `gather_facts`/`update`/`force`/`recurse`/`daemon_reload`/`enabled`/
+  `update_cache` using the same quoted-string pattern) are YAML
+  strings, not booleans — schema/lint tools correctly flagged them as
+  "Incorrect type. Expected boolean." Replaced every instance with
+  real `true`/`false`.
+- `.github/workflows/CI.yml`: the `ops` job ran `ansible-lint
+  ops/myserver` — the original scaffold's placeholder path (marked `#
+  TO UPDATE`) that nobody updated once the real Ansible deployment
+  landed at `ops/my-server/` — so the job failed outright
+  (`ops/myserver: File or directory not found`). Corrected the path.
+  The new `docs/content/ops/**` tree also never passed the `docs`
+  job's actual checks: cspell didn't know `fastapi`, `pgadmin`,
+  `certbot`, `journalctl`, `frontends`, `spigushe`, `uvicorn`, `HSTS`,
+  `vhosts`, `dpage`, `certonly`, `creatordate`, `nohostname`,
+  `inlines`, `ciphertext`, `FQCN`, or `keypair` (added to
+  `docs/cspell.json`), and `deployment/backend.md` had a code-block
+  line over the 80-char `MD013` limit.
+- `ops/my-server`: fixing the `ansible-lint` path above revealed the
+  playbooks/roles themselves failed the same job hard — 114
+  failures + 33 warnings across 38 files, none of it caught before
+  since this was the first time `ansible-lint` actually reached
+  `ops/my-server` (see the path bug above). Brought it to a clean
+  pass at ansible-lint's `production` profile (`ops` CI only requires
+  `min`):
+  - **`fqcn`** (73×): every builtin module action FQCN-prefixed
+    (`ansible.builtin.copy`, not `copy`).
+  - **`syntax-check[unknown-module]`** (2×): `openssh_keypair` and
+    `authorized_key` moved out of `ansible.builtin` — switched to
+    `community.crypto.openssh_keypair`/`ansible.posix.authorized_key`
+    and added `ops/my-server/requirements.yml` declaring both
+    collections (`ansible-galaxy collection install -r
+    requirements.yml`, also wired into the `ops` CI job before
+    linting).
+  - **`role-name`** (7×): renamed every hyphenated role directory to
+    snake_case (`fastapi-backend` → `fastapi_backend`,
+    `react-frontend` → `react_frontend`, `backend-website` →
+    `backend_website`, `create-ssh-key` → `create_ssh_key`,
+    `register-ssl` → `register_ssl`, `setup-base-user` →
+    `setup_base_user`, `setup-packages` → `setup_packages`) and
+    updated every reference across playbooks and docs.
+  - **`var-naming[no-role-prefix]`** (56× once the roles above had
+    valid names — the rule doesn't check unnamed roles): every
+    role-input var and internal computed-config dict renamed to carry
+    the *full* role name as prefix — abbreviations like `fb_repo`
+    became `fastapi_backend_repo`; the bare single-letter config dicts
+    (`r`, and `pgadmin`'s own `r`) became `<role>_config`
+    (`fastapi_backend_config`, `pgadmin_config`, etc.).
+  - **`risky-file-permissions`** (8×): explicit `mode:` added to every
+    `template`/`copy` task that lacked one.
+  - **`yaml[octal-values]`** (4×): `mode: 0755`/`0600` quoted
+    (`"0755"`/`"0600"`).
+  - **`no-changed-when`** (4×): explicit `changed_when` added to
+    `command`/`shell` tasks that always reported "changed".
+  - **`package-latest`** (1×): the `pip` fallback install now pins
+    `state: present` instead of `latest`, consistent with installing
+    from a `requirements.txt` in the first place.
+  - **`name`** (9×): missing play/task names added; the one task name
+    embedding a Jinja expression mid-string moved it to the end.
+  - **`jinja[spacing]`** (33× warnings): `{{var}}` → `{{ var }}`
+    throughout, including `.j2` templates (not part of the lint gate,
+    fixed for consistency while touching the surrounding code).
+  Verified with `ansible-playbook --syntax-check` on all six top-level
+  playbooks (`ansible-lint` itself needs the POSIX `grp` module and
+  doesn't run natively on Windows — validated from a WSL/Linux venv).
+  New Constitution subsection
+  (`docs/content/CLAUDE.md` §26.4, "Ansible coding standards")
+  distills these rules for future playbook/role work.
 
 ### front/tamiyo_scroll
 
