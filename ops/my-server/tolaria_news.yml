@@ -20,13 +20,21 @@
     #   ansible-vault encrypt_string '<new_token>' --name 'github_token'
     # and replace the block below with the new output.
     github_token: !vault |
-      $ANSIBLE_VAULT;1.1;AES256
-      REPLACE_WITH_ANSIBLE_VAULT_ENCRYPT_STRING_OUTPUT
+          $ANSIBLE_VAULT;1.1;AES256
+          37623761306536663933323932623931646336376638306462643435333637386438326131626566
+          6666396635383530383562616438376235393833656639610a386265306461393736613838653738
+          30306531643461636665633035373336396266656561643731306232373835646266613862363237
+          6462663966353030320a666131643836623038343735623436626237623539383838336130303635
+          31633837363832376538306538366339623363376664336237333139343739306539656630363233
+          36656430616333633463393863323664653431666137613132353064626338336537336531663564
+          31653165303037393062663634366437643032633962373232653739663839326433353439353933
+          63366465363334643539656365646634343831633235306138623061343135383961343263663533
+          6661
 
     # Defaults to a full production deploy — the latest GitHub release tag
     # of tolaria_news (Constitution ss25/ss27: production only ever
     # deploys released versions). Pass -e deploy_env=staging to deploy a
-    # side-by-side staging frontend instead, from a branch (develop by
+    # side-by-side staging frontend instead, from the staging branch by
     # default — still pointed at barrins_api's own staging instance, run
     # barrins_api.yml -e deploy_env=staging separately to have one).
     #   ansible-playbook tolaria_news.yml -e deploy_env=staging \
@@ -35,7 +43,7 @@
     #   ansible-playbook tolaria_news.yml -e react_frontend_release_tag=v1.2.3
     deploy_env: production
     env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
-    env_branch: "{{ 'develop' if deploy_env == 'staging' else 'main' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
     backend_domain: "api{{ env_suffix }}.barrins-codex.org"
     frontend_domain: "tolaria{{ env_suffix }}.barrins-codex.org"
 

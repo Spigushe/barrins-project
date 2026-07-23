@@ -207,6 +207,10 @@ sub-repos with actual changes appear in a given release.
   nginx vhost, or database. Decided with the user (§16.2) after
   `tolaria_news.yml`'s embedded-backend exception (see Fixed below)
   was judged to need fixing rather than being grandfathered.
+- `ops/my-server/ansible.cfg`: normalized `key=value` spacing under
+  `[defaults]` — `inventory`, `vault_password_file`, `timeout`, and
+  `ansible_ssh_user` had stray spaces around `=` that every other key
+  in the file didn't.
 
 #### Fixed
 
@@ -356,6 +360,26 @@ sub-repos with actual changes appear in a given release.
   right after dependency installation and before the `.env`/service
   steps, gated on the same `fastapi_backend_pyproject.stat.exists`
   check as the `uv sync` task.
+- `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
+  `tolaria_news.yml`: `env_branch` defaulted staging deploys to a
+  `develop` branch that doesn't exist in this repo (the actual branch
+  is `staging`) — any `-e deploy_env=staging` run would have failed at
+  the `git clone`/checkout step. Also populated the three playbooks'
+  `github_token` vault block, still a `REPLACE_WITH_...` placeholder
+  ciphertext since the ops migration in-repo, with the real
+  `ansible-vault encrypt_string` output.
+- `ops/my-server/README.md`: the venv setup instructions created a
+  bare `venv/` directory, which nothing but a stale,
+  since-superseded `.gitignore` line covers — every role actually
+  uses `uv`'s `.venv` convention (caught by the repo-wide
+  `**/.venv/` pattern). Renamed to `.venv`, and added `--force` to
+  the `ansible-galaxy collection install` step so it actually
+  reinstalls collections pinned in `requirements.yml` instead of
+  silently skipping already-installed ones.
+- `ops/my-server/roles/fastapi_backend/README.md`: documented the
+  `uv python install 3.14` step the role already performs before
+  `uv sync` (idempotent, a no-op when already installed) — the
+  README previously only mentioned `uv sync` itself.
 
 ### front/tamiyo_scroll
 

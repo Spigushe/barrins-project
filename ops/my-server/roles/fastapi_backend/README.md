@@ -25,7 +25,11 @@ publicly.
    app's working directory — the repo root, or `fastapi_backend_repo_subdir`
    within it for a monorepo checkout (see `fastapi_backend_repo_subdir`
    below):
-   - **present** → `uv sync` (creates and populates `.venv` automatically).
+   - **present** → ensures Python 3.14 is available via `uv python install
+     3.14` (idempotent — a no-op if already installed) before `uv sync`
+     (creates and populates `.venv` automatically). This lets `uv` manage
+     the interpreter itself rather than relying on whatever Python the
+     `setup_packages` role's `apt` install happens to provide.
    - **absent** → falls back to `pip install -r requirements.txt` into a
      `.venv` created with `python3 -m venv` (Debian's system pip refuses
      to install outside a venv — PEP 668 — so this is the only supported
