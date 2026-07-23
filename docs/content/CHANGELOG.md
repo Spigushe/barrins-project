@@ -346,6 +346,16 @@ sub-repos with actual changes appear in a given release.
   (the file has always been `tolaria_news.yml`): `README.md`,
   `architecture/independence.md`, `deployment/frontend.md`,
   `deployment/rollback.md`.
+- `ops/my-server/roles/fastapi_backend/tasks/main.yml`: no task ever
+  ran `alembic upgrade head` — the role installed dependencies,
+  deployed `.env`, and restarted the service, leaving any pending
+  schema migration unapplied against the newly deployed code
+  (Constitution §31.1/§37.1 both list migrations as a required
+  deployment step). Added an "Apply database migrations" task
+  (`uv run alembic upgrade head`, `chdir` at the resolved work dir)
+  right after dependency installation and before the `.env`/service
+  steps, gated on the same `fastapi_backend_pyproject.stat.exists`
+  check as the `uv sync` task.
 
 ### front/tamiyo_scroll
 
