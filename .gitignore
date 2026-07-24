@@ -21,6 +21,7 @@ apps/barrins_api/logs/
 ops/my-server/venv/
 ops/my-server/.vault-password-file.txt
 ops/my-server/secrets/**
+!ops/my-server/secrets/*/
 !ops/my-server/secrets/**/*.example
 !ops/my-server/secrets/**/README.md
 
