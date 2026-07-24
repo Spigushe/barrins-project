@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server` (new playbook + role) | / |
 | **Initial date** | 2026-07-24 | / |
-| **Status** | 🟡 Implemented, staging UAT confirmed, `ansible-lint` clean | production UAT (release-tag deploy) deferred to B6, not a blocker for B3 |
+| **Status** | ✅ Implemented, `ansible-lint` clean | one UAT item (production release-tag deploy) deferred to B6, not a blocker for B3 |
 | **Source** | User request | GitHub Pages already hosts other, unrelated projects on this account — deploying this repo's docs there isn't isolated to this project alone |
 | **Dependency** | none | standalone infra, like B1 — sequenced before B3 (release content/merge) by choice, not a hard dependency |
 
