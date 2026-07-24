@@ -65,11 +65,11 @@ renders it; backend untouched and its existing test suite still green.
 
 ## UAT (manual)
 
-- [ ] On `staging`, log in as two users, with `data_shared` enabled on
+- [X] On `staging`, log in as two users, with `data_shared` enabled on
       one via a direct API call (not the UI, since it's now hidden).
       Confirm neither the "Share my data" checkbox nor the "View: user"
       selector is visible anywhere in the Tamiyo Scroll UI.
-- [ ] Call `GET /api/v1/tamiyo-scroll/personal-decks?owner_id=<shared-user>`
+- [X] Call `GET /api/v1/tamiyo-scroll/personal-decks?owner_id=<shared-user>`
       directly with a valid token; confirm the backend still enforces the
       sharing rule correctly even though the UI entry point is gone.
 
