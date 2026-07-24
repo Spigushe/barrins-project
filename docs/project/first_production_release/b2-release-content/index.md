@@ -38,9 +38,9 @@ branch into `staging`.
       98.21% coverage), frontend (`npm run lint`/`build`/`test`, 54
       passed), docs (`npm run ci` equivalent — build clean, spellcheck
       clean on every changed file).
-- [ ] Confirm every work-item PR is merged into `proj/v1.0.0-bump` and CI
+- [X] Confirm every work-item PR is merged into `proj/v1.0.0-bump` and CI
       is green.
-- [ ] Open the PR `proj/v1.0.0-bump` → `staging`.
+- [X] Open the PR `proj/v1.0.0-bump` → `staging`.
 
 ## Done statement
 
@@ -49,9 +49,9 @@ manifests read `1.0.0`; `proj/v1.0.0-bump` merged cleanly into `staging`.
 
 ## UAT (manual)
 
-- [ ] Read each finalized `CHANGELOG.md`; confirm entries accurately
+- [X] Read each finalized `CHANGELOG.md`; confirm entries accurately
       reflect what's actually shipping in v1.0.0.
-- [ ] Confirm both manifests read `1.0.0`.
+- [X] Confirm both manifests read `1.0.0`.
 
 ## Non-regression tests
 

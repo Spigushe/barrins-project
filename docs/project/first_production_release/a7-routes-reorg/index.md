@@ -89,10 +89,10 @@ needed inside any individual route file.
 
 ## UAT (manual)
 
-- [ ] On `staging`, confirm `GET /`, `GET /health`, `POST /api/v1/auth/token`,
+- [X] On `staging`, confirm `GET /`, `GET /health`, `POST /api/v1/auth/token`,
       and a `/bff/tamiyo-scroll/*` route all resolve exactly as before —
       no URL should have changed.
-- [ ] Skim `app/api/` in the GitHub UI and confirm the new layout reads
+- [X] Skim `app/api/` in the GitHub UI and confirm the new layout reads
       clearly (the actual goal of this item).
 
 ## Non-regression tests

@@ -49,8 +49,13 @@ links.
 
 ## UAT (manual)
 
-- [ ] Read the rendered README on GitHub as if unfamiliar with the
-      codebase; confirm it's clear and accurate.
+- [ ] **Blocked until this branch merges** — `README.md` only exists in
+      its rewritten form on `proj/v1.0.0-bump`; `origin/staging` (this
+      repo's default branch, what GitHub actually renders on the repo
+      homepage) is still on the old one-liner. Rendered locally in the
+      meantime to sanity-check content/formatting — clean, no broken
+      links. Read the rendered README on GitHub as if unfamiliar with
+      the codebase; confirm it's clear and accurate, once merged.
 - [ ] Once B5 ships, add real links back (docs site + production apps)
       — tracked as a small follow-up, not part of this item.
 
