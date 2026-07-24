@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` | backend only, frontend field delivered separately |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | ✅ Implemented (backend) | one UAT item pending redeploy + re-test, after a bugfix found on retest |
+| **Status** | ✅ Implemented, UAT fully confirmed | includes 1 bug found/fixed during manual testing |
 | **Source** | User-supplied requirement | confirmed against a real Postman collection (endpoint/auth) |
 | **Dependency** | none | frontend wiring delivered by A5 (deferred here, already built there) |
 
@@ -134,7 +134,7 @@ wiring is intentionally out of scope here (→ A5).
 - [X] Once A5 adds the UI field: paste a real Moxfield URL there on
       `staging`; confirm a personal deck version is created with the
       correct cards.
-- [ ] Paste an invalid/non-Moxfield URL; confirm a clear `400` surfaces
+- [X] Paste an invalid/non-Moxfield URL; confirm a clear `400` surfaces
       instead of a silent failure. *(Backend already returns a clear
       `400`. Bug found on retest: `PersonalDecklistImportSection.tsx`'s
       `handleImport`/`handleSaveRaw` never caught the mutation's
@@ -142,8 +142,8 @@ wiring is intentionally out of scope here (→ A5).
       of reaching the user — same missing-try/catch pattern as
       `LoginPage`/`VerifyEmailPage` already guard against. Fixed: both
       handlers now catch `ApiError` and render the message inline,
-      mirroring the login form. Pending redeploy + re-test to confirm
-      the `400` message now displays on staging.)*
+      mirroring the login form. Confirmed on retest — staging now shows
+      "Not a Moxfield deck URL: 'a'" inline under the field.)*
 - [X] Trigger two imports back-to-back; confirm via server logs/timing
       they are spaced ≥1 second apart.
 - [X] Once the UI field exists: inspect the frontend network tab during
