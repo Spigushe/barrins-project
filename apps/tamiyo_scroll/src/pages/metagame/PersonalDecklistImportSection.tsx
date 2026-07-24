@@ -46,8 +46,8 @@ export function PersonalDecklistImportSection() {
     <Card>
       <CardTitle>Decklist personnelle</CardTitle>
       <CardDescription className="mt-1">
-        Import a Moxfield link (scraped via the API) or paste the raw decklist
-        text to create a new version of the deck selected above.
+        Import a Moxfield link (scraped via the API) or paste the raw decklist text to
+        create a new version of the deck selected above.
       </CardDescription>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">

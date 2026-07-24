@@ -37,13 +37,25 @@ ship to end users yet.
 
 ## Tasks
 
-- [ ] Create `SharingControls.tsx`, moving the checkbox/selector/
-      `canEdit` logic out of `AppShell.tsx`.
-- [ ] Gate it behind `SHARING_ENABLED = false`.
-- [ ] Remove the sharing render block from `AppShell.tsx`.
-- [ ] Add `SharingControls.test.tsx`.
-- [ ] Confirm existing backend `test_ownership.py`/`test_settings.py`
-      still pass untouched.
+- [x] Create `SharingControls.tsx` (split into `SharingControls`, the
+      `SHARING_ENABLED` gate, and `SharingControlsContent`, the actual
+      UI — kept testable while disabled).
+- [x] Gate it behind `SHARING_ENABLED = false`.
+- [x] Remove the sharing render block from `AppShell.tsx`; simplify
+      `activeDeckId`/`handleActiveDeckChange` to drop `canEdit`/
+      `viewingOwner` branching entirely (no UI path left to enter
+      viewing mode).
+- [x] Add `SharingControls.test.tsx` (3 tests: gate renders nothing,
+      selector lists every shared user, checkbox toggles `data_shared`,
+      badge shows in viewing mode).
+- [x] Added `hasPointerCapture`/`scrollIntoView` jsdom polyfills to the
+      shared test setup (`src/test/setup.ts`) — needed by Radix UI
+      `Select` in tests, uncovered by this work, reusable by A5.
+- [x] Confirm existing backend `test_ownership.py`/`test_settings.py`
+      untouched (not part of this diff).
+- [x] Full frontend suite green: 42/42 tests, lint clean (only
+      pre-existing warnings in untouched files), `tsc -b && vite build`
+      succeeds, `prettier --check` clean.
 
 ## Done statement
 
