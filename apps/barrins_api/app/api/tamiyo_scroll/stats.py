@@ -24,7 +24,9 @@ router = APIRouter()
 
 @router.get("/archetype-summary", response_model=list[ResponseArchetypeSummary])
 async def get_archetype_summary(
-    session: DatabaseSession, owner: ResolvedOwner
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+    personal_deck_id: uuid.UUID | None = None,
 ) -> list[ResponseArchetypeSummary]:
     meta_decks_result = await session.execute(
         select(TSMetaDeck).where(
@@ -33,9 +35,10 @@ async def get_archetype_summary(
     )
     meta_decks = meta_decks_result.scalars().all()
 
-    matches_result = await session.execute(
-        select(TSMatch).where(TSMatch.owner_id == owner.id)
-    )
+    stmt = select(TSMatch).where(TSMatch.owner_id == owner.id)
+    if personal_deck_id is not None:
+        stmt = stmt.where(TSMatch.personal_deck_id == personal_deck_id)
+    matches_result = await session.execute(stmt)
     matches = matches_result.scalars().all()
 
     summaries = compute_archetype_summary(meta_decks, matches)

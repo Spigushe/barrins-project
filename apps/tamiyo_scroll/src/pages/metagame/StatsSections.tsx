@@ -28,7 +28,8 @@ const WINRATE_BANDS = [
 ]
 
 export function ArchetypeSummarySection() {
-  const { data } = useArchetypeSummary()
+  const { activeDeckId } = useActiveDeck()
+  const { data } = useArchetypeSummary(activeDeckId)
 
   return (
     <Card>
