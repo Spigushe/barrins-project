@@ -29,6 +29,7 @@ ops/my-server/secrets/**
 docs/content/back/barrins_api/index.md
 docs/content/back/barrins_identity/index.md
 docs/content/front/tamiyo_scroll/index.md
+docs/content/front/tolaria_news/index.md
 
 # Generated from ops/my-server/roles/<role>/README.md by docs/hooks/sync_readmes.py
 # on every build. Add a new line here whenever a role is added.
