@@ -79,7 +79,6 @@
   changed_when: true
 
 - name: Build the docs site
-  become: false
   tags:
     - deploy
   ansible.builtin.command: >-

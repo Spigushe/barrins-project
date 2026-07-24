@@ -1433,7 +1433,12 @@ them when writing new playbooks/roles rather than reintroducing the gap.
   and does not run natively on Windows. Run it from WSL/Linux/macOS —
   a throwaway venv (`pip install ansible-lint && ansible-galaxy
   collection install -r ops/my-server/requirements.yml`) is enough to
-  reproduce CI locally before pushing.
+  reproduce CI locally before pushing. Run it from the **repo root**
+  as `ansible-lint ops/my-server`, exactly matching
+  `.github/workflows/CI.yml`'s invocation — running `ansible-lint .`
+  from inside `ops/my-server` itself silently processes 0 files
+  ("0 files processed of N encountered") while still reporting
+  "Passed", which is not a real clean run.
 
 ---
 

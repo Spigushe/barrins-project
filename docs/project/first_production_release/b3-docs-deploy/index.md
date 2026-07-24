@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server` (new playbook + role) | / |
 | **Initial date** | 2026-07-24 | / |
-| **Status** | 🟡 Implemented, UAT pending | not yet deployed to the VPS; DNS records and `ansible-lint` verification also still outstanding |
+| **Status** | 🟡 Implemented, staging UAT confirmed, `ansible-lint` clean | production UAT (release-tag deploy) still outstanding |
 | **Source** | User request | GitHub Pages already hosts other, unrelated projects on this account — deploying this repo's docs there isn't isolated to this project alone |
 | **Dependency** | none | standalone infra, like B1 |
 
@@ -63,13 +63,16 @@ exactly this shape of deploy (`barrins_api.yml`, `tamiyo_scroll.yml`).
       integration).
 - [x] Write `ops/my-server/docs.yml` (same `deploy_env`/branch-or-tag
       option shape as `barrins_api.yml`/`tamiyo_scroll.yml`).
-- [ ] Add DNS A records for `docs.barrins-codex.org` and
-      `docs-staging.barrins-codex.org`.
+- [x] Add DNS A record for `docs-staging.barrins-codex.org` (confirmed
+      working — `register_ssl` issued a certificate and the site is
+      live). `docs.barrins-codex.org` (production) still needed.
 - [x] Decide the fate of the never-committed `deploy-docs.yml` GitHub
       Actions workflow reference in `ops/my-server/CHANGELOG.md` — this
       item supersedes it; note that explicitly rather than leaving a
       dangling mention.
-- [ ] `ansible-lint ops/my-server` clean.
+- [x] `ansible-lint ops/my-server` clean (`production` profile, run
+      from the repo root via WSL — see the CI-vs-local discrepancy note
+      below).
 - [x] Document at `docs/content/ops/deployment/` (new page, following
       `backend.md`/`frontend.md`'s structure) and update
       `docs/content/ops/operations/index.md`'s open items.
@@ -77,6 +80,17 @@ exactly this shape of deploy (`barrins_api.yml`, `tamiyo_scroll.yml`).
 Drive-by: extracted the shared GitHub PAT `pre_tasks` block into a
 `github_token` role (this playbook became its fourth identical copy) —
 see `ops/my-server/CHANGELOG.md`'s Added/Changed entries.
+
+Drive-by bug found via CI, not local `ansible-lint`: the new
+`github_token` role's shared, intentionally-unprefixed `github_token`
+fact tripped `var-naming[no-role-prefix]` — fixed with a targeted
+`noqa` (see `ops/my-server/CHANGELOG.md`'s Fixed entry). Also surfaced
+a local-verification gotcha: running `ansible-lint .` from inside
+`ops/my-server` silently processes 0 files ("0 files processed of 2
+encountered") — `ansible-lint` must be run from the repo root as
+`ansible-lint ops/my-server`, exactly matching
+`.github/workflows/CI.yml`'s invocation, or it does not actually lint
+anything despite reporting "Passed".
 
 ## Done statement
 
@@ -86,8 +100,20 @@ app playbooks; `ansible-lint` clean; documented.
 
 ## UAT (manual)
 
-- [ ] Deploy to staging; confirm `https://docs-staging.barrins-codex.org`
+- [X] Deploy to staging; confirm `https://docs-staging.barrins-codex.org`
       serves the built site and reflects the current branch's content.
+      *(Bug found on first attempt: the "Build the docs site" task
+      carried a stray `become: false` copied from `fastapi_backend`'s
+      `uv`-install pattern — but `docs_site` clones/builds as root like
+      `react_frontend` and only hands ownership to `www-data` at the
+      end, so the unprivileged user couldn't write into the root-owned
+      checkout (`docs/hooks/sync_readmes.py`'s mkdocs pre-build hook
+      regenerating `docs/content/back/barrins_api/index.md`).
+      `PermissionError`, task failed outright. Fixed by dropping the
+      stray `become: false`; confirmed on retest — `docs.yml -e
+      deploy_env=staging -e docs_site_git_branch=proj/v1.0.0-bump` ran
+      clean end to end, site live at
+      `https://docs-staging.barrins-codex.org/`.)*
 - [ ] Deploy to production from a release tag; confirm
       `https://docs.barrins-codex.org` serves that tag's content.
 

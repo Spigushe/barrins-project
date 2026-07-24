@@ -25,7 +25,12 @@
       chmod 600 {{ github_token_file }} — see secrets/README.md.
   when: not github_token_stat.stat.exists
 
-- name: Read the local GitHub token
+- name: Read the local GitHub token  # noqa: var-naming[no-role-prefix]
+  # Deliberately unprefixed: this is the whole point of the role — a
+  # shared, playbook-level `github_token` fact that fastapi_backend/
+  # react_frontend/docs_site fall back to via
+  # `<role>_github_token | default(github_token)`. Prefixing it would
+  # break that contract for every playbook using the shared token.
   become: false
   no_log: true
   ansible.builtin.set_fact:
