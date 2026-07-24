@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | repo (branch promotion) | / |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | 🔲 Not started | / |
+| **Status** | 🟡 PR #20 opened, not yet merged | `staging` → `main`, 21 commits |
 | **Source** | Release checklist | / |
 | **Dependency** | B3 | PR merged into `staging`, CI green |
 
@@ -14,7 +14,8 @@
 
 ## Tasks
 
-- [ ] Open a PR `staging` → `main` once B3 has landed and CI is green.
+- [X] Open a PR `staging` → `main` once B3 has landed and CI is green
+      (PR #20).
 - [ ] Review the full diff before merging.
 
 ## Done statement
