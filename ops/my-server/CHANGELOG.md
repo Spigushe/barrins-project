@@ -433,3 +433,12 @@ section of the docs site for details.
   name. Prefixing it would break that contract. Suppressed with a
   targeted `# noqa: var-naming[no-role-prefix]` and a comment
   explaining why, rather than renaming.
+- `.github/workflows/CI.yml`: the `changes` job's `outputs:` map
+  exposed `back`/`front`/`ops` but not `docs`, even though the same
+  job's `paths-filter` step already computed it — `needs.changes.outputs.docs`
+  was therefore always empty, so the `docs` job (`if:
+  needs.changes.outputs.docs == 'true'`) was skipped on every PR
+  regardless of what actually changed, not just this one. Surfaced by
+  a PR touching only `docs/project/**` still showing `ci / docs`
+  skipped. Added the missing `docs: ${{ steps.filter.outputs.docs }}`
+  line.

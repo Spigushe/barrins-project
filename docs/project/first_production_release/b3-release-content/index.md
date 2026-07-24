@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | monorepo-wide (all 6 sub-repos) | / |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | 🟡 PR opened, not yet merged | `proj/v1.0.0-bump` → `staging` still 29 commits ahead as of last check |
+| **Status** | ✅ Merged into `staging` | squash-merged, CI green |
 | **Source** | Release checklist | finalize v1.0.0 content |
 | **Dependency** | every Phase A + B1 item, plus B2's playbook/role + staging UAT | must be merged into `proj/v1.0.0-bump` with CI green first; B2's own production deploy needs a release tag (B5) and isn't required here — deferred to B6's final regression pass |
 
@@ -44,11 +44,13 @@ item finalizes the release content and promotes the branch into
 - [X] Confirm every work-item PR is merged into `proj/v1.0.0-bump` and CI
       is green.
 - [X] Open the PR `proj/v1.0.0-bump` → `staging`.
+- [X] Squash-merge the PR into `staging`, CI green.
 
 ## Done statement
 
 Every sub-repo `CHANGELOG.md` has an accurate `[1.0.0]` section; both
-manifests read `1.0.0`; `proj/v1.0.0-bump` merged cleanly into `staging`.
+manifests read `1.0.0`; `proj/v1.0.0-bump` squash-merged cleanly into
+`staging`.
 
 ## UAT (manual)
 
