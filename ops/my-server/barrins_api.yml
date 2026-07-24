@@ -10,22 +10,13 @@
   gather_facts: false
   vars:
     username: spigushe
-    # Generated on GitHub (Settings > Developer settings > Personal access
-    # tokens), scope: repo (read-only is enough). It must be renewed every
-    # 30 days: run
-    #   ansible-vault encrypt_string '<new_token>' --name 'github_token'
-    # and replace the block below with the new output.
-    github_token: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          37623761306536663933323932623931646336376638306462643435333637386438326131626566
-          6666396635383530383562616438376235393833656639610a386265306461393736613838653738
-          30306531643461636665633035373336396266656561643731306232373835646266613862363237
-          6462663966353030320a666131643836623038343735623436626237623539383838336130303635
-          31633837363832376538306538366339623363376664336237333139343739306539656630363233
-          36656430616333633463393863323664653431666137613132353064626338336537336531663564
-          31653165303037393062663634366437643032633962373232653739663839326433353439353933
-          63366465363334643539656365646634343831633235306138623061343135383961343263663533
-          6661
+    # Local, git-ignored file holding just the GitHub PAT (Settings >
+    # Developer settings > Personal access tokens, scope: repo,
+    # read-only is enough) — shared across every playbook cloning a
+    # private repo, never committed (Constitution ss34). See
+    # secrets/README.md to create it. Renewing the token is just
+    # overwriting this file — no repo edit needed.
+    github_token_file: "{{ playbook_dir }}/secrets/github/token.txt"
 
     # Defaults to a full production deploy — the latest GitHub release tag
     # of barrins_api (Constitution ss25/ss27: production only ever deploys
@@ -45,6 +36,28 @@
     # }}/apps/barrins_api/.env on every run if present on this machine,
     # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
+
+  pre_tasks:
+    - name: Check the local GitHub token file exists
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ github_token_file }}"
+      register: github_token_stat
+
+    - name: Fail fast if it's missing
+      ansible.builtin.fail:
+        msg: >-
+          {{ github_token_file }} does not exist. Create it with:
+          echo -n '<GitHub PAT>' > {{ github_token_file }} &&
+          chmod 600 {{ github_token_file }} — see secrets/README.md.
+      when: not github_token_stat.stat.exists
+
+    - name: Read the local GitHub token
+      become: false
+      no_log: true
+      ansible.builtin.set_fact:
+        github_token: "{{ lookup('ansible.builtin.file', github_token_file) }}"
 
   roles:
     - role: register_ssl

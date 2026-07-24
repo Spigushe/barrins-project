@@ -24,6 +24,11 @@ secrets/
   postgresql_pgadmin/
     admin_password.txt.example  # plaintext template, committed
     admin_password.txt          # real value, git-ignored, local-only
+  github/
+    token.txt.example  # plaintext template, committed
+    token.txt          # real value, git-ignored, local-only — shared by
+                        # every playbook that clones a private repo
+                        # (barrins_api.yml, tamiyo_scroll.yml, tolaria_news.yml)
 ```
 
 `*.env.example` files are plain templates (no real secrets) copied from
@@ -58,6 +63,36 @@ vaulting only protects it if your disk itself is compromised. Whichever
 you choose, share the real values with other operators out of band (a
 password manager, not git — see "Safety" below), each keeping their own
 local copy at the same path.
+
+Same idea for a bare-value secret like `postgresql_pgadmin`'s admin
+password:
+
+```bash
+echo -n '<strong password>' > secrets/postgresql_pgadmin/admin_password.txt
+ansible-vault encrypt secrets/postgresql_pgadmin/admin_password.txt  # optional
+```
+
+`postgresql_pgadmin.yml` reads it via `lookup('ansible.builtin.file',
+...)`, which — like `copy`/`template` — transparently decrypts a
+vault-encrypted source given `.vault-password-file.txt`, so encrypting
+it doesn't change anything for the playbook.
+
+Same pattern for the shared GitHub token (a Personal Access Token,
+Settings > Developer settings > Personal access tokens, scope: `repo`
+— read-only is enough), used by every playbook that clones a private
+repo:
+
+```bash
+echo -n '<GitHub PAT>' > secrets/github/token.txt
+ansible-vault encrypt secrets/github/token.txt  # optional
+```
+
+`barrins_api.yml`/`tamiyo_scroll.yml`/`tolaria_news.yml` each read this
+same file — **renewing the token (every 30 days) is just overwriting
+this one local file**, no repo edit or commit needed (previously the
+token was a vault-encrypted string duplicated inline in all three
+playbooks, so renewal meant re-encrypting and editing three tracked
+files).
 
 ## Safety
 
