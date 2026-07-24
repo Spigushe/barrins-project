@@ -28,7 +28,12 @@ section of the docs site for details.
   MkDocs build-and-deploy workflow to GitHub Pages, intentionally kept
   out of the required CI checks. The hosting target (GitHub Pages +
   custom domain `docs.barrins-codex.org`) is a placeholder pending
-  confirmation.
+  confirmation. **Superseded**: this workflow was never actually
+  committed to the repo, and the hosting target is now decided —
+  self-hosted via `docs.yml`/the `docs_site` role (see Added, below), not
+  GitHub Pages (the account already hosts other, unrelated projects'
+  Pages sites — see B3,
+  `docs/project/first_production_release/b3-docs-deploy/index.md`).
 - Ansible VPS deployment (`ops/my-server/`), moved in-repo from the
   previous separate `Spigushe/myserver` repository (now deprecated) so
   infrastructure changes land alongside the application changes that
@@ -86,6 +91,18 @@ section of the docs site for details.
   to its `github_token` fact via
   `<role>_github_token | default(github_token)` unless a playbook
   overrides it per-invocation.
+- `ops/my-server/docs.yml` and the `docs_site` role: self-hosted
+  deployment of the mkdocs documentation site (B3), same
+  `deploy_env`/branch/release-tag options as `barrins_api.yml`/
+  `tamiyo_scroll.yml`. Structurally mirrors `react_frontend` (clone at
+  a ref, build, symlink static output, hand ownership to `www-data`,
+  nginx vhost + `register_ssl`), but builds with `uv`/`uvx`
+  (`uvx --with mkdocs-material mkdocs build --strict`, matching
+  `fastapi_backend`'s toolchain) instead of `nvm`/`npm`, and serves a
+  plain static multi-page site (`try_files $uri $uri/ =404;`) rather
+  than a client-side-routed SPA. Decided over GitHub Pages because the
+  account already hosts other, unrelated projects' Pages sites.
+  Documented at `docs/content/ops/deployment/docs_site.md`.
 
 ### Changed
 

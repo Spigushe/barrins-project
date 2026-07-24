@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server` (new playbook + role) | / |
 | **Initial date** | 2026-07-24 | / |
-| **Status** | 🔲 Not started | / |
+| **Status** | 🟡 Implemented, UAT pending | not yet deployed to the VPS; DNS records and `ansible-lint` verification also still outstanding |
 | **Source** | User request | GitHub Pages already hosts other, unrelated projects on this account — deploying this repo's docs there isn't isolated to this project alone |
 | **Dependency** | none | standalone infra, like B1 |
 
@@ -58,21 +58,25 @@ exactly this shape of deploy (`barrins_api.yml`, `tamiyo_scroll.yml`).
 
 ## Tasks
 
-- [ ] Build the `docs_site` role (clone at branch/tag, `uv`-based
+- [x] Build the `docs_site` role (clone at branch/tag, `uv`-based
       mkdocs build, static output served by nginx, `register_ssl`
       integration).
-- [ ] Write `ops/my-server/docs.yml` (same `deploy_env`/branch-or-tag
+- [x] Write `ops/my-server/docs.yml` (same `deploy_env`/branch-or-tag
       option shape as `barrins_api.yml`/`tamiyo_scroll.yml`).
 - [ ] Add DNS A records for `docs.barrins-codex.org` and
       `docs-staging.barrins-codex.org`.
-- [ ] Decide the fate of the never-committed `deploy-docs.yml` GitHub
+- [x] Decide the fate of the never-committed `deploy-docs.yml` GitHub
       Actions workflow reference in `ops/my-server/CHANGELOG.md` — this
       item supersedes it; note that explicitly rather than leaving a
       dangling mention.
 - [ ] `ansible-lint ops/my-server` clean.
-- [ ] Document at `docs/content/ops/deployment/` (new page, following
+- [x] Document at `docs/content/ops/deployment/` (new page, following
       `backend.md`/`frontend.md`'s structure) and update
       `docs/content/ops/operations/index.md`'s open items.
+
+Drive-by: extracted the shared GitHub PAT `pre_tasks` block into a
+`github_token` role (this playbook became its fourth identical copy) —
+see `ops/my-server/CHANGELOG.md`'s Added/Changed entries.
 
 ## Done statement
 

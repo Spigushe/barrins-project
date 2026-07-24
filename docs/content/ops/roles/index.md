@@ -9,6 +9,8 @@ truth instead of drifting into a second copy.
   proxy for a backend process.
 - [Create SSH Key](create_ssh_key/index.md) — provisions a dedicated
   deploy keypair.
+- [Docs Site](docs_site/index.md) — builds and serves the mkdocs
+  documentation site.
 - [FastAPI Backend](fastapi_backend/index.md) — deploys and runs a
   FastAPI app under systemd.
 - [GitHub Token](github_token/index.md) — reads the shared GitHub PAT,

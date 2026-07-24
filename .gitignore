@@ -36,6 +36,7 @@ docs/content/front/tolaria_news/index.md
 # on every build. Add a new line here whenever a role is added.
 docs/content/ops/roles/backend_website/index.md
 docs/content/ops/roles/create_ssh_key/index.md
+docs/content/ops/roles/docs_site/index.md
 docs/content/ops/roles/fastapi_backend/index.md
 docs/content/ops/roles/github_token/index.md
 docs/content/ops/roles/pgadmin/index.md

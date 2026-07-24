@@ -1,0 +1,15 @@
+---
+docs_site_config:
+  repo: "{{ docs_site_repo }}"
+  repo_subdir: "{{ docs_site_repo_subdir | default('docs') }}"
+  git_branch: "{{ docs_site_git_branch | default('main') }}"
+  use_release_tag: "{{ docs_site_use_release_tag | default(false) }}"
+  release_tag: "{{ docs_site_release_tag | default('') }}"
+  server_name: "{{ docs_site_server_name }}"
+  app_name: "{{ docs_site_app_name | default(docs_site_server_name) }}"
+  site_root: "/home/{{ username }}/projects/{{ docs_site_server_name }}"
+  build_root: >-
+    {{ '/home/' + username + '/projects/' + docs_site_server_name
+    + ('/' + docs_site_repo_subdir if (docs_site_repo_subdir | default('')) | length > 0 else '') }}
+  build_dir: "{{ docs_site_build_dir | default('site') }}"
+  github_token: "{{ docs_site_github_token | default(github_token) }}"

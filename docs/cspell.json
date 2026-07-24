@@ -19,6 +19,7 @@
         "cffi",
         "chdir",
         "checkfirst",
+        "chowns",
         "ciphertext",
         "Competitif",
         "Compétitif",
