@@ -42,7 +42,7 @@ export function VerifyEmailPage() {
 
     try {
       await verify.mutateAsync({ email, code })
-      navigate('/app/metagame')
+      navigate('/app/bo3-tracker')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
@@ -71,8 +71,8 @@ export function VerifyEmailPage() {
           Verify your email
         </h1>
         <p className="mt-1 text-center text-[13px] text-muted-foreground">
-          Enter the 6-digit code sent to your address — or follow the link received
-          by email and confirm below.
+          Enter the 6-digit code sent to your address — or follow the link received by
+          email and confirm below.
         </p>
 
         <form className="mt-6 flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -125,9 +125,7 @@ export function VerifyEmailPage() {
             onClick={handleResend}
             className="h-auto w-full rounded-[8px] py-2.5 text-sm"
           >
-            {cooldown > 0
-              ? `Resend code (${String(cooldown)}s)`
-              : 'Resend code'}
+            {cooldown > 0 ? `Resend code (${String(cooldown)}s)` : 'Resend code'}
           </Button>
         </form>
 
@@ -144,7 +142,7 @@ export function VerifyEmailPage() {
         </p>
 
         <p className="mt-6 border-t border-border pt-4 text-center text-[11.5px] text-subtle-foreground">
-          Account managed by barrins_api.
+          Account managed by barrins_identity.
         </p>
       </div>
     </div>

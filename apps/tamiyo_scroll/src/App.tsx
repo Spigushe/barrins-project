@@ -34,7 +34,7 @@ function App() {
           }
         />
         <Route
-          path="/app/suivi-bo3"
+          path="/app/bo3-tracker"
           element={
             <ProtectedRoute>
               <AppShell>

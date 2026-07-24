@@ -1,15 +1,12 @@
 # Implementation Plan — Tamiyo Scroll Frontend Bootstrap
 
-> **Target**: barrins-project/tamiyo_scroll
-> **Initial date**: 2026-07-15
-> **Status**: ✅ Implemented
-> **Backend dependencies**: `barrins_api` — `/api/v1/auth/*` (login, signup, signup/verify,
-> signup/resend, refresh, logout, me) and `/api/v1/tamiyo-scroll/*` (16 endpoints,
-> see `barrins_api/docs/tamiyo_scroll_tracker/00_plan_general.md`). Both BFFs are
-> implemented and tested on the backend side — this plan only covers frontend consumption.
-> **Design source**: `Suivi Competitif MTG.dc.html` handoff from CLAUDE design
-> (high fidelity, source of truth for FR labels, color/type tokens, calculation
-> thresholds).
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `barrins-project/tamiyo_scroll` | / |
+| **Initial date** | 2026-07-15 | / |
+| **Status** | ✅ Implemented | / |
+| **Source** | `Suivi Competitif MTG.dc.html` handoff from CLAUDE design | High fidelity, source of truth for FR labels, color/type tokens, calculation thresholds |
+| **Dependency** | `barrins_api` — `/api/v1/auth/*` and `/api/v1/tamiyo-scroll/*` (16 endpoints, see `barrins_api/docs/tamiyo_scroll_tracker/00_plan_general.md`) | Both BFFs implemented and tested backend-side — this plan only covers frontend consumption |
 
 ---
 

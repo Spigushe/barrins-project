@@ -40,12 +40,27 @@
       on this host first (it installs postgresql).
   when: pgadmin_pg_conf_dirs.files | length == 0
 
+- name: Read the currently active listen_addresses setting
+  ansible.builtin.command: >-
+    grep -h "^listen_addresses" {{ pgadmin_pg_conf_dirs.files[0].path }}/postgresql.conf
+  register: pgadmin_current_listen_addresses
+  changed_when: false
+  failed_when: false
+
 - name: Let PostgreSQL accept connections from the pgAdmin Docker network
   ansible.builtin.lineinfile:
     path: "{{ pgadmin_pg_conf_dirs.files[0].path }}/postgresql.conf"
     regexp: "^#?\\s*listen_addresses\\s*="
     line: "listen_addresses = 'localhost,{{ pgadmin_config.docker_gateway_ip }}'"
   notify: Restart postgresql
+  # Never blindly overwrite an existing, broader listen_addresses (e.g.
+  # '*', needed by the app itself to reach Postgres over the public
+  # interface) — only narrow it down to "localhost + our gateway" when
+  # nothing already covers the gateway IP. Restricting this
+  # unconditionally once broke barrins_api's own DB connectivity.
+  when: >-
+    pgadmin_config.docker_gateway_ip not in pgadmin_current_listen_addresses.stdout
+    and "'*'" not in pgadmin_current_listen_addresses.stdout
 
 - name: Allow password auth for the pgAdmin Docker network
   ansible.builtin.lineinfile:

@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import {
   draftFromMatch,
   MatchFormFields,
@@ -47,8 +49,8 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
 }
 
 export function MatchJournalSection() {
-  const { canEdit } = useActiveDeck()
-  const { data: matches } = useMatches()
+  const { canEdit, activeDeckId } = useActiveDeck()
+  const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
   const updateMatch = useUpdateMatch()
@@ -56,6 +58,7 @@ export function MatchJournalSection() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MatchDraft | null>(null)
+  const [viewingMatch, setViewingMatch] = useState<Match | null>(null)
 
   function personalDeckName(id: string) {
     return personalDecks?.find((deck) => deck.id === id)?.name ?? '?'
@@ -149,30 +152,42 @@ export function MatchJournalSection() {
                   {formatDate(match.date)}
                 </span>
               </div>
-              {canEdit && (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      startEdit(match)
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      void deleteMatch.mutateAsync(match.id)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setViewingMatch(match)
+                  }}
+                >
+                  View
+                </Button>
+                {canEdit && (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        startEdit(match)
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        void deleteMatch.mutateAsync(match.id)
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           )
         })}
@@ -180,6 +195,47 @@ export function MatchJournalSection() {
           <p className="text-center text-muted-foreground">No game saved.</p>
         )}
       </div>
+
+      <Dialog
+        open={viewingMatch !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewingMatch(null)
+        }}
+      >
+        {viewingMatch && (
+          <DialogContent>
+            <DialogTitle>
+              {personalDeckName(viewingMatch.personal_deck_id)} vs{' '}
+              {opponentDeckName(viewingMatch.opponent_deck_id)}
+            </DialogTitle>
+            <div className="flex flex-col gap-3 text-sm">
+              <div className="flex flex-wrap gap-3 text-muted-foreground">
+                <span>{formatDate(viewingMatch.date)}</span>
+                <span>{viewingMatch.on_play ? 'On the Play' : 'On the Draw'}</span>
+                <span className="font-mono">{gamesSummary(viewingMatch)}</span>
+              </div>
+              <div>
+                <Label>Opening hand</Label>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {viewingMatch.opening_hand || '—'}
+                </p>
+              </div>
+              <div>
+                <Label>Turning point</Label>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {viewingMatch.turning_point || '—'}
+                </p>
+              </div>
+              <div>
+                <Label>Final turn</Label>
+                <p className="mt-1 whitespace-pre-wrap text-foreground">
+                  {viewingMatch.final_turn || '—'}
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </Card>
   )
 }

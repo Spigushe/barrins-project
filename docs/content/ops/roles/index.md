@@ -9,10 +9,16 @@ truth instead of drifting into a second copy.
   proxy for a backend process.
 - [Create SSH Key](create_ssh_key/index.md) — provisions a dedicated
   deploy keypair.
+- [Docs Site](docs_site/index.md) — builds and serves the mkdocs
+  documentation site.
 - [FastAPI Backend](fastapi_backend/index.md) — deploys and runs a
   FastAPI app under systemd.
+- [GitHub Token](github_token/index.md) — reads the shared GitHub PAT,
+  used by every role that clones a private repo.
 - [pgAdmin](pgadmin/index.md) — pgAdmin4 in Docker, reverse-proxied with
   TLS.
+- [Postgres Backup](postgres_backup/index.md) — daily `pg_dump`/
+  `pg_dumpall` backups via a systemd timer.
 - [React Frontend](react_frontend/index.md) — builds and serves a static
   Node.js frontend.
 - [Register SSL](register_ssl/index.md) — issues/renews Let's Encrypt

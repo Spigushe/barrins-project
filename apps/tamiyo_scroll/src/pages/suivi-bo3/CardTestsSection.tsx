@@ -12,7 +12,7 @@ import type { CardTest, CardTestWrite } from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -93,17 +93,7 @@ export function CardTestsSection() {
 
   const deckOptions = metaDecks ?? []
 
-  if (activeDeckId === null) {
-    return (
-      <Card>
-        <CardTitle>Tested cards — individual feedback</CardTitle>
-        <CardDescription className="mt-1">
-          Select or create a personal deck above to see its test
-          feedback.
-        </CardDescription>
-      </Card>
-    )
-  }
+  if (activeDeckId === null) return null
   const deckId = activeDeckId
 
   async function handleAdd(event: FormEvent) {

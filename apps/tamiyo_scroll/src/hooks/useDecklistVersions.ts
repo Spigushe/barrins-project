@@ -41,7 +41,7 @@ export function useImportMoxfield() {
   const invalidate = useInvalidateDecklist()
   return useMutation({
     mutationFn: ({ deckId, moxfieldUrl }: { deckId: string; moxfieldUrl: string }) =>
-      personalDecksApi.importMoxfieldPlaceholder(deckId, moxfieldUrl),
+      personalDecksApi.importMoxfield(deckId, moxfieldUrl),
     onSuccess: invalidate,
   })
 }

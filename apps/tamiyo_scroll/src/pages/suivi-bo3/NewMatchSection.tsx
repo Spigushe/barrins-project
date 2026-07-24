@@ -22,11 +22,7 @@ export function NewMatchSection() {
 
   useEffect(() => {
     if (activeDeckId === null) return
-    setDraft((current) =>
-      current.personalDeckId === ''
-        ? { ...current, personalDeckId: activeDeckId }
-        : current,
-    )
+    setDraft((current) => ({ ...current, personalDeckId: activeDeckId }))
   }, [activeDeckId])
 
   if (!canEdit) return null

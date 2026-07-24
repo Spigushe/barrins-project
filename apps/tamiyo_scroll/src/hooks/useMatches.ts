@@ -3,11 +3,12 @@ import * as matchesApi from '@/api/matches'
 import type { MatchWrite } from '@/schemas/tamiyoScroll'
 import { useViewingOwner } from './useViewingOwner'
 
-export function useMatches() {
+export function useMatches(personalDeckId: string | null) {
   const owner = useViewingOwner()
   return useQuery({
-    queryKey: ['matches', owner?.id ?? 'self'],
-    queryFn: matchesApi.listMatches,
+    queryKey: ['matches', owner?.id ?? 'self', personalDeckId],
+    queryFn: () => matchesApi.listMatches(personalDeckId ?? ''),
+    enabled: personalDeckId !== null,
   })
 }
 

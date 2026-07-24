@@ -107,9 +107,9 @@ jobs:
         with:
           node-version: "20"
       - name: Markdownlint
-        run: npx --yes markdownlint-cli2 "docs/content/**/*.md" "!docs/content/**/_links.md" --config docs/.markdownlint.jsonc
+        run: npx --yes markdownlint-cli2 "docs/content/**/*.md" "!docs/content/**/_links.md" "!docs/content/changelog/_intro.md" --config docs/.markdownlint.jsonc
       - name: Spellcheck (cspell)
-        run: npx --yes cspell --config docs/cspell.json "docs/content/**/*.md" --exclude "docs/content/**/_links.md"
+        run: npx --yes cspell --config docs/cspell.json "docs/content/**/*.md" --exclude "docs/content/**/_links.md" --exclude "docs/content/changelog/_intro.md"
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Build MkDocs

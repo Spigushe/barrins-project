@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "barrins_project"
-version = "0.3.0"
+version = "1.0.0"
 authors = [
     { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
 ]
@@ -16,7 +16,7 @@ requires-python = ">=3.14"
 classifiers = [
     "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Framework :: FastAPI",

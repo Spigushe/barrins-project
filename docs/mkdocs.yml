@@ -5,9 +5,11 @@ docs_dir: content
 
 hooks:
     - hooks/sync_readmes.py
+    - hooks/sync_changelogs.py
 
 exclude_docs: |
     _links.md
+    changelog/_intro.md
 
 theme:
     name: material
@@ -34,10 +36,14 @@ nav:
           - Home: front/index.md
           - Tamiyo Scroll:
                 - Home: front/tamiyo_scroll/index.md
-                - Bootstrap: front/tamiyo_scroll/bootstrap.md
+                - Implementation:
+                      - Design: front/tamiyo_scroll/handoff.md
+                      - Bootstrap: front/tamiyo_scroll/bootstrap.md
                 - Incidents:
                       - Home: front/tamiyo_scroll/incidents/index.md
                       - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
+          - Tolaria News:
+                - Home: front/tolaria_news/index.md
     - Ops:
           - Home: ops/index.md
           - Architecture:
@@ -49,13 +55,18 @@ nav:
                 - Backend: ops/deployment/backend.md
                 - Frontend: ops/deployment/frontend.md
                 - Database (PostgreSQL & pgAdmin): ops/deployment/database.md
+                - Docs Site: ops/deployment/docs_site.md
+                - Backup & Restore: ops/deployment/backup.md
                 - Rollback: ops/deployment/rollback.md
           - Roles:
                 - Home: ops/roles/index.md
                 - Backend Website: ops/roles/backend_website/index.md
                 - Create SSH Key: ops/roles/create_ssh_key/index.md
+                - Docs Site: ops/roles/docs_site/index.md
                 - FastAPI Backend: ops/roles/fastapi_backend/index.md
+                - GitHub Token: ops/roles/github_token/index.md
                 - pgAdmin: ops/roles/pgadmin/index.md
+                - Postgres Backup: ops/roles/postgres_backup/index.md
                 - React Frontend: ops/roles/react_frontend/index.md
                 - Register SSL: ops/roles/register_ssl/index.md
                 - Setup Base User: ops/roles/setup_base_user/index.md
@@ -65,7 +76,14 @@ nav:
                 - Secrets Management: ops/security/secrets.md
           - Operations: ops/operations/index.md
           - Deployment Strategy: ops/deployment_strategy.md
-    - Changelog: CHANGELOG.md
+    - Changelog:
+          - Home: changelog/index.md
+          - Barrin's API: changelog/barrins_api.md
+          - Barrin's Identity: changelog/barrins_identity.md
+          - Tamiyo Scroll: changelog/tamiyo_scroll.md
+          - Tolaria News: changelog/tolaria_news.md
+          - Ops: changelog/ops.md
+          - Docs: changelog/docs.md
 
 markdown_extensions:
     - toc:

@@ -1,6 +1,20 @@
-import type { Match, MatchWrite } from '@/schemas/tamiyoScroll'
-import { GAME_RESULT_LABELS } from '@/lib/mtg-format'
+import { type FormEvent, useState } from 'react'
+import { useCreateMetaDeck } from '@/hooks/useMetaDecks'
+import type { ArchetypeCategory, Match, MatchWrite } from '@/schemas/tamiyoScroll'
+import { ARCHETYPE_LABELS, GAME_RESULT_LABELS } from '@/lib/mtg-format'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -12,6 +26,9 @@ import { Textarea } from '@/components/ui/textarea'
 
 export const GAME_NOT_PLAYED = '__not_played__'
 const GAME_OPTIONS = ['win', 'loss', 'draw'] as const
+const TIERS = [0, 0.5, 1, 1.5, 2, 2.5, 3]
+const ARCHETYPE_OPTIONS = Object.keys(ARCHETYPE_LABELS) as ArchetypeCategory[]
+const CREATE_ITEM_VALUE = 'create-new-opponent-deck'
 
 export interface MatchDraft {
   personalDeckId: string
@@ -100,6 +117,210 @@ function GameResultSelect({
   )
 }
 
+/**
+ * Opponent deck field: search existing meta decks, or type a new name and
+ * "Create" it without leaving this form. name/tier/category match exactly
+ * what the existing quick-add form on the Metagame roster page collects
+ * (`MetaDecksSections.tsx`) — top8/presence/expected default the same way
+ * it does (0/0/'as_expected': a freshly-noted deck genuinely has zero
+ * recorded Top 8s/presence so far, and hasn't been evaluated against
+ * expectations yet).
+ */
+function OpponentDeckField({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (deckId: string) => void
+  options: { id: string; name: string }[]
+}) {
+  const createMetaDeck = useCreateMetaDeck()
+
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [pendingName, setPendingName] = useState('')
+  const [newTier, setNewTier] = useState(1)
+  const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
+
+  const selected = options.find((deck) => deck.id === value)
+  const trimmedSearch = search.trim()
+  const filtered = options.filter((deck) =>
+    deck.name.toLowerCase().includes(trimmedSearch.toLowerCase()),
+  )
+  const hasExactMatch = options.some(
+    (deck) => deck.name.toLowerCase() === trimmedSearch.toLowerCase(),
+  )
+
+  function selectDeck(deckId: string) {
+    onChange(deckId)
+    setOpen(false)
+    setSearch('')
+  }
+
+  function openCreateDialog() {
+    setPendingName(trimmedSearch)
+    setCreating(true)
+    setOpen(false)
+    setSearch('')
+  }
+
+  async function handleCreate(event: FormEvent) {
+    event.preventDefault()
+    const created = await createMetaDeck.mutateAsync({
+      name: pendingName,
+      tier: newTier,
+      category: newCategory,
+      decklist_notes: null,
+      top8: 0,
+      presence: 0,
+      expected: 'as_expected',
+      tests_status: null,
+    })
+    onChange(created.id)
+    setCreating(false)
+    setNewTier(1)
+    setNewCategory('midrange')
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label id="opponent-deck-label">Opponent</Label>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setSearch('')
+        }}
+      >
+        <PopoverTrigger
+          aria-labelledby="opponent-deck-label"
+          className={cn(
+            'flex h-9 w-52 items-center justify-between gap-2 rounded-(--radius-input) border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition-colors',
+            'focus-visible:border-accent',
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate text-left">
+            {selected?.name ?? '— select —'}
+          </span>
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search or create…"
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              {filtered.length === 0 && !trimmedSearch && (
+                <CommandEmpty>No opponent decks yet.</CommandEmpty>
+              )}
+              <CommandGroup>
+                {filtered.map((deck) => (
+                  <CommandItem
+                    key={deck.id}
+                    value={deck.id}
+                    onSelect={() => {
+                      selectDeck(deck.id)
+                    }}
+                  >
+                    {deck.id === value ? '✓ ' : ''}
+                    {deck.name}
+                  </CommandItem>
+                ))}
+                {trimmedSearch && !hasExactMatch && (
+                  <CommandItem
+                    value={CREATE_ITEM_VALUE}
+                    onSelect={() => {
+                      openCreateDialog()
+                    }}
+                  >
+                    Create "{trimmedSearch}"
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogTitle>Create opponent deck</DialogTitle>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              void handleCreate(event)
+            }}
+          >
+            <div>
+              <Label>Name</Label>
+              <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label>Tier</Label>
+                <Select
+                  value={String(newTier)}
+                  onValueChange={(v) => {
+                    setNewTier(Number(v))
+                  }}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIERS.map((tier) => (
+                      <SelectItem key={tier} value={String(tier)}>
+                        {tier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Category</Label>
+                <Select
+                  value={newCategory}
+                  onValueChange={(v) => {
+                    setNewCategory(v as ArchetypeCategory)
+                  }}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ARCHETYPE_OPTIONS.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {ARCHETYPE_LABELS[category]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={createMetaDeck.isPending}>
+                Create
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreating(false)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export function MatchFormFields({
   draft,
   onChange,
@@ -134,26 +355,13 @@ export function MatchFormFields({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>Opponent</Label>
-          <Select
-            value={draft.opponentDeckId}
-            onValueChange={(value) => {
-              onChange({ ...draft, opponentDeckId: value })
-            }}
-          >
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="— select —" />
-            </SelectTrigger>
-            <SelectContent>
-              {metaDeckOptions.map((deck) => (
-                <SelectItem key={deck.id} value={deck.id}>
-                  {deck.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <OpponentDeckField
+          value={draft.opponentDeckId}
+          onChange={(deckId) => {
+            onChange({ ...draft, opponentDeckId: deckId })
+          }}
+          options={metaDeckOptions}
+        />
         <div className="flex flex-col gap-1.5">
           <Label>Play/Draw</Label>
           <Select

@@ -2,17 +2,13 @@
 <!-- cSpell:ignore Pydantic upserts mypy -->
 # Implementation Plan — Competitive MTG Tracking (Tamiyo Scroll BFF)
 
-> **Target**: barrins-project/barrins_api
-> **Initial date**: 2026-07-15
-> **Status**: ✅ Implemented — 2026-07-15 (backend only, Tamiyo Scroll
-> frontend to be built separately)
-> **Source**: design handoff `Suivi Competitif MTG.dc.html` + `README.md`
-> (provided by the client, high fidelity — see §13 of the project
-> constitution for the product summary)
-> **Dependency**: reuses the existing JWT authentication
-> (`docs/auth_roles/`). Does **not** technically depend on
-> `docs/signup_email_verification/` — accounts can be provisioned via
-> `POST /auth/register` (admin) pending self-registration.
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `barrins-project/barrins_api` | / |
+| **Initial date** | 2026-07-15 | / |
+| **Status** | ✅ Implemented on 2026-07-15 | backend only, Tamiyo Scroll frontend to be built separately |
+| **Source** | design handoff `Suivi Competitif MTG.dc.html` | Product summary on §13 of the project constitution |
+| **Dependency** | reuses the existing JWT authentication (`docs/auth_roles/`) | Does **not** technically depend on `docs/signup_email_verification/` |
 
 ---
 
@@ -199,14 +195,20 @@ Consequences:
 
 Same router/service separation as `tolaria_news`
 (`docs/tolaria_news/00_plan_general.md`) — no query written directly
-in route files:
+in route files. Each domain gets one `app/api/<domain>/` package
+containing its own router aggregator plus one file per sub-resource;
+`tolaria_news` would follow the identical pattern once it gets its own
+BFF routes:
 
 ```text
 app/
-  api/v1/
-    tamiyo_scroll.py               ← aggregator, mounted in main.py
-                                     alongside v1_router/tolaria_router
-    tamiyo_scroll_routers/
+  api/
+    general/
+      router.py                    ← root '/', /health, /api/v1/auth
+    tamiyo_scroll/
+      router.py                    ← aggregator, mounted in main.py
+                                     alongside general/router.py (and,
+                                     eventually, tolaria_news/router.py)
       settings.py                  ← GET/PATCH /me/settings, GET /shared-users
       personal_decks.py            ← /personal-decks,
                                      /personal-decks/{id}/versions*,

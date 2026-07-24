@@ -99,6 +99,38 @@ class TestListMatches:
         resp = await client.get(f"{BASE}/matches", headers=headers)
         assert len(resp.json()) == 1
 
+    async def test_filters_by_personal_deck_id(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_a, meta_id = await _setup_decks(client, owner_user)
+        deck_b_resp = await client.post(
+            f"{BASE}/personal-decks", json={"name": "Azorius Control"}, headers=headers
+        )
+        deck_b = deck_b_resp.json()["id"]
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(deck_a, meta_id),
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(deck_b, meta_id),
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/matches?personal_deck_id={deck_a}", headers=headers
+        )
+        deck_ids = [m["personal_deck_id"] for m in resp.json()]
+        assert deck_ids == [deck_a]
+
+        resp = await client.get(
+            f"{BASE}/matches?personal_deck_id={deck_b}", headers=headers
+        )
+        deck_ids = [m["personal_deck_id"] for m in resp.json()]
+        assert deck_ids == [deck_b]
+
 
 class TestUpdateMatch:
     async def test_updates_match(self, client: AsyncClient, owner_user: User):

@@ -7,7 +7,7 @@ import {
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { Card, CardTitle } from '@/components/ui/card'
 
 const LEGEND_STATUSES = ['in_test', 'validated', 'rejected'] as const
 
@@ -16,17 +16,7 @@ export function CurrentDecklistSection() {
   const { data: versions } = useDecklistVersions(activeDeckId)
   const { data: lines } = useDecklistView(activeDeckId)
 
-  if (activeDeckId === null) {
-    return (
-      <Card>
-        <CardTitle>Current decklist</CardTitle>
-        <CardDescription className="mt-1">
-          Select or create a personal deck in the header to display its
-          decklist.
-        </CardDescription>
-      </Card>
-    )
-  }
+  if (activeDeckId === null) return null
 
   const latest = versions?.[0]
 
@@ -59,9 +49,7 @@ export function CurrentDecklistSection() {
       </div>
 
       {!latest && (
-        <p className="mt-4 text-muted-foreground">
-          No version saved for this deck.
-        </p>
+        <p className="mt-4 text-muted-foreground">No version saved for this deck.</p>
       )}
 
       {latest && (

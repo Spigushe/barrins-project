@@ -53,9 +53,12 @@ technical detail):
 - installs Docker if absent;
 - creates an isolated Docker network (`172.30.99.0/24` by default) so the
   pgAdmin container never shares the host's network namespace;
-- updates `postgresql.conf`/`pg_hba.conf` so PostgreSQL accepts password
-  auth from that Docker network only — never from the internet, since
-  nothing binds Postgres to a public interface;
+- extends `postgresql.conf`'s `listen_addresses` to include that network's
+  gateway (`172.30.99.1` by default) — but **only if nothing already
+  covers it** (e.g. a pre-existing `'*'`, which the app itself may depend
+  on to reach Postgres over the public interface). Never narrows an
+  existing broader setting; appends a `pg_hba.conf` line allowing
+  password auth from that Docker subnet;
 - deploys pgAdmin (`pgadmin4.service`) on `127.0.0.1:5050`;
 - deploys its weekly auto-update timer;
 - deploys the nginx vhost + TLS;
@@ -81,8 +84,14 @@ for pgAdmin to connect to PostgreSQL).
 1. Open `https://pgadmin.barrins-codex.org`, log in with
    `pgadmin_admin_email`/the password from `admin_password.txt`.
 2. *Add New Server*:
-   - **Host**: `host.docker.internal` — **not** `localhost` (which, from
-     inside the container, means the container itself, not the host).
+   - **Host**: `172.30.99.1` — the pgAdmin Docker network's gateway
+     (`pgadmin_docker_gateway_ip`, see role README). **Not** `localhost`
+     (means the container itself from inside it, not the host) — and
+     **not** `host.docker.internal` either: on Linux, Docker's
+     `host-gateway` special value resolves to the *default* bridge's
+     gateway (typically `172.17.0.1`), not this isolated network's, so it
+     doesn't reach Postgres (which only listens on `172.30.99.1`, not
+     `172.17.0.1`) and the connection is refused.
    - **Port**: `5432`
    - **Username**: `postgres` (or the role created above)
    - **Password**: the one set with `ALTER USER` above
@@ -101,9 +110,11 @@ concern, see [`rollback.md`](rollback.md)'s database caveat.
 
 | Symptom | Likely cause |
 | --- | --- |
-| `register_ssl` fails on "certbot certonly" | DNS not propagated, or port 80 unreachable. |
-| pgAdmin shows "Unable to connect to server" when adding the Postgres server | `Host` set to `localhost` instead of `host.docker.internal`; or the manual `ALTER USER ... PASSWORD` step wasn't done; or PostgreSQL wasn't reloaded (`systemctl status postgresql`). |
-| `docker network create` fails on a re-run | Another Docker network already occupies `172.30.99.0/24` — change `pga_docker_subnet`/`pga_docker_gateway_ip` in `postgresql_pgadmin.yml`. |
+| `register_ssl` fails on "certbot certonly" | DNS not propagated, or port 80 unreachable — an A record for the domain must point at this server first. |
+| `register_ssl_contact_name`/`register_ssl_server_name` undefined | Both are required role inputs (no default) — every playbook invoking `register_ssl` must pass a real, monitored contact email, not a placeholder. |
+| pgAdmin shows "Unable to connect to server" (connection refused, e.g. to `172.17.0.1`) | `Host` set to `host.docker.internal` or `localhost` instead of the Docker network gateway (`172.30.99.1` by default) — see "Validation" above. |
+| Backend/Alembic suddenly can't reach Postgres after running this playbook | Check `grep -n "^listen_addresses" /etc/postgresql/*/main/postgresql.conf` for a stray duplicate line — the pre-fix version of this role could append a narrower `listen_addresses` line alongside an existing `'*'`, and Postgres uses whichever appears last in the file. Delete the narrower duplicate and `systemctl restart postgresql`; the role no longer does this (skips the edit whenever `'*'` or the gateway IP is already covered). |
+| `docker network create` fails on a re-run | Another Docker network already occupies `172.30.99.0/24` — override `pgadmin_docker_subnet`/`pgadmin_docker_gateway_ip` when invoking the `pgadmin` role in `postgresql_pgadmin.yml`. |
 | pgAdmin container won't start | `journalctl -u pgadmin4 -n 50`; confirm Docker is running (`systemctl status docker`) and port `5050` is free. |
 | Playbook fails before touching the server, "does not exist" | `secrets/postgresql_pgadmin/admin_password.txt` is missing — see "Preparation" above. |
 

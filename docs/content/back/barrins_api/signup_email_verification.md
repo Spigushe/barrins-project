@@ -1,16 +1,11 @@
 # Implementation Plan — Self-Registration & Email Verification
 
-> **Target**: barrins-project/barrins_api
-> **Initial date**: 2026-07-15
-> **Status**: ✅ Implemented — 2026-07-15 (backend only, verification screen on
-  the
-> Tamiyo Scroll side still to do — see "Open point" section at the end of this
-  document)
-> **Trigger**: shared identity prerequisite for the "Competitive MTG Tracking"
-  tracker
-> (Tamiyo Scroll), but cross-cutting scope — reusable by any future Barrin's
-  application
-> (constitution §13, §40).
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `barrins-project/barrins_api` | / |
+| **Initial date** | 2026-07-15 | / |
+| **Status** | ✅ Implemented on 2026-07-15 (backend) | verification screen on the Tamiyo Scroll side still to do — see "Open point" section at the end of this document |
+| **Source** | Shared identity prerequisite for the "Competitive MTG Tracking" tracker (Tamiyo Scroll) | Cross-cutting scope — reusable by any future Barrin's application (constitution §13, §40) |
 
 ---
 

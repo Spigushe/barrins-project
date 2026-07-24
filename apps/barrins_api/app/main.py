@@ -6,8 +6,7 @@ for startup/shutdown events and request logging middleware.
 
 Endpoints:
     - GET /: Redirects to /docs (API documentation)
-    - GET /health/*: Health check endpoints (live, ready)
-    - GET /metrics: Prometheus metrics endpoint
+    - GET /health: Health check endpoint (reports database connectivity)
 """
 
 import time
@@ -17,10 +16,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 
-from app.api.ts_router import router as ts_router
-from app.api.v1_router import router as v1_router
+from app.api.general.router import router as general_router
+from app.api.tamiyo_scroll.router import router as tamiyo_scroll_router
 from app.config import settings
 from app.core.error_handlers import register_exception_handlers
 from app.core.log_config import get_logger
@@ -95,11 +93,6 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-def read_root() -> RedirectResponse:
-    return RedirectResponse(url="/docs", status_code=301)
-
-
 # Register the routes
-app.include_router(v1_router)
-app.include_router(ts_router)
+app.include_router(general_router)
+app.include_router(tamiyo_scroll_router)

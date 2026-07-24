@@ -7,6 +7,8 @@ each with its own Preparation / Deployment / Validation / Rollback:
 - [Frontend — Tamiyo Scroll / Tolaria News](frontend.md)
 - [Database Administration — PostgreSQL & pgAdmin](database.md) —
   infrastructure/admin tooling, not release-tagged.
+- [Docs Site](docs_site.md) — self-hosted mkdocs deployment, same
+  environment/branch/tag options as the app playbooks.
 - [Rollback](rollback.md) — the shared release-tag rollback mechanism, and
   the backend-specific database caveat.
 

@@ -75,6 +75,30 @@ class TestArchetypeSummary:
         assert combo["decks"] == []
         assert combo["average_winrate"] is None
 
+    async def test_filters_by_personal_deck_id(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id, _ = await _setup_match(client, owner_user, category="control")
+        other_personal_resp = await client.post(
+            f"{BASE}/personal-decks", json={"name": "Other Deck"}, headers=headers
+        )
+        other_personal_id = other_personal_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/archetype-summary?personal_deck_id={other_personal_id}",
+            headers=headers,
+        )
+        control = next(s for s in resp.json() if s["category"] == "control")
+        assert control["decks"][0]["winrate"] is None
+
+        resp = await client.get(
+            f"{BASE}/archetype-summary?personal_deck_id={personal_id}",
+            headers=headers,
+        )
+        control = next(s for s in resp.json() if s["category"] == "control")
+        assert control["decks"][0]["winrate"] == 50.0
+
 
 class TestMatchupSummary:
     async def test_empty_by_default(self, client: AsyncClient, owner_user: User):
