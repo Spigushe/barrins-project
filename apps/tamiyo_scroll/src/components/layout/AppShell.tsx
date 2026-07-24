@@ -85,7 +85,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
 
       <ActiveDeckContext.Provider value={{ activeDeckId, canEdit }}>
-        <main className="mt-7 flex flex-col gap-7">{children}</main>
+        <main className="mt-7 flex flex-col gap-7">
+          {activeDeckId !== null ? (
+            children
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Create or select a personal deck above to get started.
+            </p>
+          )}
+        </main>
       </ActiveDeckContext.Provider>
     </div>
   )

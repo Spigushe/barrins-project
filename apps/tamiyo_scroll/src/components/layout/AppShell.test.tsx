@@ -50,6 +50,26 @@ describe('AppShell tab visibility', () => {
   })
 })
 
+describe('AppShell main content', () => {
+  it('hides the page content when no personal deck is selected', () => {
+    activePersonalDeckId = null
+    renderAppShell()
+    expect(screen.queryByText('page content')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Create or select a personal deck above to get started.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the page content once a personal deck is selected', () => {
+    activePersonalDeckId = 'deck-1'
+    renderAppShell()
+    expect(screen.getByText('page content')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Create or select a personal deck above to get started.'),
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe('AppShell welcome message', () => {
   it('greets the user by display name when set', () => {
     currentUser = { display_name: 'Jace', email: 'jace@example.com' }
