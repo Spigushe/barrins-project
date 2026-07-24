@@ -77,6 +77,15 @@ section of the docs site for details.
   for two secrets `secrets/README.md` already documented but never
   actually shipped — a bare pgAdmin admin password file, and a shared
   GitHub PAT (see Changed, below).
+- `ops/my-server/roles/github_token`: the GitHub PAT `pre_tasks` block
+  (see Changed, below) extracted into its own role once `docs.yml`
+  became its fourth identical copy across `barrins_api.yml`,
+  `tamiyo_scroll.yml`, and `tolaria_news.yml`. Every playbook that
+  clones a private repo now lists `github_token` first in its
+  `roles:`; `fastapi_backend`/`react_frontend`/`docs_site` fall back
+  to its `github_token` fact via
+  `<role>_github_token | default(github_token)` unless a playbook
+  overrides it per-invocation.
 
 ### Changed
 
@@ -118,13 +127,15 @@ section of the docs site for details.
   or keeping the temporary personal Gmail relay long-term. No code
   change required — `SMTPEmailSender` already speaks generic SMTP.
 - `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
-  `tolaria_news.yml`: the shared GitHub PAT is no longer an inline
-  `ansible-vault`-encrypted blob duplicated across all three playbooks
-  — externalized to a single local, git-ignored
+  `tolaria_news.yml`, `docs.yml`: the shared GitHub PAT is no longer an
+  inline `ansible-vault`-encrypted blob duplicated across the
+  playbooks — externalized to a single local, git-ignored
   `secrets/github/token.txt` (same pattern as `postgresql_pgadmin`'s
-  admin password), read via a fail-fast `pre_tasks` block. Renewing the
-  token (every 30 days) is now overwriting one local file, not
-  re-encrypting and editing three tracked files.
+  admin password), read via the `github_token` role (see Added,
+  above) — originally a fail-fast `pre_tasks` block copy-pasted into
+  each playbook, extracted into a role once `docs.yml` made it a
+  fourth copy. Renewing the token (every 30 days) is now overwriting
+  one local file, not re-encrypting and editing three tracked files.
 
 ### Fixed
 

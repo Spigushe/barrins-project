@@ -10,14 +10,6 @@
   gather_facts: false
   vars:
     username: spigushe
-    # Local, git-ignored file holding just the GitHub PAT (Settings >
-    # Developer settings > Personal access tokens, scope: repo,
-    # read-only is enough) — shared across every playbook cloning a
-    # private repo, never committed (Constitution ss34). See
-    # secrets/README.md to create it. Renewing the token is just
-    # overwriting this file — no repo edit needed.
-    github_token_file: "{{ playbook_dir }}/secrets/github/token.txt"
-
     # Defaults to a full production deploy — the latest GitHub release tag
     # of barrins_api (Constitution ss25/ss27: production only ever deploys
     # released versions). Pass -e deploy_env=staging to deploy a
@@ -37,29 +29,9 @@
     # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
 
-  pre_tasks:
-    - name: Check the local GitHub token file exists
-      delegate_to: localhost
-      become: false
-      ansible.builtin.stat:
-        path: "{{ github_token_file }}"
-      register: github_token_stat
-
-    - name: Fail fast if it's missing
-      ansible.builtin.fail:
-        msg: >-
-          {{ github_token_file }} does not exist. Create it with:
-          echo -n '<GitHub PAT>' > {{ github_token_file }} &&
-          chmod 600 {{ github_token_file }} — see secrets/README.md.
-      when: not github_token_stat.stat.exists
-
-    - name: Read the local GitHub token
-      become: false
-      no_log: true
-      ansible.builtin.set_fact:
-        github_token: "{{ lookup('ansible.builtin.file', github_token_file) }}"
-
   roles:
+    - role: github_token
+
     - role: register_ssl
       tags:
         - backend

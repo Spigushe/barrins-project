@@ -62,6 +62,7 @@ nav:
                 - Backend Website: ops/roles/backend_website/index.md
                 - Create SSH Key: ops/roles/create_ssh_key/index.md
                 - FastAPI Backend: ops/roles/fastapi_backend/index.md
+                - GitHub Token: ops/roles/github_token/index.md
                 - pgAdmin: ops/roles/pgadmin/index.md
                 - Postgres Backup: ops/roles/postgres_backup/index.md
                 - React Frontend: ops/roles/react_frontend/index.md
