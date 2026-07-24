@@ -41,6 +41,10 @@ section of the docs site for details.
   confirmation dialog (`ui/dialog.tsx`) so a stray click can't archive
   a deck. Archiving the currently-active deck also clears
   `active_personal_deck_id`.
+- `AppShell.tsx`: a "Welcome, {display_name}" greeting next to the Log
+  out button, using `useCurrentUser` (`GET /api/v1/auth/me`, already
+  implemented but unused in the UI). Falls back to the account email
+  when no display name is set.
 
 ### Changed
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { useLogout } from '@/hooks/useAuth'
+import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useMySettings } from '@/hooks/useSettings'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
 import { PersonalDeckSelector } from '@/components/layout/PersonalDeckSelector'
@@ -17,6 +17,7 @@ const TABS = [
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const { data: settings } = useMySettings()
+  const { data: currentUser } = useCurrentUser()
   const logout = useLogout()
 
   // Sharing/read-only viewing is disabled for v1.0.0 (SharingControls),
@@ -41,6 +42,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="flex flex-wrap items-center gap-3">
           <SharingControls />
+
+          {currentUser && (
+            <span className="text-sm text-muted-foreground">
+              Welcome, {currentUser.display_name ?? currentUser.email}
+            </span>
+          )}
 
           <Button
             type="button"
