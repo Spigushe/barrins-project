@@ -113,6 +113,33 @@ opponent-deck work.
       by both `NewMatchSection.tsx` and `MatchJournalSection.tsx`.
 - [x] Sort `MetaDecksRosterSection` by tier asc, then name asc.
 - [x] Full frontend suite green: 54/54 tests, lint/format/build clean.
+- [x] Fix: `AppShell.tsx` only hid the tab *nav links* behind
+      `activeDeckId !== null` — the routed page content (`{children}`)
+      always rendered regardless, so a fresh account landing directly on
+      e.g. `/app/metagame` still saw full Metagame content with no
+      personal deck selected. Found via UAT below. `{children}` is now
+      gated the same way, with a "Create or select a personal deck
+      above to get started." placeholder otherwise.
+- [x] Fix: `NewMatchSection.tsx`'s "My Deck" field only synced to the
+      active personal deck on mount (its `useEffect` only filled in an
+      empty `personalDeckId`, never re-synced afterwards) — switching
+      the active deck via the header combobox left "My Deck" stuck on
+      whichever deck was active when the New Game form first mounted.
+      Found via UAT below. The effect now always follows
+      `activeDeckId`.
+- [x] Fix: `GET /matches` and `GET /archetype-summary` had no
+      `personal_deck_id` filter at all — the match log and "Breakdown
+      by archetype" always showed every match across *all* of the
+      owner's personal decks mixed together, unlike `/matchup-summary`
+      which was already correctly scoped. Found via manual testing
+      (switching personal decks left old matches/opponent stats
+      visible). Both endpoints now accept an optional
+      `personal_deck_id` query param, mirroring `/card-tests`'s
+      existing pattern; `MatchJournalSection.tsx`/`StatsSections.tsx`
+      now pass `activeDeckId`.
+- [x] `PersonalDeckSelector.tsx`'s deck list now sorts alphabetically
+      (`localeCompare`) instead of creation order — requested
+      alongside the above, same spirit as the Roster's tier+name sort.
 
 ## Done statement
 
@@ -125,36 +152,47 @@ import confirmed working end-to-end by the user locally.
 ## UAT (manual)
 
 - [x] Moxfield import confirmed working end-to-end locally (user).
-- [ ] On `staging` with a fresh account (no personal decks yet), confirm
+- [X] On `staging` with a fresh account (no personal decks yet), confirm
       the three tabs (Metagame, BO3 Tracking, My decklist) are not
-      visible at all.
-- [ ] Create a new deck via the combobox; confirm it's auto-selected and
+      visible at all. *(Bug found on first attempt: nav links were
+      hidden but the routed page content rendered anyway — see Tasks
+      above. Fixed and confirmed on retest.)*
+- [X] Create a new deck via the combobox; confirm it's auto-selected and
       the three tabs appear immediately, with no manual reselect needed.
-- [ ] Search for and select an existing deck via the combobox; confirm it
+- [X] Search for and select an existing deck via the combobox; confirm it
       switches the active deck correctly.
-- [ ] Click "View" on a match log entry; confirm the opening
+- [X] Click "View" on a match log entry; confirm the opening
       hand/turning point/final turn notes display correctly and the
       dialog is read-only (no accidental edit path).
-- [ ] On the "New game (BO3)" form, type a new opponent name, confirm
+- [X] On the "New game (BO3)" form, type a new opponent name, confirm
       "Create" appears, fill tier/category, submit; confirm the new deck
       is created, appears on the Metagame Roster page, and is
       auto-selected as the opponent for the game being logged.
-- [ ] On the Metagame Roster page, confirm decks are listed lowest-tier
+- [X] On the Metagame Roster page, confirm decks are listed lowest-tier
       first, alphabetically within the same tier.
 
 ## Non-regression tests
 
-- Automated: `PersonalDeckSelector.test.tsx` (4 tests: shows active deck,
-  select-existing, create-and-auto-select, no duplicate-create-offer).
-- Automated: `AppShell.test.tsx` (2 tests: tabs hidden/shown by
-  `activeDeckId`) — distinct from A2's `SharingControls.test.tsx`.
+- Automated: `PersonalDeckSelector.test.tsx` (8 tests: shows active deck,
+  sorted-alphabetically, select-existing, create-and-auto-select, no
+  duplicate-create-offer, archive-with-confirmation, cancel-archive,
+  clears-active-deck-on-archive).
+- Automated: `AppShell.test.tsx` (4 tests: tabs hidden/shown by
+  `activeDeckId`, plus page-content hidden/shown by the same) —
+  distinct from A2's `SharingControls.test.tsx`.
 - Automated: `MatchJournalSection.test.tsx` (3 tests: notes hidden in
   collapsed row, dialog shows them, button order) — net-new file/feature.
+- Automated: `NewMatchSection.test.tsx` (1 test, net-new: "My Deck"
+  follows the header's active personal deck when it changes).
 - Automated: `MatchFormFields.test.tsx` (2 tests: select-existing
   opponent, create-new-with-honest-defaults) — distinct from
   `PersonalDeckSelector`'s tests despite the similar UI pattern.
 - Automated: `MetaDecksSections.test.tsx` (1 test: tier-then-name sort
   order) — net-new.
+- Automated (backend): `test_matches.py::test_filters_by_personal_deck_id`,
+  `test_stats_routes.py::TestArchetypeSummary::test_filters_by_personal_deck_id`
+  (both net-new) — cf. `test_stats_routes.py::TestMatchupSummary`'s
+  existing equivalent.
 - Manual: the Metagame/BO3 Tracking/My decklist pages still load correct
   data for whichever deck is selected — the selector rewrite doesn't
   change their content, only how a deck gets chosen.

@@ -90,11 +90,15 @@ implemented; `docs/content/changelog/` builds correctly via
 
 ## UAT (manual)
 
-- [ ] Run `mkdocs serve` locally; browse to the Changelog section;
-      confirm Home shows the intro text plus a "Latest changes" section
+- [ ] **Blocked until the `v1.0.0` tag exists** (no tag exists yet — cf.
+      "ça reste 1.0.0 tant que le commit n'est pas tag"; `git tag -l` is
+      currently empty). Before that, "Latest changes" only has the
+      "no tag yet" fallback to check, not the real aggregation. Run
+      `mkdocs serve` locally; browse to the Changelog section; confirm
+      Home shows the intro text plus a "Latest changes" section
       matching the actual latest `vX.Y.Z` tag, and each app's page shows
       its full history.
-- [ ] Delete a generated changelog page by hand, rerun the build, confirm
+- [X] Delete a generated changelog page by hand, rerun the build, confirm
       the hook regenerates it; stop `mkdocs serve` and confirm
       `on_shutdown` removes the generated files again.
 
