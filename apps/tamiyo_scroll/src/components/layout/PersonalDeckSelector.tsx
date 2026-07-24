@@ -45,10 +45,11 @@ export function PersonalDeckSelector() {
   const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
 
   const trimmedSearch = search.trim()
-  const filteredDecks =
+  const filteredDecks = (
     personalDecks?.filter((deck) =>
       deck.name.toLowerCase().includes(trimmedSearch.toLowerCase()),
     ) ?? []
+  ).sort((a, b) => a.name.localeCompare(b.name))
   const hasExactMatch = personalDecks?.some(
     (deck) => deck.name.toLowerCase() === trimmedSearch.toLowerCase(),
   )

@@ -12,6 +12,7 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
     data: [
       { id: 'deck-1', name: 'Mono Red', archived_at: null, created_at: '' },
       { id: 'deck-2', name: 'Azorius Control', archived_at: null, created_at: '' },
+      { id: 'deck-4', name: 'Zendikar Ramp', archived_at: null, created_at: '' },
     ],
   }),
   useCreatePersonalDeck: () => ({ mutateAsync: createDeckMutateAsync }),
@@ -31,6 +32,18 @@ describe('PersonalDeckSelector', () => {
   it('shows the active deck name in the trigger', () => {
     render(<PersonalDeckSelector />)
     expect(screen.getByText('Mono Red')).toBeInTheDocument()
+  })
+
+  it('lists decks sorted alphabetically, not creation order', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+
+    const names = screen
+      .getAllByRole('option')
+      .map((option) => option.textContent?.replace('✕', '').trim())
+    expect(names).toEqual(['Azorius Control', '✓ Mono Red', 'Zendikar Ramp'])
   })
 
   it('selects an existing deck from the list', async () => {
