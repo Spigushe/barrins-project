@@ -58,6 +58,10 @@ export function MetaDecksRosterSection() {
   const updateDeck = useUpdateMetaDeck()
   const archiveDeck = useArchiveMetaDeck()
 
+  const sortedDecks = [...(metaDecks ?? [])].sort(
+    (a, b) => a.tier - b.tier || a.name.localeCompare(b.name),
+  )
+
   const [newName, setNewName] = useState('')
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
@@ -94,7 +98,7 @@ export function MetaDecksRosterSection() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {metaDecks?.map((deck) => (
+          {sortedDecks.map((deck) => (
             <RosterRow
               key={deck.id}
               deck={deck}

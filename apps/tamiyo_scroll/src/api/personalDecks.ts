@@ -42,7 +42,7 @@ export function createDecklistVersion(deckId: string, content: string) {
   )
 }
 
-export function importMoxfieldPlaceholder(deckId: string, moxfieldUrl: string) {
+export function importMoxfield(deckId: string, moxfieldUrl: string) {
   return apiRequest(
     `/bff/tamiyo-scroll/personal-decks/${deckId}/versions/import-moxfield`,
     decklistVersionSchema,

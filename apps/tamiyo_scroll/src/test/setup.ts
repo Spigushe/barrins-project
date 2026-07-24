@@ -5,3 +5,12 @@ import '@testing-library/jest-dom/vitest'
 Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.releasePointerCapture ??= () => {}
 Element.prototype.scrollIntoView ??= () => {}
+
+// jsdom doesn't implement ResizeObserver either — cmdk (the Command palette
+// behind the personal-deck combobox) uses it to measure its list.
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= MockResizeObserver
