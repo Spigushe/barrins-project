@@ -213,4 +213,4 @@ is not yet settled.
   becomes worth revisiting only if `identity@barrins-codex.org` needs to
   *receive* mail as a real inbox, not just send it.
 
-[signup-email-verification]: ../back/barrins_api/signup_email_verification.md
+[signup-email-verification]: ../../back/barrins_api/signup_email_verification.md
