@@ -16,12 +16,18 @@ exists for the production VPS.
   `SELECT 1` with a short timeout) and returns `503` if the database is
   unreachable.
 - **Monitoring/alerting — decided: external.** An external free uptime
-  checker polls `https://api.barrins-codex.org/health` and the frontend
-  URLs, plus certificate-expiry alerting (§30). Rationale: monitoring
-  hosted *on the same VPS it's watching* can't detect a full server
-  outage — it needs to run somewhere else. This is an external account,
-  not a new code dependency, so it doesn't trigger the §22
-  dependency-approval process.
+  checker polls `https://api.barrins-codex.org/health` (prod + staging),
+  plus certificate-expiry alerting (§30). Rationale: monitoring hosted
+  *on the same VPS it's watching* can't detect a full server outage —
+  it needs to run somewhere else. This is an external account, not a
+  new code dependency, so it doesn't trigger the §22 dependency-approval
+  process.
+  **Scope note**: the chosen free tier caps trackers at 2, which barely
+  covers `barrins_api` prod + staging — `tamiyo_scroll` is not
+  separately monitored. Accepted because both frontends already share
+  this backend (see `barrins_api.yml`'s deploy warning), so a
+  `barrins_api` outage is caught either way; what's missed is a
+  frontend-only failure (static site down, backend still healthy).
   *Selection criterion*: free tier, with the least data exposure —
   private status page by default (no forced public incident page
   broadcasting our downtime history) and minimal account PII required at
@@ -43,12 +49,14 @@ exists for the production VPS.
       `/health` → implemented.
 - [x] Select an external uptime-checker provider against the criterion
       above — **HetrixTools**.
-- [x] Sign up / configure a HetrixTools account and add monitors for both
-      apps' staging/production URLs plus certificate-expiry alerting.
-      Monitors are live and currently report `404` on `/health` for both
-      staging and production — **expected**, since this branch (the
-      `/health` route itself) hasn't been deployed yet. Should flip to
-      `200` once B5 deploys this work.
+- [x] Sign up / configure a HetrixTools account and add monitors for
+      `barrins_api`'s staging/production URLs plus certificate-expiry
+      alerting. Free tier caps trackers at 2, so `tamiyo_scroll` isn't
+      separately monitored — see scope note in Design above. Monitors
+      are live and currently report `404` on `/health` for both staging
+      and production — **expected**, since this branch (the `/health`
+      route itself) hasn't been deployed yet. Should flip to `200` once
+      B5 deploys this work.
 - [x] Update the open-items table's monitoring row to reflect monitors
       configured (still pending a deploy to go green).
 - [x] Fix `/health` to return `503` when the database is entirely
@@ -65,20 +73,24 @@ exists for the production VPS.
 ## Done statement
 
 `GET /health` exists and returns `200`/`503` correctly; an external
-uptime checker is actively polling both apps plus certificate expiry;
-`operations/index.md` reflects both as implemented.
+uptime checker is actively polling `barrins_api` (prod + staging) plus
+certificate expiry; `operations/index.md` reflects both as
+implemented.
 
 ## UAT (manual, performed by the user)
 
 - [X] Hit `/health` locally and on `staging`; confirm
       `200 {"status": "ok"}`.
-- [ ] Stop the local/staging DB and confirm `/health` returns `503`.
-      (Staging, pre-fix: returned `500` — an unhandled connection-level
-      exception, see Tasks above. Fixed; pending redeploy + re-test to
-      confirm a clean `503` on staging.)
-- [ ] Open the chosen uptime-checker's dashboard; confirm both
-      `barrins_api` and `tamiyo_scroll` staging URLs are being polled and
-      show "up," and a certificate-expiry check is configured.
+- [X] Stop the local/staging DB and confirm `/health` returns `503`.
+      (Staging: initially returned `500` — an unhandled connection-level
+      exception, see Tasks above. Fixed, redeployed, and re-tested by
+      blocking `barrins_api_staging` via `pg_hba.conf`: now returns a
+      clean `503 {"error":{"code":"SERVICE_UNAVAILABLE",...}}`.)
+- [X] Open the chosen uptime-checker's dashboard; confirm `barrins_api`
+      prod and staging URLs are being polled and show "up," and a
+      certificate-expiry check is configured. (`tamiyo_scroll` not
+      separately monitored — free tier only allows 2 trackers, see
+      scope note in Design.)
 
 ## Non-regression tests
 

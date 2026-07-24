@@ -43,6 +43,11 @@ section of the docs site for details.
 - `GET /health`: reports database connectivity (`200`/`503`), for
   external uptime monitoring — `503` covers both a failed query and a
   fully unreachable database (e.g. connection refused/rejected).
+  Registered after `GET /` in `general/router.py` so `/docs` lists
+  routes in that order.
+- External uptime monitoring (HetrixTools) is live against `barrins_api`
+  prod + staging `/health`, plus certificate-expiry alerting — see
+  `docs/content/ops/operations/index.md`.
 - Real Moxfield deck import (`app/services/moxfield/`): fetches a public
   deck from Moxfield's API, rate-limited to 1 request/second, replacing
   the earlier placeholder that only stored the given URL as text.

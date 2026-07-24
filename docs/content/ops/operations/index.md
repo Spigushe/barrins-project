@@ -34,13 +34,14 @@ instead of relying on "the docs page loads" as a proxy signal.
 
 ## Monitoring
 
-**Configured, not yet live.** [HetrixTools](https://hetrixtools.com/)
-(private status pages, minimal signup PII) is set up with monitors
-against both `barrins_api`'s staging and production `/health` URLs.
-Both currently report `404` — expected, since the `/health` route itself
-(above) hasn't reached staging/production yet; this should flip to `200`
-once it's deployed (see the release plan's B5 step). Certificate
-expiration monitoring is part of the same HetrixTools setup.
+**Live.** [HetrixTools](https://hetrixtools.com/) (private status pages,
+minimal signup PII) is set up with monitors against both `barrins_api`'s
+staging and production `/health` URLs; both report `200`/"up". The free
+tier caps trackers at 2, so `tamiyo_scroll` isn't separately monitored —
+accepted because both frontends share this backend (a `barrins_api`
+outage is caught either way; a frontend-only failure with the backend
+still healthy is not). Certificate expiration monitoring is part of the
+same HetrixTools setup and is live.
 
 ## Backup strategy
 
@@ -60,8 +61,8 @@ that page for why).
 | Item | Constitution ref | Status |
 | --- | --- | --- |
 | `/health` endpoint | §31.2 | Implemented (`GET /health`, `apps/barrins_api/app/api/health.py`) |
-| Uptime/alerting monitoring | — | Configured (HetrixTools), pending deploy — currently 404 on `/health` |
-| Certificate expiration monitoring | §30 | Not implemented (renewal itself is automatic via certbot) |
+| Uptime/alerting monitoring | — | Implemented (HetrixTools, `barrins_api` prod + staging — free tier caps trackers at 2, `tamiyo_scroll` not separately monitored) |
+| Certificate expiration monitoring | §30 | Implemented (HetrixTools, same setup as uptime monitoring) |
 | Database backups + verified restore | §36 | Implemented (`postgres_backup` role) — restore drill must still be personally performed before go-live |
 | nginx security headers (HSTS, etc.) | §29.1 | Not implemented |
 | Pre-commit secret-scanning enforced for all contributors | §34 | Opt-in only, see [`../security/secrets.md`](../security/secrets.md) |
