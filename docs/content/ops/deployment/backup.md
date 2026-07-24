@@ -62,7 +62,7 @@ change you're unsure about:
 ssh spigushe.org
 sudo -u postgres bash
 
-# Pick a real dump, e.g. /var/backups/postgresql/barrins_db_20260101-030000.dump
+# Pick a real dump, e.g. /var/backups/postgresql/barrins_api_staging_20260101-030000.dump
 createdb barrins_restore_test
 pg_restore --dbname=barrins_restore_test /var/backups/postgresql/<dump-file>
 

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server` | / |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | ✅ Implemented (role + docs) | UAT requires production VPS access, not yet performed |
+| **Status** | ✅ Implemented, UAT fully confirmed | timer active, backup + restore drill both verified on staging |
 | **Source** | Constitution §36 (backup/verified-restore requirement) | flagged as a release blocker |
 | **Dependency** | none | must run before B5 — backup timer needs to exist before the first production migration |
 
@@ -73,19 +73,36 @@ tested is not considered reliable." This is a release blocker.
 ## Done statement
 
 `postgres_backup` role implemented, `ansible-lint` clean, docs build
-clean. Timer verification and the restore drill itself still require a
-real server — see UAT below.
+clean, timer verified active on staging, and a real restore drill
+performed successfully (data matched the live database exactly).
 
 ## UAT (manual)
 
 Requires actual VPS access, not available in the dev sandbox this role
 was built in.
 
-- [ ] SSH to the staging host after deploy; confirm
+- [X] SSH to the staging host after deploy; confirm
       `systemctl status postgres_backup.timer` is active and a dump file
-      exists under `/var/backups/postgresql/`.
-- [ ] Personally perform the restore drill: restore a dump into a scratch
+      exists under `/var/backups/postgresql/` (`sudo ls -la /var/backups/postgresql`).
+      Timer active/waiting; manually triggered
+      (`systemctl start postgres_backup.service`, ~3min44s CPU — dominated
+      by an unrelated ~18 GB database sharing this instance (not part of
+      this project), ~1.5 GB compressed); dump files present, `0600`,
+      owned by `postgres`.
+- [X] Personally perform the restore drill: restore a dump into a scratch
       database, verify the data matches, drop the scratch database.
+      Restored `barrins_api_staging`'s dump into a scratch DB: all 9
+      tables present, `SELECT count(*) FROM users` matched the live
+      database exactly (3 = 3). Scratch database dropped after.
+
+      ```bash
+      sudo -u postgres createdb db_restore_test
+      sudo -u postgres pg_restore --dbname=db_restore_test /var/backups/postgresql/db_staging.dump
+      sudo -u postgres psql -d db_restore_test -c "\dt"
+      sudo -u postgres psql -d db_restore_test -c "SELECT count(*) FROM users;"
+      sudo -u postgres psql -d db_staging -c "SELECT count(*) FROM users;"
+      sudo -u postgres dropdb db_restore_test
+      ```
 
 ## Non-regression tests
 
