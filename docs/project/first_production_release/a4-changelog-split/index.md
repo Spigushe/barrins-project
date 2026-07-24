@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **Target** | `docs/` | (all 6 sub-repos' `CHANGELOG.md`) |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | ✅ Implemented | one UAT item blocked until `v1.0.0` is tagged (B4) |
+| **Status** | ✅ Implemented | one UAT item blocked until `v1.0.0` is tagged (B5) |
 | **Source** | Docs maintenance | single hand-maintained `CHANGELOG.md` became unwieldy across 6 sub-repos |
-| **Dependency** | B4 (tag) | for the "Latest changes" UAT check only, not the implementation |
+| **Dependency** | B5 (tag) | for the "Latest changes" UAT check only, not the implementation |
 
 ---
 

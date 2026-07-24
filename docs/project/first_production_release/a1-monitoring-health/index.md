@@ -66,7 +66,7 @@ exists for the production VPS.
       are live and currently report `404` on `/health` for both staging
       and production — **expected**, since this branch (the `/health`
       route itself) hasn't been deployed yet. Should flip to `200` once
-      B5 deploys this work.
+      B6 deploys this work.
 - [x] Update the open-items table's monitoring row to reflect monitors
       configured (still pending a deploy to go green).
 - [x] Fix `/health` to return `503` when the database is entirely

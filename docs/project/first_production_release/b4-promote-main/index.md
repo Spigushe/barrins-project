@@ -1,4 +1,4 @@
-# B3. Promote `staging` → `main`
+# B4. Promote `staging` → `main`
 
 [← Back to project index](../index.md)
 

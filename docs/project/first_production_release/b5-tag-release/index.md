@@ -1,4 +1,4 @@
-# B4. Tag and cut the release
+# B5. Tag and cut the release
 
 [← Back to project index](../index.md)
 
@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | 🔲 Not started | / |
 | **Source** | Release checklist | satisfies ADR-2's precondition for tag-based deploys |
-| **Dependency** | B3 | must be on `main` after merge |
+| **Dependency** | B4 | must be on `main` after merge |
 
 ---
 

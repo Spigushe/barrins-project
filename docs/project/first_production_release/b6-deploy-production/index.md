@@ -1,4 +1,4 @@
-# B5. Deploy from tag (production)
+# B6. Deploy from tag (production)
 
 [← Back to project index](../index.md)
 
@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | 🔲 Not started | / |
 | **Source** | Release checklist | first production deploy |
-| **Dependency** | B4 + B1 | release tag must exist; backup timer must run before the first production migration |
+| **Dependency** | B5 + B1 | release tag must exist; backup timer must run before the first production migration |
 
 ---
 

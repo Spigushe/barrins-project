@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | ✅ Implemented | UAT blocked until this branch merges into `staging`/`main` |
 | **Source** | Release readiness | presentation-first README before any public link exists |
-| **Dependency** | B2/B3 (merge) | real links to be added back once B5 (production deploy) ships |
+| **Dependency** | B2/B4 (merge) | real links to be added back once B6 (production deploy) ships |
 
 ---
 
@@ -34,7 +34,7 @@ staging. A public-facing README asserting working "try it here" links
 would have been actively misleading pre-launch (and staging URLs aren't
 meant to be advertised publicly either). Final version has **no live
 links** — just an honest "nothing public yet" status note, to be added
-back once B5 (production deploy) actually ships.
+back once B6 (production deploy) actually ships.
 
 ## Tasks
 
@@ -56,7 +56,7 @@ links.
       meantime to sanity-check content/formatting — clean, no broken
       links. Read the rendered README on GitHub as if unfamiliar with
       the codebase; confirm it's clear and accurate, once merged.
-- [ ] Once B5 ships, add real links back (docs site + production apps)
+- [ ] Once B6 ships, add real links back (docs site + production apps)
       — tracked as a small follow-up, not part of this item.
 
 ## Non-regression tests

@@ -46,8 +46,9 @@ Scope decisions:
 All work aggregates on the integration branch **`proj/v1.0.0-bump`**,
 branched off `staging`. Each work item below is its own branch/PR merging
 into `proj/v1.0.0-bump`. Once every item is in and green, this branch
-merges into `staging` (B2), which then promotes to `main` (B3), gets
-tagged (B4), and deployed (B5).
+merges into `staging` (B2), which then promotes to `main` (B4), gets
+tagged (B5), and deployed (B6). B3 (docs site deployment) is
+independent infra, like B1 — no ordering dependency on the rest.
 
 **Open item**: `.github/workflows/CI.yml` currently only triggers on PRs
 targeting `staging`/`main` — PRs into `proj/v1.0.0-bump` won't
@@ -70,10 +71,11 @@ Not decided yet — confirm before the first work-item PR.
 | A7 | API routes reorganization (emerged while starting A3) | [a7-routes-reorg/](a7-routes-reorg/index.md) |
 | B1 | `postgres_backup` Ansible role | [b1-postgres-backup/](b1-postgres-backup/index.md) |
 | B2 | Finalize release content, merge to `staging` | [b2-release-content/](b2-release-content/index.md) |
-| B3 | Promote `staging` → `main` | [b3-promote-main/](b3-promote-main/index.md) |
-| B4 | Tag and cut the release | [b4-tag-release/](b4-tag-release/index.md) |
-| B5 | Deploy from tag (production) | [b5-deploy-production/](b5-deploy-production/index.md) |
-| B6 | Document the decision (ADR-3) | [b6-adr-commit/](b6-adr-commit/index.md) |
+| B3 | Docs site deployment playbook | [b3-docs-deploy/](b3-docs-deploy/index.md) |
+| B4 | Promote `staging` → `main` | [b4-promote-main/](b4-promote-main/index.md) |
+| B5 | Tag and cut the release | [b5-tag-release/](b5-tag-release/index.md) |
+| B6 | Deploy from tag (production) | [b6-deploy-production/](b6-deploy-production/index.md) |
+| B7 | Document the decision (ADR-3) | [b7-adr-commit/](b7-adr-commit/index.md) |
 
 ## How each work item's page is structured
 

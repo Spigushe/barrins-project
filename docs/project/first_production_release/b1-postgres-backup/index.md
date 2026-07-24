@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | ✅ Implemented, UAT fully confirmed | timer active, backup + restore drill both verified on staging |
 | **Source** | Constitution §36 (backup/verified-restore requirement) | flagged as a release blocker |
-| **Dependency** | none | must run before B5 — backup timer needs to exist before the first production migration |
+| **Dependency** | none | must run before B6 — backup timer needs to exist before the first production migration |
 
 ---
 
