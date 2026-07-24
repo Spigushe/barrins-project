@@ -36,6 +36,13 @@ section of the docs site for details.
 
 ### Changed
 
+- Route `/app/suivi-bo3` renamed to `/app/bo3-tracker` (`App.tsx`,
+  `AppShell.tsx`'s tab nav, `LoginPage.tsx`, `VerifyEmailPage.tsx`,
+  `README.md`). The `pages/suivi-bo3/` folder and `SuiviBo3Tab`
+  component name are unaffected — internal naming, not the route.
+- Post-login, post-signup, and post-email-verification now redirect to
+  `/app/bo3-tracker` instead of `/app/metagame`, landing users on the
+  match tracker first.
 - Translated `README.md` from French to English.
 - Translated remaining French UI text (labels, buttons, placeholders,
   error messages) and code comments across the app — `index.css`,
@@ -52,6 +59,9 @@ section of the docs site for details.
 
 ### Fixed
 
+- `VerifyEmailPage.tsx`: footer credit read "Account managed by
+  barrins_api" — corrected to `barrins_identity`, the actual identity
+  service.
 - `vite.config.ts`: stubbed `VITE_API_BASE_URL` via Vitest's `test.env`
   so `src/api/client.ts` doesn't build requests against `"undefined"`
   during tests. The variable was only ever supplied by a local,

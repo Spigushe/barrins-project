@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { to: '/app/suivi-bo3', label: 'BO3 Tracking' },
+  { to: '/app/bo3-tracker', label: 'BO3 Tracking' },
   { to: '/app/metagame', label: 'Metagame' },
   { to: '/app/decklist', label: 'My decklist' },
 ]

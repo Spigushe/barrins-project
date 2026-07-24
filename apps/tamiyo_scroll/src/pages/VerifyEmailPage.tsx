@@ -42,7 +42,7 @@ export function VerifyEmailPage() {
 
     try {
       await verify.mutateAsync({ email, code })
-      navigate('/app/metagame')
+      navigate('/app/bo3-tracker')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
@@ -142,7 +142,7 @@ export function VerifyEmailPage() {
         </p>
 
         <p className="mt-6 border-t border-border pt-4 text-center text-[11.5px] text-subtle-foreground">
-          Account managed by barrins_api.
+          Account managed by barrins_identity.
         </p>
       </div>
     </div>
