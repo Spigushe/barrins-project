@@ -2,7 +2,9 @@
 
 from httpx import AsyncClient
 
+from app.main import app
 from app.models.user import User
+from app.services.moxfield import get_moxfield_client
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
@@ -151,20 +153,29 @@ class TestDecklistVersions:
         )
         assert [v["version"] for v in resp.json()] == [2, 1]
 
-    async def test_moxfield_import_creates_placeholder_content(
+    async def test_moxfield_import_creates_version_from_client(
         self, client: AsyncClient, owner_user: User
     ):
-        deck_id = await _create_deck(client, owner_user)
-        headers = auth_headers(owner_user)
-        resp = await client.post(
-            f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
-            json={"moxfield_url": "https://moxfield.com/decks/abc123"},
-            headers=headers,
-        )
+        class _FakeMoxfieldClient:
+            async def fetch_decklist(self, deck_url: str) -> str:
+                return "4 Lightning Bolt\n1 Sol Ring"
+
+        app.dependency_overrides[get_moxfield_client] = lambda: _FakeMoxfieldClient()
+        try:
+            deck_id = await _create_deck(client, owner_user)
+            headers = auth_headers(owner_user)
+            resp = await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json={"moxfield_url": "https://moxfield.com/decks/abc123"},
+                headers=headers,
+            )
+        finally:
+            app.dependency_overrides.pop(get_moxfield_client, None)
+
         assert resp.status_code == 201
         body = resp.json()
         assert body["source"] == "moxfield_import"
-        assert "https://moxfield.com/decks/abc123" in body["content"]
+        assert body["content"] == "4 Lightning Bolt\n1 Sol Ring"
 
     async def test_delete_version(self, client: AsyncClient, owner_user: User):
         deck_id = await _create_deck(client, owner_user)
