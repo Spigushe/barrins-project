@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.exceptions import ServiceUnavailableError
 from app.core.log_config import get_logger
@@ -24,7 +23,7 @@ async def health_check(session: DatabaseSession) -> HealthResponse:
     """
     try:
         await session.execute(text("SELECT 1"))
-    except SQLAlchemyError as exc:
+    except Exception as exc:
         logger.error("Health check failed: database unreachable", exc_info=exc)
         raise ServiceUnavailableError(message="Database is unreachable") from exc
 

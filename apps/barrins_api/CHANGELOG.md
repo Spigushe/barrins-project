@@ -41,7 +41,8 @@ section of the docs site for details.
 - Nav entries (`docs/mkdocs.yml`) and `_links.md` sidecar links for the
   two pages above.
 - `GET /health`: reports database connectivity (`200`/`503`), for
-  external uptime monitoring.
+  external uptime monitoring — `503` covers both a failed query and a
+  fully unreachable database (e.g. connection refused/rejected).
 - Real Moxfield deck import (`app/services/moxfield/`): fetches a public
   deck from Moxfield's API, rate-limited to 1 request/second, replacing
   the earlier placeholder that only stored the given URL as text.

@@ -51,6 +51,16 @@ exists for the production VPS.
       `200` once B5 deploys this work.
 - [x] Update the open-items table's monitoring row to reflect monitors
       configured (still pending a deploy to go green).
+- [x] Fix `/health` to return `503` when the database is entirely
+      unreachable (connection refused/rejected), not just when a query
+      fails after connecting. The original `except SQLAlchemyError`
+      only catches failures that occur *after* a connection is
+      established — SQLAlchemy doesn't wrap connection-establishment
+      failures that way, so they surfaced as raw driver exceptions and
+      an unhandled `500`. Found via the UAT step below (staging DB
+      access blocked via `pg_hba.conf`). Now `except Exception`; added
+      `test_health_db_unreachable_returns_503` alongside the existing
+      mocked-`SQLAlchemyError` test.
 
 ## Done statement
 
@@ -60,15 +70,19 @@ uptime checker is actively polling both apps plus certificate expiry;
 
 ## UAT (manual, performed by the user)
 
-- [ ] Hit `/health` locally and on `staging`; confirm
+- [X] Hit `/health` locally and on `staging`; confirm
       `200 {"status": "ok"}`.
 - [ ] Stop the local/staging DB and confirm `/health` returns `503`.
+      (Staging, pre-fix: returned `500` — an unhandled connection-level
+      exception, see Tasks above. Fixed; pending redeploy + re-test to
+      confirm a clean `503` on staging.)
 - [ ] Open the chosen uptime-checker's dashboard; confirm both
       `barrins_api` and `tamiyo_scroll` staging URLs are being polled and
       show "up," and a certificate-expiry check is configured.
 
 ## Non-regression tests
 
-- Automated: `test_health_ok`, `test_health_db_down_returns_503` (new).
+- Automated: `test_health_ok`, `test_health_db_down_returns_503`,
+  `test_health_db_unreachable_returns_503` (new).
 - Manual smoke: `GET /` still returns `301` to `/docs` — confirms the new
   route didn't disturb the existing redirect.
