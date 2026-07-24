@@ -49,8 +49,8 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
 }
 
 export function MatchJournalSection() {
-  const { canEdit } = useActiveDeck()
-  const { data: matches } = useMatches()
+  const { canEdit, activeDeckId } = useActiveDeck()
+  const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
   const updateMatch = useUpdateMatch()

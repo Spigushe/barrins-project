@@ -70,13 +70,20 @@ def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
 
 @router.get("/matches", response_model=list[ResponseMatch])
 async def list_matches(
-    session: DatabaseSession, owner: ResolvedOwner
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+    personal_deck_id: uuid.UUID | None = None,
 ) -> list[ResponseMatch]:
-    result = await session.execute(
-        select(TSMatch)
-        .where(TSMatch.owner_id == owner.id)
-        .order_by(TSMatch.created_at.desc())
-    )
+    """Match log for the active personal deck — never other decks'.
+
+    `personal_deck_id` filters on the deck being viewed; omitted, every
+    match for the owner is returned.
+    """
+    stmt = select(TSMatch).where(TSMatch.owner_id == owner.id)
+    if personal_deck_id is not None:
+        stmt = stmt.where(TSMatch.personal_deck_id == personal_deck_id)
+    stmt = stmt.order_by(TSMatch.created_at.desc())
+    result = await session.execute(stmt)
     return [ResponseMatch.model_validate(m) for m in result.scalars().all()]
 
 
