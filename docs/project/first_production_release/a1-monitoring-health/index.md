@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `apps/barrins_api` | + external uptime-checker account (HetrixTools) |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented, UAT fully confirmed | / |
+| **Source** | Constitution §31.2 (health route), §30 (certificate-expiry monitoring) | / |
+| **Dependency** | none | / |
+
+---
+
 ## Context
 
 Closes the open item already flagged in

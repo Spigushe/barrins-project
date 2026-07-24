@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `apps/tamiyo_scroll` | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented, UAT fully confirmed | / |
+| **Source** | Pre-launch UI maturity review | sharing UI had no component-level test, not mature enough to ship |
+| **Dependency** | none | interleaved with A5's deck-selector rewrite — extracted first to simplify it |
+
+---
+
 ## Context
 
 "Sharing" = the read-only cross-user viewing feature (`data_shared` /

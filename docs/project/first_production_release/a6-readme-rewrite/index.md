@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `README.md` (repo root) | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented | UAT blocked until this branch merges into `staging`/`main` |
+| **Source** | Release readiness | presentation-first README before any public link exists |
+| **Dependency** | B2/B3 (merge) | real links to be added back once B5 (production deploy) ships |
+
+---
+
 ## Context
 
 Current `README.md` was a single line ("Full stack project for

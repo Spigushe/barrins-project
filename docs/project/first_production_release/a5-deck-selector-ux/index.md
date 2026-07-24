@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `apps/tamiyo_scroll` | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented, UAT fully confirmed | includes 3 bugs found/fixed during manual testing |
+| **Source** | UX gap found reviewing `AppShell.tsx` | tabs always rendered regardless of deck selection, no auto-select on create |
+| **Dependency** | A2 | sharing extraction simplified the deck-selector code path this rewrites; also completes A3's deferred frontend field |
+
+---
+
 ## Context
 
 Today, in `apps/tamiyo_scroll/src/components/layout/AppShell.tsx`

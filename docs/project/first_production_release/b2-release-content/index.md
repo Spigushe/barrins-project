@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | monorepo-wide (all 6 sub-repos) | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | 🟡 PR opened, not yet merged | `proj/v1.0.0-bump` → `staging` still 29 commits ahead as of last check |
+| **Source** | Release checklist | finalize v1.0.0 content |
+| **Dependency** | every Phase A + B1 item | must be merged into `proj/v1.0.0-bump` with CI green first |
+
+---
+
 ## Context
 
 Once every Phase A + B1 work item has landed on `proj/v1.0.0-bump` and CI

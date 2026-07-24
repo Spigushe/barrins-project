@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `apps/barrins_api` | backend only, frontend field delivered separately |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented (backend) | one UAT item pending redeploy + re-test, after a bugfix found on retest |
+| **Source** | User-supplied requirement | confirmed against a real Postman collection (endpoint/auth) |
+| **Dependency** | none | frontend wiring delivered by A5 (deferred here, already built there) |
+
+---
+
 ## Context
 
 **Scope**: import a personal deck into Tamiyo Scroll from a public

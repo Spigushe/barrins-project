@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `ops/my-server` | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented (role + docs) | UAT requires production VPS access, not yet performed |
+| **Source** | Constitution §36 (backup/verified-restore requirement) | flagged as a release blocker |
+| **Dependency** | none | must run before B5 — backup timer needs to exist before the first production migration |
+
+---
+
 ## Context
 
 `docs/content/ops/operations/index.md` documents that PostgreSQL has no

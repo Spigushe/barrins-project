@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | repo (`main` branch) | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | 🔲 Not started | / |
+| **Source** | Release checklist | satisfies ADR-2's precondition for tag-based deploys |
+| **Dependency** | B3 | must be on `main` after merge |
+
+---
+
 ## Tasks
 
 - [ ] On `main`, after merge: annotated tag `v1.0.0`, pushed to `origin`.

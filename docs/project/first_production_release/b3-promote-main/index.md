@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | repo (branch promotion) | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | 🔲 Not started | / |
+| **Source** | Release checklist | / |
+| **Dependency** | B2 | PR merged into `staging`, CI green |
+
+---
+
 ## Tasks
 
 - [ ] Open a PR `staging` → `main` once B2 has landed and CI is green.

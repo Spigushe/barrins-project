@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `docs/` | (all 6 sub-repos' `CHANGELOG.md`) |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | ✅ Implemented | one UAT item blocked until `v1.0.0` is tagged (B4) |
+| **Source** | Docs maintenance | single hand-maintained `CHANGELOG.md` became unwieldy across 6 sub-repos |
+| **Dependency** | B4 (tag) | for the "Latest changes" UAT check only, not the implementation |
+
+---
+
 ## Context
 
 Today `docs/content/CHANGELOG.md` is a single hand-maintained file,

@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `docs/content/ops/architecture/decisions.md` | / |
+| **Initial date** | 2026-07-23 | / |
+| **Status** | 🔲 Not started | / |
+| **Source** | Release checklist | document the decisions made across this release |
+| **Dependency** | B5 | documents the decisions made through production deploy |
+
+---
+
 ## Tasks
 
 - [ ] Add ADR-3 to `docs/content/ops/architecture/decisions.md` — "First

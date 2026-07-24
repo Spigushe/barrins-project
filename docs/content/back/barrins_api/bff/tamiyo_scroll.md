@@ -2,17 +2,13 @@
 <!-- cSpell:ignore Pydantic upserts mypy -->
 # Implementation Plan — Competitive MTG Tracking (Tamiyo Scroll BFF)
 
-> **Target**: barrins-project/barrins_api
-> **Initial date**: 2026-07-15
-> **Status**: ✅ Implemented — 2026-07-15 (backend only, Tamiyo Scroll
-> frontend to be built separately)
-> **Source**: design handoff `Suivi Competitif MTG.dc.html` + `README.md`
-> (provided by the client, high fidelity — see §13 of the project
-> constitution for the product summary)
-> **Dependency**: reuses the existing JWT authentication
-> (`docs/auth_roles/`). Does **not** technically depend on
-> `docs/signup_email_verification/` — accounts can be provisioned via
-> `POST /auth/register` (admin) pending self-registration.
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `barrins-project/barrins_api` | / |
+| **Initial date** | 2026-07-15 | / |
+| **Status** | ✅ Implemented on 2026-07-15 | backend only, Tamiyo Scroll frontend to be built separately |
+| **Source** | design handoff `Suivi Competitif MTG.dc.html` | Product summary on §13 of the project constitution |
+| **Dependency** | reuses the existing JWT authentication (`docs/auth_roles/`) | Does **not** technically depend on `docs/signup_email_verification/` |
 
 ---
 

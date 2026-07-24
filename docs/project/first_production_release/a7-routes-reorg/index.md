@@ -2,6 +2,16 @@
 
 [← Back to project index](../index.md)
 
+| | | Comment |
+| --- | --- | --- |
+| **Target** | `apps/barrins_api` | / |
+| **Initial date** | 2026-07-24 | / |
+| **Status** | ✅ Implemented | one UAT item (visual skim on GitHub) not yet performed |
+| **Source** | Naming inconsistency found while starting A3 | `ts_router.py` next to `bff/ts_router/`, same pattern for `v1_router.py`/`v1/` |
+| **Dependency** | A1 | branched from `proj/v1.0.0-bump` after merging A1 — needed A1's `health.py` to move it |
+
+---
+
 ## Context
 
 Emerged while starting A3 (Moxfield import): `app/api/ts_router.py` (a

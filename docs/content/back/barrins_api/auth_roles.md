@@ -1,9 +1,10 @@
 # JWT Authentication & Role-Based Access Control
 
-> **Target**: [`barrins-project/barrins_api`](https://github.com/barrins-project/barrins_api)
-> **Initial date**: 2026-04-27
-> **Status**: ✅ Implemented — replaces the ad hoc `X-Admin-Key` header with
-> full JWT authentication and hierarchical role-based authorization.
+| | | Comment |
+| --- | --- | --- |
+| **Target** | [`barrins-project/barrins_api`](https://github.com/barrins-project/barrins_api) | / |
+| **Initial date** | 2026-04-27 | / |
+| **Status** | ✅ Implemented | replaces the ad hoc `X-Admin-Key` header with full JWT authentication and hierarchical role-based authorization |
 
 ---
 
