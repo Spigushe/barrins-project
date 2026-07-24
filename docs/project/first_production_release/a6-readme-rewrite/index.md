@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | ✅ Implemented | UAT blocked until this branch merges into `staging`/`main` |
 | **Source** | Release readiness | presentation-first README before any public link exists |
-| **Dependency** | B2/B4 (merge) | real links to be added back once B6 (production deploy) ships |
+| **Dependency** | B3/B4 (merge) | real links to be added back once B6 (production deploy) ships |
 
 ---
 

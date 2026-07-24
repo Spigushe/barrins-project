@@ -32,8 +32,8 @@ section of the docs site for details.
   committed to the repo, and the hosting target is now decided —
   self-hosted via `docs.yml`/the `docs_site` role (see Added, below), not
   GitHub Pages (the account already hosts other, unrelated projects'
-  Pages sites — see B3,
-  `docs/project/first_production_release/b3-docs-deploy/index.md`).
+  Pages sites — see B2,
+  `docs/project/first_production_release/b2-docs-deploy/index.md`).
 - Ansible VPS deployment (`ops/my-server/`), moved in-repo from the
   previous separate `Spigushe/myserver` repository (now deprecated) so
   infrastructure changes land alongside the application changes that
@@ -92,7 +92,7 @@ section of the docs site for details.
   `<role>_github_token | default(github_token)` unless a playbook
   overrides it per-invocation.
 - `ops/my-server/docs.yml` and the `docs_site` role: self-hosted
-  deployment of the mkdocs documentation site (B3), same
+  deployment of the mkdocs documentation site (B2), same
   `deploy_env`/branch/release-tag options as `barrins_api.yml`/
   `tamiyo_scroll.yml`. Structurally mirrors `react_frontend` (clone at
   a ref, build, symlink static output, hand ownership to `www-data`,

@@ -2,8 +2,8 @@
 # Dedicated playbook for the mkdocs documentation site. Self-hosted on
 # this repo's own VPS rather than GitHub Pages — the user's GitHub
 # account already hosts other, unrelated projects' Pages sites, and a
-# shared account-level Pages workflow risks touching those (see B3,
-# docs/project/first_production_release/b3-docs-deploy/index.md).
+# shared account-level Pages workflow risks touching those (see B2,
+# docs/project/first_production_release/b2-docs-deploy/index.md).
 - name: Deploy the mkdocs documentation site
   hosts: spigushe
   become: true

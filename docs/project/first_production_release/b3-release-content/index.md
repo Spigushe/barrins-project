@@ -1,4 +1,4 @@
-# B2. Finalize release content, merge `proj/v1.0.0-bump` → `staging`
+# B3. Finalize release content, merge `proj/v1.0.0-bump` → `staging`
 
 [← Back to project index](../index.md)
 
@@ -8,15 +8,15 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | 🟡 PR opened, not yet merged | `proj/v1.0.0-bump` → `staging` still 29 commits ahead as of last check |
 | **Source** | Release checklist | finalize v1.0.0 content |
-| **Dependency** | every Phase A + B1 item | must be merged into `proj/v1.0.0-bump` with CI green first |
+| **Dependency** | every Phase A + B1 + B2 item | must be merged into `proj/v1.0.0-bump` with CI green first; B2 (docs site deployment) sequenced before this item by choice |
 
 ---
 
 ## Context
 
-Once every Phase A + B1 work item has landed on `proj/v1.0.0-bump` and CI
-is green there, this item finalizes the release content and promotes the
-branch into `staging`.
+Once every Phase A + B1 + B2 work item has landed on `proj/v1.0.0-bump`
+and CI is green there, this item finalizes the release content and
+promotes the branch into `staging`.
 
 ## Tasks
 

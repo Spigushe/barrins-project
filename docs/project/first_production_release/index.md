@@ -39,16 +39,18 @@ Scope decisions:
 4. The version bump itself (`0.3.0`/`0.0.0` → `1.0.0`) is real, not-yet-done
    work — an earlier check during planning mistakenly read an uncommitted
    working-tree edit as if it were already committed on `staging`. It
-   isn't; the bump happens in **B2**.
+   isn't; the bump happens in **B3**.
 
 ## Branch strategy
 
 All work aggregates on the integration branch **`proj/v1.0.0-bump`**,
 branched off `staging`. Each work item below is its own branch/PR merging
 into `proj/v1.0.0-bump`. Once every item is in and green, this branch
-merges into `staging` (B2), which then promotes to `main` (B4), gets
-tagged (B5), and deployed (B6). B3 (docs site deployment) is
-independent infra, like B1 — no ordering dependency on the rest.
+merges into `staging` (B3), which then promotes to `main` (B4), gets
+tagged (B5), and deployed (B6). B2 (docs site deployment) has no
+dependency of its own, like B1, but is deliberately sequenced before B3
+— the docs site playbook is built and staging-verified before finalizing
+and merging the release content.
 
 **Open item**: `.github/workflows/CI.yml` currently only triggers on PRs
 targeting `staging`/`main` — PRs into `proj/v1.0.0-bump` won't
@@ -70,8 +72,8 @@ Not decided yet — confirm before the first work-item PR.
 | A6 | Root README rewrite | [a6-readme-rewrite/](a6-readme-rewrite/index.md) |
 | A7 | API routes reorganization (emerged while starting A3) | [a7-routes-reorg/](a7-routes-reorg/index.md) |
 | B1 | `postgres_backup` Ansible role | [b1-postgres-backup/](b1-postgres-backup/index.md) |
-| B2 | Finalize release content, merge to `staging` | [b2-release-content/](b2-release-content/index.md) |
-| B3 | Docs site deployment playbook | [b3-docs-deploy/](b3-docs-deploy/index.md) |
+| B2 | Docs site deployment playbook | [b2-docs-deploy/](b2-docs-deploy/index.md) |
+| B3 | Finalize release content, merge to `staging` | [b3-release-content/](b3-release-content/index.md) |
 | B4 | Promote `staging` → `main` | [b4-promote-main/](b4-promote-main/index.md) |
 | B5 | Tag and cut the release | [b5-tag-release/](b5-tag-release/index.md) |
 | B6 | Deploy from tag (production) | [b6-deploy-production/](b6-deploy-production/index.md) |

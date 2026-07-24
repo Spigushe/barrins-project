@@ -1,4 +1,4 @@
-# B3. Docs site deployment playbook
+# B2. Docs site deployment playbook
 
 [← Back to project index](../index.md)
 
@@ -8,7 +8,7 @@
 | **Initial date** | 2026-07-24 | / |
 | **Status** | 🟡 Implemented, staging UAT confirmed, `ansible-lint` clean | production UAT (release-tag deploy) still outstanding |
 | **Source** | User request | GitHub Pages already hosts other, unrelated projects on this account — deploying this repo's docs there isn't isolated to this project alone |
-| **Dependency** | none | standalone infra, like B1 |
+| **Dependency** | none | standalone infra, like B1 — sequenced before B3 (release content/merge) by choice, not a hard dependency |
 
 ---
 
