@@ -33,6 +33,14 @@ section of the docs site for details.
   (12+ characters, upper/lowercase, digit, symbol) so users see which
   rules they still need to satisfy as they type. UX feedback only —
   the backend remains the sole source of truth on submit.
+- `PersonalDeckSelector.tsx`: an archive (delete) button per deck in
+  the list, wired to the already-existing `DELETE
+  /personal-decks/{id}` endpoint (soft-delete via `archived_at`, never
+  a hard delete) and `useArchivePersonalDeck` hook — both existed
+  backend-side but had no UI entry point. Guarded behind a
+  confirmation dialog (`ui/dialog.tsx`) so a stray click can't archive
+  a deck. Archiving the currently-active deck also clears
+  `active_personal_deck_id`.
 
 ### Changed
 

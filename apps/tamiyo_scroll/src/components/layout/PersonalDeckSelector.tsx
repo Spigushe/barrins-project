@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { useCreatePersonalDeck, usePersonalDecks } from '@/hooks/usePersonalDecks'
+import {
+  useArchivePersonalDeck,
+  useCreatePersonalDeck,
+  usePersonalDecks,
+} from '@/hooks/usePersonalDecks'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
 import {
   Command,
@@ -9,6 +13,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -26,9 +32,14 @@ export function PersonalDeckSelector() {
   const { data: settings } = useMySettings()
   const updateSettings = useUpdateMySettings()
   const createDeck = useCreatePersonalDeck()
+  const archiveDeck = useArchivePersonalDeck()
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [pendingArchive, setPendingArchive] = useState<{
+    id: string
+    name: string
+  } | null>(null)
 
   const activeDeckId = settings?.active_personal_deck_id ?? null
   const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
@@ -57,6 +68,16 @@ export function PersonalDeckSelector() {
     const created = await createDeck.mutateAsync(trimmedSearch)
     await updateSettings.mutateAsync({ active_personal_deck_id: created.id })
     closeAndReset()
+  }
+
+  async function confirmArchive() {
+    if (!pendingArchive) return
+    const { id: deckId } = pendingArchive
+    await archiveDeck.mutateAsync(deckId)
+    if (deckId === activeDeckId) {
+      await updateSettings.mutateAsync({ active_personal_deck_id: null })
+    }
+    setPendingArchive(null)
   }
 
   return (
@@ -99,9 +120,25 @@ export function PersonalDeckSelector() {
                     onSelect={() => {
                       void selectDeck(deck.id)
                     }}
+                    className="justify-between"
                   >
-                    {deck.id === activeDeckId ? '✓ ' : ''}
-                    {deck.name}
+                    <span className="min-w-0 truncate">
+                      {deck.id === activeDeckId ? '✓ ' : ''}
+                      {deck.name}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0"
+                      aria-label={`Archive ${deck.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setPendingArchive({ id: deck.id, name: deck.name })
+                      }}
+                    >
+                      ✕
+                    </Button>
                   </CommandItem>
                 ))}
                 {trimmedSearch && !hasExactMatch && (
@@ -119,6 +156,43 @@ export function PersonalDeckSelector() {
           </Command>
         </PopoverContent>
       </Popover>
+
+      <Dialog
+        open={pendingArchive !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingArchive(null)
+        }}
+      >
+        {pendingArchive && (
+          <DialogContent>
+            <DialogTitle>Archive "{pendingArchive.name}"?</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              It will disappear from your deck list. This can't be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPendingArchive(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={archiveDeck.isPending}
+                onClick={() => {
+                  void confirmArchive()
+                }}
+              >
+                Archive
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   )
 }

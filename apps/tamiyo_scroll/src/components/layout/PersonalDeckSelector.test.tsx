@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PersonalDeckSelector } from './PersonalDeckSelector'
 
 const updateSettingsMutateAsync = vi.fn()
 const createDeckMutateAsync = vi.fn()
+const archiveDeckMutateAsync = vi.fn()
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({
@@ -14,6 +15,7 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
     ],
   }),
   useCreatePersonalDeck: () => ({ mutateAsync: createDeckMutateAsync }),
+  useArchivePersonalDeck: () => ({ mutateAsync: archiveDeckMutateAsync }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
@@ -22,6 +24,10 @@ vi.mock('@/hooks/useSettings', () => ({
 }))
 
 describe('PersonalDeckSelector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('shows the active deck name in the trigger', () => {
     render(<PersonalDeckSelector />)
     expect(screen.getByText('Mono Red')).toBeInTheDocument()
@@ -70,5 +76,48 @@ describe('PersonalDeckSelector', () => {
     await user.type(screen.getByPlaceholderText('Search or create a deck…'), 'Mono Red')
 
     expect(screen.queryByText('Create "Mono Red"')).not.toBeInTheDocument()
+  })
+
+  it('asks for confirmation before archiving, without selecting the deck', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+    await user.click(screen.getByRole('button', { name: 'Archive Azorius Control' }))
+
+    expect(archiveDeckMutateAsync).not.toHaveBeenCalled()
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Archive "Azorius Control"?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+
+    expect(archiveDeckMutateAsync).toHaveBeenCalledWith('deck-2')
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('cancels without archiving', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+    await user.click(screen.getByRole('button', { name: 'Archive Azorius Control' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(archiveDeckMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archive "Azorius Control"?')).not.toBeInTheDocument()
+  })
+
+  it('clears the active deck when archiving it', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+    await user.click(screen.getByRole('button', { name: 'Archive Mono Red' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+
+    expect(archiveDeckMutateAsync).toHaveBeenCalledWith('deck-1')
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
+      active_personal_deck_id: null,
+    })
   })
 })
