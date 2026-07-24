@@ -199,14 +199,20 @@ Consequences:
 
 Same router/service separation as `tolaria_news`
 (`docs/tolaria_news/00_plan_general.md`) — no query written directly
-in route files:
+in route files. Each domain gets one `app/api/<domain>/` package
+containing its own router aggregator plus one file per sub-resource;
+`tolaria_news` would follow the identical pattern once it gets its own
+BFF routes:
 
 ```text
 app/
-  api/v1/
-    tamiyo_scroll.py               ← aggregator, mounted in main.py
-                                     alongside v1_router/tolaria_router
-    tamiyo_scroll_routers/
+  api/
+    general/
+      router.py                    ← root '/', /health, /api/v1/auth
+    tamiyo_scroll/
+      router.py                    ← aggregator, mounted in main.py
+                                     alongside general/router.py (and,
+                                     eventually, tolaria_news/router.py)
       settings.py                  ← GET/PATCH /me/settings, GET /shared-users
       personal_decks.py            ← /personal-decks,
                                      /personal-decks/{id}/versions*,

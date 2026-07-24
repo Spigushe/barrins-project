@@ -1,8 +1,8 @@
-"""API v1 — Tamiyo Scroll BFF (Competitive MTG Tracking)."""
+"""Tamiyo Scroll BFF routes (Competitive MTG Tracking), under /bff/tamiyo-scroll."""
 
 from fastapi import APIRouter
 
-from app.api.bff.ts_router import (
+from app.api.tamiyo_scroll import (
     card_tests,
     matches,
     meta_decks,

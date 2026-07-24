@@ -67,6 +67,7 @@ Not decided yet — confirm before the first work-item PR.
 | A4 | Split the changelog per app | [a4-changelog-split/](a4-changelog-split/index.md) |
 | A5 | Deck-selector rewrite (combobox) | [a5-deck-selector-ux/](a5-deck-selector-ux/index.md) |
 | A6 | Root README rewrite | [a6-readme-rewrite/](a6-readme-rewrite/index.md) |
+| A7 | API routes reorganization (emerged while starting A3) | [a7-routes-reorg/](a7-routes-reorg/index.md) |
 | B1 | `postgres_backup` Ansible role | [b1-postgres-backup/](b1-postgres-backup/index.md) |
 | B2 | Finalize release content, merge to `staging` | [b2-release-content/](b2-release-content/index.md) |
 | B3 | Promote `staging` → `main` | [b3-promote-main/](b3-promote-main/index.md) |
