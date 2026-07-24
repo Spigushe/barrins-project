@@ -36,6 +36,7 @@ docs/content/ops/roles/backend_website/index.md
 docs/content/ops/roles/create_ssh_key/index.md
 docs/content/ops/roles/fastapi_backend/index.md
 docs/content/ops/roles/pgadmin/index.md
+docs/content/ops/roles/postgres_backup/index.md
 docs/content/ops/roles/react_frontend/index.md
 docs/content/ops/roles/register_ssl/index.md
 docs/content/ops/roles/setup_base_user/index.md

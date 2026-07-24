@@ -1,0 +1,9 @@
+[Unit]
+Description=Dump every PostgreSQL database + globals
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/usr/local/bin/postgres_backup.sh

@@ -26,7 +26,7 @@ host).
 ## Health checks
 
 Constitution §31.2 expects the API to expose health information.
-`barrins_api` now exposes `GET /health` (`app/api/health.py`): returns
+`barrins_api` now exposes `GET /health` (`app/api/general/health.py`): returns
 `200 {"status": "ok"}` when the database is reachable, or `503` (via the
 standard `ServiceUnavailableError` error envelope) otherwise. The
 deployment guides' "Validation" steps can check this endpoint directly
@@ -46,12 +46,14 @@ expiration monitoring is part of the same HetrixTools setup.
 
 Constitution §36 requires database backups, backup verification, and a
 documented restoration procedure — and explicitly states "a backup that
-has never been tested is not considered reliable." **None of this is
-currently implemented**: there is no automated PostgreSQL backup job, no
-verification, and no restoration runbook. This is the most significant
-open gap relative to the Constitution's operations requirements and
-should be prioritized before this infrastructure is trusted with data
-that matters.
+has never been tested is not considered reliable." The `postgres_backup`
+role (wired into `postgresql_pgadmin.yml`) now takes a daily `pg_dump`/
+`pg_dumpall` backup of every database, kept for 14 days — see
+[`../deployment/backup.md`](../deployment/backup.md) for the full
+procedure, including the restore drill that must actually be performed
+(not just documented) before this is considered reliable. No offsite
+copy yet — tracked as a future improvement, not silently skipped (see
+that page for why).
 
 ## Open items summary
 
@@ -60,7 +62,7 @@ that matters.
 | `/health` endpoint | §31.2 | Implemented (`GET /health`, `apps/barrins_api/app/api/health.py`) |
 | Uptime/alerting monitoring | — | Configured (HetrixTools), pending deploy — currently 404 on `/health` |
 | Certificate expiration monitoring | §30 | Not implemented (renewal itself is automatic via certbot) |
-| Database backups + verified restore | §36 | Not implemented |
+| Database backups + verified restore | §36 | Implemented (`postgres_backup` role) — restore drill must still be personally performed before go-live |
 | nginx security headers (HSTS, etc.) | §29.1 | Not implemented |
 | Pre-commit secret-scanning enforced for all contributors | §34 | Opt-in only, see [`../security/secrets.md`](../security/secrets.md) |
 

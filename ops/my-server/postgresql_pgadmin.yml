@@ -49,6 +49,9 @@
       pgadmin_admin_email: "{{ pgadmin_admin_email }}"
       pgadmin_admin_password: "{{ pgadmin_admin_password }}"
 
+    - role: postgres_backup
+      tags: [backup, deploy]
+
   post_tasks:
     - name: Reminder — pending steps this playbook does not automate
       ansible.builtin.debug:

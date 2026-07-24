@@ -13,6 +13,8 @@ truth instead of drifting into a second copy.
   FastAPI app under systemd.
 - [pgAdmin](pgadmin/index.md) — pgAdmin4 in Docker, reverse-proxied with
   TLS.
+- [Postgres Backup](postgres_backup/index.md) — daily `pg_dump`/
+  `pg_dumpall` backups via a systemd timer.
 - [React Frontend](react_frontend/index.md) — builds and serves a static
   Node.js frontend.
 - [Register SSL](register_ssl/index.md) — issues/renews Let's Encrypt
