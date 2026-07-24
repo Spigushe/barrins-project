@@ -1,0 +1,36 @@
+---
+- name: Ensure the backup directory exists, owned by postgres only
+  ansible.builtin.file:
+    path: "{{ postgres_backup_config.dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Deploy the backup script
+  ansible.builtin.template:
+    src: postgres_backup.sh.j2
+    dest: /usr/local/bin/postgres_backup.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the backup systemd service
+  ansible.builtin.template:
+    src: postgres_backup.service.j2
+    dest: /etc/systemd/system/postgres_backup.service
+    mode: "0644"
+
+- name: Deploy the backup systemd timer
+  ansible.builtin.template:
+    src: postgres_backup.timer.j2
+    dest: /etc/systemd/system/postgres_backup.timer
+    mode: "0644"
+
+- name: Enable the backup timer
+  tags: [deploy]
+  ansible.builtin.systemd:
+    name: postgres_backup.timer
+    daemon_reload: true
+    enabled: true
+    state: started

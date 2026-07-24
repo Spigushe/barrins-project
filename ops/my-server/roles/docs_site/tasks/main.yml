@@ -1,0 +1,123 @@
+---
+# Everything below runs as root (the play's default become user), same
+# idempotency reasoning as react_frontend: ownership is only ever handed
+# to www-data as the very last step, so root can always re-clone/rebuild
+# on the next run.
+
+- name: Ensure site root folder is present
+  ansible.builtin.file:
+    state: directory
+    path: "{{ docs_site_config.site_root }}"
+    mode: "0755"
+
+- name: Resolve the latest release tag
+  when: docs_site_config.use_release_tag and docs_site_config.release_tag | length == 0
+  delegate_to: localhost
+  become: false
+  no_log: true
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/{{ docs_site_config.repo }}/releases/latest"
+    headers:
+      Authorization: "token {{ docs_site_config.github_token }}"
+      Accept: "application/vnd.github+json"
+    status_code: [200, 404]
+  register: docs_site_latest_release
+
+- name: Fail if a release-tag deploy was requested but no release exists yet
+  ansible.builtin.fail:
+    msg: >-
+      {{ docs_site_config.repo }} has no GitHub release yet, but this deploy requires one
+      (docs_site_use_release_tag=true — see the Constitution's release policy).
+      Cut a release on GitHub first, or pin one explicitly with
+      docs_site_release_tag=<tag>.
+  when: >-
+    docs_site_config.use_release_tag and docs_site_config.release_tag | length == 0 and
+    docs_site_latest_release.status == 404
+
+- name: Compute the ref to deploy — pinned/latest release tag
+  ansible.builtin.set_fact:
+    docs_site_deploy_ref: >-
+      {{ docs_site_config.release_tag if docs_site_config.release_tag | length > 0
+      else docs_site_latest_release.json.tag_name }}
+  when: docs_site_config.use_release_tag
+
+- name: Compute the ref to deploy — branch
+  ansible.builtin.set_fact:
+    docs_site_deploy_ref: "{{ docs_site_config.git_branch }}"
+  when: not docs_site_config.use_release_tag
+
+- name: Mark site root as a safe git directory for root
+  # Same CVE-2022-24765 protection as react_frontend: the "Change file
+  # ownership" task below hands the repo to www-data at the end of each
+  # run, so on the next run root no longer owns it and git refuses it as
+  # "dubious ownership" unless explicitly whitelisted here.
+  community.general.git_config:
+    name: safe.directory
+    scope: global
+    value: "{{ docs_site_config.site_root }}"
+    add_mode: add
+
+- name: Clone/update application repository
+  no_log: true
+  tags:
+    - deploy
+  ansible.builtin.git:
+    repo: "https://{{ docs_site_config.github_token }}@github.com/{{ docs_site_config.repo }}.git"
+    dest: "{{ docs_site_config.site_root }}"
+    version: "{{ docs_site_deploy_ref }}"
+    update: true
+    force: true
+
+- name: Ensure uv is installed
+  become: false
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    executable: /bin/bash
+    creates: "/home/{{ username }}/.local/bin/uv"
+  changed_when: true
+
+- name: Build the docs site
+  tags:
+    - deploy
+  ansible.builtin.command: >-
+    /home/{{ username }}/.local/bin/uvx --with mkdocs-material
+    mkdocs build --strict -f mkdocs.yml
+  args:
+    chdir: "{{ docs_site_config.build_root }}"
+  changed_when: true
+
+- name: Point site/ to the actual build output folder
+  ansible.builtin.file:
+    src: "{{ docs_site_config.build_root }}/{{ docs_site_config.build_dir }}"
+    dest: "{{ docs_site_config.site_root }}/site"
+    state: link
+    force: true
+  when: >-
+    (docs_site_config.build_root + '/' + docs_site_config.build_dir)
+    != (docs_site_config.site_root + '/site')
+
+- name: Change file ownership so nginx (www-data) can serve the build
+  tags:
+    - deploy
+  ansible.builtin.file:
+    state: directory
+    path: "{{ docs_site_config.site_root }}"
+    owner: www-data
+    group: www-data
+    mode: "u=rwX,g=rX,o=rX"
+    recurse: true
+
+- name: Add HTTPS site configuration
+  ansible.builtin.template:
+    src: https.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ docs_site_config.server_name }}.https.conf"
+    mode: "0644"
+
+- name: Reload nginx
+  tags:
+    - deploy
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded

@@ -1,0 +1,11 @@
+---
+pgadmin_config:
+  server_name: "{{ pgadmin_server_name }}"
+  port: "{{ pgadmin_port | default(5050) }}"
+  admin_email: "{{ pgadmin_admin_email }}"
+  admin_password: "{{ pgadmin_admin_password }}"
+  image_tag: "{{ pgadmin_image_tag | default('latest') }}"
+  volume_name: "{{ pgadmin_volume_name | default('pgadmin4_data') }}"
+  docker_network: "{{ pgadmin_docker_network | default('pgadmin_net') }}"
+  docker_subnet: "{{ pgadmin_docker_subnet | default('172.30.99.0/24') }}"
+  docker_gateway_ip: "{{ pgadmin_docker_gateway_ip | default('172.30.99.1') }}"

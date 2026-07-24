@@ -1,0 +1,7 @@
+---
+backend_website_config:
+  server_name: "{{ backend_website_server_name }}"
+  alternate_server_name: "{{ backend_website_alternate_server_name | default(False) }}"
+  port: "{{ backend_website_port }}"
+  site_root: "/home/{{ username }}/projects/{{ backend_website_server_name }}"
+  is_websocket: "{{ backend_website_is_websocket | default(False) }}"

@@ -1,0 +1,63 @@
+---
+# Frontend-only playbook for Tamiyo Scroll. It points VITE_API_BASE_URL at
+# the shared barrins_api backend but never deploys/restarts it — that's
+# barrins_api.yml's job exclusively (run it at least once, and again
+# whenever barrins_api itself changes; see the root README's "Multiple
+# frontends sharing one backend" section and docs/content/ops/deployment/frontend.md).
+- name: Deploy the Tamiyo Scroll frontend
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    # Defaults to a full production deploy — the latest GitHub release tag
+    # of tamiyo_scroll (Constitution ss25/ss27: production only ever
+    # deploys released versions). Pass -e deploy_env=staging to deploy a
+    # side-by-side staging frontend instead, from the staging branch by
+    # default — still pointed at barrins_api's own staging instance, run
+    # barrins_api.yml -e deploy_env=staging separately to have one).
+    #   ansible-playbook tamiyo_scroll.yml -e deploy_env=staging \
+    #     -e react_frontend_git_branch=my-feature
+    # Roll production back to an older release:
+    #   ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=v1.2.3
+    deploy_env: production
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    backend_port: "{{ 8511 if deploy_env == 'staging' else 8011 }}"
+    backend_domain: "api{{ env_suffix }}.barrins-codex.org"
+    frontend_domain: "tamiyo{{ env_suffix }}.barrins-codex.org"
+
+  roles:
+    - role: github_token
+
+    - role: register_ssl
+      tags: [frontend, certs]
+      register_ssl_server_name: "{{ frontend_domain }}"
+      register_ssl_contact_name: martin.cuchet@gmail.com
+
+    - role: react_frontend
+      tags: [frontend]
+      # This monorepo (Spigushe/barrins-project), not a dedicated tamiyo_scroll
+      # repo — Tamiyo Scroll lives at apps/tamiyo_scroll within it.
+      react_frontend_repo: Spigushe/barrins-project
+      react_frontend_repo_subdir: apps/tamiyo_scroll
+      react_frontend_server_name: "{{ frontend_domain }}"
+      react_frontend_app_name: "tamiyo{{ env_suffix }}"
+      react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"
+      react_frontend_git_branch: "{{ env_branch }}"
+      react_frontend_build_env:
+        VITE_API_BASE_URL: "https://{{ backend_domain }}"
+
+  post_tasks:
+    - name: Reminder — this playbook does not deploy barrins_api
+      ansible.builtin.debug:
+        msg:
+          - "This playbook only deploys the Tamiyo Scroll frontend. Run"
+          - "'ansible-playbook barrins_api.yml{{ ' -e deploy_env=staging' if deploy_env == 'staging' else '' }}'"
+          - "separately (at least once, and again whenever barrins_api"
+          - "itself changes) to have a backend at {{ backend_domain }} for"
+          - "this frontend to call."
+          - "barrins_api's ALLOWED_ORIGINS (in"
+          - "secrets/barrins_api/{{ deploy_env }}.env, see"
+          - "secrets/README.md) must include https://{{ frontend_domain }}."
+      tags: [frontend, deploy]

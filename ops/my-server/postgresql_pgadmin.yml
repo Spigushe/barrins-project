@@ -1,0 +1,90 @@
+---
+# Deploys pgAdmin4 (web UI) for the PostgreSQL server setup_packages
+# already installs on this host, and wires the two together. Does not
+# install PostgreSQL itself — that happens once, at host bootstrap, via
+# setup.yml/setup_packages (idempotent, safe to re-run).
+- name: Deploy pgAdmin and wire it to the host's PostgreSQL
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    pgadmin_domain: pgadmin.barrins-codex.org
+    # Named distinctly from the pgadmin role's own `pgadmin_admin_email`
+    # input var — passing `pgadmin_admin_email: "{{ pgadmin_admin_email
+    # }}"` below would make Ansible resolve the RHS against the role
+    # param being defined, an infinite self-reference ("Recursive loop
+    # detected in template").
+    admin_contact_email: martin.cuchet@gmail.com
+    # Gateway of the isolated `pgadmin_net` Docker network (matches the
+    # pgadmin role's own default, cf. roles/pgadmin/vars/main.yml) —
+    # exposed here too so the reminder below can reference it. This is
+    # the address PostgreSQL's listen_addresses/pg_hba.conf actually
+    # accept connections from; host.docker.internal is NOT a substitute
+    # for it — on Linux, Docker's `host-gateway` special value resolves
+    # to the *default* bridge's gateway (172.17.0.1), not a custom
+    # network's, regardless of which network the container runs on.
+    pgadmin_docker_gateway_ip: 172.30.99.1
+    # Local, git-ignored file holding just the pgAdmin admin password —
+    # never committed (Constitution ss34). See secrets/README.md to
+    # create it: echo -n '<strong password>' > <this path>
+    pgadmin_admin_password_file: "{{ playbook_dir }}/secrets/postgresql_pgadmin/admin_password.txt"
+
+  pre_tasks:
+    - name: Check the local pgAdmin admin password file exists
+      delegate_to: localhost
+      become: false
+      ansible.builtin.stat:
+        path: "{{ pgadmin_admin_password_file }}"
+      register: pgadmin_pw_stat
+
+    - name: Fail fast if it's missing
+      ansible.builtin.fail:
+        msg: >-
+          {{ pgadmin_admin_password_file }} does not exist. Create it with:
+          echo -n '<strong password>' > {{ pgadmin_admin_password_file }} &&
+          chmod 600 {{ pgadmin_admin_password_file }} — see secrets/README.md.
+      when: not pgadmin_pw_stat.stat.exists
+
+    - name: Read the local pgAdmin admin password
+      become: false
+      no_log: true
+      ansible.builtin.set_fact:
+        # Named distinctly from the pgadmin role's own
+        # `pgadmin_admin_password` input var — same self-reference
+        # trap as `admin_contact_email` above.
+        pgadmin_admin_password_value: "{{ lookup('ansible.builtin.file', pgadmin_admin_password_file) }}"
+
+  roles:
+    - role: register_ssl
+      tags: [pgadmin, certs]
+      register_ssl_server_name: "{{ pgadmin_domain }}"
+      register_ssl_contact_name: "{{ admin_contact_email }}"
+
+    - role: pgadmin
+      tags: [pgadmin, deploy]
+      pgadmin_server_name: "{{ pgadmin_domain }}"
+      pgadmin_admin_email: "{{ admin_contact_email }}"
+      pgadmin_admin_password: "{{ pgadmin_admin_password_value }}"
+
+    - role: postgres_backup
+      tags: [backup, deploy]
+
+  post_tasks:
+    - name: Reminder — pending steps this playbook does not automate
+      ansible.builtin.debug:
+        msg:
+          - "PostgreSQL now accepts password auth from the pgAdmin Docker"
+          - "network, but no role/password was created for it. SSH in and"
+          - 'run: sudo -u postgres psql -c "ALTER USER postgres WITH'
+          - 'PASSWORD ''<strong password>'';" (use a password distinct from'
+          - "{{ admin_contact_email }}'s pgAdmin login above)."
+          - "Then open https://{{ pgadmin_domain }}, log into pgAdmin with"
+          - "{{ admin_contact_email }}, and add a server: Host ="
+          - "{{ pgadmin_docker_gateway_ip }} (NOT localhost — that's the"
+          - "container's own network namespace — and NOT"
+          - "host.docker.internal either: on Linux, Docker's host-gateway"
+          - "resolves to the default bridge's gateway, not this isolated"
+          - "network's), Port = 5432, using the role/password from the"
+          - "previous step."
+      tags: [pgadmin, deploy]
