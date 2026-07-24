@@ -129,6 +129,17 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- Moxfield deck import ---
+    moxfield_user_agent: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Moxfield-assigned User-Agent value, required to call their public "
+            "deck API (api2.moxfield.com). Treated as a secret — Moxfield "
+            "warns it can be permanently revoked if leaked. Empty in dev/test "
+            "-> falls back to a stub client returning a fixed sample decklist."
+        ),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url_sync(self) -> str:

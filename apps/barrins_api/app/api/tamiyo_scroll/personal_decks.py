@@ -24,6 +24,7 @@ from app.schemas.tamiyo_scroll import (
     MoxfieldImportRequest,
     PersonalDeckCreate,
 )
+from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
 
@@ -160,20 +161,18 @@ async def create_decklist_version(
     response_model=ResponseDecklistVersion,
     status_code=status.HTTP_201_CREATED,
 )
-async def import_moxfield_placeholder(
+async def import_moxfield(
     deck_id: uuid.UUID,
     payload: MoxfieldImportRequest,
     session: DatabaseSession,
     current_user: CurrentUser,
+    moxfield: MoxfieldClientDep,
 ) -> ResponseDecklistVersion:
-    """Create a placeholder version — no real scraping in v1 (cf. Non-goals)."""
+    """Create a new decklist version from a public Moxfield deck URL."""
     deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
-    placeholder = (
-        "Import Moxfield en attente de l'extension BFF future — "
-        f"lien fourni : {payload.moxfield_url}"
-    )
+    content = await moxfield.fetch_decklist(payload.moxfield_url)
     version = await _create_version(
-        session, deck, placeholder, DecklistVersionSource.moxfield_import
+        session, deck, content, DecklistVersionSource.moxfield_import
     )
     return ResponseDecklistVersion.model_validate(version)
 
