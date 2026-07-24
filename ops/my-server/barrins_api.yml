@@ -52,6 +52,7 @@
         - backend
         - certs
       register_ssl_server_name: "{{ backend_domain }}"
+      register_ssl_contact_name: martin.cuchet@gmail.com
 
     - role: fastapi_backend
       tags:

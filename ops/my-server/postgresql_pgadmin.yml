@@ -42,6 +42,7 @@
     - role: register_ssl
       tags: [pgadmin, certs]
       register_ssl_server_name: "{{ pgadmin_domain }}"
+      register_ssl_contact_name: "{{ admin_contact_email }}"
 
     - role: pgadmin
       tags: [pgadmin, deploy]

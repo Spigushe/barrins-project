@@ -48,6 +48,7 @@
     - role: register_ssl
       tags: [frontend, certs]
       register_ssl_server_name: "{{ frontend_domain }}"
+      register_ssl_contact_name: martin.cuchet@gmail.com
 
     - role: react_frontend
       tags: [frontend]

@@ -25,6 +25,7 @@ creates.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `register_ssl_server_name` | yes | — | Domain to issue the certificate for, e.g. `my-app.barrins-codex.org`. Must already point (DNS A record) at this server. |
+| `register_ssl_contact_name` | yes | — | Real, monitored email passed to `certbot --email` for expiry/urgent notices. Previously defaulted to `<username>@<server_name>` — a non-existent mailbox on every domain, since Let's Encrypt doesn't verify deliverability at registration time and certbot never complained. |
 
 ## Requirements
 
@@ -49,4 +50,5 @@ Certbot installs its own renewal systemd timer/cron job when first run
 - role: register_ssl
   tags: [frontend, certs]
   register_ssl_server_name: my-app.barrins-codex.org
+  register_ssl_contact_name: admin@example.com
 ```
