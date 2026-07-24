@@ -63,7 +63,7 @@ that page for why).
 | `/health` endpoint | §31.2 | Implemented (`GET /health`, `apps/barrins_api/app/api/health.py`) |
 | Uptime/alerting monitoring | — | Implemented (HetrixTools, `barrins_api` prod + staging — free tier caps trackers at 2, `tamiyo_scroll` not separately monitored) |
 | Certificate expiration monitoring | §30 | Implemented (HetrixTools, same setup as uptime monitoring) |
-| Database backups + verified restore | §36 | Implemented (`postgres_backup` role) — restore drill must still be personally performed before go-live |
+| Database backups + verified restore | §36 | Implemented (`postgres_backup` role) — restore drill personally performed on staging, data matched exactly |
 | nginx security headers (HSTS, etc.) | §29.1 | Not implemented |
 | Pre-commit secret-scanning enforced for all contributors | §34 | Opt-in only, see [`../security/secrets.md`](../security/secrets.md) |
 
