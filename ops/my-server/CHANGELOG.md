@@ -59,6 +59,24 @@ section of the docs site for details.
   `fastapi_backend_env_file`, `react_frontend` has no `env_file`
   mechanism — `tamiyo_scroll.yml` does not read these; `VITE_API_BASE_URL`
   is already computed automatically by the playbook and isn't secret.
+- `ops/my-server/roles/postgres_backup`, wired into
+  `postgresql_pgadmin.yml`: a systemd-timer-driven daily backup
+  (`pg_dump --format=custom` per non-template database, plus
+  `pg_dumpall --globals-only` for roles/grants) into
+  `/var/backups/postgresql/`, 14-day retention, running as the
+  `postgres` OS user (`umask 077` makes every dump `0600` by
+  construction). Documented at
+  `docs/content/ops/deployment/backup.md`. UAT-verified on staging:
+  timer active, a manually-triggered run produced dumps with the
+  correct permissions (`0600`, owned by `postgres`) for every database
+  on the instance, and a full restore drill
+  (restore into a scratch database, `SELECT count(*)` compared against
+  the live database) matched exactly.
+- `ops/my-server/secrets/postgresql_pgadmin/admin_password.txt.example`,
+  `ops/my-server/secrets/github/token.txt.example`: plaintext templates
+  for two secrets `secrets/README.md` already documented but never
+  actually shipped — a bare pgAdmin admin password file, and a shared
+  GitHub PAT (see Changed, below).
 
 ### Changed
 
@@ -99,6 +117,14 @@ section of the docs site for details.
   `identity@barrins-codex.org`, rather than self-hosting a mail server
   or keeping the temporary personal Gmail relay long-term. No code
   change required — `SMTPEmailSender` already speaks generic SMTP.
+- `ops/my-server/barrins_api.yml`, `tamiyo_scroll.yml`,
+  `tolaria_news.yml`: the shared GitHub PAT is no longer an inline
+  `ansible-vault`-encrypted blob duplicated across all three playbooks
+  — externalized to a single local, git-ignored
+  `secrets/github/token.txt` (same pattern as `postgresql_pgadmin`'s
+  admin password), read via a fail-fast `pre_tasks` block. Renewing the
+  token (every 30 days) is now overwriting one local file, not
+  re-encrypting and editing three tracked files.
 
 ### Fixed
 
@@ -316,3 +342,44 @@ section of the docs site for details.
   always resets cleanly to the target ref. Verified with a full
   `tamiyo_scroll.yml -e deploy_env=staging` redeploy, which completed
   successfully end to end.
+- `.gitignore`: the `secrets/**` allow-list only worked for
+  `secrets/barrins_api/` because that directory predates the rule —
+  for any brand-new subdirectory under `secrets/` (surfaced while
+  adding `secrets/postgresql_pgadmin/` and `secrets/github/`), git
+  excluded the whole directory before evaluating the `*.example`
+  negation, a parent-directory-excluded gitignore gotcha. Added
+  `!ops/my-server/secrets/*/` so new secret subdirectories are
+  traversed correctly regardless of what they're named.
+- `ops/my-server/roles/register_ssl/vars/main.yml`:
+  `register_ssl_contact_name` defaulted to `<username>@<domain>` — a
+  mailbox that never existed on any of the 4 domains this role
+  certifies. Let's Encrypt doesn't verify deliverability at
+  registration time, so `certbot` never complained; every certificate
+  issued so far was registered with a bogus contact. Made the var
+  required (no default, matching `register_ssl_server_name`) and
+  passed a real, monitored address from every playbook invoking the
+  role.
+- `ops/my-server/postgresql_pgadmin.yml`: both `pgadmin_admin_email:
+  "{{ pgadmin_admin_email }}"` and `pgadmin_admin_password: "{{
+  pgadmin_admin_password }}"` passed a role parameter whose value
+  referenced a play-level var of the exact same name — Ansible
+  resolved the right-hand side against the role parameter being
+  defined, an infinite self-reference ("Recursive loop detected in
+  template"). Renamed the play-level vars (`admin_contact_email`,
+  `pgadmin_admin_password_value`) so they no longer collide with the
+  `pgadmin` role's own input var names.
+- `ops/my-server/roles/pgadmin`: the role unconditionally overwrote
+  `postgresql.conf`'s `listen_addresses` to `"localhost,<gateway>"` —
+  on a host where it was already `'*'` (needed by `barrins_api` itself
+  to reach Postgres over the public interface, per its `DATABASE_URL`),
+  this produced a duplicate directive and broke that connectivity,
+  since Postgres uses whichever line appears last in the file.
+  Surfaced live while re-testing `barrins_api.yml` right after
+  `postgresql_pgadmin.yml`'s first run. The task now reads the active
+  value first and only narrows it when nothing already covers the
+  gateway IP. Also dropped
+  `--add-host=host.docker.internal:host-gateway` from the pgAdmin
+  container — unnecessary (it already reaches Postgres directly via
+  the isolated network's gateway) and actively misleading, since on
+  Linux `host-gateway` resolves to the default bridge's gateway, not
+  this custom network's.
