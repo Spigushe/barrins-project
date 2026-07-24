@@ -98,8 +98,7 @@ export function CardTestsSection() {
       <Card>
         <CardTitle>Tested cards — individual feedback</CardTitle>
         <CardDescription className="mt-1">
-          Select or create a personal deck above to see its test
-          feedback.
+          Select or create a personal deck above to see its test feedback.
         </CardDescription>
       </Card>
     )

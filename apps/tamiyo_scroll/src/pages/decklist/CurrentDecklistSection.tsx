@@ -21,8 +21,7 @@ export function CurrentDecklistSection() {
       <Card>
         <CardTitle>Current decklist</CardTitle>
         <CardDescription className="mt-1">
-          Select or create a personal deck in the header to display its
-          decklist.
+          Select or create a personal deck in the header to display its decklist.
         </CardDescription>
       </Card>
     )
@@ -59,9 +58,7 @@ export function CurrentDecklistSection() {
       </div>
 
       {!latest && (
-        <p className="mt-4 text-muted-foreground">
-          No version saved for this deck.
-        </p>
+        <p className="mt-4 text-muted-foreground">No version saved for this deck.</p>
       )}
 
       {latest && (
