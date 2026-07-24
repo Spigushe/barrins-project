@@ -121,14 +121,22 @@ wiring is intentionally out of scope here (→ A5).
       cards. *(Done during implementation, via a direct script call —
       not yet through the Tamiyo Scroll UI, since that field doesn't
       exist until A5.)*
-- [ ] Once A5 adds the UI field: paste a real Moxfield URL there on
+- [X] Once A5 adds the UI field: paste a real Moxfield URL there on
       `staging`; confirm a personal deck version is created with the
       correct cards.
 - [ ] Paste an invalid/non-Moxfield URL; confirm a clear `400` surfaces
-      instead of a silent failure.
-- [ ] Trigger two imports back-to-back; confirm via server logs/timing
+      instead of a silent failure. *(Backend already returns a clear
+      `400`. Bug found on retest: `PersonalDecklistImportSection.tsx`'s
+      `handleImport`/`handleSaveRaw` never caught the mutation's
+      rejection, so the error silently vanished in the browser instead
+      of reaching the user — same missing-try/catch pattern as
+      `LoginPage`/`VerifyEmailPage` already guard against. Fixed: both
+      handlers now catch `ApiError` and render the message inline,
+      mirroring the login form. Pending redeploy + re-test to confirm
+      the `400` message now displays on staging.)*
+- [X] Trigger two imports back-to-back; confirm via server logs/timing
       they are spaced ≥1 second apart.
-- [ ] Once the UI field exists: inspect the frontend network tab during
+- [X] Once the UI field exists: inspect the frontend network tab during
       an import; confirm no Moxfield User-Agent or credential ever
       appears in a request the browser makes (only the internal BFF call
       is visible).

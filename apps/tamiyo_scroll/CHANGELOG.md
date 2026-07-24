@@ -68,12 +68,23 @@ section of the docs site for details.
   underlying backend enforcement is fully tested, but this UI had no
   component-level test). `AppShell`'s deck selector no longer branches
   on `canEdit`/viewing-mode, since there's no UI path left to enter it.
+- `CurrentDecklistSection.tsx`, `PersonalDecklistImportSection.tsx`,
+  and `CardTestsSection.tsx` now render nothing (`null`) instead of a
+  "Select or create a personal deck…" placeholder card when no
+  personal deck is active (e.g. right after archiving one) — matches
+  `VersionHistorySection.tsx`'s existing behavior for the same state.
 
 ### Fixed
 
 - `VerifyEmailPage.tsx`: footer credit read "Account managed by
   barrins_api" — corrected to `barrins_identity`, the actual identity
   service.
+- `PersonalDecklistImportSection.tsx`: `handleImport` (Moxfield URL)
+  and `handleSaveRaw` (raw decklist text) never caught a failed
+  mutation, so a backend error (e.g. `400` on an invalid/non-Moxfield
+  URL) silently vanished instead of reaching the user — found via the
+  A3 manual UAT step. Both now catch `ApiError` and render the message
+  inline, mirroring `LoginPage`'s existing pattern.
 - `vite.config.ts`: stubbed `VITE_API_BASE_URL` via Vitest's `test.env`
   so `src/api/client.ts` doesn't build requests against `"undefined"`
   during tests. The variable was only ever supplied by a local,
