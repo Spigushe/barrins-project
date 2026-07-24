@@ -56,17 +56,31 @@ summary page at build time via a new, dedicated hook (kept separate from
   text moves into `changelog/_intro.md`.
 - `.gitignore`: add the generated `changelog/index.md` and
   `changelog/*.md` (excluding `_intro.md`).
-- CI: extend the `docs` job's markdownlint/cspell exclusions to the
-  generated changelog pages.
+- CI/local lint: generated pages don't exist yet when markdownlint/cspell
+  run (they run *before* the `mkdocs build` step, same as the pre-existing
+  README-sync generated `index.md` pages — no exclusion needed for them).
+  `_intro.md` itself, however, **is** a tracked fragment (no H1, not a
+  standalone page) — excluded from both tools exactly like `_links.md`
+  already is, in `docs/package.json` and `.github/workflows/CI.yml`.
 
 ## Tasks
 
-- [ ] Create per-sub-repo `CHANGELOG.md` files from the current content.
-- [ ] Write `docs/hooks/sync_changelogs.py`.
-- [ ] Write `docs/content/changelog/_intro.md`.
-- [ ] Delete `docs/content/CHANGELOG.md`.
-- [ ] Update `docs/mkdocs.yml` nav + hooks registration.
-- [ ] Update `.gitignore` and CI lint exclusions.
+- [x] Create per-sub-repo `CHANGELOG.md` files from the current content
+      (`apps/{barrins_api,barrins_identity,tamiyo_scroll,tolaria_news}/CHANGELOG.md`,
+      `docs/CHANGELOG.md`, `ops/my-server/CHANGELOG.md`).
+- [x] Write `docs/hooks/sync_changelogs.py`.
+- [x] Write `docs/content/changelog/_intro.md`.
+- [x] Delete `docs/content/CHANGELOG.md`.
+- [x] Update `docs/mkdocs.yml` nav + hooks registration.
+- [x] Update `.gitignore`; exclude `_intro.md` from markdownlint/cspell in
+      both `docs/package.json` and `.github/workflows/CI.yml`.
+- [x] Added 5 missing dictionary words to `docs/cspell.json` surfaced by
+      the new/relocated content (`Brevo`, `DMARC`, `Hetrix`, `automount`,
+      `chdir`, `fmask`).
+- [x] Verified: `mkdocs build --strict` clean, generated pages contain
+      the expected content (spot-checked `changelog/index.md`'s "no tag
+      yet" fallback and `changelog/barrins_api.md`'s real entries),
+      `npm run lint`/`spellcheck` clean on all new files.
 
 ## Done statement
 

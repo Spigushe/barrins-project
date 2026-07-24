@@ -5,9 +5,11 @@ docs_dir: content
 
 hooks:
     - hooks/sync_readmes.py
+    - hooks/sync_changelogs.py
 
 exclude_docs: |
     _links.md
+    changelog/_intro.md
 
 theme:
     name: material
@@ -65,7 +67,14 @@ nav:
                 - Secrets Management: ops/security/secrets.md
           - Operations: ops/operations/index.md
           - Deployment Strategy: ops/deployment_strategy.md
-    - Changelog: CHANGELOG.md
+    - Changelog:
+          - Home: changelog/index.md
+          - Barrin's API: changelog/barrins_api.md
+          - Barrin's Identity: changelog/barrins_identity.md
+          - Tamiyo Scroll: changelog/tamiyo_scroll.md
+          - Tolaria News: changelog/tolaria_news.md
+          - Ops: changelog/ops.md
+          - Docs: changelog/docs.md
 
 markdown_extensions:
     - toc:

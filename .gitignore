@@ -40,3 +40,13 @@ docs/content/ops/roles/react_frontend/index.md
 docs/content/ops/roles/register_ssl/index.md
 docs/content/ops/roles/setup_base_user/index.md
 docs/content/ops/roles/setup_packages/index.md
+
+# Generated from each sub-repo's own CHANGELOG.md by docs/hooks/sync_changelogs.py
+# on every build. Add a new line here whenever a sub-repo is added.
+docs/content/changelog/index.md
+docs/content/changelog/barrins_api.md
+docs/content/changelog/barrins_identity.md
+docs/content/changelog/tamiyo_scroll.md
+docs/content/changelog/tolaria_news.md
+docs/content/changelog/docs.md
+docs/content/changelog/ops.md
