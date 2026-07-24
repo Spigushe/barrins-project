@@ -11,13 +11,12 @@ branch into `staging`.
 ## Tasks
 
 - [x] Cut the `[Unreleased]` section (split per A4 into per-sub-repo
-      files) into `[1.0.0] - 2026-07-24` for the four sub-repos with
-      actual v1.0.0 content (`apps/barrins_api`, `apps/tamiyo_scroll`,
-      `docs`, `ops/my-server`). `apps/barrins_identity` and
-      `apps/tolaria_news` are left as `[Unreleased] — Nothing yet.`
-      since neither ships in this release (matches the "only sub-repos
-      with actual changes appear" rule `sync_changelogs.py` already
-      encodes).
+      files) into `[1.0.0] "WorldWake" - 2026-07-24` across all six
+      sub-repos. `apps/barrins_identity` and `apps/tolaria_news` carry
+      no actual v1.0.0 content (neither ships in this release), but are
+      still tagged `[1.0.0]` with their existing "Nothing yet." body —
+      the tag reflects the state of the whole monorepo at release time,
+      not just the sub-repos with new entries.
 - [x] Bump `apps/barrins_api/pyproject.toml` (`0.3.0` → `1.0.0`,
       `Development Status :: 2 - Pre-Alpha` →
       `Development Status :: 5 - Production/Stable`) and
