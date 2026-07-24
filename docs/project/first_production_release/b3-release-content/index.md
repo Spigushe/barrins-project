@@ -8,15 +8,18 @@
 | **Initial date** | 2026-07-23 | / |
 | **Status** | 🟡 PR opened, not yet merged | `proj/v1.0.0-bump` → `staging` still 29 commits ahead as of last check |
 | **Source** | Release checklist | finalize v1.0.0 content |
-| **Dependency** | every Phase A + B1 + B2 item | must be merged into `proj/v1.0.0-bump` with CI green first; B2 (docs site deployment) sequenced before this item by choice |
+| **Dependency** | every Phase A + B1 item, plus B2's playbook/role + staging UAT | must be merged into `proj/v1.0.0-bump` with CI green first; B2's own production deploy needs a release tag (B5) and isn't required here — deferred to B6's final regression pass |
 
 ---
 
 ## Context
 
-Once every Phase A + B1 + B2 work item has landed on `proj/v1.0.0-bump`
-and CI is green there, this item finalizes the release content and
-promotes the branch into `staging`.
+Once every Phase A + B1 work item has landed on `proj/v1.0.0-bump` and
+CI is green there — plus B2's `docs_site` role/`docs.yml` playbook built
+and its staging UAT confirmed (not B2's production deploy, which needs a
+release tag that doesn't exist until B5 and is deferred to B6) — this
+item finalizes the release content and promotes the branch into
+`staging`.
 
 ## Tasks
 

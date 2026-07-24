@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server` (new playbook + role) | / |
 | **Initial date** | 2026-07-24 | / |
-| **Status** | 🟡 Implemented, staging UAT confirmed, `ansible-lint` clean | production UAT (release-tag deploy) still outstanding |
+| **Status** | 🟡 Implemented, staging UAT confirmed, `ansible-lint` clean | production UAT (release-tag deploy) deferred to B6, not a blocker for B3 |
 | **Source** | User request | GitHub Pages already hosts other, unrelated projects on this account — deploying this repo's docs there isn't isolated to this project alone |
 | **Dependency** | none | standalone infra, like B1 — sequenced before B3 (release content/merge) by choice, not a hard dependency |
 
@@ -116,6 +116,11 @@ app playbooks; `ansible-lint` clean; documented.
       `https://docs-staging.barrins-codex.org/`.)*
 - [ ] Deploy to production from a release tag; confirm
       `https://docs.barrins-codex.org` serves that tag's content.
+      **Deferred to B6**: needs a GitHub release tag, which doesn't
+      exist until B5 (tag/cut the release) — B5/B6 both run after this
+      item merges (B3/B4), so this can't complete now. Not required for
+      B3; folded into B6's final production regression pass alongside
+      `barrins_api.yml`/`tamiyo_scroll.yml`.
 
 ## Non-regression tests
 
