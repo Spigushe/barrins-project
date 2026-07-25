@@ -214,3 +214,92 @@ is not yet settled.
   *receive* mail as a real inbox, not just send it.
 
 [signup-email-verification]: ../../back/barrins_api/signup_email_verification.md
+
+## ADR-4: First production release — backup gating, monitoring, Moxfield
+
+**Context.** v1.0.0 is the first-ever production release of this monorepo:
+no application code, no production database, and no production VPS
+monitoring existed before it. Three cross-cutting decisions had to be made
+before it could ship, each falling under Constitution §16.2's "never
+guess" list (changing deployment architecture, introducing a dependency,
+handling secrets): whether the documented backup gap should block the
+release, how the production VPS should be monitored, and how the Moxfield
+import feature's required credential should be handled.
+
+**Alternatives considered.**
+
+1. **Backup gating** (Constitution §36):
+   1. Ship v1.0.0 first; add the `postgres_backup` role as a fast-follow.
+   2. Treat the undocumented, never-tested backup/restore process as a
+      release blocker — no production migration runs before it exists.
+2. **Monitoring** (Constitution §31.2, §30):
+   1. No monitoring for v1.0.0; add it later.
+   2. Self-hosted Uptime Kuma (Docker, alongside the existing pgAdmin
+      container).
+   3. An external free uptime-checker service polling `/health` plus
+      certificate-expiry alerting.
+3. **Moxfield credential handling** (Constitution §34):
+   1. Let the frontend hold the Moxfield User-Agent value and call the
+      Moxfield API directly.
+   2. Treat it as a backend-only secret, handled exactly like
+      `SECRET_KEY`/`SMTP_PASSWORD`.
+
+**Trade-offs.**
+
+- Backup: option 1 ships sooner but means the first-ever production
+  migration would run with zero verified recovery path — directly against
+  §36's "a backup that has never been tested is not considered reliable,"
+  and there is no worse time to discover a broken restore than after real
+  user data already exists. Option 2 delays go-live until a role and a
+  verified restore drill exist, but a first release is the cheapest point
+  to require this (no production data is at risk yet if staging testing
+  surfaces a problem).
+- Monitoring: option 1 is fastest but leaves any production outage
+  undetected until a user reports it. Option 2 stays in-repo/on-VPS but
+  can't detect a full VPS outage — it's hosted on the same machine it
+  watches — and adds another service to maintain. Option 3 detects
+  total-VPS-down failures from an external vantage point at zero/near-zero
+  cost, at the price of a third-party account and, on the chosen free
+  tier, a 2-tracker cap that leaves `tamiyo_scroll` unmonitored on its own.
+- Moxfield: option 1 is simpler to wire but permanently exposes a
+  credential to every browser session, an outright §34 violation. Option 2
+  keeps the credential server-side only and pushes the 1 req/s rate limit
+  into the backend's responsibility, in exchange for the credential never
+  reaching a client — confirmed in UAT via network-tab inspection during
+  a real import.
+
+**Decision.**
+
+1. Backup: option 2. `postgres_backup` (B1) must exist, be active, and
+   have a verified restore drill on staging before the first production
+   deploy (B6) applies any migration — B6 depends on B1 for exactly this
+   reason.
+2. Monitoring: option 3, provider **HetrixTools** — chosen over
+   self-hosted Uptime Kuma specifically because it can observe a total
+   VPS failure from outside, and over no monitoring because §31.2/§30
+   require it. Selection criteria: free tier, private status page by
+   default, minimal signup PII.
+3. Moxfield: option 2. `MOXFIELD_USER_AGENT` is a `SecretStr` backend
+   setting (`app/config/base.py`), never included in any API response and
+   never reachable from `apps/tamiyo_scroll` — the import flow is
+   backend-only per §4.1.
+
+**Consequences.**
+
+- Backup and monitoring are both host/VPS-level concerns rather than
+  per-application ones, reinforcing the "one application, one playbook"
+  boundary (§26.1): `postgres_backup` is wired into
+  `postgresql_pgadmin.yml`, not into `barrins_api.yml`, and a future
+  application added to this VPS inherits the same timer without new
+  backup wiring of its own (only a new `pg_dump` target if the schema
+  convention changes).
+- HetrixTools' 2-tracker free-tier cap means a `tamiyo_scroll`-only
+  outage (backend healthy, static frontend down) isn't independently
+  detected — accepted because both frontends share one backend, so most
+  real outages are still caught. Revisit if a paid tier, or a
+  frontend-specific check, becomes worth it.
+- The Moxfield rate limiter (`asyncio.Lock`, module-level) is
+  process-local — correct only for the current single-worker deployment.
+  If `barrins_api` ever scales to multiple workers, the 1 req/s cap needs
+  a shared (Redis/Postgres-backed) limiter instead — not needed today
+  per §39, but tracked here so it isn't assumed away.
