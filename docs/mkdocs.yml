@@ -76,6 +76,7 @@ nav:
                 - Secrets Management: ops/security/secrets.md
           - Operations: ops/operations/index.md
           - Deployment Strategy: ops/deployment_strategy.md
+          - Roadmap: ops/roadmap.md
     - Changelog:
           - Home: changelog/index.md
           - Barrin's API: changelog/barrins_api.md
