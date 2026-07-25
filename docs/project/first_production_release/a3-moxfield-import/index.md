@@ -115,7 +115,8 @@ in this codebase.
 - [x] Live-verified against a real Moxfield deck URL with the user's real
       credential — worked on the first try, including correct UTF-8
       handling of accented card names.
-- [ ] Frontend "Import from Moxfield" field — deferred to A5.
+- [x] Frontend "Import from Moxfield" field — deferred to A5, delivered
+      and UAT-confirmed there.
 
 ## Done statement
 

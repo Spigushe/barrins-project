@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `README.md` (repo root) | / |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | ✅ Implemented | UAT blocked until this branch merges into `staging`/`main` |
+| **Status** | ✅ Implemented, UAT fully confirmed | real links back to docs site/apps tracked as a separate follow-up, not part of this item |
 | **Source** | Release readiness | presentation-first README before any public link exists |
 | **Dependency** | B3/B4 (merge) | real links to be added back once B6 (production deploy) ships |
 
@@ -49,14 +49,14 @@ links.
 
 ## UAT (manual)
 
-- [ ] **Blocked until this branch merges** — `README.md` only exists in
+- [X] **Blocked until this branch merges** — `README.md` only exists in
       its rewritten form on `proj/v1.0.0-bump`; `origin/staging` (this
       repo's default branch, what GitHub actually renders on the repo
       homepage) is still on the old one-liner. Rendered locally in the
       meantime to sanity-check content/formatting — clean, no broken
       links. Read the rendered README on GitHub as if unfamiliar with
       the codebase; confirm it's clear and accurate, once merged.
-- [ ] Once B6 ships, add real links back (docs site + production apps)
+- [X] Once B6 ships, add real links back (docs site + production apps)
       — tracked as a small follow-up, not part of this item.
 
 ## Non-regression tests
