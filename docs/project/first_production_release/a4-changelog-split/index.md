@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/` | (all 6 sub-repos' `CHANGELOG.md`) |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | ✅ Implemented | one UAT item blocked until `v1.0.0` is tagged (B5) |
+| **Status** | ✅ Implemented, UAT fully confirmed | minor title-hierarchy display bug found, fix deferred (see UAT note) |
 | **Source** | Docs maintenance | single hand-maintained `CHANGELOG.md` became unwieldy across 6 sub-repos |
 | **Dependency** | B5 (tag) | for the "Latest changes" UAT check only, not the implementation |
 
@@ -100,14 +100,16 @@ implemented; `docs/content/changelog/` builds correctly via
 
 ## UAT (manual)
 
-- [ ] **Blocked until the `v1.0.0` tag exists** (no tag exists yet — cf.
+- [X] **Blocked until the `v1.0.0` tag exists** (no tag exists yet — cf.
       "ça reste 1.0.0 tant que le commit n'est pas tag"; `git tag -l` is
       currently empty). Before that, "Latest changes" only has the
       "no tag yet" fallback to check, not the real aggregation. Run
       `mkdocs serve` locally; browse to the Changelog section; confirm
       Home shows the intro text plus a "Latest changes" section
       matching the actual latest `vX.Y.Z` tag, and each app's page shows
-      its full history.
+      its full history. *Need fix later*: title structure is off: all of them
+      are treated as the same level (Barrin's API, Added and Changed are at the
+      same level instead of Barrin's API > Added / Changed).
 - [X] Delete a generated changelog page by hand, rerun the build, confirm
       the hook regenerates it; stop `mkdocs serve` and confirm
       `on_shutdown` removes the generated files again.
@@ -118,3 +120,14 @@ implemented; `docs/content/changelog/` builds correctly via
   still passes.
 - Manual: every other nav section (Backend, Frontend, Ops) still renders
   unaffected by the new hook running alongside `sync_readmes.py`.
+
+## Known issue (deferred)
+
+Found during the `v1.0.0` UAT pass above: on `changelog/index.md`'s
+"Latest changes" section, each sub-repo's heading and its Keep-a-Changelog
+category headings (Added/Changed/...) render at the same level, instead
+of the category nesting under the sub-repo (sub-repo as `##`, category as
+`###`). Cosmetic only — content and ordering are correct, nothing is
+missing or misattributed. Fix belongs in
+`docs/hooks/sync_changelogs.py`'s "Latest changes" heading generation.
+Not a release blocker; tracked here for a follow-up fix.
