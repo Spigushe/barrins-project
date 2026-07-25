@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | repo (`main` branch) | / |
 | **Initial date** | 2026-07-23 | / |
-| **Status** | 🔲 Not started | / |
+| **Status** | ✅ Tag pushed, GitHub Release published | `v1.0.0` |
 | **Source** | Release checklist | satisfies ADR-2's precondition for tag-based deploys |
 | **Dependency** | B4 | must be on `main` after merge |
 
@@ -14,8 +14,8 @@
 
 ## Tasks
 
-- [ ] On `main`, after merge: annotated tag `v1.0.0`, pushed to `origin`.
-- [ ] Create the GitHub Release from that tag (title `v1.0.0`, notes
+- [X] On `main`, after merge: annotated tag `v1.0.0`, pushed to `origin`.
+- [X] Create the GitHub Release from that tag (title `v1.0.0`, notes
       drawn from each sub-repo's `CHANGELOG.md` `[1.0.0]` section — the
       same content `sync_changelogs.py` picks up as "Latest changes" once
       this tag exists).
@@ -29,7 +29,7 @@ a separate tracked item, not part of this release.
 
 ## UAT (manual)
 
-- [ ] Open the GitHub Releases page; confirm the release is visible and
+- [X] Open the GitHub Releases page; confirm the release is visible and
       its notes match the aggregated changelog content.
 
 ## Non-regression tests

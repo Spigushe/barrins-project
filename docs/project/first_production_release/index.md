@@ -77,7 +77,7 @@ Not decided yet — confirm before the first work-item PR.
 | B4 | Promote `staging` → `main` | [b4-promote-main/](b4-promote-main/index.md) |
 | B5 | Tag and cut the release | [b5-tag-release/](b5-tag-release/index.md) |
 | B6 | Deploy from tag (production) | [b6-deploy-production/](b6-deploy-production/index.md) |
-| B7 | Document the decision (ADR-3) | [b7-adr-commit/](b7-adr-commit/index.md) |
+| B7 | Document the decision (ADR-4) | [b7-adr-commit/](b7-adr-commit/index.md) |
 
 ## How each work item's page is structured
 

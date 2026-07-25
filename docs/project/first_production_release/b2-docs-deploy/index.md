@@ -114,13 +114,10 @@ app playbooks; `ansible-lint` clean; documented.
       deploy_env=staging -e docs_site_git_branch=proj/v1.0.0-bump` ran
       clean end to end, site live at
       `https://docs-staging.barrins-codex.org/`.)*
-- [ ] Deploy to production from a release tag; confirm
+- [X] Deploy to production from a release tag; confirm
       `https://docs.barrins-codex.org` serves that tag's content.
-      **Deferred to B6**: needs a GitHub release tag, which doesn't
-      exist until B5 (tag/cut the release) — B5/B6 both run after this
-      item merges (B3/B4), so this can't complete now. Not required for
-      B3; folded into B6's final production regression pass alongside
-      `barrins_api.yml`/`tamiyo_scroll.yml`.
+      **Done in B6**: confirmed as part of B6's final production
+      regression pass, alongside `barrins_api.yml`/`tamiyo_scroll.yml`.
 
 ## Non-regression tests
 
