@@ -33,7 +33,7 @@ section of the docs site for details.
   self-hosted via `docs.yml`/the `docs_site` role (see Added, below), not
   GitHub Pages (the account already hosts other, unrelated projects'
   Pages sites — see B2,
-  `docs/project/first_production_release/b2-docs-deploy/index.md`).
+  `docs/project/v1.0.0-bump/b2-docs-deploy/index.md`).
 - Ansible VPS deployment (`ops/my-server/`), moved in-repo from the
   previous separate `Spigushe/myserver` repository (now deprecated) so
   infrastructure changes land alongside the application changes that

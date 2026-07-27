@@ -3,7 +3,7 @@
 Operational guide for `ops/my-server/docs.yml`. Structured per
 Constitution §37.2. Self-hosted on this repo's own VPS rather than
 GitHub Pages — see B2 in the project tracking docs
-(`docs/project/first_production_release/b2-docs-deploy/`, not part of
+(`docs/project/v1.0.0-bump/b2-docs-deploy/`, not part of
 this built site — see that directory's own note on why) for the
 decision record.
 
@@ -85,6 +85,6 @@ service — just a rebuild from the older tag.
 ## See also
 
 - [`rollback.md`](rollback.md) — full rollback procedure.
-- B2 (`docs/project/first_production_release/b2-docs-deploy/`, not part
+- B2 (`docs/project/v1.0.0-bump/b2-docs-deploy/`, not part
   of this built site) — the decision record for self-hosting instead of
   GitHub Pages.
