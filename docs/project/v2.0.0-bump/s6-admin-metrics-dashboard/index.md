@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (`app/api/tamiyo_scroll/admin.py`, `app/services/metrics/`), `apps/tamiyo_scroll` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Confirmed for v2.0.0, embedded scope — what "metrics" means concretely still needs sign-off | / |
+| **Status** | 🔲 Not started — scope resolved 2026-07-25 (§1.7), staged | / |
 | **Source** | Request; `v2.0.0-bump/index.md` §1.7 | / |
 | **Dependency** | None technical (role infra already exists) | / |
 
@@ -19,15 +19,29 @@ UI in `tamiyo_scroll`), gated by the existing `AdminUser`/
 `require_role(UserRole.admin)` mechanism
 (`app/dependencies/auth.py`) — no new auth work. **Confirmed**: it
 externalizes into a standalone cross-app application in v3.0.0, accessed
-via Barrin's Identity/Goblin Guide — not scheduled before then. **Not
-yet confirmed**: the exact metric set (assumed default: product/usage
-analytics — signups, active users, decks, matches, sharing adoption).
+via Barrin's Identity/Goblin Guide — not scheduled before then.
+**Confirmed (2026-07-25)**: Option 1 (product/usage analytics), staged
+— v2.0.0 ships only the simplest adoption signals; deeper metrics are
+explicit follow-on work. See `../index.md` §1.7.
+
+## v2.0.0 metric set (staged, decided)
+
+**Ship now** — enough to answer "is the app being adopted at all":
+
+- Total accounts created.
+- Total personal decks created.
+- Total matches recorded.
+
+**Explicitly deferred, not v2.0.0**: active-user counts (daily/weekly),
+sharing-adoption rate, per-feature engagement, retention — anything
+beyond raw adoption counts. "Smart KPIs" beyond these three are only
+worth defining once there's usage data to justify which ones matter.
 
 ## Done statement
 
 - A new admin-only route (or small set of routes) under
   `app/api/tamiyo_scroll/admin.py`, gated by `AdminUser`, computing the
-  confirmed metric set server-side via a new `app/services/metrics/`
+  three metrics above server-side via a new `app/services/metrics/`
   module.
 - A new admin-only page in `apps/tamiyo_scroll`, reachable only to users
   whose role satisfies `admin`, rendering those metrics.
@@ -37,14 +51,19 @@ analytics — signups, active users, decks, matches, sharing adoption).
   populates it with `tamiyo_scroll`) — both are the two forward-
   compatibility constraints from §1.7 that make the v3.0.0
   externalization a lift-and-shift rather than a rewrite.
-- A short written note (even a paragraph) on what data this surfaces and
-  why, given the constitution has no existing privacy/data-retention
-  policy to point to.
+- The privacy/analytics policy gap flagged in §1.7 is addressed before
+  this ships — **resolved**: `../consitution-amendment.md` Proposal 1
+  was accepted by the user (2026-07-26), so this feature has a real
+  policy to point to (aggregate-only data, no new collection, documented
+  alongside the feature) instead of an ad hoc per-feature note.
 
 ## Tasks
 
-- [ ] Confirm the exact metric set with the user before implementing
-      (currently only an assumed default).
+- [ ] Apply `../consitution-amendment.md` Proposal 1 to
+      `docs/content/CLAUDE.md` (or confirm R5 has already done so) before
+      this ships — accepted 2026-07-26, but not yet written into the
+      constitution itself; this item shouldn't be the one to silently
+      assume that's already done.
 - [ ] Build `app/services/metrics/` (pure, tested aggregation functions
       — same pattern as `services/tamiyo_scroll/stats.py`).
 - [ ] Build the admin route(s), `dependencies=[Depends(require_role(

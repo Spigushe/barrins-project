@@ -20,7 +20,7 @@ backend enforcement (`ownership.resolve_owner`,
 The frontend half (`components/layout/SharingControls.tsx`) was built,
 tested, then deliberately extracted and gated off
 (`const SHARING_ENABLED = false`) before the v1.0.0 launch — see
-`docs/project/first_production_release/a2-sharing-extraction/index.md`
+`docs/project/v1.0.0-bump/a2-sharing-extraction/index.md`
 for the original reasoning (UI maturity, not backend readiness). The
 request adds one genuinely new piece: a "toggle to receive" — today, any
 user can view any sharer's data via the "View: {user}" selector with no

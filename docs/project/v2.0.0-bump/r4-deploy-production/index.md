@@ -36,6 +36,9 @@ their playbooks (T8) and monitoring (D2) exist.
 - [ ] Deploy Tolaria News frontend (first-ever real deploy, if T5
       shipped this release) via the already-existing `tolaria_news.yml`.
 - [ ] Deploy/enable Barrin's Scripture per whatever T8 designed.
+- [ ] Immediately backport this item's "done" confirmation to `staging`
+      once written on `main` (§3.1) — same reasoning as R2/R3's
+      equivalent tasks.
 
 ## UAT (manual)
 

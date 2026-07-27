@@ -44,6 +44,43 @@ creation time, editable afterward.
       calculation) unless a future request asks to filter stats by
       version.
 
+## Enhancement under consideration (flagged 2026-07-26, not decided)
+
+The user raised checking Moxfield during deck retrieval to flag a
+version as **"in the past"**: A3's `MoxfieldClient`
+(`app/services/moxfield/`) already calls
+`GET https://api2.moxfield.com/v2/decks/all/{publicId}` on import, but
+today only extracts board contents into a text blob — the response's own
+last-updated timestamp is fetched and discarded. This would compare that
+timestamp against the locally-stamped version's creation date (this
+item's core feature) and surface a flag when Moxfield's deck has since
+changed.
+
+**Constraint, decided (2026-07-27)**: this check is used **only if the
+last-update value arrives as part of an API call already being made for
+another reason** — never a dedicated Moxfield call made specifically to
+check staleness. Concretely: if/when `MoxfieldClient` is invoked for an
+actual purpose (e.g. a user-triggered re-import/refresh, which already
+calls `GET .../v2/decks/all/{publicId}`), that same response's
+last-updated field is captured and compared against the locally-stamped
+version's creation date — no new call is added to the rate-limited path
+just for this feature. If no such call happens (the common case — a
+deck-page view doesn't itself call Moxfield today), no staleness flag is
+computed or shown; the UI doesn't show a stale/fresh indicator that
+requires reaching out to Moxfield on its own. This resolves the earlier
+open question about caching/throttling: there's no separate cache to
+invalidate, because there's no separate call to make.
+
+**Still open, not guessed**:
+
+- Only applies to Moxfield-imported decks — manually-entered decks have
+  no external source to compare against.
+- Not scoped for v2.0.0 by this remark alone — recorded here so it isn't
+  lost, not scheduled as a task above. Confirm with the user before
+  treating it as in-scope work. If it is scoped, it likely rides on a
+  future "re-sync from Moxfield" action (not yet designed) rather than
+  the one-shot import A3 already built.
+
 ## UAT (manual)
 
 - [ ] Create a personal deck, save two decklist versions, log a match —

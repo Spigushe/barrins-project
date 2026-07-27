@@ -23,6 +23,9 @@ already fixed by this point).
 
 - [ ] Cut the tag/release — manually, per ADR-2's documented gap, unless
       F2 lands in time to automate this for real.
+- [ ] Immediately backport this item's "done" confirmation to `staging`
+      once written on `main` (§3.1) — same reasoning as R2's equivalent
+      task, don't let it accumulate.
 
 ## UAT (manual)
 

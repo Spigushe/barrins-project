@@ -4,7 +4,7 @@
 
 | | | Comment |
 | --- | --- | --- |
-| **Target** | `apps/barrins_api` | New domain, `dl_`-prefixed per existing convention hints |
+| **Target** | `apps/barrins_api` | New domain, `bs_`-prefixed (Barrin's Scripture) — decided 2026-07-26 |
 | **Initial date** | / | Not started |
 | **Status** | 🔲 **Blocked** — cannot start until §1.2 is decided | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §0, §1.2 | / |
@@ -23,10 +23,16 @@ domain is genuinely new work, not a resurrection of hidden code, and its
 final shape depends on §1.2's outcome (does Barrin's Scripture write
 directly, or through an ingestion route owned by `barrins_api`?).
 
+**Naming, decided 2026-07-26**: this domain is `bs_`-prefixed (Barrin's
+Scripture), not `dl_` — `dl_` was only ever the name used by the dead
+`docs/decklist_integration/` reference (F7), never an established
+convention, and `bs_` matches the project's existing per-app two-letter
+prefix pattern (`ts_` for Tamiyo Scroll).
+
 ## Done statement (once §1.2 is decided)
 
 - ORM models for tournaments/decks/standings exist under
-  `app/models/`, `dl_`-prefixed (mirroring the `ts_` convention already
+  `app/models/`, `bs_`-prefixed (mirroring the `ts_` convention already
   used for Tamiyo Scroll), with an Alembic migration.
 - The schema accommodates the JSON archive's existing shape
   (`mtg_decklist_cache`'s per-tournament JSON files) without requiring a
@@ -39,7 +45,7 @@ directly, or through an ingestion route owned by `barrins_api`?).
 ## Tasks
 
 - [ ] Get §1.2 decided (escalation, not implementation work).
-- [ ] Design the `dl_*` table set from a real sample of
+- [ ] Design the `bs_*` table set from a real sample of
       `mtg_decklist_cache`'s JSON shape (inspect actual files, don't
       guess the schema from the scraper's Pydantic models alone —
       `scraper/schemas/{tournament,deck,standing,player,round}.py` in
