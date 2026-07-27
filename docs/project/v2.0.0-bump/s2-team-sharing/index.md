@@ -8,7 +8,7 @@
 | **Initial date** | / | Not started |
 | **Status** | 🔲 Not started — §1.6 resolved 2026-07-25, spec below | / |
 | **Source** | Request item 2.1 | / |
-| **Dependency** | I5 (§1.6, resolved), S1 (builds on the sharing mechanism), S8 (deck-validation gate needs real card/set data — added 2026-07-26) | / |
+| **Dependency** | I5 (§1.6, resolved), S1 (builds on the sharing mechanism) | S8 dependency dropped 2026-07-27 — see deck-validation gate note below |
 
 ---
 
@@ -49,12 +49,18 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
   chat-like discussion thread **per deck under test** (not one thread
   per team) — which decks get a thread is decided by the team admin
   (the creator/owner).
-- **Deck validation gate**: a deck shared into a team has its name (and
-  cards) validated against backend-held MTG data before it's usable in
-  that context — not accepted as free text. **Correction (2026-07-26)**:
-  no `mtgjson`/`sets`/`cards` pipeline actually exists yet (verified —
-  see `../index.md` F8/S8); this gate is now blocked on S8 landing
-  first, not on data already in place.
+- **Deck validation gate — deferred to v3.0.0 (2026-07-27)**: a deck
+  shared into a team was to have its name (and cards) validated against
+  backend-held MTG data before it's usable in that context. **Correction
+  (2026-07-26)**: no `mtgjson`/`sets`/`cards` pipeline actually exists yet
+  (verified — see `../index.md` F8/S8); this gate was blocked on S8
+  landing first. **Deferred (2026-07-27)**, the same treatment given to
+  S10: rather than wait on S8, v2.0.0 drops this gate entirely and
+  accepts a team-shared deck the same way a personal deck is accepted
+  today — unvalidated. No new inconsistency (nothing in Tamiyo Scroll
+  validates deck contents against MTG data yet), and S2 no longer depends
+  on S8. Revisit once S8 exists and this becomes real, feature-by-feature
+  follow-on work.
 - **Reporting**: team members get access to the PDF report (S5) of each
   deck shared into the team.
 - **Deletion isolation**: removing a deck from a team never affects that
@@ -76,7 +82,8 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
   lists decks flagged as shared to a team the current user belongs to.
 - A way to flag an existing personal deck as shared to a specific team
   (UI control + backend field, e.g. `ts_personal_decks.shared_team_id`
-  nullable FK), gated by the deck-name/card validation rule above.
+  nullable FK). **No deck-name/card validation for v2.0.0** — deferred to
+  v3.0.0, see the note above.
 - Team members can fetch the PDF report (S5) for any deck shared into a
   team they belong to.
 - Removing a deck from a team's shared set deletes only the share link,
@@ -91,9 +98,6 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
 - [ ] Backend: team creation, invite-code generation/redemption, member
       list, owner-only admin actions (flagging which decks get a
       discussion thread).
-- [ ] Backend: deck-share validation against S8's card/set data
-      before a deck becomes team-visible (blocked on S8, not just this
-      item's own work).
 - [ ] Backend: per-team-deck discussion thread storage + routes.
 - [ ] Backend: PDF report (S5) access check extended to "any team member
       of a team this deck is shared into," not just the deck owner.
@@ -109,8 +113,9 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
 - [ ] Create a team, confirm an 8-character invite code is generated.
 - [ ] Join the team as a second user via the invite code; confirm
       membership appears on the team page.
-- [ ] Flag a deck to the team; confirm an invalid/unrecognized deck name
-      is rejected by the validation gate.
+- [ ] Flag a deck to the team; confirm it succeeds with no card/name
+      validation (deferred to v3.0.0 — same acceptance as a personal
+      deck today).
 - [ ] Confirm the second member sees the shared deck in "Team Decks",
       cannot edit it, and can open its PDF report.
 - [ ] Remove the deck from the team; confirm the owner's personal-profile
@@ -121,6 +126,13 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
 - New `tests/tamiyo_scroll/test_teams.py`, following the existing
   `test_ownership.py` structure (404-not-403 on cross-team writes, same
   pattern as cross-owner writes today).
-- Coverage for invite-code redemption, deck-validation rejection, PDF
-  access via team membership, and deletion isolation (deck removed from
-  team leaves the owner's own match history/report untouched).
+- Coverage for invite-code redemption, PDF access via team membership,
+  and deletion isolation (deck removed from team leaves the owner's own
+  match history/report untouched). No validation-rejection test — deferred
+  to v3.0.0 alongside the gate itself.
+
+## See also
+
+- [`../s10-personal-deck-game-flag/index.md`](../s10-personal-deck-game-flag/index.md)
+  — same "deferred to v3.0.0, recorded so the design work isn't lost"
+  treatment used for this item's deck-validation gate.

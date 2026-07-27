@@ -8,7 +8,7 @@
 | **Initial date** | / | Not started |
 | **Status** | 🔲 Not started — added 2026-07-26 (see F8) | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6 | / |
-| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocks S4, S2 (deck-validation gate) |
+| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocks S4. No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
 ---
 
@@ -18,9 +18,11 @@
 `POST /mtgjson/import` route, public `sets`/`cards` read routes, and an
 `admin`-gated import capability as if already built. **F8 verified this
 is false**: zero Python files reference `mtgjson`, no `Card`/`Set` model
-exists. This item is the real, from-scratch build that both S4 (card
-images + sorting) and S2 (deck-name/card validation gate) need — neither
-can start their MTG-data-dependent work before this lands.
+exists. This item is the real, from-scratch build that S4 (card images +
+sorting) needs before it can start its MTG-data-dependent work. S2's
+deck-validation gate originally needed this too, but was deferred to
+v3.0.0 (2026-07-27, see `../s2-team-sharing/index.md`), so it no longer
+blocks on this item for v2.0.0.
 
 **Not previously scoped as its own item** — it surfaced only once S4 and
 S2 were checked against actual code, not against `auth_roles.md`'s
