@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `.github/workflows/CI.yml`, GitHub repo ruleset settings | / |
-| **Initial date** | / | Not started |
-| **Status** | 🟡 Verified — ruleset live, CI trigger + direct-push rejection both confirmed; pending merge of PR #23 | / |
+| **Initial date** | 2026-07-27 | / |
+| **Status** | ✅ Implemented, UAT fully confirmed | / |
 | **Source** | Carried over from v1.0.0 as an open item; decided this release | / |
 | **Dependency** | None | Should land early — every `proj/*` PR this release benefits from it |
 
@@ -47,7 +47,7 @@ actually enforces.
 ## Tasks
 
 - [x] Add `proj/**` to `CI.yml`'s `pull_request`/`push` branch filters
-      (`fix(ci): trigger CI on proj/* branches`, PR #23, not yet merged).
+      (`fix(ci): trigger CI on proj/* branches`, PR #23).
 - [x] Confirm the `changes`/path-filter jobs (back/front/ops/docs) still
       behave correctly against `proj/*` PRs — verified on PR #23:
       `changes` ran, `back`/`front`/`ops`/`docs` correctly skipped
@@ -75,6 +75,9 @@ actually enforces.
 
 ## Non-regression tests
 
-- Confirm existing `staging`/`main` CI triggers and rulesets are
-  unaffected (this only adds `proj/*` coverage, doesn't change existing
-  behavior).
+- [x] Confirm existing `staging`/`main` CI triggers and rulesets are
+      unaffected (this only adds `proj/*` coverage, doesn't change
+      existing behavior) — `staging`/`main` stayed in `CI.yml`'s branch
+      filters unchanged; `preprod-staging-protection`/`prod-main-
+      protection` rulesets were not touched by the new
+      `proj-release-branch-protection` ruleset.
