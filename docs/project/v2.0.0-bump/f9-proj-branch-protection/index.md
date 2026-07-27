@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `.github/workflows/CI.yml`, GitHub repo ruleset settings | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — decided 2026-07-26 (§3) | / |
+| **Initial date** | 2026-07-27 | / |
+| **Status** | ✅ Implemented, UAT fully confirmed | / |
 | **Source** | Carried over from v1.0.0 as an open item; decided this release | / |
 | **Dependency** | None | Should land early — every `proj/*` PR this release benefits from it |
 
@@ -46,24 +46,38 @@ actually enforces.
 
 ## Tasks
 
-- [ ] Add `proj/**` to `CI.yml`'s `pull_request`/`push` branch filters.
-- [ ] Confirm the `changes`/path-filter jobs (back/front/ops/docs) still
-      behave correctly against `proj/*` PRs (no assumption baked in that
-      only applies to `staging`/`main`).
-- [ ] Create or extend a GitHub ruleset covering `proj/*`, matching
-      `staging`'s existing protection rules.
-- [ ] Confirm on a real `proj/v2.0.0-bump` sub-branch PR that CI now
-      runs and a direct push to `proj/v2.0.0-bump` is rejected.
+- [x] Add `proj/**` to `CI.yml`'s `pull_request`/`push` branch filters
+      (`fix(ci): trigger CI on proj/* branches`, PR #23).
+- [x] Confirm the `changes`/path-filter jobs (back/front/ops/docs) still
+      behave correctly against `proj/*` PRs — verified on PR #23:
+      `changes` ran, `back`/`front`/`ops`/`docs` correctly skipped
+      (only `CI.yml` changed), `ci-required` completed successfully.
+- [x] Create or extend a GitHub ruleset covering `proj/*`, matching
+      `staging`'s existing protection rules —
+      `proj-release-branch-protection` (ruleset id `19839693`) created,
+      `enforcement: active`, rules identical to `staging`'s
+      `preprod-staging-protection` apart from the ref pattern
+      (`refs/heads/proj/**`).
+- [x] Confirm on a real `proj/v2.0.0-bump` PR that CI now runs — done via
+      PR #23.
+- [x] Confirm a direct push to `proj/v2.0.0-bump` is rejected by the new
+      ruleset — confirmed: GitHub returned `GH013: Repository rule
+      violations` ("Changes must be made through a pull request",
+      "Required status check \"ci-required\" is expected") on a direct
+      push attempt.
 
 ## UAT (manual)
 
-- [ ] Open a test PR into `proj/v2.0.0-bump`; confirm CI runs
-      automatically.
-- [ ] Attempt a direct push to `proj/v2.0.0-bump`; confirm it's rejected
-      by the new ruleset.
+- [x] Open a test PR into `proj/v2.0.0-bump`; confirm CI runs
+      automatically — PR #23, `ci-required` succeeded.
+- [x] Attempt a direct push to `proj/v2.0.0-bump`; confirm it's rejected
+      by the new ruleset — confirmed rejected (`GH013`).
 
 ## Non-regression tests
 
-- Confirm existing `staging`/`main` CI triggers and rulesets are
-  unaffected (this only adds `proj/*` coverage, doesn't change existing
-  behavior).
+- [x] Confirm existing `staging`/`main` CI triggers and rulesets are
+      unaffected (this only adds `proj/*` coverage, doesn't change
+      existing behavior) — `staging`/`main` stayed in `CI.yml`'s branch
+      filters unchanged; `preprod-staging-protection`/`prod-main-
+      protection` rulesets were not touched by the new
+      `proj-release-branch-protection` ruleset.

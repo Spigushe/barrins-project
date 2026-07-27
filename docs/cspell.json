@@ -33,6 +33,7 @@
         "decklist",
         "Decklist",
         "decklists",
+        "deploiement",
         "DMARC",
         "dorny",
         "dpage",
@@ -51,6 +52,7 @@
         "inlines",
         "isready",
         "journalctl",
+        "Karn",
         "keypair",
         "loggable",
         "matchups",
@@ -60,6 +62,7 @@
         "mkdocs",
         "Moxfield",
         "MTGJSON",
+        "MTGO",
         "mypy",
         "nohostname",
         "npmjs",
@@ -80,6 +83,7 @@
         "repointed",
         "Resends",
         "retour",
+        "signups",
         "smtplib",
         "Spigushe",
         "spigushe",
@@ -99,6 +103,7 @@
         "Vérifiez",
         "votre",
         "winrate",
-        "winrates"
+        "winrates",
+        "workstreams"
     ]
 }

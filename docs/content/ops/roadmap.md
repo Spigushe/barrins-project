@@ -47,7 +47,8 @@ Karn Tablets — ML/DL), a set of Tamiyo Scroll feature additions, a pass
 over items already flagged as needing fixes, and a general deployment
 playbook for whatever new application/service shape shows up next. Full
 detail, priorities, and dependency ordering:
-[`docs/project/v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md).
+`docs/project/v2.0.0-bump/index.md` (internal release tracking, not part
+of this published site).
 This section summarizes it; that document is the source of truth for
 sequencing.
 
@@ -85,8 +86,8 @@ the application itself:
    repository, and (b) whether it gets direct database write access or
    pushes through a `barrins_api`-owned ingestion route. Framed as
    alternatives with trade-offs in
-   [`v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md#1-scope-decisions-requiring-the-users-input-before-work-starts),
-   not decided here.
+   `v2.0.0-bump/index.md` (§1, "Scope decisions requiring the user's
+   input before work starts"), not decided here.
 4. **The scraped-tournament data domain does not exist in code.**
    `docs/content/back/barrins_api/bff/tamiyo_scroll.md` and several code
    comments reference a `dl_decks`/`dl_tournaments` domain and a
@@ -189,25 +190,25 @@ Not carried over from a prior roadmap — newly scoped:
    holds structurally rather than by a reset job. The guided-tour
    overlay is hand-rolled with the existing Radix/shadcn primitives
    already in `src/components/ui/` — no new dependency. Needs zero new
-   backend work. See
-   [`v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md#18-tutorial--demo-interface-for-tamiyo-scroll-no-persistence)
-   for the alternatives that were considered and rejected.
+   backend work. See `v2.0.0-bump/index.md` (§1.8, "Tutorial / demo
+   interface for Tamiyo Scroll, no persistence") for the alternatives
+   that were considered and rejected.
 
 **Playwright — considered, deferred, not part of v2.0.0.** Not a fit for
 item 7 above (it's an E2E/browser-automation framework, not a tour
 library — settled by the primitives decision). Two other places it could
 apply: a committed, CI-integrated E2E suite for `tamiyo_scroll`
 (already used informally during the original bootstrap, but explicitly
-deferred then too — see
-[`v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md#a-note-on-playwright--deferred-not-part-of-v200)),
-and replacing Selenium in the MTGO scraper (relevant only once the
+deferred then too — see `v2.0.0-bump/index.md` ("A note on Playwright —
+deferred, not part of v2.0.0")), and replacing Selenium in the MTGO
+scraper (relevant only once the
 Barrin's Scripture repo-migration decision lands, low priority — no
 active pain point today). Neither is scheduled for this release.
 
 Full write-up, including which of these are genuinely cheap (sharing
 re-enablement builds on fully-tested existing code) versus which need a
-design pass or a new schema entity first:
-[`v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md#group-s--tamiyo-scroll-changes-request-item-2).
+design pass or a new schema entity first: `v2.0.0-bump/index.md`
+(§"Group S — Tamiyo Scroll changes (request item 2)").
 
 ### Looking ahead — what's already known about v3.0.0
 
@@ -223,8 +224,9 @@ confirmed, so they aren't lost before that planning starts:
 
 ## See also
 
-- [`docs/project/v2.0.0-bump/index.md`](../../project/v2.0.0-bump/index.md)
-  — full priorities, dependency graph, and open architectural decisions
+- `docs/project/v2.0.0-bump/index.md` (internal release tracking, not
+  part of this published site) — full priorities, dependency graph, and
+  open architectural decisions
   for this release.
 - [Decision Records](architecture/decisions.md) — ADR-1 through ADR-4;
   ADR-5 onward should record this release's resolved decisions.
