@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/ops/architecture/decisions.md` | ADR-5 onward |
 | **Initial date** | 2026-07-27 | / |
-| **Status** | 🔲 ADR-5 through ADR-11 drafted on `r5-write-adrs`, not yet merged | / |
+| **Status** | ✅ Merged into `proj/v2.0.0-bump` via [PR #24](https://github.com/Spigushe/barrins-project/pull/24) (squash) | / |
 | **Source** | Mirrors v1.0.0's B7 | / |
 | **Dependency** | I1, I2, I3, I4, I5, I6, I7, I8 | **Blocks R1** (resequenced 2026-07-26 — see §3.1) |
 
@@ -61,11 +61,20 @@ directly on `main` afterward.
       I8/S5) — all added to
       [`decisions.md`](../../../content/ops/architecture/decisions.md) on
       branch `r5-write-adrs` (off `proj/v2.0.0-bump`).
-- [ ] Open a PR merging `r5-write-adrs` into `proj/v2.0.0-bump`, get it
-      reviewed and merged (branch protection now requires this, per F9).
-- [ ] Merge every ADR into `proj/v2.0.0-bump` **before** R1 merges that
-      branch into `staging` — do not write or merge any ADR directly on
-      `main` after the fact (the §3.1 mistake).
+- [x] Open a PR merging `r5-write-adrs` into `proj/v2.0.0-bump` —
+      [PR #24](https://github.com/Spigushe/barrins-project/pull/24),
+      branch protection satisfied (branch requires PRs per F9). CI green
+      (`ci-required`, `docs` both pass), `mergeStateStatus: CLEAN`. A
+      cspell-allowlist follow-up commit (`8b1d61d`) was needed to get
+      `docs` green — 17 flagged words (technical terms, French, and the
+      deliberate `consitution-amendment.md` typo), none real misspellings.
+- [x] Get PR #24 merged into `proj/v2.0.0-bump` — no review required
+      (`required_approving_review_count: 0` on the `proj/*` ruleset), CI
+      green, squash-merged.
+- [x] Every ADR now lives on `proj/v2.0.0-bump`, well **before** R1 merges
+      that branch into `staging` — do not write or merge any ADR directly
+      on `main` after the fact (the §3.1 mistake). R5 is complete; R1 can
+      proceed once the rest of Groups T/S/F/D land.
 
 ## UAT (manual)
 

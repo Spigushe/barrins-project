@@ -972,7 +972,7 @@ repo on 2026-07-25, not previously written down anywhere):
 
 | # | Item | Depends on | Page |
 | --- | --- | --- | --- |
-| R5 | Write the ADRs this release's decisions require (I1–I8, once resolved) — **resequenced 2026-07-26 to precede R1**, per §3.1's lesson | I1–I8 | 🔲 ADR-5–ADR-11 drafted on `r5-write-adrs`, PR pending — [r5-write-adrs/](r5-write-adrs/index.md) |
+| R5 | Write the ADRs this release's decisions require (I1–I8, once resolved) — **resequenced 2026-07-26 to precede R1**, per §3.1's lesson | I1–I8 | ✅ ADR-5–ADR-11 merged via PR #24 — [r5-write-adrs/](r5-write-adrs/index.md) |
 | R1 | Finalize release content, merge `proj/v2.0.0-bump` → `staging` | All of Groups T/S/F/D above that are in scope, **and R5** (ADRs merged before this point, not after — §3.1) | [r1-merge-staging/](r1-merge-staging/index.md) |
 | R2 | Promote `staging` → `main` | R1 | [r2-promote-main/](r2-promote-main/index.md) |
 | R3 | Tag and cut the release | R2 | [r3-tag-release/](r3-tag-release/index.md) |
