@@ -29,7 +29,10 @@ constraint on S3's Moxfield enhancement (opportunistic use only, never a
 dedicated call), and a **new item, S9** (tournament/training session
 grouping for Tamiyo Scroll, raised in conversation and scoped/decided the
 same day — resolves S5's previously-open "what is a training session"
-report-scope question; S5's dependency row now includes S9). **Every item
+report-scope question; S5's dependency row now includes S9); and, while
+R5 was drafting the ADRs for these decisions, **S2's deck-validation gate
+deferred to v3.0.0** (§1.6), the same treatment already given to S10 —
+S2 no longer depends on S8 for v2.0.0. **Every item
 in §1 is now decided.** A decision recorded
 here is not yet a committed ADR — per Constitution §16.2 ("never guess
 requirements... changing deployment architecture, introducing a
@@ -468,6 +471,12 @@ confirmed by the user:
   `Set` model, nothing beyond aspirational documentation (see new item
   **F8** and **S8** below). This deck-validation gate now depends on S8
   (building that pipeline from scratch), not on data "already in place."
+  **Deferred to v3.0.0 (2026-07-27)**: rather than wait on S8, this gate
+  is dropped from v2.0.0 scope entirely, the same treatment already given
+  to S10. v2.0.0 accepts a team-shared deck the same way a personal deck
+  is accepted today — unvalidated — so this introduces no new
+  inconsistency; S8 itself stays in v2.0.0 scope (S4 still needs it) but
+  S2 no longer depends on it.
 - **Reporting**: team members get access to the PDF report (S5) of each
   deck shared into the team.
 - **Deletion isolation**: removing a deck from a team never affects that
@@ -918,13 +927,13 @@ R5 turning each into a real ADR.
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
 | S1 | Re-enable + extend global sharing (request 2.5) | — (I1 only for the new "toggle to receive" half) | Cheapest item in this plan: `SharingControls.tsx` and its backend are already built and tested. The "share" toggle already exists (`data_shared`). The "toggle to receive" half is new — no such concept exists today (any user can currently view any sharer without opting in on their own side) | [s1-global-sharing-reenable/](s1-global-sharing-reenable/index.md) |
-| S2 | Team sharing: read-only "Team Decks" selector + flag-to-share | I5, S1 | Builds on S1's mechanism once teams exist | [s2-team-sharing/](s2-team-sharing/index.md) |
+| S2 | Team sharing: read-only "Team Decks" selector + flag-to-share | I5, S1 | Builds on S1's mechanism once teams exist. **Deck-validation gate deferred to v3.0.0 (2026-07-27)** — S2 no longer depends on S8 | [s2-team-sharing/](s2-team-sharing/index.md) |
 | S3 | Auto-flag match result to a specific decklist version, editable after | — | Schema change: add nullable `decklist_version_id` FK to `ts_matches`, defaulting to the deck's currently-active version at creation time (`ts_user_settings.active_personal_deck_id`'s sibling concept, per-deck). Small, unblocked, can start immediately. An additional idea — checking Moxfield's last-update timestamp to flag a version "in the past" — is recorded on the item page as a flagged enhancement, not yet scoped for v2.0.0. **Constrained (2026-07-27)**: only usable opportunistically, from a Moxfield call already being made for another reason — never a dedicated call added just for this | [s3-match-decklist-version/](s3-match-decklist-version/index.md) |
 | S4 | Better decklist display (request 2.3, "UI TBD"), now including card images + sort-by-{type, mana value, color identity, mana cost} | S8 | Needs a design pass (same "hifi design first" pattern `handoff.md` used for the original build) **and** S8's card/set data — decided default sort: Card Type → Mana Value, with the "face A Land" rule for multi-face cards (§S4 page) | [s4-decklist-display-redesign/](s4-decklist-display-redesign/index.md) |
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | Backend-generated (Constitution §4.1: no client-side composition of computed stats). **I8 resolved 2026-07-27: WeasyPrint** (see S5 page for the full Context/Alternatives/Trade-offs research) | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | Confirmed v2.0.0-embedded, v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
-| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images) and S2's deck-validation gate | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
+| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | New `ts_sessions` table, soft-deleted via `archived_at` (consistent with `TSPersonalDeck`/`TSMetaDeck`). Matches-only for v1 — card-test analysis across decklist versions is already extrapolable without a session concept. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 
 ### Group F — Fixes flagged in docs and roadmap (request item 3)
@@ -963,7 +972,7 @@ repo on 2026-07-25, not previously written down anywhere):
 
 | # | Item | Depends on | Page |
 | --- | --- | --- | --- |
-| R5 | Write the ADRs this release's decisions require (I1–I8, once resolved) — **resequenced 2026-07-26 to precede R1**, per §3.1's lesson | I1–I8 | [r5-write-adrs/](r5-write-adrs/index.md) |
+| R5 | Write the ADRs this release's decisions require (I1–I8, once resolved) — **resequenced 2026-07-26 to precede R1**, per §3.1's lesson | I1–I8 | ✅ ADR-5–ADR-11 merged via PR #24 — [r5-write-adrs/](r5-write-adrs/index.md) |
 | R1 | Finalize release content, merge `proj/v2.0.0-bump` → `staging` | All of Groups T/S/F/D above that are in scope, **and R5** (ADRs merged before this point, not after — §3.1) | [r1-merge-staging/](r1-merge-staging/index.md) |
 | R2 | Promote `staging` → `main` | R1 | [r2-promote-main/](r2-promote-main/index.md) |
 | R3 | Tag and cut the release | R2 | [r3-tag-release/](r3-tag-release/index.md) |

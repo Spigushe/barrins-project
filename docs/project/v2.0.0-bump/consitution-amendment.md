@@ -332,7 +332,10 @@ Avoids over-promising a validation guarantee as a blanket rule — S2's
 own deck-validation gate (via S8) remains the concrete, scoped example
 of "validate before cross-user exposure," rather than that becoming a
 generalized constitutional obligation applied to every future feature
-regardless of cost.
+regardless of cost. **Note (2026-07-27)**: S2's gate itself was
+subsequently deferred to v3.0.0 (see `s2-team-sharing/index.md`) — it no
+longer ships in v2.0.0, but stays the intended first concrete instance of
+this working direction once S8 exists.
 
 ---
 

@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `docs/content/ops/architecture/decisions.md` | ADR-5 onward |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — I1–I6, I8 decided; I7 still open | / |
+| **Initial date** | 2026-07-27 | / |
+| **Status** | ✅ Merged into `proj/v2.0.0-bump` via [PR #24](https://github.com/Spigushe/barrins-project/pull/24) (squash) | / |
 | **Source** | Mirrors v1.0.0's B7 | / |
 | **Dependency** | I1, I2, I3, I4, I5, I6, I7, I8 | **Blocks R1** (resequenced 2026-07-26 — see §3.1) |
 
@@ -21,8 +21,9 @@ more open decisions than v1.0.0 did (eight, §1.1–§1.7 and §1.9 in
 written in the Context/Alternatives/Trade-offs shape the constitution
 requires (§16.3) — this item is where each becomes a permanent ADR once
 actually resolved, not a re-derivation of the reasoning from scratch.
-Seven of eight (I1–I6, I8) are resolved as of 2026-07-27; only I7
-(Tolaria News BFF access restriction, §1.9) is still open.
+All eight (I1–I8) are resolved as of 2026-07-27 (I7, Tolaria News BFF
+access restriction, was the last, closed same day) — this item was
+unblocked and started the same day.
 
 **Resequenced 2026-07-26**: this item now **precedes R1** (it used to
 just "depend on I1–I8, once resolved," with no ordering against the
@@ -49,18 +50,35 @@ directly on `main` afterward.
 
 ## Tasks
 
-- [ ] Wait for I7 to actually be decided (not this item's job — tracked
-      in Group I). I1–I6 and I8 are already resolved.
-- [ ] Write each ADR, reusing the Context/Alternatives/Trade-offs text
+- [x] Wait for I7 to actually be decided — resolved 2026-07-27 (Option 4,
+      §1.9). I1–I6 and I8 were already resolved.
+- [x] Write each ADR, reusing the Context/Alternatives/Trade-offs text
       already drafted in `v2.0.0-bump/index.md` §1 rather than
-      re-deriving it.
-- [ ] Merge every ADR into `proj/v2.0.0-bump` **before** R1 merges that
-      branch into `staging` — do not write or merge any ADR directly on
-      `main` after the fact (the §3.1 mistake).
+      re-deriving it — ADR-5 (Barrin's Scripture: repo/DB-access/archive,
+      §1.1–1.3), ADR-6 (Karn Tablets scope, §1.4), ADR-7 (identity delay,
+      §1.5), ADR-8 (team model, §1.6), ADR-9 (metrics dashboard split,
+      §1.7), ADR-10 (Tolaria News BFF access, §1.9), ADR-11 (WeasyPrint,
+      I8/S5) — all added to
+      [`decisions.md`](../../../content/ops/architecture/decisions.md) on
+      branch `r5-write-adrs` (off `proj/v2.0.0-bump`).
+- [x] Open a PR merging `r5-write-adrs` into `proj/v2.0.0-bump` —
+      [PR #24](https://github.com/Spigushe/barrins-project/pull/24),
+      branch protection satisfied (branch requires PRs per F9). CI green
+      (`ci-required`, `docs` both pass), `mergeStateStatus: CLEAN`. A
+      cspell-allowlist follow-up commit (`8b1d61d`) was needed to get
+      `docs` green — 17 flagged words (technical terms, French, and the
+      deliberate `consitution-amendment.md` typo), none real misspellings.
+- [x] Get PR #24 merged into `proj/v2.0.0-bump` — no review required
+      (`required_approving_review_count: 0` on the `proj/*` ruleset), CI
+      green, squash-merged.
+- [x] Every ADR now lives on `proj/v2.0.0-bump`, well **before** R1 merges
+      that branch into `staging` — do not write or merge any ADR directly
+      on `main` after the fact (the §3.1 mistake). R5 is complete; R1 can
+      proceed once the rest of Groups T/S/F/D land.
 
 ## UAT (manual)
 
-- [ ] N/A — documentation review.
+- [X] N/A — documentation review.
 
 ## Non-regression tests
 
