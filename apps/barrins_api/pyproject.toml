@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     "argon2-cffi>=25.1.0",
     "asyncpg>=0.31.0",
-    "fastapi>=0.139.2",
+    "fastapi>=0.140.13",
     "httpx>=0.28.1,<1.0",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
@@ -49,8 +49,8 @@ dev = [
     { include-group = "test" },
     "alembic>=1.18.5",
     "bandit[toml]>=1.9.4",
-    "ruff>=0.15.22",
-    "ty>=0.0.62",
+    "ruff>=0.16.0",
+    "ty>=0.0.64",
     "zest.releaser[recommended]>=9.9.1",
 ]
 
