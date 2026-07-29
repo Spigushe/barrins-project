@@ -68,6 +68,34 @@ community "Duel Commander League").
   verbatim from `mtg_decklist_cache`'s
   `mtgtop8.com/2026/07/26/88803_duel-commander_championnat-dc-974-juillet.json`.
 
+## mtgtop8/event_87792_edh.html
+
+- Source: `https://mtgtop8.com/event?e=87792&f=EDH` (CDF DC 2026 Main
+  Event, 391 players), fetched 2026-07-29 the same way as `event_88803`
+  (plain `curl`-equivalent GET, `iso-8859-1`).
+- Added specifically to catch a real bug found while designing T2's
+  schema (`docs/project/v2.0.0-bump/t2-scraped-tournament-schema/
+  index.md`): MTGTop8 reports ties past the top few places as a bracket
+  **range** ("3-4", "5-8", "9-16", "17-32", "33-64", ...), not a single
+  placement number. `event_88803` (only 8 players, no ties) structurally
+  cannot exercise this — every other fixture in this suite happens to
+  come from an untied bracket. `get_deck_from_top8`'s original regex
+  matched the whole range but then kept only `int(group(1))`, silently
+  turning `"5-8"` into `5` — indistinguishable from an untied 5th place.
+  Fixed by keeping `result` as the full matched string (`Deck.result` is
+  now `str | None`, not `int | None`); see `TestMtgtop8TieBracketResults`
+  in `test_parsers.py`.
+- No decklist-page fixture is included (unlike `event_88803`): this
+  fixture exists to assert `result` values, not decklist fidelity, so
+  `get_decklist`/`get_notes` are mocked in its test, same as
+  `test_decks_enumerates_every_top8_entry` already does for the
+  non-top-8 entries of `event_88803`.
+- This event uses the same `hover_tr`/`chosen_tr` structure as
+  `event_88803` for all 64 published entries (top 64, not just top 8) —
+  it does **not** exercise `get_deck_out_top8`'s radio-selector path
+  (confirmed: zero `<input type="radio">` elements on this page either).
+  The "known gap" below is still open.
+
 ## Known gap: the mtgtop8 "out of top8" (radio-selector) path
 
 `parsers/mtgtop8.py`'s `get_deck_out_top8` (for large events that list

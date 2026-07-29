@@ -130,12 +130,11 @@ def get_deck_from_top8(deck_tag: Tag) -> tuple[int, Deck]:
     if player_tag:
         player_name = player_tag.get_text(strip=True)
 
-    result = 0
+    result: str | None = None
     for div in container.find_all("div", class_="S14"):
         text = div.get_text(strip=True)
-        result_match = re.match(r"^(\d+)(-\d+)?$", text)
-        if result_match:
-            result = int(result_match.group(1))
+        if re.match(r"^\d+(-\d+)?$", text):
+            result = text
             break
 
     mainboard, sideboard = get_decklist(deck_id)
@@ -177,7 +176,7 @@ def get_deck_out_top8(deck_tag: Tag) -> tuple[int, Deck]:
 
     deck_id = int(str(deck_tag["value"]))
     player_name = re.split(" - ", str(deck_tag.contents[0]), maxsplit=1)[1].strip()
-    result = int(re.split("#", str(deck_parent["label"]), maxsplit=1)[1])
+    result = re.split("#", str(deck_parent["label"]), maxsplit=1)[1]
 
     mainboard, sideboard = get_decklist(deck_id)
     if not mainboard:
