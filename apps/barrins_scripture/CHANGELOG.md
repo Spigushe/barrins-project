@@ -25,6 +25,23 @@ section of the docs site for details.
   (`apps/barrins_scripture/scraped/`), so a deployment can point the
   JSON archive wherever it manages that clone instead of assuming a git
   submodule at a fixed path.
+- `scripts.top8_check_gaps` / `scripts.mtgo_empty_decks`: the biweekly
+  gap-check maintenance jobs, ported from `mtg_scraper`'s scripts of the
+  same purpose (renamed from `mtgo_empy_decks`, a typo in the original).
+  Invoked directly (`python -m barrins_scripture.scripts.<name>`), same
+  as the originals were.
+- CI: a `scripture` path filter + job in `.github/workflows/CI.yml`
+  (mirrors `back`'s shape, no Postgres service — this app has no DB
+  access), backed by a new local CI runner
+  (`apps/barrins_scripture/scripts/workflow_ci.py`, mirroring
+  `apps/barrins_api`'s).
+- Ops: `ops/my-server/barrins_scripture.yml` + a new
+  `ops/my-server/roles/scripture_scraper/` role — a `systemd`
+  `.service`/`.timer` pair (patterned on `roles/postgres_backup/`)
+  running the daily scrape and the Sunday biweekly gap-check on the VPS,
+  replacing `mtg_scraper`'s GitHub Actions cron per T1's scheduling
+  decision. `ansible-lint` clean (via WSL); not yet deployed to the
+  real VPS.
 
 ### Fixed
 
