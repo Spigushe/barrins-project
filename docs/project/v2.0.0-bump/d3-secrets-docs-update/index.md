@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/ops/security/secrets.md`, `ops/my-server/secrets/README.md` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — depends on §1.2's outcome | / |
+| **Status** | 🔲 Not started — unblocked, §1.2/I3 decided 2026-07-25 (Option 2: private ingestion route, needs a service credential) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1.2 | / |
 | **Dependency** | I3 (§1.2) | / |
 
@@ -14,9 +14,10 @@
 
 ## Context
 
-If §1.2 resolves to "Barrin's Scripture calls a private ingestion route
-on `barrins_api`" (the recommended option), a new credential is needed
-for that service-to-service call — same shape as the existing
+§1.2/I3 resolved (2026-07-25, Option 2, see ADR-5): Barrin's Scripture
+calls a private ingestion route (`POST /internal/scripture/ingest`) on
+`barrins_api` rather than holding its own `DATABASE_URL`. That route
+needs a new service-to-service credential — same shape as the existing
 `github_token`/Moxfield-credential precedent: narrow-scope, backend-
 only, never reaching a browser. `security/secrets.md` needs updating to
 describe it, the same way ADR-1 already documents the reasoning for
@@ -33,9 +34,9 @@ every other secret's handling.
 
 ## Tasks
 
-- [ ] Wait on §1.2's outcome.
 - [ ] Generate/document the credential's `.env.example` entry for
-      whichever app(s) need it.
+      whichever app(s) need it (`barrins_api`, and Barrin's Scripture
+      once T1 lands).
 - [ ] Write the `security/secrets.md` section.
 
 ## UAT (manual)

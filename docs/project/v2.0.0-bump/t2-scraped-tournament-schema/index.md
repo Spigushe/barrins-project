@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` | New domain, `bs_`-prefixed (Barrin's Scripture) — decided 2026-07-26 |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — cannot start until §1.2 is decided | / |
+| **Status** | 🔲 Not started — unblocked, §1.2/I3 decided 2026-07-25 (Option 2 + maintenance-mode gate) | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §0, §1.2 | / |
 | **Dependency** | I3 (§1.2) | Blocks T3, T4 |
 
