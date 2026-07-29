@@ -7,7 +7,6 @@
         "ms-python.python",
         "ms-python.vscode-pylance",
         "ms-python.debugpy",
-        "ms-python.mypy-type-checker",
         "ms-python.vscode-python-envs",
         // Jupyter
         "ms-toolsai.jupyter",

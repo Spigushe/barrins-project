@@ -12,6 +12,7 @@ jobs:
     outputs:
       back: ${{ steps.filter.outputs.back }}
       front: ${{ steps.filter.outputs.front }}
+      scripture: ${{ steps.filter.outputs.scripture }}
       ops: ${{ steps.filter.outputs.ops }}
       docs: ${{ steps.filter.outputs.docs }}
     steps:
@@ -26,6 +27,8 @@ jobs:
             front:
               - 'apps/tamiyo_scroll/**'
               - 'apps/tolaria_news/**'
+            scripture:
+              - 'apps/barrins_scripture/**'
             ops:
               - 'ops/my-server/**'
             docs:
@@ -85,6 +88,24 @@ jobs:
       - run: npm run build --if-present
       - run: npm test --if-present
 
+  scripture:
+    needs: changes
+    if: needs.changes.outputs.scripture == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/barrins_scripture
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install deps
+        run: uv sync --all-extras --dev
+      - name: CI checks (lint, security, types, tests)
+        run: uv run python scripts/workflow_ci.py --no-fix
+
   ops:
     needs: changes
     if: needs.changes.outputs.ops == 'true'
@@ -118,12 +139,12 @@ jobs:
 
   ci-required:
     if: always()
-    needs: [changes, back, front, ops, docs]
+    needs: [changes, back, front, scripture, ops, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Verify no triggered job failed
         run: |
-          for r in "${{ needs.back.result }}" "${{ needs.front.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
+          for r in "${{ needs.back.result }}" "${{ needs.front.result }}" "${{ needs.scripture.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
               echo "A required job failed or was cancelled: $r"
               exit 1
