@@ -77,10 +77,13 @@ confidence to do so.
 
 ## Tasks
 
-- [ ] Confirm the new durable location for `mtg_scraper`/
-      `mtg_decklist_cache` with the user (a different GitHub org, or
-      under `Spigushe`) — whenever this item reaches the point of doing
-      the transfer, not on any particular deadline.
+- [x] Confirm the new durable location for `mtg_scraper`/
+      `mtg_decklist_cache` with the user. **Confirmed (2026-07-29)**:
+      `mtg_decklist_cache` → `Spigushe/mtg_decklist_cache`; `mtg_scraper`
+      → `barrins-archive/mtg_scraper`. Doesn't unblock the transfer
+      itself yet — that's still timed per the decisions above (right
+      before the v2.0.0 cut for the archive, once v2.0.0 ships for
+      `mtg_scraper`).
 - [ ] Transfer both repos there (full history intact).
 - [x] Write `apps/barrins_scripture` from scratch (rewrite, per §1.1
       Option 3 — not a `git subtree`/history-preserving merge): MTGO +
@@ -90,12 +93,20 @@ confidence to do so.
       daily/biweekly-gap-check *scheduling* itself (see the ops-playbook
       task below — the rewrite runs correctly on demand, but nothing
       triggers it on a schedule yet).
-- [ ] Add a `scripture` path filter + CI job to `.github/workflows/CI.yml`
-      (mirrors the existing `back`/`front` jobs' shape).
-- [ ] Add `ops/my-server/barrins_scripture.yml` (a new `systemd`
-      `.service`/`.timer` pair role, patterned on
-      `roles/postgres_backup/`) so the scrape actually runs on a
-      schedule, per the scheduling decision above.
+- [x] Add a `scripture` path filter + CI job to `.github/workflows/CI.yml`
+      (mirrors the existing `back`/`front` jobs' shape — no Postgres
+      service, per §1.2's no-direct-DB-access decision). A local CI
+      runner (`apps/barrins_scripture/scripts/workflow_ci.py`, mirroring
+      `barrins_api`'s) backs the job, same as `back` does.
+- [x] Add `ops/my-server/barrins_scripture.yml` + a new
+      `ops/my-server/roles/scripture_scraper/` role (`systemd`
+      `.service`/`.timer` pair, patterned on `roles/postgres_backup/`) so
+      the scrape actually runs on a schedule, per the scheduling decision
+      above. `ansible-lint` (run via WSL, since it doesn't run natively
+      on Windows) passes clean on both the role and the playbook — no
+      failures, no warnings. **Still not deployed to the real VPS** —
+      lint-clean confirms syntax/structure, not that a live run actually
+      schedules and executes a scrape end-to-end; that's still open.
 - [ ] Point the new implementation at `mtg_decklist_cache`'s new,
       durable location as the dump sub-repo per §1.3 (wire up the actual
       git submodule at `apps/barrins_scripture/scraped/` — until then,
