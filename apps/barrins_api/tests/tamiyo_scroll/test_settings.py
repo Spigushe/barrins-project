@@ -118,7 +118,7 @@ class TestSharedUsers:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_lists_users_who_enabled_sharing(
+    async def test_sharing_alone_is_not_enough_without_receive_opt_in(
         self, client: AsyncClient, owner_user: User, other_user: User
     ):
         await client.patch(
@@ -131,5 +131,149 @@ class TestSharedUsers:
             f"{BASE}/shared-users", headers=auth_headers(owner_user)
         )
         assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_lists_users_who_enabled_sharing_and_were_opted_into(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+        await client.post(
+            f"{BASE}/receive-opt-ins",
+            json={"sharer_id": str(other_user.id)},
+            headers=auth_headers(owner_user),
+        )
+
+        resp = await client.get(
+            f"{BASE}/shared-users", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 200
         emails = [u["email"] for u in resp.json()]
         assert emails == ["other@tamiyo-scroll.example.com"]
+
+
+class TestAvailableSharers:
+    async def test_lists_sharers_with_opt_in_state(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+
+        resp = await client.get(
+            f"{BASE}/available-sharers", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 200
+        assert resp.json() == [
+            {
+                "id": str(other_user.id),
+                "display_name": None,
+                "email": "other@tamiyo-scroll.example.com",
+                "opted_in": False,
+            }
+        ]
+
+    async def test_excludes_non_sharing_users(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        resp = await client.get(
+            f"{BASE}/available-sharers", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+class TestReceiveOptIns:
+    async def test_opt_in_then_appears_in_shared_users(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+
+        resp = await client.post(
+            f"{BASE}/receive-opt-ins",
+            json={"sharer_id": str(other_user.id)},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 201
+        assert resp.json()["opted_in"] is True
+
+        available = await client.get(
+            f"{BASE}/available-sharers", headers=auth_headers(owner_user)
+        )
+        assert available.json()[0]["opted_in"] is True
+
+    async def test_opt_in_to_non_sharing_user_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        resp = await client.post(
+            f"{BASE}/receive-opt-ins",
+            json={"sharer_id": str(other_user.id)},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_opt_in_to_self_returns_400(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.post(
+            f"{BASE}/receive-opt-ins",
+            json={"sharer_id": str(owner_user.id)},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 400
+
+    async def test_opt_in_is_idempotent(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+        headers = auth_headers(owner_user)
+        payload = {"sharer_id": str(other_user.id)}
+
+        first = await client.post(f"{BASE}/receive-opt-ins", json=payload, headers=headers)
+        second = await client.post(f"{BASE}/receive-opt-ins", json=payload, headers=headers)
+        assert first.status_code == 201
+        assert second.status_code == 201
+
+    async def test_opt_out_removes_from_shared_users(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+        headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/receive-opt-ins",
+            json={"sharer_id": str(other_user.id)},
+            headers=headers,
+        )
+
+        resp = await client.delete(
+            f"{BASE}/receive-opt-ins/{other_user.id}", headers=headers
+        )
+        assert resp.status_code == 204
+
+        shared = await client.get(f"{BASE}/shared-users", headers=headers)
+        assert shared.json() == []
+
+    async def test_opt_out_of_nonexistent_opt_in_is_a_no_op(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        resp = await client.delete(
+            f"{BASE}/receive-opt-ins/{other_user.id}", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 204

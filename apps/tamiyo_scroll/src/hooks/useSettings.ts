@@ -24,3 +24,34 @@ export function useSharedUsers() {
     queryFn: settingsApi.listSharedUsers,
   })
 }
+
+export function useAvailableSharers() {
+  return useQuery({
+    queryKey: ['settings', 'available-sharers'],
+    queryFn: settingsApi.listAvailableSharers,
+  })
+}
+
+function useInvalidateSharerQueries() {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: ['settings', 'available-sharers'] })
+    void queryClient.invalidateQueries({ queryKey: ['settings', 'shared-users'] })
+  }
+}
+
+export function useCreateReceiveOptIn() {
+  const invalidate = useInvalidateSharerQueries()
+  return useMutation({
+    mutationFn: settingsApi.createReceiveOptIn,
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteReceiveOptIn() {
+  const invalidate = useInvalidateSharerQueries()
+  return useMutation({
+    mutationFn: settingsApi.deleteReceiveOptIn,
+    onSuccess: invalidate,
+  })
+}

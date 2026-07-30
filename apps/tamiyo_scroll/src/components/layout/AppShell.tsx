@@ -20,8 +20,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: currentUser } = useCurrentUser()
   const logout = useLogout()
 
-  // Sharing/read-only viewing is disabled for v1.0.0 (SharingControls),
-  // so editing one's own data is always allowed here.
+  // Write routes ignore `owner_id` regardless of what's being viewed
+  // (ownership.resolve_owner is read-only-only), so editing one's own
+  // data is always allowed here even while viewing a shared user.
   const canEdit = true
   const activeDeckId = settings?.active_personal_deck_id ?? null
 

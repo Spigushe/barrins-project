@@ -1,4 +1,5 @@
-import { sharedUserSchema, userSettingsSchema } from '@/schemas/tamiyoScroll'
+import { z } from 'zod'
+import { availableSharerSchema, sharedUserSchema, userSettingsSchema } from '@/schemas/tamiyoScroll'
 import { apiRequest } from './client'
 
 export function getMySettings() {
@@ -17,4 +18,21 @@ export function updateMySettings(payload: {
 
 export function listSharedUsers() {
   return apiRequest('/bff/tamiyo-scroll/shared-users', sharedUserSchema.array())
+}
+
+export function listAvailableSharers() {
+  return apiRequest('/bff/tamiyo-scroll/available-sharers', availableSharerSchema.array())
+}
+
+export function createReceiveOptIn(sharerId: string) {
+  return apiRequest('/bff/tamiyo-scroll/receive-opt-ins', availableSharerSchema, {
+    method: 'POST',
+    body: { sharer_id: sharerId },
+  })
+}
+
+export function deleteReceiveOptIn(sharerId: string) {
+  return apiRequest(`/bff/tamiyo-scroll/receive-opt-ins/${sharerId}`, z.void(), {
+    method: 'DELETE',
+  })
 }

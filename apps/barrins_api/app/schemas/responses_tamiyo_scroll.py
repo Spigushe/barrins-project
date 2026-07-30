@@ -28,6 +28,19 @@ class ResponseSharedUser(BaseResponse):
     email: str
 
 
+class ResponseAvailableSharer(BaseResponse):
+    """Entry in the "Receive shared data from" opt-in management list.
+
+    Every user with `data_shared = True`, annotated with whether the
+    current viewer has already opted in to receive that sharer's data.
+    """
+
+    id: uuid.UUID
+    display_name: str | None
+    email: str
+    opted_in: bool
+
+
 class ResponsePersonalDeck(BaseResponse):
     id: uuid.UUID
     name: str

@@ -37,6 +37,14 @@ export const sharedUserSchema = z.object({
 })
 export type SharedUser = z.infer<typeof sharedUserSchema>
 
+export const availableSharerSchema = z.object({
+  id: z.uuid(),
+  display_name: z.string().nullable(),
+  email: z.email(),
+  opted_in: z.boolean(),
+})
+export type AvailableSharer = z.infer<typeof availableSharerSchema>
+
 export const personalDeckSchema = z.object({
   id: z.uuid(),
   name: z.string(),

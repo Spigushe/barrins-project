@@ -277,6 +277,42 @@ class TSPersonalDecklistVersion(Base):
     )
 
 
+class TSReceiveOptIn(Base):
+    """A viewer's opt-in to receive one specific sharer's shared data.
+
+    Per-sharer, not a single global toggle (S1, decided 2026-07-30): a
+    sharer with `ts_user_settings.data_shared = True` only becomes visible
+    in a given viewer's "View: {user}" selector once that viewer has
+    explicitly opted in to receive *that* sharer's data.
+    """
+
+    __tablename__ = "ts_receive_opt_ins"
+    __table_args__ = (
+        UniqueConstraint("viewer_id", "sharer_id", name="uq_ts_receive_opt_in"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    viewer_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sharer_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class TSUserSettings(Base):
     """A user's Tamiyo Scroll preferences (1 row/account, created on demand).
 

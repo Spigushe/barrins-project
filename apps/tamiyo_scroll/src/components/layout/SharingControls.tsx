@@ -1,5 +1,12 @@
 import { useCurrentUser } from '@/hooks/useAuth'
-import { useMySettings, useSharedUsers, useUpdateMySettings } from '@/hooks/useSettings'
+import {
+  useAvailableSharers,
+  useCreateReceiveOptIn,
+  useDeleteReceiveOptIn,
+  useMySettings,
+  useSharedUsers,
+  useUpdateMySettings,
+} from '@/hooks/useSettings'
 import { useViewingOwner } from '@/hooks/useViewingOwner'
 import { setViewingOwner } from '@/api/viewingOwner'
 import { Badge } from '@/components/ui/badge'
@@ -14,30 +21,20 @@ import {
 
 const SELF_VALUE = '__self__'
 
-/**
- * Not mature enough to ship in v1.0.0: the underlying data_shared/owner_id
- * enforcement is fully tested on the backend, but this UI has no
- * component-level test and is disabled until it gets one.
- */
-const SHARING_ENABLED = false
-
-/** "Share my data" toggle + "View: {user}" selector for read-only cross-user viewing. */
+/** "Share my data" toggle, per-sharer "receive" opt-ins, and "View: {user}" selector. */
 export function SharingControls() {
-  if (!SHARING_ENABLED) return null
   return <SharingControlsContent />
 }
 
-/**
- * The actual sharing UI, split out from the `SHARING_ENABLED` gate above so
- * it stays covered by a real render test while disabled, instead of
- * bit-rotting silently.
- */
 export function SharingControlsContent() {
   const { data: currentUser } = useCurrentUser()
   const { data: settings } = useMySettings()
   const { data: sharedUsers } = useSharedUsers()
+  const { data: availableSharers } = useAvailableSharers()
   const viewingOwner = useViewingOwner()
   const updateSettings = useUpdateMySettings()
+  const createReceiveOptIn = useCreateReceiveOptIn()
+  const deleteReceiveOptIn = useDeleteReceiveOptIn()
 
   function handleViewingChange(value: string) {
     if (value === SELF_VALUE) {
@@ -47,6 +44,14 @@ export function SharingControlsContent() {
     const user = sharedUsers?.find((candidate) => candidate.id === value)
     if (user) {
       setViewingOwner({ id: user.id, label: user.display_name ?? user.email })
+    }
+  }
+
+  function handleReceiveToggle(sharerId: string, checked: boolean) {
+    if (checked) {
+      void createReceiveOptIn.mutateAsync(sharerId)
+    } else {
+      void deleteReceiveOptIn.mutateAsync(sharerId)
     }
   }
 
@@ -81,6 +86,28 @@ export function SharingControlsContent() {
         />
         Share my data
       </label>
+
+      {availableSharers && availableSharers.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] text-muted-foreground">
+            Receive shared data from:
+          </span>
+          {availableSharers.map((sharer) => (
+            <label
+              key={sharer.id}
+              className="flex items-center gap-2 text-[13px] text-foreground"
+            >
+              <Checkbox
+                checked={sharer.opted_in}
+                onCheckedChange={(checked) => {
+                  handleReceiveToggle(sharer.id, checked === true)
+                }}
+              />
+              {sharer.display_name ?? sharer.email}
+            </label>
+          ))}
+        </div>
+      )}
     </>
   )
 }

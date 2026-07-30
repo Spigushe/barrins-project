@@ -16,6 +16,14 @@ class UserSettingsUpdate(BaseModel):
     active_personal_deck_id: uuid.UUID | None = None
 
 
+class ReceiveOptInCreate(BaseModel):
+    """Payload for POST /receive-opt-ins — opt in to one sharer's data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sharer_id: uuid.UUID
+
+
 class PersonalDeckCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

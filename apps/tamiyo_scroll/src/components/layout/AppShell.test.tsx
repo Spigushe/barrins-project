@@ -14,6 +14,14 @@ vi.mock('@/hooks/useAuth', () => ({
 vi.mock('@/hooks/useSettings', () => ({
   useMySettings: () => ({ data: { active_personal_deck_id: activePersonalDeckId } }),
   useUpdateMySettings: () => ({ mutateAsync: vi.fn() }),
+  useSharedUsers: () => ({ data: [] }),
+  useAvailableSharers: () => ({ data: [] }),
+  useCreateReceiveOptIn: () => ({ mutateAsync: vi.fn() }),
+  useDeleteReceiveOptIn: () => ({ mutateAsync: vi.fn() }),
+}))
+
+vi.mock('@/hooks/useViewingOwner', () => ({
+  useViewingOwner: () => null,
 }))
 
 vi.mock('@/hooks/usePersonalDecks', () => ({

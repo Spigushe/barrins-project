@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
-from app.models.tamiyo_scroll import TSUserSettings
+from app.models.tamiyo_scroll import TSReceiveOptIn, TSUserSettings
 from app.models.user import User
 
 
@@ -24,8 +24,10 @@ async def resolve_owner(
     """Resolve the user whose data must be read.
 
     `owner_id` missing or equal to `current_user.id` -> returns `current_user`.
-    `owner_id` different -> requires that the target exists (404 otherwise) and
-    has enabled sharing (`ts_user_settings.data_shared = True`, 403 otherwise).
+    `owner_id` different -> requires that the target exists (404 otherwise), has
+    enabled sharing (`ts_user_settings.data_shared = True`), and that
+    `current_user` has opted in to receive that specific sharer's data
+    (`ts_receive_opt_ins`) — 403 otherwise for either condition.
     """
     if owner_id is None or owner_id == current_user.id:
         return current_user
@@ -45,6 +47,18 @@ async def resolve_owner(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This user does not share their data.",
+        )
+
+    opt_in_result = await session.execute(
+        select(TSReceiveOptIn).where(
+            TSReceiveOptIn.viewer_id == current_user.id,
+            TSReceiveOptIn.sharer_id == owner_id,
+        )
+    )
+    if opt_in_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You have not opted in to receive this user's shared data.",
         )
 
     return target
