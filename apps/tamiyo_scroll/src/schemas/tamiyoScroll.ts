@@ -63,6 +63,8 @@ export const metaDeckSchema = z.object({
   conversion: z.number().nullable(),
   is_readonly: z.boolean(),
   shared_by: z.string().nullable().optional(),
+  has_shared_data: z.boolean(),
+  is_multi_share: z.boolean(),
 })
 export type MetaDeck = z.infer<typeof metaDeckSchema>
 
@@ -108,6 +110,7 @@ export const deckWinrateSchema = z.object({
   name: z.string(),
   winrate: z.number().nullable(),
   is_readonly: z.boolean(),
+  has_shared_data: z.boolean(),
 })
 export type DeckWinrate = z.infer<typeof deckWinrateSchema>
 
@@ -128,6 +131,7 @@ export const matchupRowSchema = z.object({
   ratio_otd: z.string(),
   match_count: z.number().int(),
   is_readonly: z.boolean(),
+  has_shared_data: z.boolean(),
 })
 export type MatchupRow = z.infer<typeof matchupRowSchema>
 

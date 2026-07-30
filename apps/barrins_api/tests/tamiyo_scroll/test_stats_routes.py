@@ -153,7 +153,7 @@ class TestSharedDataInStats:
         self, client: AsyncClient, owner_user: User, other_user: User
     ):
         other_headers = auth_headers(other_user)
-        other_personal, other_meta = await _setup_match(client, other_user)
+        await _setup_match(client, other_user)
         await client.patch(
             f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
         )
@@ -200,3 +200,51 @@ class TestSharedDataInStats:
         control = next(s for s in resp.json() if s["category"] == "control")
         assert control["average_winrate"] == 50.0
         assert control["decks"][0]["is_readonly"] is True
+
+    async def test_mixed_own_deck_has_shared_data_true_in_both_summaries(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        """A deck the owner ranks themselves that also received a merged
+        shared match is "mixed" — flagged via has_shared_data, distinct
+        from a fully-foreign (is_readonly) roster line."""
+        other_headers = auth_headers(other_user)
+        await _setup_match(client, other_user, category="control")
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+        )
+        await client.post(
+            f"{BASE}/meta-decks",
+            json={
+                "name": "Burn",
+                "tier": 2.0,
+                "category": "control",
+                "top8": 0,
+                "presence": 0,
+                "expected": "as_expected",
+            },
+            headers=owner_headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        matchup_resp = await client.get(
+            f"{BASE}/matchup-summary", headers=owner_headers
+        )
+        row = matchup_resp.json()["rows"][0]
+        assert row["is_readonly"] is False
+        assert row["has_shared_data"] is True
+
+        archetype_resp = await client.get(
+            f"{BASE}/archetype-summary", headers=owner_headers
+        )
+        control = next(s for s in archetype_resp.json() if s["category"] == "control")
+        assert control["decks"][0]["is_readonly"] is False
+        assert control["decks"][0]["has_shared_data"] is True

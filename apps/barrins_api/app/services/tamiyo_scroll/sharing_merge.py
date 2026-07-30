@@ -21,7 +21,8 @@ Reconciliation rule (per the user, 2026-07-30):
   entry is added as a new read-only line instead of being dropped.
 """
 
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -83,7 +84,14 @@ class EffectiveMatch:
 
 @dataclass(frozen=True)
 class EffectiveMetaDeck:
-    """A roster entry as it should appear in the viewer's own Metagame tab."""
+    """A roster entry as it should appear in the viewer's own Metagame tab.
+
+    `has_shared_data` marks an **own** (`is_readonly=False`) entry that has
+    also received at least one merged match from a sharer — distinct from
+    `is_readonly` (a fully-foreign entry with no owner equivalent). A deck
+    can be "mixed": the viewer's own matches plus a sharer's, both counted
+    under the same roster row (see reconciliation rule above).
+    """
 
     id: UUID
     name: str
@@ -97,6 +105,8 @@ class EffectiveMetaDeck:
     archived_at: datetime | None
     is_readonly: bool
     shared_by: str | None = None
+    has_shared_data: bool = False
+    is_multi_share: bool = False
 
 
 def _from_match(
@@ -122,7 +132,11 @@ def _from_match(
 
 
 def _from_meta_deck(
-    deck: TSMetaDeck, *, is_readonly: bool, shared_by: str | None
+    deck: TSMetaDeck,
+    *,
+    is_readonly: bool,
+    shared_by: str | None,
+    is_multi_share: bool = False,
 ) -> EffectiveMetaDeck:
     return EffectiveMetaDeck(
         id=deck.id,
@@ -137,6 +151,7 @@ def _from_meta_deck(
         archived_at=deck.archived_at,
         is_readonly=is_readonly,
         shared_by=shared_by,
+        is_multi_share=is_multi_share,
     )
 
 
@@ -251,38 +266,61 @@ async def build_merged_view(
     }
 
     # Sharer opponent id -> the id matches should effectively point to: the
-    # viewer's own roster entry (name match) or the sharer's own id (new
-    # read-only line).
+    # viewer's own roster entry (name match) or a consolidated foreign
+    # entry (new read-only line).
     opponent_remap: dict[UUID, UUID] = {}
-    seen_meta_deck_ids = {d.id for d in own_meta_decks}
+    # Foreign decks (no owner equivalent) grouped by normalized name: two
+    # different sharers each having their own "Aragorn, King of Gondor"
+    # roster entry must not produce two read-only lines — they're folded
+    # into one (highest tier wins, "multi share" instead of a single
+    # "from: {sharer}" once more than one sharer contributes).
+    foreign_groups: dict[str, list[TSMetaDeck]] = defaultdict(list)
     for sharer_deck in sharer_meta_decks_by_id.values():
         own_id = own_meta_deck_id_by_name.get(_norm(sharer_deck.name))
         if own_id is not None:
             opponent_remap[sharer_deck.id] = own_id
             continue
-        opponent_remap[sharer_deck.id] = sharer_deck.id
-        if sharer_deck.id not in seen_meta_deck_ids:
-            owner_label = sharer_label_by_id.get(
-                sharer_deck.owner_id, _ANONYMOUS_SHARER_LABEL
+        foreign_groups[_norm(sharer_deck.name)].append(sharer_deck)
+
+    for group in foreign_groups.values():
+        canonical = max(group, key=lambda d: d.tier)
+        for sharer_deck in group:
+            opponent_remap[sharer_deck.id] = canonical.id
+        distinct_owners = {d.owner_id for d in group}
+        is_multi_share = len(distinct_owners) > 1
+        owner_label = (
+            None
+            if is_multi_share
+            else sharer_label_by_id.get(canonical.owner_id, _ANONYMOUS_SHARER_LABEL)
+        )
+        effective_meta_decks.append(
+            _from_meta_deck(
+                canonical,
+                is_readonly=True,
+                shared_by=owner_label,
+                is_multi_share=is_multi_share,
             )
-            effective_meta_decks.append(
-                _from_meta_deck(sharer_deck, is_readonly=True, shared_by=owner_label)
-            )
-            seen_meta_deck_ids.add(sharer_deck.id)
+        )
+
+    own_meta_deck_ids = {d.id for d in own_meta_decks}
+    own_ids_with_shared_matches: set[UUID] = set()
 
     for match in sharer_matches:
         own_deck_id = matched_sharer_deck_own_id[match.personal_deck_id]
         owner_label = sharer_label_by_id.get(
             sharer_deck_owner[match.personal_deck_id], _ANONYMOUS_SHARER_LABEL
         )
+        resolved_opponent_id = opponent_remap.get(
+            match.opponent_deck_id, match.opponent_deck_id
+        )
+        if resolved_opponent_id in own_meta_deck_ids:
+            own_ids_with_shared_matches.add(resolved_opponent_id)
         effective_matches.append(
             EffectiveMatch(
                 id=match.id,
                 date=match.date,
                 personal_deck_id=own_deck_id,
-                opponent_deck_id=opponent_remap.get(
-                    match.opponent_deck_id, match.opponent_deck_id
-                ),
+                opponent_deck_id=resolved_opponent_id,
                 decklist_version_id=None,
                 on_play=match.on_play,
                 game1=match.game1,
@@ -296,5 +334,12 @@ async def build_merged_view(
                 shared_by=owner_label,
             )
         )
+
+    if own_ids_with_shared_matches:
+        effective_meta_decks = [
+            replace(d, has_shared_data=True) if d.id in own_ids_with_shared_matches
+            else d
+            for d in effective_meta_decks
+        ]
 
     return MergedView(matches=effective_matches, meta_decks=effective_meta_decks)

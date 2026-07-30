@@ -223,7 +223,15 @@ function RosterRow({
             }}
             disabled={!editable}
           />
-          {deck.is_readonly && <Badge variant="accent">from: {deck.shared_by}</Badge>}
+          {deck.is_readonly && deck.is_multi_share && (
+            <Badge variant="accent">multi share</Badge>
+          )}
+          {deck.is_readonly && !deck.is_multi_share && (
+            <Badge variant="accent">from: {deck.shared_by}</Badge>
+          )}
+          {!deck.is_readonly && deck.has_shared_data && (
+            <Badge variant="accent">with shared</Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
@@ -328,7 +336,15 @@ function ExpectedRow({
       <TableCell>
         <div className="flex flex-col gap-1">
           <span>{deck.name}</span>
-          {deck.is_readonly && <Badge variant="accent">from: {deck.shared_by}</Badge>}
+          {deck.is_readonly && deck.is_multi_share && (
+            <Badge variant="accent">multi share</Badge>
+          )}
+          {deck.is_readonly && !deck.is_multi_share && (
+            <Badge variant="accent">from: {deck.shared_by}</Badge>
+          )}
+          {!deck.is_readonly && deck.has_shared_data && (
+            <Badge variant="accent">w/ shared</Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>

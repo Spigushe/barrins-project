@@ -123,7 +123,12 @@ class TestArchiveMetaDeck:
 
 
 async def _share_a_match(
-    client: AsyncClient, sharer: User, receiver: User, *, opponent_name: str
+    client: AsyncClient,
+    sharer: User,
+    receiver: User,
+    *,
+    opponent_name: str,
+    opponent_tier: float = 2.5,
 ) -> None:
     """`sharer` logs a match for "King T'Challa" against `opponent_name`, then
     shares; `receiver` (same-named personal deck) enables receiving."""
@@ -133,7 +138,7 @@ async def _share_a_match(
     )
     personal_id = personal_resp.json()["id"]
     meta_deck = await _create_meta_deck(
-        client, sharer, name=opponent_name, tier=2.5, category="control"
+        client, sharer, name=opponent_name, tier=opponent_tier, category="control"
     )
     await client.post(
         f"{BASE}/matches",
@@ -183,6 +188,65 @@ class TestSharedRosterMerge:
         assert matching[0]["id"] == own_deck["id"]
         assert matching[0]["tier"] == 1.0
         assert matching[0]["is_readonly"] is False
+        # Bug (2026-07-30): an own deck that also received a merged match
+        # had no signal distinguishing it from a purely-own deck.
+        assert matching[0]["has_shared_data"] is True
+
+    async def test_own_deck_without_merged_matches_has_shared_data_false(
+        self, client: AsyncClient, owner_user: User
+    ):
+        owner_headers = auth_headers(owner_user)
+        await _create_meta_deck(
+            client, owner_user, name="Boros Energy", tier=1.0, category="aggro"
+        )
+
+        resp = await client.get(f"{BASE}/meta-decks", headers=owner_headers)
+        matching = [d for d in resp.json() if d["name"] == "Boros Energy"]
+        assert matching[0]["has_shared_data"] is False
+
+    async def test_two_sharers_same_named_deck_consolidate_into_one_line(
+        self, client: AsyncClient, owner_user: User, other_user: User, third_user: User
+    ):
+        """Bug (2026-07-30): two different sharers each having their own
+        roster entry for "the same" deck (no owner equivalent) must not
+        produce two read-only lines — one consolidated line, highest tier
+        wins, labeled "multi share" instead of a single "from: {sharer}"."""
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "King T'Challa"},
+            headers=owner_headers,
+        )
+        await _share_a_match(
+            client,
+            sharer=other_user,
+            receiver=owner_user,
+            opponent_name="Aragorn, King of Gondor",
+            opponent_tier=1.0,
+        )
+        await _share_a_match(
+            client,
+            sharer=third_user,
+            receiver=owner_user,
+            opponent_name="Aragorn, King of Gondor",
+            opponent_tier=3.0,
+        )
+
+        resp = await client.get(f"{BASE}/meta-decks", headers=owner_headers)
+        assert resp.status_code == 200
+        matching = [
+            d for d in resp.json() if d["name"] == "Aragorn, King of Gondor"
+        ]
+        assert len(matching) == 1
+        assert matching[0]["tier"] == 3.0
+        assert matching[0]["is_readonly"] is True
+        assert matching[0]["is_multi_share"] is True
+        assert matching[0]["shared_by"] is None
+
+        matches_resp = await client.get(f"{BASE}/matches", headers=owner_headers)
+        opponent_ids = {m["opponent_deck_id"] for m in matches_resp.json()}
+        # Both sharers' matches resolve to the same consolidated opponent.
+        assert opponent_ids == {matching[0]["id"]}
 
     async def test_archiving_own_matched_deck_falls_back_to_a_read_only_line(
         self, client: AsyncClient, owner_user: User, other_user: User

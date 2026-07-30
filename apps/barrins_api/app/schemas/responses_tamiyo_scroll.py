@@ -50,6 +50,8 @@ class ResponseMetaDeck(BaseResponse):
     archived_at: datetime | None
     is_readonly: bool = False
     shared_by: str | None = None
+    has_shared_data: bool = False
+    is_multi_share: bool = False
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -103,6 +105,7 @@ class ResponseDeckWinrate(BaseResponse):
     name: str
     winrate: float | None
     is_readonly: bool = False
+    has_shared_data: bool = False
 
 
 class ResponseArchetypeSummary(BaseResponse):
@@ -121,6 +124,7 @@ class ResponseMatchupRow(BaseResponse):
     ratio_otd: str
     match_count: int
     is_readonly: bool = False
+    has_shared_data: bool = False
 
 
 class ResponseMatchupSummary(BaseResponse):

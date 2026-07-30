@@ -31,10 +31,12 @@ class MatchLike(Protocol):
     def game2(self) -> GameResult | None: ...
     @property
     def game3(self) -> GameResult | None: ...
+    @property
+    def is_readonly(self) -> bool: ...
 
 
 class MetaDeckLike(Protocol):
-    """Structural type satisfied by `TSMetaDeck` and `sharing_merge.EffectiveMetaDeck`."""
+    """Structural type satisfied by `TSMetaDeck` and `EffectiveMetaDeck`."""
 
     @property
     def id(self) -> UUID: ...
@@ -49,6 +51,7 @@ class DeckWinrate(TypedDict):
     name: str
     winrate: float | None
     is_readonly: bool
+    has_shared_data: bool
 
 
 class ArchetypeSummary(TypedDict):
@@ -67,6 +70,7 @@ class MatchupRow(TypedDict):
     ratio_otd: str
     match_count: int
     is_readonly: bool
+    has_shared_data: bool
 
 
 def _tally_games(
@@ -131,13 +135,17 @@ def compute_archetype_summary(
     for category in ArchetypeCategory:
         deck_winrates: list[DeckWinrate] = []
         for deck in decks_by_category.get(category, []):
-            wins, losses, _ = _tally_games(matches_by_opponent.get(deck.id, []))
+            deck_matches = matches_by_opponent.get(deck.id, [])
+            wins, losses, _ = _tally_games(deck_matches)
+            deck_is_readonly = deck.id in readonly_meta_deck_ids
             deck_winrates.append(
                 {
                     "id": deck.id,
                     "name": deck.name,
                     "winrate": _winrate(wins, losses),
-                    "is_readonly": deck.id in readonly_meta_deck_ids,
+                    "is_readonly": deck_is_readonly,
+                    "has_shared_data": not deck_is_readonly
+                    and any(m.is_readonly for m in deck_matches),
                 }
             )
         deck_winrates.sort(key=lambda d: d["name"].lower())
@@ -176,6 +184,7 @@ def compute_matchup_summary(
         otp_wins, otp_losses, _ = _tally_games(opponent_matches, on_play=True)
         otd_wins, otd_losses, _ = _tally_games(opponent_matches, on_play=False)
         deck = meta_decks_by_id.get(opponent_id)
+        row_is_readonly = opponent_id in readonly_meta_deck_ids
         rows.append(
             {
                 "opponent_deck_id": opponent_id,
@@ -186,7 +195,9 @@ def compute_matchup_summary(
                 "ratio_otp": _ratio(otp_wins, otp_losses),
                 "ratio_otd": _ratio(otd_wins, otd_losses),
                 "match_count": len(opponent_matches),
-                "is_readonly": opponent_id in readonly_meta_deck_ids,
+                "is_readonly": row_is_readonly,
+                "has_shared_data": not row_is_readonly
+                and any(m.is_readonly for m in opponent_matches),
             }
         )
     rows.sort(key=lambda r: r["opponent_deck_name"].lower())
