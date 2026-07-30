@@ -15,6 +15,16 @@ from app.database import Base
 from app.models._types import JSONBCompat, JsonValue, jsonb_column
 from app.models.base import IDUuidMixin, TimestampMixin
 from app.models.email_verification import EmailVerification
+from app.models.scripture import (
+    BSDeck,
+    BSDeckBoard,
+    BSDeckCard,
+    BSRound,
+    BSRoundMatch,
+    BSSource,
+    BSStanding,
+    BSTournament,
+)
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
     DecklistVersionSource,
@@ -31,6 +41,14 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "ArchetypeCategory",
+    "BSDeck",
+    "BSDeckBoard",
+    "BSDeckCard",
+    "BSRound",
+    "BSRoundMatch",
+    "BSSource",
+    "BSStanding",
+    "BSTournament",
     "Base",
     "DecklistVersionSource",
     "EmailVerification",

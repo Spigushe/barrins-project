@@ -11,7 +11,7 @@ class CardEntry(BaseModel):
 class Deck(BaseModel):
     date: date
     player: str
-    result: int | None = None
+    result: str | None = None
     anchor_uri: str
     mainboard: list[CardEntry]
     sideboard: list[CardEntry] | None = None

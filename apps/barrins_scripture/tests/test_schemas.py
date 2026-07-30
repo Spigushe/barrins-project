@@ -43,13 +43,16 @@ class TestDeck:
         deck = Deck(
             date=date(2026, 3, 23),
             player="Spigushe",
-            result=1,
+            result="5-8",
             anchor_uri="https://mtgo.com/decklist/legacy-league-2026-03-2310381",
             mainboard=[CardEntry(count=4, name="Lightning Bolt")],
             sideboard=[CardEntry(count=2, name="Pyroblast")],
             notes="Top 8",
         )
-        assert deck.result == 1
+        # `result` is a string, not an int: MTGTop8 reports ties past the
+        # top few places as a bracket range ("5-8", "9-16", ...), which an
+        # int field can't hold without silently discarding the upper bound.
+        assert deck.result == "5-8"
         assert deck.sideboard == [CardEntry(count=2, name="Pyroblast")]
         assert deck.notes == "Top 8"
 

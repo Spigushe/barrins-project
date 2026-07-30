@@ -20,6 +20,10 @@ def _expected_cards(entries: list[dict]) -> set[tuple[str, int]]:
     return {(entry["name"], entry["count"]) for entry in entries}
 
 
+def _as_str(value: object) -> str | None:
+    return None if value is None else str(value)
+
+
 class TestMtgoParser:
     """Against a closed, immutable Duel Commander League run (2026-06-27) —
     re-fetched live and diffed against mtg_decklist_cache's archived JSON for
@@ -59,7 +63,11 @@ class TestMtgoParser:
         by_player = {d.player: d for d in decks}
         for exp_deck in expected["decks"]:
             got = by_player[exp_deck["player"]]
-            assert got.result == exp_deck["result"]
+            # `result` is now a string (see TestDeck.test_construction_with_all_fields
+            # for why); the archived JSON predates that and still has a bare int for
+            # this no-ties event, so compare the string forms rather than editing the
+            # archive copy to match.
+            assert _as_str(got.result) == _as_str(exp_deck["result"])
             assert _cards(got.mainboard) == _expected_cards(exp_deck["mainboard"])
             assert _cards(got.sideboard or []) == _expected_cards(
                 exp_deck["sideboard"] or []
@@ -144,7 +152,7 @@ class TestMtgtop8Parser:
         exp_deck = expected["decks"][0]
         assert deck_id == 874003
         assert deck.player == exp_deck["player"]
-        assert deck.result == exp_deck["result"]
+        assert _as_str(deck.result) == _as_str(exp_deck["result"])
         assert _cards(deck.mainboard) == _expected_cards(exp_deck["mainboard"])
         assert _cards(deck.sideboard or []) == _expected_cards(exp_deck["sideboard"])
 
@@ -162,3 +170,50 @@ class TestMtgtop8Parser:
             decks = mtgtop8.decks(soup)
 
         assert len(decks) == len(expected["decks"])
+
+
+class TestMtgtop8TieBracketResults:
+    """Regression coverage for a real bug found while designing T2's schema
+    (`docs/project/v2.0.0-bump/t2-scraped-tournament-schema/index.md`):
+    MTGTop8 reports ties past the top few places as a bracket range
+    ("3-4", "5-8", "9-16", "17-32", ...), not a single placement number.
+    `event_88803` (8 players, no ties) can't exercise this — every fixture
+    used elsewhere in this suite happens to have clean, untied placements.
+
+    Fixture: a real, live-fetched event (391 players, genuine ties at every
+    bracket level) — chosen specifically for this. Only `result` is
+    asserted; per-deck decklists aren't fetched (`get_decklist` is mocked,
+    as `test_decks_enumerates_every_top8_entry` above already does), since
+    decklist fidelity isn't what this fixture is for.
+    """
+
+    URL = "https://mtgtop8.com/event?e=87792&f=EDH"
+
+    @pytest.fixture
+    def soup(self) -> BeautifulSoup:
+        html = (FIXTURES / "mtgtop8" / "event_87792_edh.html").read_text(
+            encoding="iso-8859-1"
+        )
+        return BeautifulSoup(html, "html.parser")
+
+    def test_tie_ranges_are_kept_whole_not_truncated_to_the_leading_int(
+        self, soup: BeautifulSoup
+    ) -> None:
+        with (
+            patch.object(
+                mtgtop8,
+                "get_decklist",
+                return_value=([CardEntry(count=1, name="Filler")], []),
+            ),
+            patch.object(mtgtop8, "get_notes", return_value=None),
+        ):
+            decks = mtgtop8.decks(soup)
+
+        assert len(decks) == 64
+        results = {d.result for d in decks}
+        # Before the fix, `get_deck_from_top8` kept only the leading digits
+        # of a range (int(re.match(...).group(1))), so "5-8" silently
+        # became 5, "9-16" became 9, etc. — indistinguishable from an
+        # untied 5th/9th place. This asserts the ranges survive intact.
+        assert {"1", "2", "3-4", "5-8", "9-16", "17-32", "33-64"} <= results
+        assert all(isinstance(r, str) for r in results)

@@ -112,7 +112,7 @@ def get_deck(deck_section: Tag, url: str) -> Deck:
     return Deck(
         date=event_date,
         player=player_name,
-        result=position_number,
+        result=str(position_number) if position_number is not None else None,
         anchor_uri=f"{url}#{deck_section['id']}",
         mainboard=mainboard,
         sideboard=sideboard,

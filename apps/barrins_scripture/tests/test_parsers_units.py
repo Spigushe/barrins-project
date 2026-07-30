@@ -92,7 +92,7 @@ class TestMtgoBracketAndStandings:
         assert deck_section is not None
         deck = mtgo.get_deck(deck_section, "https://example.test")
         assert deck.player == "Alice"
-        assert deck.result == 1
+        assert deck.result == "1"
 
 
 class TestMtgtop8Fallbacks:
