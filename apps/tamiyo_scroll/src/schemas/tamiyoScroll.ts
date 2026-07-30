@@ -46,6 +46,9 @@ export const decklistVersionSchema = z.object({
   content: z.string(),
   source: decklistVersionSourceSchema,
   created_at: z.iso.datetime({ offset: true }),
+  // Only set on the import-moxfield response itself (S3's opportunistic
+  // staleness check) — null on every other decklist-version response.
+  moxfield_deck_changed_since_last_import: z.boolean().nullable().default(null),
 })
 export type DecklistVersion = z.infer<typeof decklistVersionSchema>
 
