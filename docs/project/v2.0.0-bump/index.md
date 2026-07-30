@@ -38,7 +38,13 @@ scoping T3: `bs_deck_cards.card_name` has no authoritative MTG card list
 to validate against, since S8 doesn't exist yet — decided that T3 now
 **blocks on S8** rather than ingesting unvalidated strings, reopening
 S8's scope to cover T3 in addition to S4; the `proj/v2.0.0-bump` T-group
-work is on hold behind this until S8 is scoped). **Every item
+work is on hold behind this until S8 is scoped); and, the same day, a new
+item **S12** (UI/UX polish bundle — four small, independent
+`tamiyo_scroll`-only fixes carried in from the feature-roadmap backlog:
+a green `[new]` label on personal-deck creation (no icon library
+needed), tested-cards/BO3-opponent select parity, the "Final turn"
+label rename, and the matchup-summary "Games" → "Matches" column
+rename; no schema/API impact). **Every item
 in §1 is now decided.** A decision recorded
 here is not yet a committed ADR — per Constitution §16.2 ("never guess
 requirements... changing deployment architecture, introducing a
@@ -1005,6 +1011,7 @@ R5 turning each into a real ADR.
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | New `ts_sessions` table, soft-deleted via `archived_at` (consistent with `TSPersonalDeck`/`TSMetaDeck`). Matches-only for v1 — card-test analysis across decklist versions is already extrapolable without a session concept. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | `CardGame` enum (recommended), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. Un-deferred because the logging gate is a live v2 consumer. Enum-vs-boolean + game list still to confirm | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (none exists today) unblocks historical decks. Distinct from S10 (deferred): the logging gate is a live v2 consumer | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
+| S12 | UI/UX polish bundle — four small frontend fixes brought into v2.0.0 from the feature-roadmap backlog (`docs/content/front/tamiyo_scroll/roadmap.md`, "v2.0.0 candidates" section), added 2026-07-30 | — | All four are frontend-only (`apps/tamiyo_scroll`), no schema/API change: personal-deck creation affordance gets a green `[new]` text label (no icon library needed — `apps/tamiyo_scroll` has none today); the "tested cards" matchup select is rebuilt on the same combobox pattern as the BO3 opponent select; "Final turn" label renamed; matchup-summary "Games" column (already counting `match_count`) relabelled "Matches" | [s12-uiux-polish/](s12-uiux-polish/index.md) |
 
 ### Group F — Fixes flagged in docs and roadmap (request item 3)
 
