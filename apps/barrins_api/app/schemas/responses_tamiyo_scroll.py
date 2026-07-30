@@ -35,6 +35,10 @@ class ResponseDecklistVersion(BaseResponse):
     content: str
     source: DecklistVersionSource
     created_at: datetime
+    # Only ever set on the import-moxfield response itself (S3's opportunistic
+    # staleness check) — None everywhere else: no prior Moxfield-sourced
+    # version to compare against, or this version isn't a Moxfield import.
+    moxfield_deck_changed_since_last_import: bool | None = None
 
 
 class ResponseMetaDeck(BaseResponse):

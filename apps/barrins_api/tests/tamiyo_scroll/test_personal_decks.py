@@ -1,10 +1,15 @@
 """Tests for /bff/tamiyo-scroll/personal-decks and its sub-resources."""
 
+import uuid
+
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.main import app
+from app.models.tamiyo_scroll import TSPersonalDecklistVersion
 from app.models.user import User
 from app.services.moxfield import get_moxfield_client
+from app.services.moxfield.base import MoxfieldDeckFetch
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
@@ -157,8 +162,11 @@ class TestDecklistVersions:
         self, client: AsyncClient, owner_user: User
     ):
         class _FakeMoxfieldClient:
-            async def fetch_decklist(self, deck_url: str) -> str:
-                return "4 Lightning Bolt\n1 Sol Ring"
+            async def fetch_decklist(self, deck_url: str) -> MoxfieldDeckFetch:
+                return MoxfieldDeckFetch(
+                    content="4 Lightning Bolt\n1 Sol Ring",
+                    raw_data={"lastUpdatedAtUtc": "2026-07-29T11:54:52.473Z"},
+                )
 
         app.dependency_overrides[get_moxfield_client] = lambda: _FakeMoxfieldClient()
         try:
@@ -176,6 +184,112 @@ class TestDecklistVersions:
         body = resp.json()
         assert body["source"] == "moxfield_import"
         assert body["content"] == "4 Lightning Bolt\n1 Sol Ring"
+        # First import for this deck — nothing to compare against yet.
+        assert body["moxfield_deck_changed_since_last_import"] is None
+
+    async def test_moxfield_import_flags_staleness_when_deck_changed(
+        self, client: AsyncClient, owner_user: User
+    ):
+        class _FakeMoxfieldClient:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def fetch_decklist(self, deck_url: str) -> MoxfieldDeckFetch:
+                self.calls += 1
+                last_updated = (
+                    "2026-07-29T11:54:52.473Z"
+                    if self.calls == 1
+                    else "2026-07-30T09:00:00.000Z"
+                )
+                return MoxfieldDeckFetch(
+                    content=f"1 Sol Ring (v{self.calls})",
+                    raw_data={"lastUpdatedAtUtc": last_updated},
+                )
+
+        fake_client = _FakeMoxfieldClient()
+        app.dependency_overrides[get_moxfield_client] = lambda: fake_client
+        try:
+            deck_id = await _create_deck(client, owner_user)
+            headers = auth_headers(owner_user)
+            payload = {"moxfield_url": "https://moxfield.com/decks/abc123"}
+            first = await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json=payload,
+                headers=headers,
+            )
+            second = await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json=payload,
+                headers=headers,
+            )
+        finally:
+            app.dependency_overrides.pop(get_moxfield_client, None)
+
+        assert first.json()["moxfield_deck_changed_since_last_import"] is None
+        assert second.json()["moxfield_deck_changed_since_last_import"] is True
+
+    async def test_moxfield_import_flags_no_change_when_deck_unchanged(
+        self, client: AsyncClient, owner_user: User
+    ):
+        class _FakeMoxfieldClient:
+            async def fetch_decklist(self, deck_url: str) -> MoxfieldDeckFetch:
+                return MoxfieldDeckFetch(
+                    content="1 Sol Ring",
+                    raw_data={"lastUpdatedAtUtc": "2026-07-29T11:54:52.473Z"},
+                )
+
+        app.dependency_overrides[get_moxfield_client] = lambda: _FakeMoxfieldClient()
+        try:
+            deck_id = await _create_deck(client, owner_user)
+            headers = auth_headers(owner_user)
+            payload = {"moxfield_url": "https://moxfield.com/decks/abc123"}
+            await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json=payload,
+                headers=headers,
+            )
+            second = await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json=payload,
+                headers=headers,
+            )
+        finally:
+            app.dependency_overrides.pop(get_moxfield_client, None)
+
+        assert second.json()["moxfield_deck_changed_since_last_import"] is False
+
+    async def test_moxfield_import_persists_full_raw_response(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        raw = {
+            "lastUpdatedAtUtc": "2026-07-29T11:54:52.473Z",
+            "mainboard": {"Sol Ring": {"quantity": 1, "prices": {"usd": "1.23"}}},
+        }
+
+        class _FakeMoxfieldClient:
+            async def fetch_decklist(self, deck_url: str) -> MoxfieldDeckFetch:
+                return MoxfieldDeckFetch(content="1 Sol Ring", raw_data=raw)
+
+        app.dependency_overrides[get_moxfield_client] = lambda: _FakeMoxfieldClient()
+        try:
+            deck_id = await _create_deck(client, owner_user)
+            headers = auth_headers(owner_user)
+            resp = await client.post(
+                f"{BASE}/personal-decks/{deck_id}/versions/import-moxfield",
+                json={"moxfield_url": "https://moxfield.com/decks/abc123"},
+                headers=headers,
+            )
+        finally:
+            app.dependency_overrides.pop(get_moxfield_client, None)
+
+        version_id = uuid.UUID(resp.json()["id"])
+        result = await db_session.execute(
+            select(TSPersonalDecklistVersion).where(
+                TSPersonalDecklistVersion.id == version_id
+            )
+        )
+        version = result.scalar_one()
+        assert version.moxfield_data == raw
 
     async def test_delete_version(self, client: AsyncClient, owner_user: User):
         deck_id = await _create_deck(client, owner_user)

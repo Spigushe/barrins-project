@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
+from app.models._types import JsonValue
 from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     TSCardTest,
@@ -47,11 +48,31 @@ async def _get_owned_personal_deck(
     return deck
 
 
+def _moxfield_last_updated_at(raw_data: JsonValue | None) -> datetime | None:
+    """Root-level `lastUpdatedAtUtc` only — never a recursive search.
+
+    The same key also appears nested ~100+ times inside each card's
+    `prices` object (an unrelated per-card price-refresh time); reading it
+    off the root dict specifically is what avoids that trap (see
+    http_client.py's module docstring).
+    """
+    if not isinstance(raw_data, dict):
+        return None
+    value = raw_data.get("lastUpdatedAtUtc")
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 async def _create_version(
     session: DatabaseSession,
     deck: TSPersonalDeck,
     content: str,
     source: DecklistVersionSource,
+    moxfield_data: JsonValue | None = None,
 ) -> TSPersonalDecklistVersion:
     # Locks the parent deck's row to prevent a race on the version number
     # between two concurrent requests (cf. plan, Points of vigilance).
@@ -70,6 +91,7 @@ async def _create_version(
         version=next_version,
         content=content,
         source=source,
+        moxfield_data=moxfield_data,
     )
     session.add(version)
     await session.commit()
@@ -168,13 +190,45 @@ async def import_moxfield(
     current_user: CurrentUser,
     moxfield: MoxfieldClientDep,
 ) -> ResponseDecklistVersion:
-    """Create a new decklist version from a public Moxfield deck URL."""
+    """Create a new decklist version from a public Moxfield deck URL.
+
+    Also opportunistically checks staleness (S3): compares this fetch's
+    `lastUpdatedAtUtc` against the deck's prior Moxfield-sourced version
+    (if any) — no dedicated Moxfield call is made just for this, per the
+    2026-07-27 constraint (see S3 doc).
+    """
     deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
-    content = await moxfield.fetch_decklist(payload.moxfield_url)
-    version = await _create_version(
-        session, deck, content, DecklistVersionSource.moxfield_import
+    fetch = await moxfield.fetch_decklist(payload.moxfield_url)
+
+    prior_result = await session.execute(
+        select(TSPersonalDecklistVersion)
+        .where(
+            TSPersonalDecklistVersion.personal_deck_id == deck.id,
+            TSPersonalDecklistVersion.source == DecklistVersionSource.moxfield_import,
+        )
+        .order_by(TSPersonalDecklistVersion.version.desc())
+        .limit(1)
     )
-    return ResponseDecklistVersion.model_validate(version)
+    prior_version = prior_result.scalar_one_or_none()
+
+    changed_since_last_import: bool | None = None
+    if prior_version is not None:
+        prior_last_updated = _moxfield_last_updated_at(prior_version.moxfield_data)
+        new_last_updated = _moxfield_last_updated_at(fetch.raw_data)
+        if prior_last_updated is not None and new_last_updated is not None:
+            changed_since_last_import = new_last_updated != prior_last_updated
+
+    version = await _create_version(
+        session,
+        deck,
+        fetch.content,
+        DecklistVersionSource.moxfield_import,
+        moxfield_data=fetch.raw_data,
+    )
+    response = ResponseDecklistVersion.model_validate(version)
+    return response.model_copy(
+        update={"moxfield_deck_changed_since_last_import": changed_since_last_import}
+    )
 
 
 @router.delete(

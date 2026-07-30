@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models._types import JsonValue, jsonb_column
 
 
 class GameResult(enum.StrEnum):
@@ -275,6 +276,11 @@ class TSPersonalDecklistVersion(Base):
         default=DecklistVersionSource.manual,
         server_default=DecklistVersionSource.manual.value,
     )
+    # Full, unmodified Moxfield API response for this version — only ever
+    # set when source == moxfield_import (NULL for manual entries). Kept
+    # verbatim (not just the fields used today) so later features can read
+    # more of it without a second Moxfield call; see S3's staleness check.
+    moxfield_data: Mapped[JsonValue | None] = jsonb_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

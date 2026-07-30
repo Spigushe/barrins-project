@@ -4,12 +4,13 @@ Endpoint and required header confirmed against a Postman collection the
 user supplied (api2.moxfield.com, `GET /v2/decks/all/{publicId}`, no
 bearer token needed — just a Moxfield-assigned `User-Agent` value).
 
-The response JSON's exact shape (the `mainboard`/`commanders` board
-structure below) is a best-effort match of Moxfield's known public deck
-export format — it was not verified against a live response from here
-(no outbound network access in this environment). Verify during UAT
-against a real deck URL; adjust field names below if the real response
-differs.
+The `mainboard`/`commanders`/`companions` board structure and the
+root-level `lastUpdatedAtUtc`/`createdAtUtc` fields were confirmed
+against a real deck URL on 2026-07-30 (see S3's Moxfield-staleness
+scoping notes). `lastUpdatedAtUtc` also appears, unrelated, ~100+ times
+nested inside each card's `prices` object — callers reading it back out
+of `raw_data` must read `raw_data["lastUpdatedAtUtc"]` at the root, never
+a recursive/flattened search.
 """
 
 import asyncio
@@ -25,6 +26,7 @@ from app.core.exceptions import (
     ResourceNotFoundError,
 )
 from app.core.log_config import get_logger
+from app.services.moxfield.base import MoxfieldDeckFetch
 
 logger = get_logger(__name__)
 
@@ -65,7 +67,7 @@ class HttpxMoxfieldClient:
         # to avoid any real network call.
         self._transport = transport
 
-    async def fetch_decklist(self, deck_url: str) -> str:
+    async def fetch_decklist(self, deck_url: str) -> MoxfieldDeckFetch:
         deck_id = _extract_deck_id(deck_url)
         await self._wait_for_rate_limit()
 
@@ -95,7 +97,7 @@ class HttpxMoxfieldClient:
         lines += _format_board(data.get("commanders", {}))
         lines += _format_board(data.get("companions", {}))
         lines += _format_board(data.get("mainboard", {}))
-        return "\n".join(lines)
+        return MoxfieldDeckFetch(content="\n".join(lines), raw_data=data)
 
     async def _wait_for_rate_limit(self) -> None:
         global _last_request_monotonic
