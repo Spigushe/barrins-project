@@ -13,6 +13,7 @@ const baseMatch: Match = {
   date: '2026-07-15',
   personal_deck_id: 'deck-mine',
   opponent_deck_id: 'deck-theirs',
+  decklist_version_id: 'version-2',
   on_play: true,
   game1: 'win',
   game2: 'loss',
@@ -21,6 +22,8 @@ const baseMatch: Match = {
   turning_point: null,
   final_turn: null,
   created_at: '2026-07-15T12:00:00+00:00',
+  is_readonly: false,
+  shared_by: null,
 }
 
 describe('emptyMatchDraft', () => {
@@ -35,11 +38,16 @@ describe('emptyMatchDraft', () => {
   it('leaves personalDeckId empty when there is no active deck', () => {
     expect(emptyMatchDraft(null).personalDeckId).toBe('')
   })
+
+  it('never guesses a decklist version — the backend auto-stamps it on create', () => {
+    expect(emptyMatchDraft('deck-mine').decklistVersionId).toBeNull()
+  })
 })
 
 describe('draftFromMatch / matchDraftToWrite round-trip', () => {
   it('preserves games, on_play, and free-text fields', () => {
     const draft = draftFromMatch(baseMatch)
+    expect(draft.decklistVersionId).toBe('version-2')
     expect(draft.game1).toBe('win')
     expect(draft.game2).toBe('loss')
     expect(draft.game3).toBe(GAME_NOT_PLAYED)
@@ -49,6 +57,7 @@ describe('draftFromMatch / matchDraftToWrite round-trip', () => {
     expect(write).toEqual({
       personal_deck_id: 'deck-mine',
       opponent_deck_id: 'deck-theirs',
+      decklist_version_id: 'version-2',
       on_play: true,
       game1: 'win',
       game2: 'loss',

@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useMySettings } from '@/hooks/useSettings'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
+import { AccountSettingsDialog } from '@/components/layout/AccountSettingsDialog'
 import { PersonalDeckSelector } from '@/components/layout/PersonalDeckSelector'
-import { SharingControls } from '@/components/layout/SharingControls'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { to: '/app/bo3-tracker', label: 'BO3 Tracking' },
+  { to: '/app/tracker', label: 'BO3 Tracking' },
   { to: '/app/metagame', label: 'Metagame' },
   { to: '/app/decklist', label: 'My decklist' },
 ]
@@ -19,10 +19,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: settings } = useMySettings()
   const { data: currentUser } = useCurrentUser()
   const logout = useLogout()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // Write routes ignore `owner_id` regardless of what's being viewed
-  // (ownership.resolve_owner is read-only-only), so editing one's own
-  // data is always allowed here even while viewing a shared user.
+  // No more "view as another user" mode (retired 2026-07-30) — shared
+  // data is merged directly, read-only per-row (`match.is_readonly` /
+  // `metaDeck.is_readonly`), not gated by a page-wide flag. Always true;
+  // kept for ActiveDeckContext's existing shape rather than reworking it.
   const canEdit = true
   const activeDeckId = settings?.active_personal_deck_id ?? null
 
@@ -42,13 +44,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <SharingControls />
-
           {currentUser && (
             <span className="text-sm text-muted-foreground">
               Welcome, {currentUser.display_name ?? currentUser.email}
             </span>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setSettingsOpen(true)
+            }}
+          >
+            Settings
+          </Button>
 
           <Button
             type="button"
@@ -60,6 +70,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
+
+      <AccountSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <div className="mt-5 flex flex-wrap items-end gap-3">
         <PersonalDeckSelector />

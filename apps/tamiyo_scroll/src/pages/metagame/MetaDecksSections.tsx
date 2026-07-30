@@ -13,6 +13,7 @@ import type {
   MetaDeckWrite,
 } from '@/schemas/tamiyoScroll'
 import { ARCHETYPE_LABELS, EXPECTED_LABELS, formatPercent } from '@/lib/mtg-format'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -185,6 +186,7 @@ function RosterRow({
 }) {
   const [name, setName] = useState(deck.name)
   const [notes, setNotes] = useState(deck.decklist_notes ?? '')
+  const editable = canEdit && !deck.is_readonly
 
   return (
     <TableRow>
@@ -194,7 +196,7 @@ function RosterRow({
           onValueChange={(value) => {
             onSave(toWrite(deck, { tier: Number(value) }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -209,17 +211,20 @@ function RosterRow({
         </Select>
       </TableCell>
       <TableCell>
-        <Input
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value)
-          }}
-          onBlur={() => {
-            if (name.trim() && name !== deck.name)
-              onSave(toWrite(deck, { name: name.trim() }))
-          }}
-          disabled={!canEdit}
-        />
+        <div className="flex flex-col gap-1">
+          <Input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+            }}
+            onBlur={() => {
+              if (name.trim() && name !== deck.name)
+                onSave(toWrite(deck, { name: name.trim() }))
+            }}
+            disabled={!editable}
+          />
+          {deck.is_readonly && <Badge variant="accent">from: {deck.shared_by}</Badge>}
+        </div>
       </TableCell>
       <TableCell>
         <Select
@@ -227,7 +232,7 @@ function RosterRow({
           onValueChange={(value) => {
             onSave(toWrite(deck, { category: value as ArchetypeCategory }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -252,14 +257,16 @@ function RosterRow({
               onSave(toWrite(deck, { decklist_notes: notes || null }))
             }
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       {canEdit && (
         <TableCell>
-          <Button type="button" variant="ghost" size="icon" onClick={onDelete}>
-            ✕
-          </Button>
+          {editable && (
+            <Button type="button" variant="ghost" size="icon" onClick={onDelete}>
+              ✕
+            </Button>
+          )}
         </TableCell>
       )}
     </TableRow>
@@ -314,10 +321,16 @@ function ExpectedRow({
   const [top8, setTop8] = useState(String(deck.top8))
   const [presence, setPresence] = useState(String(deck.presence))
   const [testsStatus, setTestsStatus] = useState(deck.tests_status ?? '')
+  const editable = canEdit && !deck.is_readonly
 
   return (
     <TableRow>
-      <TableCell>{deck.name}</TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <span>{deck.name}</span>
+          {deck.is_readonly && <Badge variant="accent">from: {deck.shared_by}</Badge>}
+        </div>
+      </TableCell>
       <TableCell>
         <Input
           type="number"
@@ -330,7 +343,7 @@ function ExpectedRow({
             const next = Math.max(0, Number(top8) || 0)
             if (next !== deck.top8) onSave(toWrite(deck, { top8: next }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       <TableCell>
@@ -345,7 +358,7 @@ function ExpectedRow({
             const next = Math.max(0, Number(presence) || 0)
             if (next !== deck.presence) onSave(toWrite(deck, { presence: next }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       <TableCell className="font-mono">{formatPercent(deck.conversion)}</TableCell>
@@ -355,7 +368,7 @@ function ExpectedRow({
           onValueChange={(value) => {
             onSave(toWrite(deck, { expected: value as ExpectedLevel }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -380,7 +393,7 @@ function ExpectedRow({
               onSave(toWrite(deck, { tests_status: testsStatus || null }))
             }
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
     </TableRow>

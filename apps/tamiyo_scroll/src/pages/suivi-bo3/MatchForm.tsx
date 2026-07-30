@@ -33,6 +33,7 @@ const CREATE_ITEM_VALUE = 'create-new-opponent-deck'
 export interface MatchDraft {
   personalDeckId: string
   opponentDeckId: string
+  decklistVersionId: string | null
   onPlay: boolean
   game1: string
   game2: string
@@ -46,6 +47,7 @@ export function emptyMatchDraft(defaultPersonalDeckId: string | null): MatchDraf
   return {
     personalDeckId: defaultPersonalDeckId ?? '',
     opponentDeckId: '',
+    decklistVersionId: null,
     onPlay: true,
     game1: GAME_NOT_PLAYED,
     game2: GAME_NOT_PLAYED,
@@ -60,6 +62,7 @@ export function draftFromMatch(match: Match): MatchDraft {
   return {
     personalDeckId: match.personal_deck_id,
     opponentDeckId: match.opponent_deck_id,
+    decklistVersionId: match.decklist_version_id,
     onPlay: match.on_play,
     game1: match.game1 ?? GAME_NOT_PLAYED,
     game2: match.game2 ?? GAME_NOT_PLAYED,
@@ -74,6 +77,7 @@ export function matchDraftToWrite(draft: MatchDraft): MatchWrite {
   return {
     personal_deck_id: draft.personalDeckId,
     opponent_deck_id: draft.opponentDeckId,
+    decklist_version_id: draft.decklistVersionId,
     on_play: draft.onPlay,
     game1: draft.game1 === GAME_NOT_PLAYED ? null : (draft.game1 as MatchWrite['game1']),
     game2: draft.game2 === GAME_NOT_PLAYED ? null : (draft.game2 as MatchWrite['game2']),
@@ -321,16 +325,22 @@ function OpponentDeckField({
   )
 }
 
+const NO_VERSION_VALUE = '__no_version__'
+
 export function MatchFormFields({
   draft,
   onChange,
   personalDeckOptions,
   metaDeckOptions,
+  decklistVersionOptions,
 }: {
   draft: MatchDraft
   onChange: (next: MatchDraft) => void
   personalDeckOptions: { id: string; name: string }[]
   metaDeckOptions: { id: string; name: string }[]
+  /** Only passed (and rendered) by the edit flow — never on match creation,
+   * which always auto-stamps the deck's current version server-side. */
+  decklistVersionOptions?: { id: string; version: number }[]
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -355,6 +365,32 @@ export function MatchFormFields({
             </SelectContent>
           </Select>
         </div>
+        {decklistVersionOptions && decklistVersionOptions.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <Label>Decklist version</Label>
+            <Select
+              value={draft.decklistVersionId ?? NO_VERSION_VALUE}
+              onValueChange={(value) => {
+                onChange({
+                  ...draft,
+                  decklistVersionId: value === NO_VERSION_VALUE ? null : value,
+                })
+              }}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_VERSION_VALUE}>— none —</SelectItem>
+                {decklistVersionOptions.map((version) => (
+                  <SelectItem key={version.id} value={version.id}>
+                    v{version.version}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <OpponentDeckField
           value={draft.opponentDeckId}
           onChange={(deckId) => {

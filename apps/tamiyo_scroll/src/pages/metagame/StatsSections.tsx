@@ -8,6 +8,7 @@ import {
   winrateTextClass,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -68,11 +69,14 @@ export function ArchetypeSummarySection() {
               {summary.decks.map((deck) => (
                 <li
                   key={deck.id}
-                  className="flex items-center justify-between text-[13px]"
+                  className="flex items-center justify-between gap-2 text-[13px]"
                 >
                   <span className="text-foreground">{deck.name}</span>
-                  <span className={cn('font-mono', winrateTextClass(deck.winrate))}>
-                    {formatPercent(deck.winrate)}
+                  <span className="flex items-center gap-2">
+                    {deck.is_readonly && <Badge variant="accent">shared</Badge>}
+                    <span className={cn('font-mono', winrateTextClass(deck.winrate))}>
+                      {formatPercent(deck.winrate)}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -109,7 +113,12 @@ export function MatchupSummarySection() {
         <TableBody>
           {data?.rows.map((row) => (
             <TableRow key={row.opponent_deck_id}>
-              <TableCell>{row.opponent_deck_name}</TableCell>
+              <TableCell>
+                <span className="flex items-center gap-2">
+                  {row.opponent_deck_name}
+                  {row.is_readonly && <Badge variant="accent">shared</Badge>}
+                </span>
+              </TableCell>
               <TableCell
                 className={cn('font-mono', winrateTextClass(row.winrate_global))}
               >

@@ -6,7 +6,6 @@ export function getArchetypeSummary(options: { personalDeckId?: string } = {}) {
     '/bff/tamiyo-scroll/archetype-summary',
     archetypeSummarySchema.array(),
     {
-      applyOwnerParam: true,
       params: { personal_deck_id: options.personalDeckId },
     },
   )
@@ -14,7 +13,6 @@ export function getArchetypeSummary(options: { personalDeckId?: string } = {}) {
 
 export function getMatchupSummary(options: { personalDeckId?: string } = {}) {
   return apiRequest('/bff/tamiyo-scroll/matchup-summary', matchupSummarySchema, {
-    applyOwnerParam: true,
     params: { personal_deck_id: options.personalDeckId },
   })
 }

@@ -9,19 +9,12 @@ let currentUser: { display_name: string | null; email: string } | undefined = un
 vi.mock('@/hooks/useAuth', () => ({
   useLogout: () => ({ mutateAsync: vi.fn() }),
   useCurrentUser: () => ({ data: currentUser }),
+  useUpdateProfile: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
   useMySettings: () => ({ data: { active_personal_deck_id: activePersonalDeckId } }),
-  useUpdateMySettings: () => ({ mutateAsync: vi.fn() }),
-  useSharedUsers: () => ({ data: [] }),
-  useAvailableSharers: () => ({ data: [] }),
-  useCreateReceiveOptIn: () => ({ mutateAsync: vi.fn() }),
-  useDeleteReceiveOptIn: () => ({ mutateAsync: vi.fn() }),
-}))
-
-vi.mock('@/hooks/useViewingOwner', () => ({
-  useViewingOwner: () => null,
+  useUpdateMySettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/usePersonalDecks', () => ({

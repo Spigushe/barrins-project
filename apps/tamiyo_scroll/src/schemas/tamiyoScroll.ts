@@ -26,24 +26,10 @@ export type DecklistLineStatus = z.infer<typeof decklistLineStatusSchema>
 
 export const userSettingsSchema = z.object({
   data_shared: z.boolean(),
+  receive_shared_data: z.boolean(),
   active_personal_deck_id: z.uuid().nullable(),
 })
 export type UserSettings = z.infer<typeof userSettingsSchema>
-
-export const sharedUserSchema = z.object({
-  id: z.uuid(),
-  display_name: z.string().nullable(),
-  email: z.email(),
-})
-export type SharedUser = z.infer<typeof sharedUserSchema>
-
-export const availableSharerSchema = z.object({
-  id: z.uuid(),
-  display_name: z.string().nullable(),
-  email: z.email(),
-  opted_in: z.boolean(),
-})
-export type AvailableSharer = z.infer<typeof availableSharerSchema>
 
 export const personalDeckSchema = z.object({
   id: z.uuid(),
@@ -75,6 +61,8 @@ export const metaDeckSchema = z.object({
   tests_status: z.string().nullable(),
   archived_at: z.iso.datetime({ offset: true }).nullable(),
   conversion: z.number().nullable(),
+  is_readonly: z.boolean(),
+  shared_by: z.string().nullable().optional(),
 })
 export type MetaDeck = z.infer<typeof metaDeckSchema>
 
@@ -83,6 +71,7 @@ export const matchSchema = z.object({
   date: z.iso.date(),
   personal_deck_id: z.uuid(),
   opponent_deck_id: z.uuid(),
+  decklist_version_id: z.uuid().nullable(),
   on_play: z.boolean(),
   game1: gameResultSchema.nullable(),
   game2: gameResultSchema.nullable(),
@@ -91,6 +80,8 @@ export const matchSchema = z.object({
   turning_point: z.string().nullable(),
   final_turn: z.string().nullable(),
   created_at: z.iso.datetime({ offset: true }),
+  is_readonly: z.boolean(),
+  shared_by: z.string().nullable().optional(),
 })
 export type Match = z.infer<typeof matchSchema>
 
@@ -116,6 +107,7 @@ export const deckWinrateSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   winrate: z.number().nullable(),
+  is_readonly: z.boolean(),
 })
 export type DeckWinrate = z.infer<typeof deckWinrateSchema>
 
@@ -135,6 +127,7 @@ export const matchupRowSchema = z.object({
   ratio_otp: z.string(),
   ratio_otd: z.string(),
   match_count: z.number().int(),
+  is_readonly: z.boolean(),
 })
 export type MatchupRow = z.infer<typeof matchupRowSchema>
 
@@ -165,6 +158,7 @@ export type MetaDeckWrite = z.infer<typeof metaDeckWriteSchema>
 export const matchWriteSchema = z.object({
   personal_deck_id: z.uuid(),
   opponent_deck_id: z.uuid(),
+  decklist_version_id: z.uuid().nullable().optional(),
   on_play: z.boolean(),
   game1: gameResultSchema.nullable().optional(),
   game2: gameResultSchema.nullable().optional(),

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useActiveDeck } from '@/contexts/active-deck-context'
+import { useDecklistVersions } from '@/hooks/useDecklistVersions'
 import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
 import { useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
@@ -59,6 +60,9 @@ export function MatchJournalSection() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MatchDraft | null>(null)
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null)
+  const { data: editingDeckVersions } = useDecklistVersions(
+    editDraft?.personalDeckId ?? null,
+  )
 
   function personalDeckName(id: string) {
     return personalDecks?.find((deck) => deck.id === id)?.name ?? '?'
@@ -99,6 +103,7 @@ export function MatchJournalSection() {
                   onChange={setEditDraft}
                   personalDeckOptions={personalDecks ?? []}
                   metaDeckOptions={metaDecks ?? []}
+                  decklistVersionOptions={editingDeckVersions}
                 />
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -151,6 +156,9 @@ export function MatchJournalSection() {
                 <span className="text-[12.5px] text-subtle-foreground">
                   {formatDate(match.date)}
                 </span>
+                {match.is_readonly && (
+                  <Badge variant="accent">from: {match.shared_by}</Badge>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -163,7 +171,7 @@ export function MatchJournalSection() {
                 >
                   View
                 </Button>
-                {canEdit && (
+                {canEdit && !match.is_readonly && (
                   <>
                     <Button
                       type="button"
@@ -209,10 +217,13 @@ export function MatchJournalSection() {
               {opponentDeckName(viewingMatch.opponent_deck_id)}
             </DialogTitle>
             <div className="flex flex-col gap-3 text-sm">
-              <div className="flex flex-wrap gap-3 text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                 <span>{formatDate(viewingMatch.date)}</span>
                 <span>{viewingMatch.on_play ? 'On the Play' : 'On the Draw'}</span>
                 <span className="font-mono">{gamesSummary(viewingMatch)}</span>
+                {viewingMatch.is_readonly && (
+                  <Badge variant="accent">from: {viewingMatch.shared_by}</Badge>
+                )}
               </div>
               <div>
                 <Label>Opening hand</Label>
