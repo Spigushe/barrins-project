@@ -91,9 +91,7 @@ class TestBSDeck:
         assert fetched is not None
         assert fetched.result == "5-8"
 
-    async def test_nullable_result(
-        self, db_session, tournament: BSTournament
-    ) -> None:
+    async def test_nullable_result(self, db_session, tournament: BSTournament) -> None:
         # MTGO leagues don't rank decks -- result is NULL, not a placeholder.
         deck = BSDeck(
             tournament_id=tournament.id,
@@ -183,10 +181,14 @@ class TestBSDeckCard:
         assert card.board == BSDeckBoard.mainboard
 
         rows = (
-            await db_session.execute(
-                select(BSDeckCard).where(BSDeckCard.deck_id == deck.id)
+            (
+                await db_session.execute(
+                    select(BSDeckCard).where(BSDeckCard.deck_id == deck.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert [r.card_name for r in rows] == ["Sol Ring"]
 
     async def test_same_card_name_allowed_across_boards(
@@ -246,9 +248,7 @@ class TestBSDeckCard:
         await db_session.commit()
 
         row = (
-            await db_session.execute(
-                select(BSDeckCard).where(BSDeckCard.id == card_id)
-            )
+            await db_session.execute(select(BSDeckCard).where(BSDeckCard.id == card_id))
         ).scalar_one_or_none()
         assert row is None
 
