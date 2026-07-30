@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — added 2026-07-26 (see F8) | / |
-| **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6 | / |
-| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocks S4. No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
+| **Status** | 🔲 Not started — added 2026-07-26 (see F8); scope widened 2026-07-30 (§1.10) | / |
+| **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
+| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
 ---
 
@@ -27,6 +27,16 @@ blocks on this item for v2.0.0.
 **Not previously scoped as its own item** — it surfaced only once S4 and
 S2 were checked against actual code, not against `auth_roles.md`'s
 description of them.
+
+**Scope widened 2026-07-30 (§1.10)**: scoping T3's ingestion route
+(`POST /internal/scripture/ingest`) surfaced the same missing-data problem
+from a second direction — `bs_deck_cards.card_name` (T2's schema) has
+nothing to validate scraped card names against. Rather than let T3 ingest
+unvalidated strings (the path S2's now-deferred gate would have taken),
+T3 is blocked on this item: its ingestion route needs to validate each
+scraped card name against this pipeline's card data before storing it.
+This item is now a second, real consumer (alongside S4) rather than
+S4-only.
 
 ## Done statement
 
