@@ -7,10 +7,10 @@ import { ArchetypeSummarySection, MatchupSummarySection } from './metagame/Stats
 export function MetagameTab() {
   return (
     <>
-      <MetaDecksRosterSection />
-      <ExpectedMetagameSection />
       <ArchetypeSummarySection />
       <MatchupSummarySection />
+      <MetaDecksRosterSection />
+      <ExpectedMetagameSection />
     </>
   )
 }
