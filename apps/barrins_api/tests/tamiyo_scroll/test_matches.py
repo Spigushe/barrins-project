@@ -518,3 +518,42 @@ class TestSharedDataMerge:
             f"{BASE}/matches/{shared_match_id}", headers=owner_headers
         )
         assert resp.status_code == 404
+
+    async def test_new_match_against_a_foreign_readonly_opponent_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        """Bug (2026-07-30): a roster entry that only exists via sharing
+        (`is_readonly=True`, owned by the sharer) can't be used directly as
+        a *new* match's opponent — it isn't the viewer's own row. The
+        frontend must first create the viewer's own same-named roster
+        entry (the "claim" flow in MatchForm's OpponentDeckField) and use
+        that id instead. This test locks in the 404 the claim flow exists
+        to route around."""
+        other_personal, other_meta = await _setup_decks(client, other_user)
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(other_personal, other_meta),
+            headers=auth_headers(other_user),
+        )
+
+        owner_headers = auth_headers(owner_user)
+        owner_personal_resp = await client.post(
+            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+        )
+        owner_personal = owner_personal_resp.json()["id"]
+        await _enable_sharing(client, sharer=other_user, receiver=owner_user)
+
+        # "Burn" now appears read-only in the owner's roster (see
+        # test_meta_decks.py) — but its id is still the sharer's own row.
+        meta_decks_resp = await client.get(f"{BASE}/meta-decks", headers=owner_headers)
+        foreign_meta_id = next(
+            d["id"] for d in meta_decks_resp.json() if d["name"] == "Burn"
+        )
+        assert foreign_meta_id == other_meta
+
+        resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(owner_personal, foreign_meta_id),
+            headers=owner_headers,
+        )
+        assert resp.status_code == 404

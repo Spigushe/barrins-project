@@ -121,6 +121,14 @@ function GameResultSelect({
   )
 }
 
+interface OpponentDeckOption {
+  id: string
+  name: string
+  is_readonly?: boolean
+  tier?: number
+  category?: ArchetypeCategory
+}
+
 /**
  * Opponent deck field: search existing meta decks, or type a new name and
  * "Create" it without leaving this form. name/tier/category match exactly
@@ -129,6 +137,14 @@ function GameResultSelect({
  * it does (0/0/'as_expected': a freshly-noted deck genuinely has zero
  * recorded Top 8s/presence so far, and hasn't been evaluated against
  * expectations yet).
+ *
+ * A `is_readonly` option (present only because a sharer's data merged it
+ * in — see `sharing_merge.py`) can't be used as-is: it isn't owned by the
+ * current user, so the backend 404s on it (`_validate_match_refs`).
+ * Selecting one opens the same create dialog instead, pre-filled with the
+ * shared tier/category as a starting point — submitting it creates the
+ * user's own roster entry (same name, so future merges resolve to it per
+ * the "own ranking wins" rule) and uses that as the opponent.
  */
 function OpponentDeckField({
   value,
@@ -137,13 +153,14 @@ function OpponentDeckField({
 }: {
   value: string
   onChange: (deckId: string) => void
-  options: { id: string; name: string }[]
+  options: OpponentDeckOption[]
 }) {
   const createMetaDeck = useCreateMetaDeck()
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [claimingShared, setClaimingShared] = useState(false)
   const [pendingName, setPendingName] = useState('')
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
@@ -157,14 +174,27 @@ function OpponentDeckField({
     (deck) => deck.name.toLowerCase() === trimmedSearch.toLowerCase(),
   )
 
-  function selectDeck(deckId: string) {
-    onChange(deckId)
+  function selectDeck(deck: OpponentDeckOption) {
+    if (deck.is_readonly) {
+      setPendingName(deck.name)
+      setNewTier(deck.tier ?? 1)
+      setNewCategory(deck.category ?? 'midrange')
+      setClaimingShared(true)
+      setCreating(true)
+      setOpen(false)
+      setSearch('')
+      return
+    }
+    onChange(deck.id)
     setOpen(false)
     setSearch('')
   }
 
   function openCreateDialog() {
     setPendingName(trimmedSearch)
+    setNewTier(1)
+    setNewCategory('midrange')
+    setClaimingShared(false)
     setCreating(true)
     setOpen(false)
     setSearch('')
@@ -184,6 +214,7 @@ function OpponentDeckField({
     })
     onChange(created.id)
     setCreating(false)
+    setClaimingShared(false)
     setNewTier(1)
     setNewCategory('midrange')
   }
@@ -226,11 +257,20 @@ function OpponentDeckField({
                     key={deck.id}
                     value={deck.id}
                     onSelect={() => {
-                      selectDeck(deck.id)
+                      selectDeck(deck)
                     }}
                   >
-                    {deck.id === value ? '✓ ' : ''}
-                    {deck.name}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>
+                        {deck.id === value ? '✓ ' : ''}
+                        {deck.name}
+                      </span>
+                      {deck.is_readonly && (
+                        <span className="text-[11px] text-muted-foreground">
+                          shared — tap to add to your roster
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 ))}
                 {trimmedSearch && !hasExactMatch && (
@@ -251,7 +291,9 @@ function OpponentDeckField({
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent>
-          <DialogTitle>Create opponent deck</DialogTitle>
+          <DialogTitle>
+            {claimingShared ? 'Add shared deck to your roster' : 'Create opponent deck'}
+          </DialogTitle>
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => {
@@ -261,6 +303,12 @@ function OpponentDeckField({
             <div>
               <Label>Name</Label>
               <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
+              {claimingShared && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This deck exists via shared data. Confirm its tier and
+                  archetype to add it to your own roster.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1.5">
@@ -306,13 +354,14 @@ function OpponentDeckField({
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={createMetaDeck.isPending}>
-                Create
+                {claimingShared ? 'Add to roster' : 'Create'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
                   setCreating(false)
+                  setClaimingShared(false)
                 }}
               >
                 Cancel
@@ -337,7 +386,7 @@ export function MatchFormFields({
   draft: MatchDraft
   onChange: (next: MatchDraft) => void
   personalDeckOptions: { id: string; name: string }[]
-  metaDeckOptions: { id: string; name: string }[]
+  metaDeckOptions: OpponentDeckOption[]
   /** Only passed (and rendered) by the edit flow — never on match creation,
    * which always auto-stamps the deck's current version server-side. */
   decklistVersionOptions?: { id: string; version: number }[]
