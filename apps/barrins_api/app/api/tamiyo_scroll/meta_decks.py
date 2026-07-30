@@ -12,7 +12,7 @@ from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import TSMetaDeck
 from app.schemas.responses_tamiyo_scroll import ResponseMetaDeck
 from app.schemas.tamiyo_scroll import MetaDeckWrite
-from app.services.tamiyo_scroll.ownership import ResolvedOwner
+from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 
 router = APIRouter()
 
@@ -47,15 +47,21 @@ def _apply_payload(deck: TSMetaDeck, payload: MetaDeckWrite) -> None:
 @router.get("/meta-decks", response_model=list[ResponseMetaDeck])
 async def list_meta_decks(
     session: DatabaseSession,
-    owner: ResolvedOwner,
+    current_user: CurrentUser,
     include_archived: bool = False,
 ) -> list[ResponseMetaDeck]:
-    stmt = select(TSMetaDeck).where(TSMetaDeck.owner_id == owner.id)
+    """Roster (own + any sharer's read-only, see `sharing_merge`).
+
+    A sharer's roster entry is folded into the viewer's own matching-name
+    entry (never listed twice) or added as a new read-only line when the
+    viewer has no roster entry of that name.
+    """
+    view = await build_merged_view(session, current_user)
+    decks = view.meta_decks
     if not include_archived:
-        stmt = stmt.where(TSMetaDeck.archived_at.is_(None))
-    stmt = stmt.order_by(TSMetaDeck.name)
-    result = await session.execute(stmt)
-    return [ResponseMetaDeck.model_validate(d) for d in result.scalars().all()]
+        decks = [d for d in decks if d.archived_at is None]
+    decks = sorted(decks, key=lambda d: d.name)
+    return [ResponseMetaDeck.model_validate(d) for d in decks]
 
 
 @router.post(

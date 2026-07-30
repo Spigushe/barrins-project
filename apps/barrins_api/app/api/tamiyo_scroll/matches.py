@@ -7,10 +7,15 @@ from sqlalchemy import select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
-from app.models.tamiyo_scroll import TSMatch, TSMetaDeck, TSPersonalDeck
+from app.models.tamiyo_scroll import (
+    TSMatch,
+    TSMetaDeck,
+    TSPersonalDeck,
+    TSPersonalDecklistVersion,
+)
 from app.schemas.responses_tamiyo_scroll import ResponseMatch
 from app.schemas.tamiyo_scroll import MatchWrite
-from app.services.tamiyo_scroll.ownership import ResolvedOwner
+from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 
 router = APIRouter()
 
@@ -56,6 +61,36 @@ async def _validate_match_refs(
         )
 
 
+async def _resolve_latest_version_id(
+    session: DatabaseSession, personal_deck_id: uuid.UUID
+) -> uuid.UUID | None:
+    """The deck's current latest decklist version, or None if it has none yet."""
+    result = await session.execute(
+        select(TSPersonalDecklistVersion.id)
+        .where(TSPersonalDecklistVersion.personal_deck_id == personal_deck_id)
+        .order_by(TSPersonalDecklistVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _validate_decklist_version(
+    session: DatabaseSession,
+    personal_deck_id: uuid.UUID,
+    decklist_version_id: uuid.UUID,
+) -> None:
+    result = await session.execute(
+        select(TSPersonalDecklistVersion.id).where(
+            TSPersonalDecklistVersion.id == decklist_version_id,
+            TSPersonalDecklistVersion.personal_deck_id == personal_deck_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Decklist version not found."
+        )
+
+
 def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
     match.personal_deck_id = payload.personal_deck_id
     match.opponent_deck_id = payload.opponent_deck_id
@@ -71,20 +106,22 @@ def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
 @router.get("/matches", response_model=list[ResponseMatch])
 async def list_matches(
     session: DatabaseSession,
-    owner: ResolvedOwner,
+    current_user: CurrentUser,
     personal_deck_id: uuid.UUID | None = None,
 ) -> list[ResponseMatch]:
     """Match log for the active personal deck — never other decks'.
 
     `personal_deck_id` filters on the deck being viewed; omitted, every
-    match for the owner is returned.
+    match for the owner is returned. If `receive_shared_data` is on, any
+    sharer's matches for a personal deck with the same name are merged in
+    read-only (see `sharing_merge`) — no "view as" selector, sharing is
+    automatic.
     """
-    stmt = select(TSMatch).where(TSMatch.owner_id == owner.id)
-    if personal_deck_id is not None:
-        stmt = stmt.where(TSMatch.personal_deck_id == personal_deck_id)
-    stmt = stmt.order_by(TSMatch.created_at.desc())
-    result = await session.execute(stmt)
-    return [ResponseMatch.model_validate(m) for m in result.scalars().all()]
+    view = await build_merged_view(
+        session, current_user, personal_deck_id=personal_deck_id
+    )
+    matches = sorted(view.matches, key=lambda m: m.created_at, reverse=True)
+    return [ResponseMatch.model_validate(m) for m in matches]
 
 
 @router.post(
@@ -100,6 +137,12 @@ async def create_match(
     )
     match = TSMatch(owner_id=current_user.id)
     _apply_payload(match, payload)
+    # Never the frontend guessing which version is "current" (S3) — the
+    # deck's latest version at creation time is resolved server-side,
+    # ignoring any decklist_version_id the client may have sent.
+    match.decklist_version_id = await _resolve_latest_version_id(
+        session, payload.personal_deck_id
+    )
     session.add(match)
     await session.commit()
     await session.refresh(match)
@@ -117,7 +160,12 @@ async def update_match(
     await _validate_match_refs(
         session, current_user.id, payload.personal_deck_id, payload.opponent_deck_id
     )
+    if payload.decklist_version_id is not None:
+        await _validate_decklist_version(
+            session, payload.personal_deck_id, payload.decklist_version_id
+        )
     _apply_payload(match, payload)
+    match.decklist_version_id = payload.decklist_version_id
     session.add(match)
     await session.commit()
     await session.refresh(match)

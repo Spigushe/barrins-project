@@ -17,28 +17,8 @@ from app.schemas.responses_base import BaseResponse
 
 class ResponseUserSettings(BaseResponse):
     data_shared: bool
+    receive_shared_data: bool
     active_personal_deck_id: uuid.UUID | None
-
-
-class ResponseSharedUser(BaseResponse):
-    """Entry in the "View shared data" selector."""
-
-    id: uuid.UUID
-    display_name: str | None
-    email: str
-
-
-class ResponseAvailableSharer(BaseResponse):
-    """Entry in the "Receive shared data from" opt-in management list.
-
-    Every user with `data_shared = True`, annotated with whether the
-    current viewer has already opted in to receive that sharer's data.
-    """
-
-    id: uuid.UUID
-    display_name: str | None
-    email: str
-    opted_in: bool
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -68,6 +48,8 @@ class ResponseMetaDeck(BaseResponse):
     expected: ExpectedLevel
     tests_status: str | None
     archived_at: datetime | None
+    is_readonly: bool = False
+    shared_by: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -83,6 +65,7 @@ class ResponseMatch(BaseResponse):
     date: date
     personal_deck_id: uuid.UUID
     opponent_deck_id: uuid.UUID
+    decklist_version_id: uuid.UUID | None
     on_play: bool
     game1: GameResult | None
     game2: GameResult | None
@@ -91,6 +74,8 @@ class ResponseMatch(BaseResponse):
     turning_point: str | None
     final_turn: str | None
     created_at: datetime
+    is_readonly: bool = False
+    shared_by: str | None = None
 
 
 class ResponseCardTest(BaseResponse):
@@ -117,6 +102,7 @@ class ResponseDeckWinrate(BaseResponse):
     id: uuid.UUID
     name: str
     winrate: float | None
+    is_readonly: bool = False
 
 
 class ResponseArchetypeSummary(BaseResponse):
@@ -134,6 +120,7 @@ class ResponseMatchupRow(BaseResponse):
     ratio_otp: str
     ratio_otd: str
     match_count: int
+    is_readonly: bool = False
 
 
 class ResponseMatchupSummary(BaseResponse):

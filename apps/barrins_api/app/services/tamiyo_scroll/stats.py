@@ -6,17 +6,49 @@ in the routes or on the frontend (constitution §4.1/§4.2).
 """
 
 from collections import defaultdict
-from collections.abc import Sequence
-from typing import TypedDict
+from collections.abc import Mapping, Sequence
+from typing import Protocol, TypedDict
 from uuid import UUID
 
-from app.models.tamiyo_scroll import ArchetypeCategory, GameResult, TSMatch, TSMetaDeck
+from app.models.tamiyo_scroll import ArchetypeCategory, GameResult
+
+
+class MatchLike(Protocol):
+    """Structural type satisfied by `TSMatch` and `sharing_merge.EffectiveMatch`.
+
+    Read-only (`@property`) so a frozen dataclass structurally satisfies
+    it too — a plain attribute annotation implies a setter, which a
+    frozen dataclass doesn't have.
+    """
+
+    @property
+    def opponent_deck_id(self) -> UUID: ...
+    @property
+    def on_play(self) -> bool: ...
+    @property
+    def game1(self) -> GameResult | None: ...
+    @property
+    def game2(self) -> GameResult | None: ...
+    @property
+    def game3(self) -> GameResult | None: ...
+
+
+class MetaDeckLike(Protocol):
+    """Structural type satisfied by `TSMetaDeck` and `sharing_merge.EffectiveMetaDeck`."""
+
+    @property
+    def id(self) -> UUID: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def category(self) -> ArchetypeCategory: ...
 
 
 class DeckWinrate(TypedDict):
     id: UUID
     name: str
     winrate: float | None
+    is_readonly: bool
 
 
 class ArchetypeSummary(TypedDict):
@@ -34,10 +66,11 @@ class MatchupRow(TypedDict):
     ratio_otp: str
     ratio_otd: str
     match_count: int
+    is_readonly: bool
 
 
 def _tally_games(
-    matches: Sequence[TSMatch], *, on_play: bool | None = None
+    matches: Sequence[MatchLike], *, on_play: bool | None = None
 ) -> tuple[int, int, int]:
     """Count wins/losses/draws across games (game1/game2/game3).
 
@@ -71,7 +104,9 @@ def _ratio(wins: int, losses: int) -> str:
 
 
 def compute_archetype_summary(
-    meta_decks: Sequence[TSMetaDeck], matches: Sequence[TSMatch]
+    meta_decks: Sequence[MetaDeckLike],
+    matches: Sequence[MatchLike],
+    readonly_meta_deck_ids: frozenset[UUID] = frozenset(),
 ) -> list[ArchetypeSummary]:
     """Average winrate per archetype + individual winrate of the group's decks.
 
@@ -79,12 +114,16 @@ def compute_archetype_summary(
     (README: "average of winrates ... ignoring decks with no data"),
     but remain listed with `winrate=None`. All known categories are
     returned, even empty ones, for a stable display grid.
+
+    `readonly_meta_deck_ids` flags decks merged in read-only from a
+    sharer with no matching roster entry of the viewer's own (see
+    `sharing_merge`) — informational only, doesn't affect the calculation.
     """
-    matches_by_opponent: dict[UUID, list[TSMatch]] = defaultdict(list)
+    matches_by_opponent: dict[UUID, list[MatchLike]] = defaultdict(list)
     for match in matches:
         matches_by_opponent[match.opponent_deck_id].append(match)
 
-    decks_by_category: dict[ArchetypeCategory, list[TSMetaDeck]] = defaultdict(list)
+    decks_by_category: dict[ArchetypeCategory, list[MetaDeckLike]] = defaultdict(list)
     for deck in meta_decks:
         decks_by_category[deck.category].append(deck)
 
@@ -98,6 +137,7 @@ def compute_archetype_summary(
                     "id": deck.id,
                     "name": deck.name,
                     "winrate": _winrate(wins, losses),
+                    "is_readonly": deck.id in readonly_meta_deck_ids,
                 }
             )
         deck_winrates.sort(key=lambda d: d["name"].lower())
@@ -116,7 +156,9 @@ def compute_archetype_summary(
 
 
 def compute_matchup_summary(
-    matches: Sequence[TSMatch], meta_decks_by_id: dict[UUID, TSMetaDeck]
+    matches: Sequence[MatchLike],
+    meta_decks_by_id: Mapping[UUID, MetaDeckLike],
+    readonly_meta_deck_ids: frozenset[UUID] = frozenset(),
 ) -> tuple[list[MatchupRow], float | None]:
     """Matchup summary: one row per opponent deck encountered + overall average.
 
@@ -124,7 +166,7 @@ def compute_matchup_summary(
     per-matchup averages), consistent with a calculation "automatically
     derived from the match log".
     """
-    matches_by_opponent: dict[UUID, list[TSMatch]] = defaultdict(list)
+    matches_by_opponent: dict[UUID, list[MatchLike]] = defaultdict(list)
     for match in matches:
         matches_by_opponent[match.opponent_deck_id].append(match)
 
@@ -144,6 +186,7 @@ def compute_matchup_summary(
                 "ratio_otp": _ratio(otp_wins, otp_losses),
                 "ratio_otd": _ratio(otd_wins, otd_losses),
                 "match_count": len(opponent_matches),
+                "is_readonly": opponent_id in readonly_meta_deck_ids,
             }
         )
     rows.sort(key=lambda r: r["opponent_deck_name"].lower())

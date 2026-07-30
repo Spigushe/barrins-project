@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
-from app.models.tamiyo_scroll import TSReceiveOptIn, TSUserSettings
+from app.models.tamiyo_scroll import TSUserSettings
 from app.models.user import User
 
 
@@ -26,8 +26,10 @@ async def resolve_owner(
     `owner_id` missing or equal to `current_user.id` -> returns `current_user`.
     `owner_id` different -> requires that the target exists (404 otherwise), has
     enabled sharing (`ts_user_settings.data_shared = True`), and that
-    `current_user` has opted in to receive that specific sharer's data
-    (`ts_receive_opt_ins`) — 403 otherwise for either condition.
+    `current_user` has enabled receiving shared data
+    (`ts_user_settings.receive_shared_data = True`) — 403 otherwise for
+    either condition. Single global toggles on both sides (account-settings
+    popup handoff), not a per-sharer opt-in.
     """
     if owner_id is None or owner_id == current_user.id:
         return current_user
@@ -49,16 +51,14 @@ async def resolve_owner(
             detail="This user does not share their data.",
         )
 
-    opt_in_result = await session.execute(
-        select(TSReceiveOptIn).where(
-            TSReceiveOptIn.viewer_id == current_user.id,
-            TSReceiveOptIn.sharer_id == owner_id,
-        )
+    viewer_settings_result = await session.execute(
+        select(TSUserSettings).where(TSUserSettings.user_id == current_user.id)
     )
-    if opt_in_result.scalar_one_or_none() is None:
+    viewer_settings = viewer_settings_result.scalar_one_or_none()
+    if viewer_settings is None or not viewer_settings.receive_shared_data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You have not opted in to receive this user's shared data.",
+            detail="You have not enabled receiving shared data.",
         )
 
     return target

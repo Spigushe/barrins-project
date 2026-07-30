@@ -13,15 +13,8 @@ class UserSettingsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     data_shared: bool | None = None
+    receive_shared_data: bool | None = None
     active_personal_deck_id: uuid.UUID | None = None
-
-
-class ReceiveOptInCreate(BaseModel):
-    """Payload for POST /receive-opt-ins — opt in to one sharer's data."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    sharer_id: uuid.UUID
 
 
 class PersonalDeckCreate(BaseModel):
@@ -66,12 +59,19 @@ class MetaDeckWrite(BaseModel):
 
 
 class MatchWrite(BaseModel):
-    """Payload shared by POST and PUT /matches — full replacement."""
+    """Payload shared by POST and PUT /matches — full replacement.
+
+    `decklist_version_id` is ignored on POST (the backend always stamps the
+    deck's current latest version, server-side, at creation time) and
+    honored on PUT (the match-edit flow allows re-pointing to a different
+    version, or clearing it) — see S3.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     personal_deck_id: uuid.UUID
     opponent_deck_id: uuid.UUID
+    decklist_version_id: uuid.UUID | None = None
     on_play: bool
     game1: GameResult | None = None
     game2: GameResult | None = None

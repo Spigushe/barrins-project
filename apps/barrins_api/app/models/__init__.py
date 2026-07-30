@@ -35,7 +35,6 @@ from app.models.tamiyo_scroll import (
     TSMetaDeck,
     TSPersonalDeck,
     TSPersonalDecklistVersion,
-    TSReceiveOptIn,
     TSUserSettings,
 )
 from app.models.user import User, UserRole
@@ -63,7 +62,6 @@ __all__ = [
     "TSMetaDeck",
     "TSPersonalDeck",
     "TSPersonalDecklistVersion",
-    "TSReceiveOptIn",
     "TSUserSettings",
     "TimestampMixin",
     "User",

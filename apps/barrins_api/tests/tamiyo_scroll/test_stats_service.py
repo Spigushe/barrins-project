@@ -115,7 +115,9 @@ class TestComputeArchetypeSummary:
         control = next(
             s for s in summaries if s["category"] == ArchetypeCategory.control
         )
-        assert control["decks"] == [{"id": deck.id, "name": deck.name, "winrate": None}]
+        assert control["decks"] == [
+            {"id": deck.id, "name": deck.name, "winrate": None, "is_readonly": False}
+        ]
         assert control["average_winrate"] is None
 
     def test_average_winrate_ignores_decks_without_data(self):

@@ -141,6 +141,11 @@ class TSMatch(Base):
         ForeignKey("ts_meta_decks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    decklist_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_personal_decklist_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     on_play: Mapped[bool] = mapped_column(Boolean, nullable=False)
     game1: Mapped[GameResult | None] = mapped_column(_game_result_column, nullable=True)
     game2: Mapped[GameResult | None] = mapped_column(_game_result_column, nullable=True)
@@ -277,48 +282,18 @@ class TSPersonalDecklistVersion(Base):
     )
 
 
-class TSReceiveOptIn(Base):
-    """A viewer's opt-in to receive one specific sharer's shared data.
-
-    Per-sharer, not a single global toggle (S1, decided 2026-07-30): a
-    sharer with `ts_user_settings.data_shared = True` only becomes visible
-    in a given viewer's "View: {user}" selector once that viewer has
-    explicitly opted in to receive *that* sharer's data.
-    """
-
-    __tablename__ = "ts_receive_opt_ins"
-    __table_args__ = (
-        UniqueConstraint("viewer_id", "sharer_id", name="uq_ts_receive_opt_in"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-    viewer_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    sharer_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-
-
 class TSUserSettings(Base):
     """A user's Tamiyo Scroll preferences (1 row/account, created on demand).
 
     Separate from the `User` model (shared Barrin identity) because these
     preferences are specific to the Tamiyo Scroll tracker — cf.
     docs/tamiyo_scroll_tracker/00_plan_general.md, Option D.
+
+    `data_shared` defaults `True` for newly-created settings rows (per the
+    user, 2026-07-30) — sharing is opt-out; receiving stays opt-in
+    (`receive_shared_data` defaults `False`). Existing rows are
+    unaffected — this is a default for new accounts only, never a
+    retroactive opt-in for users who didn't choose it.
     """
 
     __tablename__ = "ts_user_settings"
@@ -329,6 +304,12 @@ class TSUserSettings(Base):
         primary_key=True,
     )
     data_shared: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    receive_shared_data: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,

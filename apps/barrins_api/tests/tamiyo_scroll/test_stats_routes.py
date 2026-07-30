@@ -142,3 +142,61 @@ class TestMatchupSummary:
             headers=auth_headers(owner_user),
         )
         assert len(resp.json()["rows"]) == 1
+
+
+class TestSharedDataInStats:
+    """No "view as" selector (overhauled 2026-07-30): a sharer's matches for a
+    same-named deck are folded into the viewer's own stats, not shown
+    separately."""
+
+    async def test_matchup_summary_combines_own_and_shared_matches(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        other_headers = auth_headers(other_user)
+        other_personal, other_meta = await _setup_match(client, other_user)
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/matchup-summary", headers=owner_headers
+        )
+        body = resp.json()
+        assert len(body["rows"]) == 1
+        assert body["rows"][0]["opponent_deck_name"] == "Burn"
+        assert body["rows"][0]["match_count"] == 1
+        assert body["rows"][0]["is_readonly"] is True
+
+    async def test_archetype_summary_includes_shared_matches(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        other_headers = auth_headers(other_user)
+        await _setup_match(client, other_user, category="control")
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        resp = await client.get(f"{BASE}/archetype-summary", headers=owner_headers)
+        control = next(s for s in resp.json() if s["category"] == "control")
+        assert control["average_winrate"] == 50.0
+        assert control["decks"][0]["is_readonly"] is True

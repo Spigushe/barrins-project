@@ -29,13 +29,15 @@ class TestReadAccessWithoutSharing:
         )
         assert resp.status_code == 404
 
-    async def test_shared_but_not_opted_into_returns_403(
+    async def test_shared_but_not_receiving_returns_403(
         self, client: AsyncClient, owner_user: User, other_user: User
     ):
-        """Sharing alone (`data_shared = True`) is not enough — S1's per-sharer
-        receive opt-in must also exist on the viewer's side."""
+        """Sharing alone (`data_shared = True`) is not enough — the viewer's
+        own `receive_shared_data` toggle must also be on."""
         await client.patch(
-            f"{BASE}/me/settings", json={"data_shared": True}, headers=auth_headers(other_user)
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
         )
 
         resp = await client.get(
@@ -58,9 +60,9 @@ class TestReadAccessWithSharing:
             json={"name": "Other's Deck"},
             headers=other_headers,
         )
-        await client.post(
-            f"{BASE}/receive-opt-ins",
-            json={"sharer_id": str(other_user.id)},
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
             headers=auth_headers(owner_user),
         )
 
