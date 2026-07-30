@@ -449,7 +449,12 @@ The backend must expose stable contracts for clients.
 
 Current backend stack:
 
-- Python
+- Python 3.14+ (see each app's `pyproject.toml` `requires-python` for the
+  exact floor — never assume an older interpreter than what's pinned
+  there, including for syntax: e.g. PEP 758 (Python 3.14) makes
+  `except OSError, ValueError:` valid and equivalent to
+  `except (OSError, ValueError):` — that is current, correct syntax on
+  this baseline, not a Python 2 relic to "fix" by re-adding parentheses)
 - FastAPI
 - PostgreSQL
 - SQLAlchemy
@@ -477,6 +482,12 @@ Avoid:
 - hidden global state;
 - unnecessary abstractions;
 - framework-specific coupling.
+
+Trust `ruff format`/`ruff check --fix`'s output against this project's
+pinned Python floor (see 11.2) before assuming it introduced a syntax
+error — verify against the interpreter actually in use
+(`uv run python -c "..."`) rather than reverting to older, more familiar
+syntax on sight.
 
 ### 11.4 Dependency injection
 

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Managed by Ansible (scripture_scraper role) — do not edit on the server,
+# changes will be overwritten on the next deploy.
+#
+# Daily MTGO + MTGTop8 scrape, plus (Sundays only) the biweekly gap-check,
+# alternating by ISO week parity — mirrors mtg_scraper's
+# daily_scraping.yml + biweekly_check_gaps.yml, now run from a systemd
+# timer instead of GitHub Actions cron.
+set -euo pipefail
+
+WORK_DIR="{{ scripture_scraper_config.work_dir }}"
+OUTPUT_DIR="{{ scripture_scraper_config.output_dir }}"
+UV="/home/{{ username }}/.local/bin/uv"
+
+cd "$WORK_DIR"
+
+"$UV" run scrape --source mtgo --output-dir "$OUTPUT_DIR"
+"$UV" run scrape --source mtgtop8 --output-dir "$OUTPUT_DIR"
+
+if [ "$(date -u +%u)" = "7" ]; then
+  WEEK="$(date -u +%V)"
+  # 10#$WEEK forces base-10: weeks 08/09 would otherwise be parsed as
+  # invalid octal literals by bash's arithmetic evaluator.
+  if [ $(( 10#$WEEK % 2 )) -eq 0 ]; then
+    "$UV" run python -m barrins_scripture.scripts.top8_check_gaps
+  else
+    "$UV" run python -m barrins_scripture.scripts.mtgo_empty_decks
+  fi
+fi

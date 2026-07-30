@@ -1,0 +1,147 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "barrins_scripture"
+version = "0.1.0"
+authors = [
+    { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
+]
+description = "Scraper for MTG decklists and tournament data (MTGO, MTGTop8), superseding mtg_scraper."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["mtg", "Magic: the Gathering", "CCG", "Scraper"]
+requires-python = ">=3.14"
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 2 - Pre-Alpha",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "beautifulsoup4",
+    "requests",
+    "selenium", # MTGO scraping needs a real browser (client-side rendered pages)
+    "pydantic",
+    "pandas",
+    "lxml",
+]
+
+[project.scripts]
+scrape = "barrins_scripture.__main__:main"
+
+[dependency-groups]
+test = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+dev = [
+    { include-group = "test" },
+    "bandit[toml]>=1.9.4",
+    "ruff>=0.15.22",
+    "ty>=0.0.62",
+    "zest.releaser[recommended]>=9.9.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["barrins_scripture*"]
+
+[tool.setuptools_scm]
+
+[tool.zest-releaser]
+create-wheel = true
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
+    "RUF", # ruff-specific
+    "A",   # flake8-builtins
+]
+ignore = ["E402", "E712", "F403", "S101"]  # S101: allow assert in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-line-length = "dynamic"
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+exclude = ["tests"]
+
+[tool.ty.rules]
+unused-ignore-comment = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["scripts", "build", "dist", ".venv"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=barrins_scripture",
+    "--cov-report=html",
+]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["barrins_scripture"]
+branch = true
+parallel = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "scripts/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_empty = true
+skip_covered = false
+fail_under = 90
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+    "except ImportError:",
+    "pass",
+    "\\.\\.\\.",  # Ignore ellipsis
+]
+
+[tool.coverage.html]
+directory = "reports/pytest_html_report"
