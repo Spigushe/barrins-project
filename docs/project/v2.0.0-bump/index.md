@@ -32,7 +32,13 @@ same day — resolves S5's previously-open "what is a training session"
 report-scope question; S5's dependency row now includes S9); and, while
 R5 was drafting the ADRs for these decisions, **S2's deck-validation gate
 deferred to v3.0.0** (§1.6), the same treatment already given to S10 —
-S2 no longer depends on S8 for v2.0.0. **Every item
+S2 no longer depends on S8 for v2.0.0; **updated again 2026-07-30** with
+a new item, **I9/§1.10** (a card-name validation gap discovered while
+scoping T3: `bs_deck_cards.card_name` has no authoritative MTG card list
+to validate against, since S8 doesn't exist yet — decided that T3 now
+**blocks on S8** rather than ingesting unvalidated strings, reopening
+S8's scope to cover T3 in addition to S4; the `proj/v2.0.0-bump` T-group
+work is on hold behind this until S8 is scoped). **Every item
 in §1 is now decided.** A decision recorded
 here is not yet a committed ADR — per Constitution §16.2 ("never guess
 requirements... changing deployment architecture, introducing a
@@ -833,6 +839,67 @@ rate-limiting anywhere today, a gap wider than just this one route.
 
 ---
 
+### 1.10 Card-name validation gap discovered while planning T3
+
+**Context.** While designing T3's ingestion route
+(`POST /internal/scripture/ingest`), it surfaced that `bs_deck_cards.card_name`
+(T2's schema) is a bare string with nothing to validate it against — no
+authoritative MTG card list exists anywhere in this codebase yet (F8: the
+MTGJSON pipeline described in `auth_roles.md` was never actually built).
+Neither T3 nor **T6** (Karn Tablets' metagame clustering, the next real
+consumer of this data — its archetype clustering keys off these exact
+strings) currently routes through S8 in the dependency graph above. A
+scraping glitch or an inconsistent/foreign spelling would go straight into
+production `bs_*` data with nothing to catch it, and T6 would inherit
+whatever noise results.
+
+**Alternatives.**
+
+1. **Ingest raw scraped strings verbatim, no validation** — mirrors the
+   reasoning that deferred S2's deck-validation gate to v3.0.0 (§1.6):
+   don't block v2.0.0 work on S8, which doesn't exist yet.
+2. **Light normalization only** (trim whitespace/case) inside the ingestion
+   route, with no check against any real card list — catches trivial
+   scraper noise without waiting on S8.
+3. **Block T3 on S8 outright**: validate every scraped card name against
+   S8's card data at ingestion time.
+4. **Ingest raw now, but record a tracked follow-up gap** (same treatment as
+   F7/F8) so T6's clustering quality isn't silently assumed correct later.
+
+**Trade-offs.** Options 1/2/4 ship T3 now but leave `bs_*` (and therefore
+T6's clustering) built on unvalidated card-name strings, with no guarantee
+scraped data will ever match a real card. Option 3 is the only one that
+guarantees correct data from day one, at the cost of reopening S8's scope —
+previously scoped to block only S4 — and pausing T3 (and transitively T6)
+behind a pipeline that doesn't exist in code at all yet.
+
+**Decided (2026-07-30): Option 3.** T3 is blocked on S8.
+`POST /internal/scripture/ingest` will validate each scraped card name
+against S8's card data before storing it, rather than accepting unvalidated
+strings the way S2's now-deferred gate would have.
+
+**Consequences.**
+
+- S8's dependency/notes row (its own page, and the Group T/S tables below)
+  now lists T3 alongside S4 as blocked items.
+- T3's dependency row becomes T1, T2, S8 (was T1, T2) — its own page and
+  the Group T table are updated accordingly. T6 (already depending on T3)
+  is blocked transitively.
+- The `proj/v2.0.0-bump` T-group branch goes on hold until S8 is scoped;
+  work continues on Group S (Tamiyo Scroll) items in the meantime, which
+  don't depend on this chain.
+- Groundwork already designed for T3 during this scoping pass — the
+  reject-not-queue (`503`) maintenance-gate behavior, the
+  delete-and-reinsert approach for `bs_deck_cards` (needed because MTGO
+  decklists are mutable for ~3 days after publication, not immutable as
+  originally assumed), and the `X-Scripture-Token` service-credential shape
+  — is recorded on T3's own page for whenever this resumes, not implemented
+  yet.
+
+This resolves **I9**.
+
+---
+
 ### A note on Playwright — deferred, not part of v2.0.0
 
 Playwright was suggested to the user during this planning process. It
@@ -902,6 +969,7 @@ sequential order within a theme, but the dependency column does.
 | I6 | Confirm what "metrics" means for the admin dashboard, and confirm the v2.0.0-embedded / v3.0.0-externalized split (§1.7) | — | S6 | ✅ Resolved 2026-07-25 — Option 1, staged |
 | I7 | Confirm how Tolaria News' public BFF routes are restricted to the Tolaria News app (§1.9) | — | T4 | ✅ Resolved 2026-07-27 — Option 4: stay open, restrict by rate-limiting, not caller identity |
 | I8 | Choose the PDF-generation library for S5 (WeasyPrint vs. ReportLab vs. other) | — | S5 | ✅ Resolved 2026-07-27 — WeasyPrint, decided against the user's stability/security/no-data-loss criteria (see S5 page) |
+| I9 | Confirm whether T3's ingestion validates scraped card names against real MTG data (§1.10) | — | T3 (transitively T6) | ✅ Resolved 2026-07-30 — Option 3: block T3 on S8, validate at ingestion |
 
 **Nothing else in this document should start implementation before its
 row in this table is resolved.** This mirrors how v1.0.0 itself required
@@ -915,7 +983,7 @@ R5 turning each into a real ADR.
 | --- | --- | --- | --- | --- |
 | T1 | Migrate/create `apps/barrins_scripture` per I2's outcome | I2 | Includes retiring or repointing `mtg_scraper`; keep the JSON archive in its own dump sub-repo (§1.3), never inlined into the monorepo. **Given, not urgent**: the `barrins-project` org hosting both `mtg_scraper` and `mtg_decklist_cache` will eventually be deleted by the user once no longer needed — both repos get transferred to a durable location as part of this item's own migration work, whenever there's confidence to do so, not on a deadline | [t1-scripture-repo-migration/](t1-scripture-repo-migration/index.md) |
 | T2 | Design the scraped-tournament schema in `barrins_api` (the domain previously referenced as "`dl_*`" but never built — see §0, F7) | I3 | This is genuinely new work, not a resurrection of hidden code. **Decided (2026-07-26)**: the domain/table prefix is `bs_` (Barrin's Scripture), not `dl_`, matching the existing `ts_` (Tamiyo Scroll) two-letter-per-app convention — `dl_` was inherited from a dead reference doc (F7), never a real convention | [t2-scraped-tournament-schema/](t2-scraped-tournament-schema/index.md) |
-| T3 | Build the scrape → JSON-archive → ingest pipeline per I3's outcome | T1, T2 | Keeps the existing `mtg_decklist_cache`-style JSON archive (§1.3); ingestion route must support a maintenance-mode gate (§1.2) | [t3-scripture-ingestion-pipeline/](t3-scripture-ingestion-pipeline/index.md) |
+| T3 | Build the scrape → JSON-archive → ingest pipeline per I3's outcome | T1, T2, S8 | Keeps the existing `mtg_decklist_cache`-style JSON archive (§1.3); ingestion route must support a maintenance-mode gate (§1.2). **Blocked on S8 (added 2026-07-30, §1.10)**: scraped card names must validate against real MTG data before being stored — on hold until S8 is scoped | [t3-scripture-ingestion-pipeline/](t3-scripture-ingestion-pipeline/index.md) |
 | T4 | Tolaria News BFF routes (`/api/v1/tolaria-news/...`), publicly readable (no per-user `CurrentUser` requirement), access-restricted by rate-limiting per I7 (resolved) — already anticipated by a comment in `bff/tamiyo_scroll.md` ("unlike the Tolaria News BFF which is publicly readable") | T2 | Follows the same router/service-package pattern as the Tamiyo Scroll BFF. **I7 resolved (Option 4, §1.9)**: no `CurrentUser`-style dependency added; instead needs an inbound rate limiter (policy — key/threshold/window/`429`/scope — still undefined, see D1/`consitution-amendment.md` Proposal 6) | [t4-tolaria-news-bff/](t4-tolaria-news-bff/index.md) |
 | T5 | `apps/tolaria_news` real frontend (React/Vite), calling `barrins_api`'s BFF only — no direct DB/calculation client-side, per §4.1/§4.2 | T4, I1 | `ops/my-server/tolaria_news.yml` already exists and is ready to deploy real code once this lands. **I7 resolved as Option 4** — T5's calling pattern is unaffected (no same-origin proxy flip; that was option 3, not chosen) | [t5-tolaria-news-frontend/](t5-tolaria-news-frontend/index.md) |
 | T6 | `apps/karn_tablets`: metagame clustering + deck-type aggregation per I4's decided scope (real service, not a placeholder) | I4, T2, T3 | Basic clustering/aggregation only for v2.0.0 (§1.4); windowing strategy (rolling 30-day vs. banlist-period) and prediction targets still need narrowing; any new ML dependency follows §4.7/§22 | [t6-karn-tablets-scaffold/](t6-karn-tablets-scaffold/index.md) |
@@ -933,7 +1001,7 @@ R5 turning each into a real ADR.
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | Backend-generated (Constitution §4.1: no client-side composition of computed stats). **I8 resolved 2026-07-27: WeasyPrint** (see S5 page for the full Context/Alternatives/Trade-offs research) | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | Confirmed v2.0.0-embedded, v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
-| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
+| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images) and, **added 2026-07-30 (§1.10), T3** (scraped card-name validation at ingestion — transitively blocks T6). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | New `ts_sessions` table, soft-deleted via `archived_at` (consistent with `TSPersonalDeck`/`TSMetaDeck`). Matches-only for v1 — card-test analysis across decklist versions is already extrapolable without a session concept. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | `CardGame` enum (recommended), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. Un-deferred because the logging gate is a live v2 consumer. Enum-vs-boolean + game list still to confirm | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (none exists today) unblocks historical decks. Distinct from S10 (deferred): the logging gate is a live v2 consumer | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |

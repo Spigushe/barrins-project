@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_scripture` + `apps/barrins_api` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — depends on T1 and T2 | / |
-| **Source** | Request item 1; `v2.0.0-bump/index.md` §1.2, §1.3 | / |
-| **Dependency** | T1, T2 | Blocks T4 |
+| **Status** | 🔲 **Blocked** — T1/T2 are functionally ready, but **on hold behind S8** (added 2026-07-30, see `v2.0.0-bump/index.md` §1.10): scraped card names must validate against real MTG data before being stored in `bs_deck_cards`, and S8 (the pipeline that would provide that data) doesn't exist in code yet | / |
+| **Source** | Request item 1; `v2.0.0-bump/index.md` §1.2, §1.3, §1.10 | / |
+| **Dependency** | T1, T2, S8 | Blocks T4 |
 
 ---
 
@@ -23,7 +23,44 @@ happens through a private, backend-only route on `barrins_api`
 (`POST /internal/scripture/ingest`) rather than Barrin's Scripture
 holding its own `DATABASE_URL`.
 
-## Done statement (once T1/T2 land)
+**Blocked on S8, added 2026-07-30 (§1.10 in the project index).** Scoping
+this item's ingestion route surfaced that `bs_deck_cards.card_name` has no
+authoritative MTG card list to validate against — S8 (the MTGJSON pipeline)
+doesn't exist in code yet. Decided: this item now validates every scraped
+card name against S8's data before storing it, rather than ingesting
+unvalidated strings. This item is on hold until S8 lands.
+
+**Groundwork recorded during this scoping pass, not yet implemented:**
+
+- **Maintenance gate behavior**: reject (not queue) via `HTTP 503` when
+  `scripture_ingest_maintenance` is set, checked before any DB write starts
+  — the JSON archive already makes a rejected scrape safely replayable, so
+  the client (Barrin's Scripture) retries with backoff rather than the
+  route building real queue infrastructure.
+- **`bs_deck_cards` needs delete-and-reinsert per deck on each ingest, not
+  row-level upsert.** Originally assumed decklists were immutable once
+  published — wrong: MTGO decklists are mutable for about 3 days after
+  publication. A naive per-card upsert would leave stale rows for any card
+  removed during that window; deleting and reinserting a deck's card lines
+  in the same transaction as its own upsert avoids that.
+- **Service-to-service credential**: a static token sent as an
+  `X-Scripture-Token` header, compared with `hmac.compare_digest` (matching
+  the constant-time-comparison style already used in
+  `app/core/security.py::verify_verification_code`). No existing
+  service-to-service auth dependency exists in `barrins_api` today — this
+  would be new code, a sibling to `CurrentUser` in `app/dependencies/`.
+- **Upsert mechanism** for the other five tables (tournament/rounds/
+  round_matches/standings): PostgreSQL `INSERT ... ON CONFLICT DO UPDATE
+  ... RETURNING id`, one statement per row, in FK order — every table's
+  natural-key unique constraint (T2) makes this idempotent with no prior
+  `SELECT`.
+- **Scheduled-job wiring**: `scrape_mtgo`/`scrape_mtgtop8` already return
+  each written file's `Path` from `save_tournament_scrape` — capturing that
+  list (currently discarded by the consumer threads) is enough to know
+  exactly what to ingest after a run, no timestamp/checkpoint heuristic
+  needed.
+
+## Done statement (once T1/T2/S8 land)
 
 - Every scrape still produces a JSON file in the archive first (§1.3 —
   unchanged behavior, this is the existing replay-safety net), living at
