@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `apps/barrins_api`, `apps/tamiyo_scroll` | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — unblocked, can start immediately | / |
+| **Initial date** | 2026-07-30 | In progress |
+| **Status** | 🔶 In progress — core auto-flag done; Moxfield staleness flag (brought into scope 2026-07-30) still to implement | / |
 | **Source** | Request item 2.2 | / |
 | **Dependency** | None | S5 (PDF report) is more useful once this lands |
 
@@ -34,17 +34,16 @@ creation time, editable afterward.
 
 ## Tasks
 
-- [ ] Add the migration (nullable FK, no backfill).
-- [ ] Update the match-creation service to resolve and stamp the current
+- [x] Add the migration (nullable FK, no backfill).
+- [x] Update the match-creation service to resolve and stamp the current
       version.
 - [ ] Add the field to `MatchWrite`/`MatchRead` schemas and to
       `MatchForm.tsx`/`MatchFormFields.tsx` (edit affordance).
-- [ ] Confirm `matchup-summary`/other stats routes are unaffected (this
-      field is informational, not part of any existing aggregate
-      calculation) unless a future request asks to filter stats by
-      version.
+- [x] Confirm `matchup-summary`/other stats routes are unaffected —
+      `app/services/tamiyo_scroll/stats.py` operates on full `TSMatch`
+      ORM objects, no column enumeration to update.
 
-## Enhancement under consideration (flagged 2026-07-26, not decided)
+## Moxfield staleness flag — decided in scope for v2.0.0 (2026-07-30)
 
 The user raised checking Moxfield during deck retrieval to flag a
 version as **"in the past"**: A3's `MoxfieldClient`
@@ -55,6 +54,29 @@ last-updated timestamp is fetched and discarded. This would compare that
 timestamp against the locally-stamped version's creation date (this
 item's core feature) and surface a flag when Moxfield's deck has since
 changed.
+
+**Decided (2026-07-30): brought into v2.0.0 scope**, still bound by the
+2026-07-27 constraint below (opportunistic only, never a dedicated call).
+
+**Verified against the live API (2026-07-30)**, using the real
+`MOXFIELD_USER_AGENT` secret from `.env` against a real deck URL: the
+response shape assumed by `http_client.py`'s docstring ("not verified
+against a live response... no outbound network access in this
+environment") is now confirmed correct where it matters for this
+feature —
+
+- The deck's own last-update timestamp is a **top-level** field:
+  `lastUpdatedAtUtc` (ISO 8601 UTC, e.g. `"2026-07-29T11:54:52.473Z"`),
+  sitting right after `createdAtUtc` and `hubs` at the response root.
+- **Trap**: `lastUpdatedAtUtc` also appears **~100+ times nested inside
+  each card's `prices` object** (per-card price-refresh time, unrelated
+  to the deck). Extracting via a naive top-level key search on a
+  flattened dict, or `"lastUpdatedAtUtc" in str(response_text)`, would
+  silently grab the wrong value. Must read it from the response root
+  object specifically (`data["lastUpdatedAtUtc"]`, not a recursive
+  search).
+- `createdAtUtc` is also present at deck level, unused by this feature
+  but confirms the root-level shape.
 
 **Constraint, decided (2026-07-27)**: this check is used **only if the
 last-update value arrives as part of an API call already being made for
@@ -75,11 +97,32 @@ invalidate, because there's no separate call to make.
 
 - Only applies to Moxfield-imported decks — manually-entered decks have
   no external source to compare against.
-- Not scoped for v2.0.0 by this remark alone — recorded here so it isn't
-  lost, not scheduled as a task above. Confirm with the user before
-  treating it as in-scope work. If it is scoped, it likely rides on a
-  future "re-sync from Moxfield" action (not yet designed) rather than
-  the one-shot import A3 already built.
+- The only existing caller of `MoxfieldClient` is
+  `POST .../versions/import-moxfield` (A3's one-shot import route) — so
+  the natural hook, satisfying the "already being made for another
+  reason" constraint, is: every time that route is called (first import
+  **or** a later re-import of the same deck), capture the response's
+  root-level `lastUpdatedAtUtc` alongside the content already being
+  extracted. A brand-new "check for updates" endpoint whose sole purpose
+  is querying Moxfield would violate the constraint — not built.
+
+## Tasks — Moxfield staleness flag (added 2026-07-30)
+
+- [ ] `MoxfieldClient.fetch_decklist` (or a sibling method) also returns
+      the deck's top-level `lastUpdatedAtUtc`, not just the board content
+      — read from the response root, not a recursive/flattened search
+      (see the per-card `prices.lastUpdatedAtUtc` trap above).
+- [ ] `TSPersonalDecklistVersion` gains a nullable
+      `moxfield_last_updated_at` timestamp column, set only for
+      `source = moxfield_import` versions (NULL for manual entries).
+- [ ] On a re-import (`import-moxfield` called again for a deck that
+      already has a prior Moxfield-sourced version), compare the fresh
+      `lastUpdatedAtUtc` against the prior Moxfield-sourced version's
+      stored value to determine whether Moxfield's deck changed since the
+      last import; surface this on the response (exact field/UI
+      presentation not yet designed).
+- [ ] Frontend: surface the flag somewhere in the decklist-version UI —
+      placement TBD, not yet designed.
 
 ## UAT (manual)
 

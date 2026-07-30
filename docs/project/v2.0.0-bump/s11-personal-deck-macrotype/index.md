@@ -126,7 +126,11 @@ there.)
       (`responses_tamiyo_scroll.py:31`) so the frontend can detect
       `NULL` decks.
 - [ ] Add a `PersonalDeckPatch` schema (`category: ArchetypeCategory`)
-      for the new route.
+      for the new route. **Added 2026-07-30**: also add an optional
+      `name` field (renaming) to this same shared schema/route — see
+      `../s10-personal-deck-game-flag/index.md`'s "Added requirement"
+      section for why deck renaming now matters (S1's sharing merge is
+      name-keyed) and what the frontend needs.
 
 ### Routes
 

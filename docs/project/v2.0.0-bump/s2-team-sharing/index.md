@@ -67,6 +67,45 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
   deck owner's individual results on their own profile — deleting the
   team-share link is not deleting the deck or its match history.
 
+## Conflicts with the account-settings popup handoff (flagged 2026-07-30, not resolved)
+
+`docs/project/v2.0.0-bump/z_handoff_params_popup/` specifies a "Team de
+test" section inside the account-settings popup (S1) that overlaps this
+item's scope. Team buttons are hidden in the popup for now (S1 ships
+without them) until these are sorted out and S2 implementation starts:
+
+1. **Single-team-membership constraint (new, not in this spec).** The
+   handoff's popup models three mutually exclusive states — no team /
+   member / owner — implying a user can belong to **at most one team**.
+   This spec's `ts_team_members` (`team_id`, `user_id`, `joined_at`) has
+   no uniqueness constraint on `user_id` alone, so as written it would
+   allow multi-team membership. Needs a decision: add a
+   `UNIQUE(user_id)` constraint (one team per user, matching the popup),
+   or keep multi-team membership and treat the popup's framing as a
+   simplified "your primary team" view for v2.0.0.
+2. **Team description timing.** The handoff's creation card collects
+   only a name ("Nom de la team") — no description field shown at
+   creation. This spec's `ts_teams` schema and team page both include
+   `description`. Is it set later (edited from the team page), or should
+   the popup's creation card also collect it? Not decided.
+3. **Popup scope vs. full team page.** The popup (per the handoff) only
+   covers lifecycle actions — create / join / leave / delete — plus
+   showing the invite code to an owner. It has no member list, no
+   per-deck discussion threads, no "Team Decks" selector, no
+   deck-sharing/flagging control, and no PDF-report-access surface — all
+   required by this spec's Done statement. Where does the full team page
+   live, and how is it reached from the popup (a link off the team-name
+   banner, not designed)?
+4. **Delete-team confirmation UX.** Handoff: `window.confirm` or an
+   inline second-state confirm, unspecified which. This spec doesn't
+   address confirmation at all. Worth aligning with whatever
+   destructive-action pattern (if any) the codebase already uses
+   elsewhere before building a third variant.
+5. **Invite code format.** Handoff shows `ABCD-1234` (dash, monospace
+   display) as an example. This spec says "8-character invite code" with
+   no format detail. Is the dash part of the stored/validated code, or
+   purely a display grouping over 8 raw characters?
+
 ## Done statement
 
 - `ts_teams` (id, name, description, invite_code, owner_id, created_at)

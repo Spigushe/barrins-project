@@ -73,6 +73,39 @@ stats-block color identity). If S10 moves into v2, it should be built as
 a parallel of S11 — same shape, `CardGame` in place of
 `ArchetypeCategory`.
 
+## Added requirement (2026-07-30): the shared PATCH route must also rename
+
+S1's sharing overhaul (see `../s1-global-sharing-reenable/index.md`,
+"account-settings popup" and `app/services/tamiyo_scroll/sharing_merge.py`)
+landed after this item was drafted, and changes what's at stake here: a
+personal deck's **name** is now the sole correlation key that merges a
+sharer's matches/roster into the viewer's own Journal/Metagame (exact
+match, trimmed, case-insensitive — no per-sharer linkage, no team concept
+yet). There is currently **no way to rename a personal deck** anywhere in
+the app — `PersonalDeckSelector.tsx` only creates and archives. A typo at
+creation, or ever wanting to fix a deck's name later, is not just a
+cosmetic annoyance now: it silently breaks an existing merge (rename away
+from a sharer's deck name) or silently creates an unintended one (rename
+into collision with an unrelated user's identically-named deck).
+
+Since S10/S11 already plan the first-ever `PATCH /personal-decks/{id}`
+route (today: `game`/`category` only), renaming should ship on that same
+route rather than opening a second one later. Concretely, when S10/S11
+are implemented:
+
+- `PersonalDeckPatch` (shared schema, see Backend schemas below) gains an
+  optional `name` field alongside `game`/`category`.
+- The frontend needs a real rename affordance (not just the game/category
+  controls) — e.g. an inline-editable deck name in `PersonalDeckSelector.tsx`
+  or the deck view, calling the same `useUpdatePersonalDeck` mutation.
+- Same validation as creation (`PersonalDeckCreate`'s `min_length=1,
+  max_length=255`, presumably `extra="forbid"` on the patch schema).
+
+Not scoped further here (exact UI placement, whether renaming re-triggers
+a merge recompute automatically or needs a page refresh) — flagged so the
+requirement isn't lost before S10/S11 implementation starts, per this
+project's escalate-don't-guess convention.
+
 ## Context
 
 Tag every personal deck with the card game it belongs to, so Magic decks
@@ -193,7 +226,9 @@ Each item is modeled on code that already exists and is already tested.
       **required** (no default) — a new deck must declare its game.
 - [ ] Add a `PersonalDeckPatch` schema (`game: CardGame`) for the PATCH
       route — coordinate with S11's `PersonalDeckPatch` (`category`): one
-      shared patch schema/route setting both fields, not two.
+      shared patch schema/route setting both fields, not two. **Added
+      2026-07-30**: also add an optional `name` field (renaming — see
+      "Added requirement" above) to the same shared schema/route.
 
 ### Route(s)
 
