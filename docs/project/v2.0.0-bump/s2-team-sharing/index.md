@@ -8,7 +8,7 @@
 | **Initial date** | / | Not started |
 | **Status** | 🔲 Not started — §1.6 resolved 2026-07-25, spec below | / |
 | **Source** | Request item 2.1 | / |
-| **Dependency** | I5 (§1.6, resolved), S1 (builds on the sharing mechanism) | S8 dependency dropped 2026-07-27 — see deck-validation gate note below |
+| **Dependency** | I5 (§1.6, resolved), S1 (builds on the sharing mechanism), S5 (PDF-report access for team members) | S8 dependency dropped 2026-07-27 — see deck-validation gate note below. **S5 dependency flagged 2026-07-30**: the Done statement, Tasks, and UAT below all assume team members can open a deck's PDF report, which is S5's deliverable — S2 can't fully complete until S5 exists |
 
 ---
 
@@ -67,44 +67,37 @@ decided**: Option 1 (open creation) with a real `ts_teams`/
   deck owner's individual results on their own profile — deleting the
   team-share link is not deleting the deck or its match history.
 
-## Conflicts with the account-settings popup handoff (flagged 2026-07-30, not resolved)
+## Conflicts with the account-settings popup handoff (resolved 2026-07-30)
 
 `docs/project/v2.0.0-bump/z_handoff_params_popup/` specifies a "Team de
 test" section inside the account-settings popup (S1) that overlaps this
-item's scope. Team buttons are hidden in the popup for now (S1 ships
-without them) until these are sorted out and S2 implementation starts:
+item's scope. Team buttons stay hidden in the popup until S2
+implementation starts, but the conflicts are now resolved:
 
-1. **Single-team-membership constraint (new, not in this spec).** The
-   handoff's popup models three mutually exclusive states — no team /
-   member / owner — implying a user can belong to **at most one team**.
-   This spec's `ts_team_members` (`team_id`, `user_id`, `joined_at`) has
-   no uniqueness constraint on `user_id` alone, so as written it would
-   allow multi-team membership. Needs a decision: add a
-   `UNIQUE(user_id)` constraint (one team per user, matching the popup),
-   or keep multi-team membership and treat the popup's framing as a
-   simplified "your primary team" view for v2.0.0.
-2. **Team description timing.** The handoff's creation card collects
-   only a name ("Nom de la team") — no description field shown at
-   creation. This spec's `ts_teams` schema and team page both include
-   `description`. Is it set later (edited from the team page), or should
-   the popup's creation card also collect it? Not decided.
-3. **Popup scope vs. full team page.** The popup (per the handoff) only
-   covers lifecycle actions — create / join / leave / delete — plus
-   showing the invite code to an owner. It has no member list, no
-   per-deck discussion threads, no "Team Decks" selector, no
-   deck-sharing/flagging control, and no PDF-report-access surface — all
-   required by this spec's Done statement. Where does the full team page
-   live, and how is it reached from the popup (a link off the team-name
-   banner, not designed)?
-4. **Delete-team confirmation UX.** Handoff: `window.confirm` or an
-   inline second-state confirm, unspecified which. This spec doesn't
-   address confirmation at all. Worth aligning with whatever
-   destructive-action pattern (if any) the codebase already uses
-   elsewhere before building a third variant.
-5. **Invite code format.** Handoff shows `ABCD-1234` (dash, monospace
-   display) as an example. This spec says "8-character invite code" with
-   no format detail. Is the dash part of the stored/validated code, or
-   purely a display grouping over 8 raw characters?
+1. **Multi-team membership allowed.** No `UNIQUE(user_id)` constraint on
+   `ts_team_members` — a user can belong to more than one team. The
+   popup's no-team/member/owner framing is a simplified view over the
+   user's teams (e.g. a "primary" team), not a hard one-team-per-user
+   rule.
+2. **Description set from the team page, not at creation.** The popup's
+   creation card collects only a name. `ts_teams.description` is set/
+   edited later from the full team page (see #3), not at creation time.
+3. **Popup is "quick mode"; team page is "full mode".** The popup covers
+   only lifecycle actions (create/join/leave/delete, invite-code display
+   for an owner). The full team page — member list, per-deck discussion
+   threads, "Team Decks" selector, deck-sharing control, PDF-report
+   access — lives at its own route in `apps/tamiyo_scroll`, reached via
+   a link off the popup's team-name banner.
+4. **Delete/archive requires two-step confirmation.** `window.confirm`
+   as a first gate, then a second step where the owner must type the
+   team's exact invite code before the delete/archive executes.
+5. **Invite code format finalized.** 8 alphanumeric characters, mixed
+   letters/digits with no positional rule (not "4 letters then 4
+   digits"), always uppercase, no special characters. Displayed as
+   `XXXX-XXXX`; the dash is display-only grouping, not part of the
+   stored/validated code — codes can be entered with or without it.
+   Redemption is rate-limited (1 attempt per 5 seconds, 5 per minute)
+   to slow brute-forcing of codes.
 
 ## Done statement
 
@@ -130,22 +123,42 @@ without them) until these are sorted out and S2 implementation starts:
 - Write-side enforcement follows the same pattern as S1/`resolve_owner`:
   team membership never grants write access to another member's deck,
   only read.
+- The team owner can remove an existing member via an "X" control at
+  the end of their row in the member list, gated by `window.confirm`;
+  the removed member loses access to the team's shared decks and
+  discussion threads.
+- The member list shows, per member, the count of tests/matches they've
+  logged across all decks flagged into the team.
 
 ## Tasks
 
-- [ ] Design and migrate `ts_teams` / `ts_team_members`.
-- [ ] Backend: team creation, invite-code generation/redemption, member
+- [ ] Design and migrate `ts_teams` / `ts_team_members` (no
+      `UNIQUE(user_id)` — multi-team membership allowed).
+- [ ] Backend: team creation, invite-code generation/redemption
+      (8-char, mixed alphanumeric, uppercased, dash-agnostic), member
       list, owner-only admin actions (flagging which decks get a
-      discussion thread).
+      discussion thread, removing a member).
+- [ ] Backend: invite-code redemption rate limiting (1 per 5 seconds,
+      5 per minute).
 - [ ] Backend: per-team-deck discussion thread storage + routes.
 - [ ] Backend: PDF report (S5) access check extended to "any team member
       of a team this deck is shared into," not just the deck owner.
-- [ ] Frontend: team page (name/description/members/discussion threads).
+- [ ] Backend: per-member test/match count across team-flagged decks,
+      surfaced for the member list.
+- [ ] Frontend: team page (name/description/members/discussion threads),
+      description editable from this page (not at creation).
 - [ ] Frontend: "flag to team" control alongside existing per-deck
       management UI in `DecklistTab`/`PersonalDeckSelector`.
 - [ ] Frontend: "Team Decks" selector, reusing `resolve_owner`'s pattern
       generalized from a single `owner_id` to "any deck visible to a
       team I'm in."
+- [ ] Frontend: "X" remove-member control per member-list row, gated by
+      `window.confirm`.
+- [ ] Frontend: two-step delete/archive confirmation (`window.confirm`
+      then require typing the exact invite code).
+- [ ] Frontend: popup ("quick mode": create/join/leave/delete,
+      invite-code display) links to the full team page ("full mode")
+      off the team-name banner.
 
 ## UAT (manual)
 
@@ -159,6 +172,16 @@ without them) until these are sorted out and S2 implementation starts:
       cannot edit it, and can open its PDF report.
 - [ ] Remove the deck from the team; confirm the owner's personal-profile
       results for that deck are unaffected.
+- [ ] Confirm the member list shows the correct per-member test count
+      across team-flagged decks.
+- [ ] Owner removes a member via the "X" control + `window.confirm`;
+      confirm the removed member loses access to team decks/threads.
+- [ ] Attempt to delete/archive a team: confirm it's blocked without both
+      the `window.confirm` step and typing the exact invite code.
+- [ ] Confirm invite-code redemption is rate-limited (rapid repeated
+      attempts get rejected per the 1/5s, 5/min limits).
+- [ ] Confirm a user can join a second team without losing membership in
+      their first.
 
 ## Non-regression tests
 
@@ -169,9 +192,8 @@ without them) until these are sorted out and S2 implementation starts:
   and deletion isolation (deck removed from team leaves the owner's own
   match history/report untouched). No validation-rejection test — deferred
   to v3.0.0 alongside the gate itself.
-
-## See also
-
-- [`../s10-personal-deck-game-flag/index.md`](../s10-personal-deck-game-flag/index.md)
-  — same "deferred to v3.0.0, recorded so the design work isn't lost"
-  treatment used for this item's deck-validation gate.
+- Coverage for invite-code rate limiting (6th attempt in a minute or 2nd
+  within 5 seconds rejected), owner-only member removal, multi-team
+  membership (no uniqueness violation on a second join), and the
+  two-step delete confirmation (wrong/missing invite code blocks
+  deletion).
