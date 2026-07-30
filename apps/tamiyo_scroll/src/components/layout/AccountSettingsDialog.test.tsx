@@ -53,6 +53,39 @@ describe('AccountSettingsDialog', () => {
     expect(screen.queryByText(/team/i)).not.toBeInTheDocument()
   })
 
+  it('renders a separator between the display name and sharing sections', () => {
+    render(<AccountSettingsDialog open onOpenChange={vi.fn()} />)
+    expect(screen.getByRole('separator')).toBeInTheDocument()
+  })
+
+  it('disables and unchecks receive when share is turned off', async () => {
+    const user = userEvent.setup()
+    render(<AccountSettingsDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('switch', { name: 'Receive shared data' }))
+    expect(screen.getByRole('switch', { name: 'Receive shared data' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    await user.click(screen.getByRole('switch', { name: 'Share my data' }))
+
+    const receiveSwitch = screen.getByRole('switch', { name: 'Receive shared data' })
+    expect(receiveSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(receiveSwitch).toBeDisabled()
+  })
+
+  it('does not toggle receive while disabled', async () => {
+    const user = userEvent.setup()
+    render(<AccountSettingsDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('switch', { name: 'Share my data' }))
+    const receiveSwitch = screen.getByRole('switch', { name: 'Receive shared data' })
+    await user.click(receiveSwitch)
+
+    expect(receiveSwitch).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('saves the display name and both toggles together', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()

@@ -81,6 +81,8 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
           </p>
         </div>
 
+        <div role="separator" className="h-px bg-accent" />
+
         <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -94,7 +96,14 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
             </div>
             <Switch
               checked={shareMyData}
-              onCheckedChange={setShareMyData}
+              onCheckedChange={(checked) => {
+                setShareMyData(checked)
+                // Receiving requires sharing on the same account — clear it
+                // rather than leave an unreachable-but-saved combination.
+                if (!checked) {
+                  setReceiveSharedData(false)
+                }
+              }}
               label="Share my data"
             />
           </div>
@@ -111,6 +120,7 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
               checked={receiveSharedData}
               onCheckedChange={setReceiveSharedData}
               label="Receive shared data"
+              disabled={!shareMyData}
             />
           </div>
           <p className="text-xs text-muted-foreground">

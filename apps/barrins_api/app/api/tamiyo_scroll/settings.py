@@ -51,6 +51,12 @@ async def update_my_settings(
     if payload.receive_shared_data is not None:
         user_settings.receive_shared_data = payload.receive_shared_data
 
+    if user_settings.receive_shared_data and not user_settings.data_shared:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="receive_requires_share",
+        )
+
     if "active_personal_deck_id" in payload.model_fields_set:
         if payload.active_personal_deck_id is not None:
             deck_result = await session.execute(

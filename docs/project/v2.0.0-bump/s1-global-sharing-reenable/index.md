@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/tamiyo_scroll`, `apps/barrins_api` | / |
 | **Initial date** | 2026-07-30 | Completed 2026-07-30 |
-| **Status** | ✅ Done — account-settings popup (`z_handoff_params_popup`) implemented; single global toggles, not per-sharer | / |
+| **Status** | ✅ Done, including the 2026-07-30 follow-up — account-settings popup (`z_handoff_params_popup`) implemented; single global toggles, not per-sharer; share/receive coupling and separator styling shipped same day (see Follow-up section below) | / |
 | **Source** | Request item 2.5 | / |
 | **Dependency** | None for the "share" half; I1 only for the new "receive" half | / |
 
@@ -138,6 +138,76 @@ opt-in on the *viewing* side; the request wants that to become explicit.
       For all practical purposes this means "on first app load," not
       literally "at signup" — flagged in case that distinction matters
       later.
+
+## Follow-up (2026-07-30): share/receive coupling + popup separator — ✅ Done
+
+Raised against the shipped popup (`AccountSettingsDialog.tsx`), screenshot
+review. Two changes, same file/pass:
+
+1. **New rule: you can share without receiving, but you can't receive
+   without sharing.** Today `shareMyData`/`receiveSharedData`
+   (`AccountSettingsDialog.tsx:47-50`) are two fully independent
+   booleans — nothing stops a user saving `data_shared: false,
+   receive_shared_data: true`. Decided: `receive_shared_data` requires
+   `data_shared` on the **same** account (this is a same-account
+   coupling, distinct from the existing cross-account check in
+   `GET /shared-users`/the merge path, which stays as-is). Per
+   Constitution §4.1 (backend owns business rules), this can't be a
+   frontend-only nicety:
+   - **Frontend**: the "Receive shared data" `Switch`
+     (`:110-114`) gets `disabled={!shareMyData}` — the `Switch`
+     component already supports `disabled` (`switch.tsx:8,21`,
+     `disabled:opacity-50` already styled). Also: turning "Share my
+     data" off while "Receive shared data" is on must turn the latter
+     off too (`setShareMyData` handler flips `receiveSharedData` to
+     `false` in the same update when going `true → false`), so `Save`
+     never submits an inconsistent local state even before a round
+     trip to the backend.
+   - **Backend**: `update_my_settings` (`app/api/tamiyo_scroll/
+     settings.py:40-72`) previously applied `data_shared` and
+     `receive_shared_data` independently (`:48-52`) with no
+     cross-field check. **Resolved**: after both are applied, if the
+     resulting `user_settings.receive_shared_data` is `True` while
+     `user_settings.data_shared` is `False`, reject with `422` and
+     detail `receive_requires_share` (matching S10/S11's `422` gate
+     pattern) — chosen over silently clamping, for the same reason
+     other invalid-state gates in this codebase fail loudly rather than
+     rewriting the caller's intent.
+   - `UserSettingsUpdate` (`schemas/tamiyo_scroll.py:10-16`) itself
+     doesn't need a shape change — both fields already exist and are
+     independently optional; the new rule is a value-level check in the
+     route, not a schema change.
+2. **Visual separator between the display-name block and the sharing
+   block.** No divider exists today between
+   `AccountSettingsDialog.tsx:69-82` (display name) and `:84-120` (the
+   `bg-input-inline` sharing card) — just the `gap-[22px]` on the
+   outer `flex flex-col` (`:68`). Add a 1px horizontal rule using the
+   existing `accent` design token (the same yellow/amber already used
+   by `Switch`'s checked state and `Button`'s default variant —
+   `bg-accent`, see `switch.tsx:27`/`button.tsx:11` — not a new raw
+   color), e.g. `<div className="h-px bg-accent" />` between the two
+   blocks, so the separator matches the popup's existing accent color
+   rather than introducing a new one.
+
+### Tasks
+
+- [x] Frontend: `disabled={!shareMyData}` on the receive `Switch`.
+- [x] Frontend: auto-clear `receiveSharedData` when `shareMyData` is
+      turned off.
+- [x] Backend: reject `receive_shared_data: true` with `data_shared:
+      false` (`422 receive_requires_share`) in `update_my_settings`.
+- [x] Frontend: add the `bg-accent` `role="separator"` between the
+      display-name and sharing sections.
+- [x] Updated `AccountSettingsDialog.test.tsx`: separator renders;
+      receive switch disables and unchecks when share is turned off;
+      disabled receive switch doesn't toggle on click. 10/10 passing.
+- [x] Backend: `test_settings.py` — renamed the now-inaccurate
+      "toggles are independent" test
+      (`test_sharing_on_does_not_force_receiving_on`), added
+      `test_enabling_receive_without_share_returns_422`,
+      `test_disabling_share_while_receive_is_on_returns_422`,
+      `test_disabling_both_together_succeeds`. Full backend suite:
+      286 passed, 98.14% coverage. Full frontend suite: 74/74 passed.
 
 ## UAT (manual)
 
