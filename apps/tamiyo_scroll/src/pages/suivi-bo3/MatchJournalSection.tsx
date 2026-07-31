@@ -4,11 +4,13 @@ import { useDecklistVersions } from '@/hooks/useDecklistVersions'
 import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
 import { useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
-import type { GameResult, Match } from '@/schemas/tamiyoScroll'
+import { useSessions } from '@/hooks/useSessions'
+import type { GameResult, Match, Session } from '@/schemas/tamiyoScroll'
 import {
   formatDate,
   GAME_RESULT_BORDER_CLASS,
   GAME_RESULT_LABELS,
+  SESSION_TYPE_BADGE_VARIANT,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -49,11 +51,21 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
   draw: 'warning',
 }
 
+/** Session tag, colored by session type (S9) — same mapping as the
+ * Sessions tab (`SESSION_TYPE_BADGE_VARIANT`). Falls back to the default
+ * badge variant if the session isn't in the (non-archived) list, e.g. an
+ * archived session a historical match still points to. */
+function SessionBadge({ session }: { session: Session | undefined }) {
+  if (!session) return <Badge>?</Badge>
+  return <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>{session.name}</Badge>
+}
+
 export function MatchJournalSection() {
   const { canEdit, activeDeckId } = useActiveDeck()
   const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
+  const { data: sessions } = useSessions(activeDeckId)
   const updateMatch = useUpdateMatch()
   const deleteMatch = useDeleteMatch()
 
@@ -69,6 +81,9 @@ export function MatchJournalSection() {
   }
   function opponentDeckName(id: string) {
     return metaDecks?.find((deck) => deck.id === id)?.name ?? '?'
+  }
+  function sessionById(id: string) {
+    return sessions?.find((session) => session.id === id)
   }
 
   function startEdit(match: Match) {
@@ -156,6 +171,9 @@ export function MatchJournalSection() {
                 <span className="text-[12.5px] text-subtle-foreground">
                   {formatDate(match.date)}
                 </span>
+                {match.session_id && (
+                  <SessionBadge session={sessionById(match.session_id)} />
+                )}
                 {match.is_readonly && (
                   <Badge variant="accent">from: {match.shared_by}</Badge>
                 )}
@@ -221,6 +239,9 @@ export function MatchJournalSection() {
                 <span>{formatDate(viewingMatch.date)}</span>
                 <span>{viewingMatch.on_play ? 'On the Play' : 'On the Draw'}</span>
                 <span className="font-mono">{gamesSummary(viewingMatch)}</span>
+                {viewingMatch.session_id && (
+                  <SessionBadge session={sessionById(viewingMatch.session_id)} />
+                )}
                 {viewingMatch.is_readonly && (
                   <Badge variant="accent">from: {viewingMatch.shared_by}</Badge>
                 )}

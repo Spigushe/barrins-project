@@ -4,6 +4,7 @@ import type {
   DecklistVersionSource,
   ExpectedLevel,
   GameResult,
+  SessionType,
 } from '@/schemas/tamiyoScroll'
 
 export const ARCHETYPE_LABELS: Record<ArchetypeCategory, string> = {
@@ -11,6 +12,17 @@ export const ARCHETYPE_LABELS: Record<ArchetypeCategory, string> = {
   midrange: 'Midrange',
   control: 'Control',
   combo: 'Combo',
+}
+
+export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
+  tournament: 'Tournament',
+  training: 'Training',
+}
+
+/** Shared by the Sessions tab and the match journal's session tag (S9). */
+export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'accent' | 'success'> = {
+  tournament: 'accent',
+  training: 'success',
 }
 
 export const ARCHETYPE_TEXT_CLASS: Record<ArchetypeCategory, string> = {

@@ -10,6 +10,7 @@ const baseMatch: Match = {
   personal_deck_id: 'deck-mine',
   opponent_deck_id: 'deck-theirs',
   decklist_version_id: null,
+  session_id: null,
   on_play: true,
   game1: 'win',
   game2: 'loss',
@@ -53,9 +54,22 @@ vi.mock('@/hooks/useDecklistVersions', () => ({
   useDecklistVersions: () => ({ data: [] }),
 }))
 
+let sessions: {
+  id: string
+  name: string
+  type: 'tournament' | 'training'
+  ended_at: string | null
+}[] = []
+
+vi.mock('@/hooks/useSessions', () => ({
+  useSessions: () => ({ data: sessions }),
+  useCreateSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 describe('MatchJournalSection — View button', () => {
   beforeEach(() => {
     matches = [baseMatch]
+    sessions = []
   })
 
   it('does not show match notes in the collapsed row', () => {
@@ -85,6 +99,7 @@ describe('MatchJournalSection — View button', () => {
 describe('MatchJournalSection — shared (read-only) matches', () => {
   beforeEach(() => {
     matches = [sharedMatch]
+    sessions = []
   })
 
   it('hides both Edit and Delete for a shared match', () => {
@@ -106,5 +121,31 @@ describe('MatchJournalSection — shared (read-only) matches', () => {
     await user.click(screen.getByRole('button', { name: 'View' }))
 
     expect(screen.getAllByText('from: other@example.com')).toHaveLength(2)
+  })
+})
+
+describe('MatchJournalSection — session badge', () => {
+  beforeEach(() => {
+    matches = [{ ...baseMatch, session_id: 'session-1' }]
+    sessions = [
+      { id: 'session-1', name: 'RC Toronto 2026', type: 'tournament', ended_at: null },
+    ]
+  })
+
+  it('shows the session name, colored by its type, on the collapsed row', () => {
+    render(<MatchJournalSection />)
+    const badge = screen.getByText('RC Toronto 2026')
+    expect(badge).toBeInTheDocument()
+    // tournament -> accent variant (see SESSION_TYPE_BADGE_VARIANT)
+    expect(badge.className).toContain('text-accent')
+  })
+
+  it('shows the session name in the View popup', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+
+    expect(screen.getAllByText('RC Toronto 2026')).toHaveLength(2)
   })
 })
