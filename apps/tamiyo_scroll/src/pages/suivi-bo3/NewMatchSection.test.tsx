@@ -26,6 +26,11 @@ vi.mock('@/hooks/useMatches', () => ({
   useCreateMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
+vi.mock('@/hooks/useSessions', () => ({
+  useSessions: () => ({ data: [] }),
+  useCreateSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 describe('NewMatchSection', () => {
   it("follows the header's active personal deck when it changes", () => {
     activeDeckId = 'deck-1'

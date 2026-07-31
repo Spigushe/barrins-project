@@ -71,12 +71,16 @@ export const metaDeckSchema = z.object({
 })
 export type MetaDeck = z.infer<typeof metaDeckSchema>
 
+export const sessionTypeSchema = z.enum(['tournament', 'training'])
+export type SessionType = z.infer<typeof sessionTypeSchema>
+
 export const matchSchema = z.object({
   id: z.uuid(),
   date: z.iso.date(),
   personal_deck_id: z.uuid(),
   opponent_deck_id: z.uuid(),
   decklist_version_id: z.uuid().nullable(),
+  session_id: z.uuid().nullable(),
   on_play: z.boolean(),
   game1: gameResultSchema.nullable(),
   game2: gameResultSchema.nullable(),
@@ -166,6 +170,7 @@ export const matchWriteSchema = z.object({
   personal_deck_id: z.uuid(),
   opponent_deck_id: z.uuid(),
   decklist_version_id: z.uuid().nullable().optional(),
+  session_id: z.uuid().nullable().optional(),
   on_play: z.boolean(),
   game1: gameResultSchema.nullable().optional(),
   game2: gameResultSchema.nullable().optional(),
@@ -185,3 +190,47 @@ export const cardTestWriteSchema = z.object({
   notes: z.string().nullable().optional(),
 })
 export type CardTestWrite = z.infer<typeof cardTestWriteSchema>
+
+export const sessionSchema = z.object({
+  id: z.uuid(),
+  owner_id: z.uuid(),
+  personal_deck_id: z.uuid(),
+  name: z.string(),
+  type: sessionTypeSchema,
+  notes: z.string().nullable(),
+  created_at: z.iso.datetime({ offset: true }),
+  ended_at: z.iso.datetime({ offset: true }).nullable(),
+  archived_at: z.iso.datetime({ offset: true }).nullable(),
+})
+export type Session = z.infer<typeof sessionSchema>
+
+export const sessionCreateSchema = z.object({
+  name: z.string().min(1).max(255),
+  type: sessionTypeSchema,
+  personal_deck_id: z.uuid(),
+  notes: z.string().nullable().optional(),
+})
+export type SessionCreate = z.infer<typeof sessionCreateSchema>
+
+export const sessionPatchSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  notes: z.string().nullable().optional(),
+  close: z.boolean().optional(),
+  reopen: z.boolean().optional(),
+})
+export type SessionPatch = z.infer<typeof sessionPatchSchema>
+
+export const sessionComparisonSchema = z.object({
+  session: sessionSchema,
+  session_match_count: z.number().int(),
+  baseline_match_count: z.number().int(),
+  session_wins: z.number().int(),
+  session_losses: z.number().int(),
+  baseline_wins: z.number().int(),
+  baseline_losses: z.number().int(),
+  session_archetype_summary: z.array(archetypeSummarySchema),
+  baseline_archetype_summary: z.array(archetypeSummarySchema),
+  session_matchup_summary: matchupSummarySchema,
+  baseline_matchup_summary: matchupSummarySchema,
+})
+export type SessionComparison = z.infer<typeof sessionComparisonSchema>
