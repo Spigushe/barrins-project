@@ -37,11 +37,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto max-w-[1400px] px-8 pt-7 pb-20">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-extrabold text-foreground">Tamiyo Scroll</h1>
-          <p className="text-[13px] text-muted-foreground">
-            Competitive · Test tracking · Duel Commander
-          </p>
+        <div className="flex items-center gap-3">
+          <img src="/favicon.svg" alt="" className="size-10 shrink-0" />
+          <div>
+            <h1 className="text-[22px] font-extrabold text-foreground">Tamiyo Scroll</h1>
+            <p className="text-[13px] text-muted-foreground">
+              Competitive · Test tracking · Duel Commander
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
