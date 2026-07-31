@@ -104,6 +104,12 @@ export function sessionReportFilename(session: { name: string }): string {
   return `session-report-${slug}.pdf`
 }
 
+/** S5's deck-level (no-session, last-30-days) report download entry point. */
+export function deckReportFilename(deck: { name: string }): string {
+  const slug = deck.name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `deck-report-${slug}.pdf`
+}
+
 export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   validated: 'Validated',
   rejected: 'Rejected',

@@ -4,7 +4,7 @@ import {
   decklistVersionSchema,
   personalDeckSchema,
 } from '@/schemas/tamiyoScroll'
-import { apiRequest } from './client'
+import { apiRequest, apiRequestBlob } from './client'
 
 export function listPersonalDecks(options: { includeArchived?: boolean } = {}) {
   return apiRequest('/bff/tamiyo-scroll/personal-decks', personalDeckSchema.array(), {
@@ -64,4 +64,9 @@ export function getDecklistView(deckId: string) {
     decklistLineSchema.array(),
     { applyOwnerParam: true },
   )
+}
+
+/** Server-rendered PDF report for this deck's last 30 days (S5), no session required. */
+export function getDeckReportPdf(deckId: string) {
+  return apiRequestBlob(`/bff/tamiyo-scroll/personal-decks/${deckId}/report.pdf`)
 }
