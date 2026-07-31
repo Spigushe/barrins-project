@@ -7,6 +7,8 @@ in the routes or on the frontend (constitution §4.1/§4.2).
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol, TypedDict
 from uuid import UUID
 
@@ -23,6 +25,8 @@ class MatchLike(Protocol):
 
     @property
     def opponent_deck_id(self) -> UUID: ...
+    @property
+    def decklist_version_id(self) -> UUID | None: ...
     @property
     def on_play(self) -> bool: ...
     @property
@@ -44,6 +48,8 @@ class MetaDeckLike(Protocol):
     def name(self) -> str: ...
     @property
     def category(self) -> ArchetypeCategory: ...
+    @property
+    def archived_at(self) -> datetime | None: ...
 
 
 class DeckWinrate(TypedDict):
@@ -205,3 +211,93 @@ def compute_matchup_summary(
     total_wins, total_losses, _ = _tally_games(matches)
     average_winrate = _winrate(total_wins, total_losses)
     return rows, average_winrate
+
+
+@dataclass
+class PeriodStats:
+    """Winrate/matchup summary of a reported period vs. its baseline.
+
+    Shared shape between two distinct "current period" concepts (S5):
+    a specific `TSSession` (its own explicitly-logged matches) and a
+    rolling window like "the last 30 days" (matches selected by
+    timestamp instead). Both compute the same numbers the same way —
+    only *which* matches count as "current" vs. "baseline" differs
+    between the two callers.
+    """
+
+    current_matches: Sequence[MatchLike]
+    baseline_matches: Sequence[MatchLike]
+    current_archetype: list[ArchetypeSummary]
+    baseline_archetype: list[ArchetypeSummary]
+    current_matchup_rows: list[MatchupRow]
+    current_avg: float | None
+    baseline_matchup_rows: list[MatchupRow]
+    baseline_avg: float | None
+    current_wins: int
+    current_losses: int
+    baseline_wins: int
+    baseline_losses: int
+
+
+def compute_period_stats(
+    meta_decks: Sequence[MetaDeckLike],
+    current_matches: Sequence[MatchLike],
+    baseline_matches: Sequence[MatchLike],
+    readonly_meta_deck_ids: frozenset[UUID] = frozenset(),
+) -> PeriodStats:
+    """Compute every number needed for a period-vs-baseline comparison.
+
+    `meta_decks` should be the caller's *entire* roster, archived decks
+    included — this function does its own archived filtering rather than
+    receiving an already-filtered list. Matches against an archived
+    opponent are dropped entirely (not just hidden from a table): the
+    deck's own name/category no longer exists to attribute them to,
+    which otherwise surfaced as a bare "?" row (archived decks used to
+    be filtered by the caller before this function ever saw the match
+    list, silently orphaning those matches instead of excluding them).
+
+    No parallel calculation path (Constitution §4.2): reuses
+    `compute_archetype_summary`/`compute_matchup_summary`/`_tally_games`.
+    `readonly_meta_deck_ids` passes through unchanged — same meaning as
+    those functions' own parameter (a merged-in sharer's roster entry,
+    `sharing_merge.MergedView.readonly_meta_deck_ids`).
+    """
+    active_meta_decks = [d for d in meta_decks if d.archived_at is None]
+    active_deck_ids = {d.id for d in active_meta_decks}
+    current_matches = [
+        m for m in current_matches if m.opponent_deck_id in active_deck_ids
+    ]
+    baseline_matches = [
+        m for m in baseline_matches if m.opponent_deck_id in active_deck_ids
+    ]
+    meta_decks_by_id = {d.id: d for d in active_meta_decks}
+
+    current_archetype = compute_archetype_summary(
+        active_meta_decks, current_matches, readonly_meta_deck_ids
+    )
+    baseline_archetype = compute_archetype_summary(
+        active_meta_decks, baseline_matches, readonly_meta_deck_ids
+    )
+    current_matchup_rows, current_avg = compute_matchup_summary(
+        current_matches, meta_decks_by_id, readonly_meta_deck_ids
+    )
+    baseline_matchup_rows, baseline_avg = compute_matchup_summary(
+        baseline_matches, meta_decks_by_id, readonly_meta_deck_ids
+    )
+    current_wins, current_losses, _ = _tally_games(current_matches)
+    baseline_wins, baseline_losses, _ = _tally_games(baseline_matches)
+
+    return PeriodStats(
+        current_matches,
+        baseline_matches,
+        current_archetype,
+        baseline_archetype,
+        current_matchup_rows,
+        current_avg,
+        baseline_matchup_rows,
+        baseline_avg,
+        current_wins,
+        current_losses,
+        baseline_wins,
+        baseline_losses,
+    )
