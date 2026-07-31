@@ -1,9 +1,9 @@
-"""Routes /personal-decks, .../versions*, .../decklist-view."""
+"""Routes /personal-decks, .../versions*, .../decklist-view, .../report.pdf."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import func, select
 
 from app.database.session import DatabaseSession
@@ -28,6 +28,15 @@ from app.schemas.tamiyo_scroll import (
 from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
+from app.services.tamiyo_scroll.report import (
+    format_period,
+    render_session_report_pdf,
+    resolve_report_decklist_version,
+)
+from app.services.tamiyo_scroll.sharing_merge import build_merged_view
+from app.services.tamiyo_scroll.stats import compute_period_stats
+
+REPORT_ROLLING_WINDOW = timedelta(days=30)
 
 router = APIRouter()
 
@@ -285,3 +294,86 @@ async def get_decklist_view(
     card_tests = tests_result.scalars().all()
     colored_lines = color_decklist(latest.content, card_tests)
     return [ResponseDecklistLine(**line) for line in colored_lines]
+
+
+@router.get("/personal-decks/{deck_id}/report.pdf")
+async def get_deck_period_report(
+    deck_id: uuid.UUID,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> Response:
+    """Server-rendered PDF report for a deck, no session required (S5).
+
+    Fixed to a rolling last-30-days window for now — letting the caller
+    choose the data/timeframe instead is a flagged follow-up, not built
+    here (see S5 doc's "outside of a session" addition). Baseline =
+    everything logged before that window, same shape as a session's
+    report (`sessions.get_session_report`), just windowed by time instead
+    of by explicit session membership.
+    """
+    deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
+    period_end = datetime.now(UTC)
+    period_start = period_end - REPORT_ROLLING_WINDOW
+
+    # Own matches/roster for this deck, plus any sharer data merged in
+    # read-only (S1) when the viewer opted into `receive_shared_data` —
+    # same merge `/archetype-summary`/`/matchup-summary` already apply,
+    # split here into period/baseline by timestamp since `build_merged_view`
+    # itself has no time-window concept (a session's matches are scoped by
+    # explicit membership instead — see `sessions.get_session_report`).
+    view = await build_merged_view(session, current_user, personal_deck_id=deck.id)
+    period_matches = [m for m in view.matches if m.created_at >= period_start]
+    baseline_matches = [m for m in view.matches if m.created_at < period_start]
+
+    # `view.meta_decks` (archived decks included) is passed as-is —
+    # `compute_period_stats` filters archived decks itself, and drops
+    # matches against them entirely rather than leaving them orphaned.
+    stats = compute_period_stats(
+        view.meta_decks, period_matches, baseline_matches, view.readonly_meta_deck_ids
+    )
+
+    versions_result = await session.execute(
+        select(TSPersonalDecklistVersion).where(
+            TSPersonalDecklistVersion.personal_deck_id == deck.id
+        )
+    )
+    versions = list(versions_result.scalars().all())
+    version = resolve_report_decklist_version(versions, stats.current_matches)
+
+    all_card_tests_result = await session.execute(
+        select(TSCardTest).where(
+            TSCardTest.owner_id == current_user.id,
+            TSCardTest.personal_deck_id == deck.id,
+        )
+    )
+    all_card_tests = list(all_card_tests_result.scalars().all())
+    colored_lines = color_decklist(version.content, all_card_tests) if version else []
+    version_label = (
+        f"Version {version.version} ({version.source.value})"
+        if version
+        else "No version yet"
+    )
+    period_card_tests = [t for t in all_card_tests if t.created_at >= period_start]
+
+    pdf_bytes = render_session_report_pdf(
+        title=deck.name,
+        subtitle=f"Last 30 days · {format_period(period_start, period_end)}",
+        period_label="Last 30 days",
+        decklist_version_label=version_label,
+        colored_lines=colored_lines,
+        period_match_count=len(stats.current_matches),
+        period_wins=stats.current_wins,
+        period_losses=stats.current_losses,
+        baseline_wins=stats.baseline_wins,
+        baseline_losses=stats.baseline_losses,
+        period_matchup_rows=stats.current_matchup_rows,
+        baseline_matchup_rows=stats.baseline_matchup_rows,
+        card_tests=period_card_tests,
+    )
+
+    filename = f"deck-report-{deck.id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
