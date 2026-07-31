@@ -1,7 +1,4 @@
-import {
-  ExpectedMetagameSection,
-  MetaDecksRosterSection,
-} from './metagame/MetaDecksSections'
+import { MetaDecksRosterSection } from './metagame/MetaDecksSections'
 import { ArchetypeSummarySection, MatchupSummarySection } from './metagame/StatsSections'
 
 export function MetagameTab() {
@@ -10,7 +7,6 @@ export function MetagameTab() {
       <ArchetypeSummarySection />
       <MatchupSummarySection />
       <MetaDecksRosterSection />
-      <ExpectedMetagameSection />
     </>
   )
 }

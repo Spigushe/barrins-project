@@ -5,6 +5,7 @@ import { useSession } from '@/hooks/useAuth'
 import { LoginPage } from '@/pages/LoginPage'
 import { VerifyEmailPage } from '@/pages/VerifyEmailPage'
 import { MetagameTab } from '@/pages/MetagameTab'
+import { SessionsTab } from '@/pages/SessionsTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
 import { DecklistTab } from '@/pages/DecklistTab'
 
@@ -49,6 +50,16 @@ function App() {
             <ProtectedRoute>
               <AppShell>
                 <DecklistTab />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/sessions"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <SessionsTab />
               </AppShell>
             </ProtectedRoute>
           }

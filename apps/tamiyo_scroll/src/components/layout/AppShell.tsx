@@ -12,6 +12,7 @@ const TABS = [
   { to: '/app/tracker', label: 'BO3 Tracking' },
   { to: '/app/metagame', label: 'Metagame' },
   { to: '/app/decklist', label: 'My decklist' },
+  { to: '/app/sessions', label: 'Sessions' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
