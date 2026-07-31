@@ -11,6 +11,7 @@ from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     ExpectedLevel,
     GameResult,
+    SessionType,
 )
 from app.schemas.responses_base import BaseResponse
 
@@ -72,6 +73,7 @@ class ResponseMatch(BaseResponse):
     personal_deck_id: uuid.UUID
     opponent_deck_id: uuid.UUID
     decklist_version_id: uuid.UUID | None
+    session_id: uuid.UUID | None
     on_play: bool
     game1: GameResult | None
     game2: GameResult | None
@@ -134,3 +136,34 @@ class ResponseMatchupRow(BaseResponse):
 class ResponseMatchupSummary(BaseResponse):
     rows: list[ResponseMatchupRow]
     average_winrate: float | None
+
+
+class ResponseSession(BaseResponse):
+    id: uuid.UUID
+    owner_id: uuid.UUID
+    personal_deck_id: uuid.UUID
+    name: str
+    type: SessionType
+    notes: str | None
+    created_at: datetime
+    ended_at: datetime | None
+    archived_at: datetime | None
+
+
+class ResponseSessionComparison(BaseResponse):
+    """Session's own stats vs. the baseline (everything logged before it)."""
+
+    session: ResponseSession
+    session_match_count: int
+    baseline_match_count: int
+    # Total decisive-game win/loss tallies (draws excluded, same as
+    # winrate) — the Sessions tab's "V/D" ratio line, distinct from the
+    # per-opponent ratios already in *_matchup_summary.rows.
+    session_wins: int
+    session_losses: int
+    baseline_wins: int
+    baseline_losses: int
+    session_archetype_summary: list[ResponseArchetypeSummary]
+    baseline_archetype_summary: list[ResponseArchetypeSummary]
+    session_matchup_summary: ResponseMatchupSummary
+    baseline_matchup_summary: ResponseMatchupSummary

@@ -59,6 +59,13 @@ class DecklistVersionSource(enum.StrEnum):
     moxfield_import = "moxfield_import"
 
 
+class SessionType(enum.StrEnum):
+    """Kind of a tournament/training session (S9)."""
+
+    tournament = "tournament"
+    training = "training"
+
+
 # Instance shared between game1/game2/game3 — a single PostgreSQL type
 # `ts_game_result` created by the migration, not three.
 _game_result_column = Enum(GameResult, name="ts_game_result")
@@ -145,6 +152,15 @@ class TSMatch(Base):
     decklist_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("ts_personal_decklist_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Defensive DB-level policy only — in normal operation ts_sessions rows
+    # are never hard-deleted (soft-delete via archived_at), so this SET NULL
+    # fallback exists for integrity, not as the primary "leaving a session"
+    # mechanism. Archiving a session leaves this column untouched (S9).
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_sessions.id", ondelete="SET NULL"),
         nullable=True,
     )
     on_play: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -325,4 +341,50 @@ class TSUserSettings(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("ts_personal_decks.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+
+class TSSession(Base):
+    """A named tournament/training session, grouping matches for one deck (S9).
+
+    Matches-only for v1 — no `ts_card_tests.session_id`, cf. S9's resolved
+    open question 1: version-scoped card-test analysis is already
+    extrapolable from `ts_personal_decklist_versions` without a session
+    concept. Deletion = archiving (`archived_at`), same soft-delete pattern
+    as `TSPersonalDeck`/`TSMetaDeck` — matches keep their `session_id`
+    unchanged when their session is archived.
+    """
+
+    __tablename__ = "ts_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    personal_deck_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_personal_decks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    type: Mapped[SessionType] = mapped_column(
+        Enum(SessionType, name="ts_session_type"), nullable=False
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )

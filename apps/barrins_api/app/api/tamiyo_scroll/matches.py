@@ -12,6 +12,7 @@ from app.models.tamiyo_scroll import (
     TSMetaDeck,
     TSPersonalDeck,
     TSPersonalDecklistVersion,
+    TSSession,
 )
 from app.schemas.responses_tamiyo_scroll import ResponseMatch
 from app.schemas.tamiyo_scroll import MatchWrite
@@ -91,6 +92,26 @@ async def _validate_decklist_version(
         )
 
 
+async def _validate_session(
+    session: DatabaseSession,
+    owner_id: uuid.UUID,
+    session_id: uuid.UUID,
+    personal_deck_id: uuid.UUID,
+) -> None:
+    """Session must belong to the caller and to the same personal deck (S9)."""
+    result = await session.execute(
+        select(TSSession.id).where(
+            TSSession.id == session_id,
+            TSSession.owner_id == owner_id,
+            TSSession.personal_deck_id == personal_deck_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found."
+        )
+
+
 def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
     match.personal_deck_id = payload.personal_deck_id
     match.opponent_deck_id = payload.opponent_deck_id
@@ -135,8 +156,13 @@ async def create_match(
     await _validate_match_refs(
         session, current_user.id, payload.personal_deck_id, payload.opponent_deck_id
     )
+    if payload.session_id is not None:
+        await _validate_session(
+            session, current_user.id, payload.session_id, payload.personal_deck_id
+        )
     match = TSMatch(owner_id=current_user.id)
     _apply_payload(match, payload)
+    match.session_id = payload.session_id
     # Never the frontend guessing which version is "current" (S3) — the
     # deck's latest version at creation time is resolved server-side,
     # ignoring any decklist_version_id the client may have sent.
@@ -164,8 +190,13 @@ async def update_match(
         await _validate_decklist_version(
             session, payload.personal_deck_id, payload.decklist_version_id
         )
+    if payload.session_id is not None:
+        await _validate_session(
+            session, current_user.id, payload.session_id, payload.personal_deck_id
+        )
     _apply_payload(match, payload)
     match.decklist_version_id = payload.decklist_version_id
+    match.session_id = payload.session_id
     session.add(match)
     await session.commit()
     await session.refresh(match)

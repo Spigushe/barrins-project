@@ -4,7 +4,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.tamiyo_scroll import ArchetypeCategory, ExpectedLevel, GameResult
+from app.models.tamiyo_scroll import ArchetypeCategory, ExpectedLevel, GameResult, SessionType
 
 
 class UserSettingsUpdate(BaseModel):
@@ -72,6 +72,7 @@ class MatchWrite(BaseModel):
     personal_deck_id: uuid.UUID
     opponent_deck_id: uuid.UUID
     decklist_version_id: uuid.UUID | None = None
+    session_id: uuid.UUID | None = None
     on_play: bool
     game1: GameResult | None = None
     game2: GameResult | None = None
@@ -79,6 +80,35 @@ class MatchWrite(BaseModel):
     opening_hand: str | None = None
     turning_point: str | None = None
     final_turn: str | None = None
+
+
+class SessionCreate(BaseModel):
+    """Payload for POST /sessions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+    type: SessionType
+    personal_deck_id: uuid.UUID
+    notes: str | None = None
+
+
+class SessionPatch(BaseModel):
+    """Payload for PATCH /sessions/{id} — partial update.
+
+    `ended_at` is write-only-as-a-flag: `close`/`reopen` stamp or clear the
+    current time server-side; the field itself isn't client-suppliable as
+    an arbitrary timestamp — see the route. `reopen` wins if both are sent
+    in the same request (not expected from the frontend, which only ever
+    sends one at a time via separate actions).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    notes: str | None = None
+    close: bool | None = None
+    reopen: bool | None = None
 
 
 class CardTestWrite(BaseModel):

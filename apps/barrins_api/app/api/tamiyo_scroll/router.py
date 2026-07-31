@@ -7,6 +7,7 @@ from app.api.tamiyo_scroll import (
     matches,
     meta_decks,
     personal_decks,
+    sessions,
     settings,
     stats,
 )
@@ -19,3 +20,4 @@ router.include_router(meta_decks.router)
 router.include_router(matches.router)
 router.include_router(card_tests.router)
 router.include_router(stats.router)
+router.include_router(sessions.router)

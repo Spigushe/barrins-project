@@ -70,6 +70,7 @@ class EffectiveMatch:
     personal_deck_id: UUID
     opponent_deck_id: UUID
     decklist_version_id: UUID | None
+    session_id: UUID | None
     on_play: bool
     game1: GameResult | None
     game2: GameResult | None
@@ -118,6 +119,7 @@ def _from_match(
         personal_deck_id=match.personal_deck_id,
         opponent_deck_id=match.opponent_deck_id,
         decklist_version_id=match.decklist_version_id,
+        session_id=match.session_id,
         on_play=match.on_play,
         game1=match.game1,
         game2=match.game2,
@@ -322,6 +324,10 @@ async def build_merged_view(
                 personal_deck_id=own_deck_id,
                 opponent_deck_id=resolved_opponent_id,
                 decklist_version_id=None,
+                # A sharer's session_id points into their own ts_sessions —
+                # meaningless (and inaccessible) to the viewer, and sessions
+                # aren't part of the sharing-merge concept (S9); never leaked.
+                session_id=None,
                 on_play=match.on_play,
                 game1=match.game1,
                 game2=match.game2,
