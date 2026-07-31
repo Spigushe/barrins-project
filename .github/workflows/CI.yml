@@ -60,6 +60,12 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/barrins_test
     steps:
       - uses: actions/checkout@v7
+      - name: Install WeasyPrint's native dependencies (S5 — Pango/cairo/GDK-Pixbuf)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangocairo-1.0-0 libcairo2 \
+            libgdk-pixbuf-2.0-0 shared-mime-info
       - name: Install uv
         uses: astral-sh/setup-uv@v7 # TO UPDATE if a newer version exists
         with:
