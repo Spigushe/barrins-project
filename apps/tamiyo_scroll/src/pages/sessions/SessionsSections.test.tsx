@@ -22,6 +22,7 @@ let comparisonBySessionId: Record<string, unknown> = {}
 const createSessionMutateAsync = vi.fn()
 const updateSessionMutateAsync = vi.fn()
 const archiveSessionMutateAsync = vi.fn()
+const downloadReportMutate = vi.fn()
 
 vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-mine', canEdit }),
@@ -47,6 +48,10 @@ vi.mock('@/hooks/useSessions', () => ({
   }),
   useUpdateSession: () => ({ mutateAsync: updateSessionMutateAsync }),
   useArchiveSession: () => ({ mutateAsync: archiveSessionMutateAsync }),
+  useDownloadSessionReport: () => ({
+    mutate: downloadReportMutate,
+    isPending: false,
+  }),
 }))
 
 function matchupRow(overrides: Partial<Record<string, unknown>> = {}) {
@@ -116,6 +121,7 @@ beforeEach(() => {
   createSessionMutateAsync.mockReset()
   updateSessionMutateAsync.mockReset()
   archiveSessionMutateAsync.mockReset()
+  downloadReportMutate.mockReset()
 })
 
 describe('SessionsOverviewSection — merged sessions list', () => {
@@ -210,6 +216,29 @@ describe('SessionsOverviewSection — merged sessions list', () => {
 
     expect(screen.getByText('No session yet.')).toBeInTheDocument()
   })
+
+  it('downloads a session report from its row icon', async () => {
+    sessions = [activeTrainingSession]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Download report (PDF)' }))
+
+    expect(downloadReportMutate).toHaveBeenCalledWith({
+      sessionId: 'session-active',
+      filename: 'session-report-weekly-training.pdf',
+    })
+  })
+
+  it('hides the report download icon in read-only mode', () => {
+    canEdit = false
+    sessions = [activeTrainingSession]
+    render(<SessionsOverviewSection />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Download report (PDF)' }),
+    ).not.toBeInTheDocument()
+  })
 })
 
 describe('SessionsOverviewSection — summary', () => {
@@ -293,5 +322,29 @@ describe('SessionsOverviewSection — summary', () => {
     await user.click(screen.getByText('RC Toronto 2026'))
 
     expect(screen.queryByText('Matchup comparison')).not.toBeInTheDocument()
+  })
+
+  it('downloads the selected session report from the summary button', async () => {
+    sessions = [closedTournamentSession]
+    comparisonBySessionId = {
+      'session-closed': comparisonFor(closedTournamentSession),
+    }
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByText('RC Toronto 2026'))
+    // Scoped to the summary card — the row above has its own PDF icon
+    // button sharing the same accessible name.
+    const summaryHeading = screen.getByRole('heading', { name: 'RC Toronto 2026' })
+    const summaryCard = summaryHeading.closest('div')
+    if (!summaryCard) throw new Error('summary card not found')
+    await user.click(
+      within(summaryCard).getByRole('button', { name: 'Download report (PDF)' }),
+    )
+
+    expect(downloadReportMutate).toHaveBeenCalledWith({
+      sessionId: 'session-closed',
+      filename: 'session-report-rc-toronto-2026.pdf',
+    })
   })
 })

@@ -78,11 +78,7 @@ function buildUrl(path: string, config: RequestConfig): URL {
   return url
 }
 
-export async function apiRequest<T>(
-  path: string,
-  schema: ZodType<T>,
-  config: RequestConfig = {},
-): Promise<T> {
+async function fetchWithAuthRetry(path: string, config: RequestConfig): Promise<Response> {
   const { method = 'GET', body, requireAuth = true } = config
   const url = buildUrl(path, config)
 
@@ -115,6 +111,16 @@ export async function apiRequest<T>(
     response = await doFetch()
   }
 
+  return response
+}
+
+export async function apiRequest<T>(
+  path: string,
+  schema: ZodType<T>,
+  config: RequestConfig = {},
+): Promise<T> {
+  const response = await fetchWithAuthRetry(path, config)
+
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorMessage(response))
   }
@@ -124,4 +130,18 @@ export async function apiRequest<T>(
   }
 
   return schema.parse(await response.json())
+}
+
+/** Like `apiRequest`, but for binary responses (e.g. a PDF download) — no JSON parsing. */
+export async function apiRequestBlob(
+  path: string,
+  config: RequestConfig = {},
+): Promise<Blob> {
+  const response = await fetchWithAuthRetry(path, config)
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorMessage(response))
+  }
+
+  return response.blob()
 }

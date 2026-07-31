@@ -4,6 +4,7 @@ import { usePersonalDecks } from '@/hooks/usePersonalDecks'
 import {
   useArchiveSession,
   useCreateSession,
+  useDownloadSessionReport,
   useSessionComparison,
   useSessions,
   useUpdateSession,
@@ -14,8 +15,10 @@ import {
   formatPercent,
   SESSION_TYPE_BADGE_VARIANT,
   SESSION_TYPE_LABELS,
+  sessionReportFilename,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
+import { FilePdfIcon } from '@/components/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
@@ -159,6 +162,7 @@ function SessionSummarySection({
   deckNameById: Map<string, string>
 }) {
   const { data: comparison } = useSessionComparison(sessionId)
+  const downloadReport = useDownloadSessionReport()
 
   if (sessionId === null || !comparison) {
     return (
@@ -192,6 +196,21 @@ function SessionSummarySection({
         >
           {isActive ? 'Ongoing' : 'Closed'}
         </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          disabled={downloadReport.isPending}
+          onClick={() => {
+            downloadReport.mutate({
+              sessionId: session.id,
+              filename: sessionReportFilename(session),
+            })
+          }}
+        >
+          {downloadReport.isPending ? 'Generating…' : 'Download report (PDF)'}
+        </Button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {sessionPeriodLabel(session)} · {deckNameById.get(session.personal_deck_id) ?? '—'}
@@ -249,6 +268,7 @@ export function SessionsOverviewSection() {
   const createSession = useCreateSession()
   const updateSession = useUpdateSession()
   const archiveSession = useArchiveSession()
+  const downloadReport = useDownloadSessionReport()
 
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<SessionType>('training')
@@ -286,6 +306,13 @@ export function SessionsOverviewSection() {
   function handleArchive(sessionId: string) {
     void archiveSession.mutateAsync(sessionId)
     if (selectedSessionId === sessionId) setSelectedSessionId(null)
+  }
+
+  function handleDownloadReport(session: Session) {
+    downloadReport.mutate({
+      sessionId: session.id,
+      filename: sessionReportFilename(session),
+    })
   }
 
   return (
@@ -350,7 +377,7 @@ export function SessionsOverviewSection() {
               <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Period</TableHead>
-              {canEdit && <TableHead className="w-40" />}
+              {canEdit && <TableHead className="w-52" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -411,6 +438,19 @@ export function SessionsOverviewSection() {
                           Reopen
                         </Button>
                       )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        title="Download report (PDF)"
+                        aria-label="Download report (PDF)"
+                        disabled={downloadReport.isPending}
+                        onClick={() => {
+                          handleDownloadReport(session)
+                        }}
+                      >
+                        <FilePdfIcon className="size-4" />
+                      </Button>
                       <Button
                         type="button"
                         size="sm"

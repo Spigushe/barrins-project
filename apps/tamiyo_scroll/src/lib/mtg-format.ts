@@ -98,6 +98,12 @@ export function formatDateTime(isoDateTime: string): string {
   return new Date(isoDateTime).toLocaleDateString('fr-FR')
 }
 
+/** Shared by both S5 session-report download entry points (row icon + summary button). */
+export function sessionReportFilename(session: { name: string }): string {
+  const slug = session.name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `session-report-${slug}.pdf`
+}
+
 export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   validated: 'Validated',
   rejected: 'Rejected',

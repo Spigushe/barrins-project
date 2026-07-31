@@ -5,7 +5,7 @@ import {
   type SessionCreate,
   type SessionPatch,
 } from '@/schemas/tamiyoScroll'
-import { apiRequest } from './client'
+import { apiRequest, apiRequestBlob } from './client'
 
 export function listSessions(personalDeckId: string, includeArchived = false) {
   return apiRequest('/bff/tamiyo-scroll/sessions', sessionSchema.array(), {
@@ -41,4 +41,9 @@ export function getSessionComparison(sessionId: string) {
     `/bff/tamiyo-scroll/sessions/${sessionId}/comparison`,
     sessionComparisonSchema,
   )
+}
+
+/** Server-rendered PDF report for this session (S5) — WeasyPrint, backend-only. */
+export function getSessionReportPdf(sessionId: string) {
+  return apiRequestBlob(`/bff/tamiyo-scroll/sessions/${sessionId}/report.pdf`)
 }

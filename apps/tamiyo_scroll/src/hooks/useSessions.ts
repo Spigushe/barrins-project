@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as sessionsApi from '@/api/sessions'
+import { downloadBlob } from '@/lib/utils'
 import type { SessionCreate, SessionPatch } from '@/schemas/tamiyoScroll'
 
 export function useSessions(personalDeckId: string | null, includeArchived = false) {
@@ -53,5 +54,14 @@ export function useArchiveSession() {
   return useMutation({
     mutationFn: (sessionId: string) => sessionsApi.archiveSession(sessionId),
     onSuccess: invalidate,
+  })
+}
+
+export function useDownloadSessionReport() {
+  return useMutation({
+    mutationFn: async ({ sessionId, filename }: { sessionId: string; filename: string }) => {
+      const blob = await sessionsApi.getSessionReportPdf(sessionId)
+      downloadBlob(blob, filename)
+    },
   })
 }
