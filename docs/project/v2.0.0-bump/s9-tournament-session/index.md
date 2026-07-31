@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api`, `apps/tamiyo_scroll` | / |
 | **Initial date** | 2026-07-27 | Scope decided 2026-07-27, added to the Group S table in `../index.md` as **S9** |
-| **Status** | 🔲 Not started — scope decided (open questions 1–5 below resolved 2026-07-27) | / |
+| **Status** | ✅ Done — the design pass arrived (`z-handoff-session-tab/`, 2026-07-31) and the dedicated Sessions tab is built: manage/create/close/reopen/archive, review closed sessions, and the comparison summary (incl. the relocated `ExpectedMetagameSection` for tournament-typed sessions). Full stack tested. | / |
 | **Source** | Raised in conversation on 2026-07-27, not part of the original v2.0.0-bump request items | / |
 | **Dependency** | None (no Group I decision touches this) | Resolves S5's open scoping question — S5's dependency row now includes S9; complements S3 without overlapping it |
 
@@ -172,6 +172,25 @@ business logic") satisfied for free.
      tables today. Needs its own design pass (same "hifi design first"
      precedent already applied to S4) — not designed here.
 
+## Scope addition (2026-07-30): relocate `ExpectedMetagameSection`
+
+Raised by the user while starting this item's implementation. Today
+`<ExpectedMetagameSection />` (`apps/tamiyo_scroll/src/pages/metagame/
+MetaDecksSections.tsx:284`) renders unconditionally on the general
+Metagame tab (`MetagameTab.tsx:13`) — a table of each roster deck's
+Top 8/presence/conversion/"expected" level. That's tournament-prep data
+(anticipating a specific event's field), which conceptually belongs to a
+**tournament**-typed session, not to the always-on Metagame tab.
+
+**Decided (2026-07-30)**: move, not duplicate. `<ExpectedMetagameSection />`
+is removed from `MetagameTab.tsx` entirely and instead renders only inside
+the dedicated Sessions view (§"Frontend touchpoints" below) when viewing a
+session whose `type == "tournament"` — never for `training` sessions, and
+never outside any session. This is a frontend-only relocation of an
+existing, already-built component; no backend change. Depends on the
+Sessions view existing to relocate into, so it lands as part of that
+view's build, not before it.
+
 ## Open questions — resolved 2026-07-27
 
 1. **Card-tests in scope for v1, or matches-only first?** **Decided:
@@ -215,32 +234,126 @@ business logic") satisfied for free.
 
 ## Tasks
 
-- [ ] Migration: `ts_sessions` table (`id`, `owner_id`, `personal_deck_id`,
+- [x] Migration: `ts_sessions` table (`id`, `owner_id`, `personal_deck_id`,
       `name`, `type`, `notes`, `created_at`, `ended_at`, `archived_at`) +
-      nullable `ts_matches.session_id` FK (`ON DELETE SET NULL`).
-- [ ] `SessionWrite`/`SessionRead` schemas + CRUD routes, including
+      nullable `ts_matches.session_id` FK (`ON DELETE SET NULL`)
+      (`f3b8c1d5a742_add_ts_sessions_table.py`).
+- [x] `SessionCreate`/`SessionPatch`/`ResponseSession` schemas + CRUD
+      routes (`app/api/tamiyo_scroll/sessions.py`), including
       `include_archived` on the list route (mirrors
       `list_personal_decks`/`list_meta_decks`) and an archive-not-delete
       `DELETE` route (mirrors `archive_personal_deck`/`archive_meta_deck`).
-- [ ] Extend `MatchWrite` (not `CardTestWrite`) with optional
-      `session_id`, validated via `ownership.resolve_owner`.
-- [ ] `GET .../sessions/{id}/comparison` — fetch both subsets, reuse
-      `compute_archetype_summary`/`compute_matchup_summary`, diff.
-- [ ] Frontend: session selector on the match form; a Sessions
-      view/tab with quick stats and the comparison view (design pass
-      first, per resolved open question 5).
+      **Deviation from the plan above**: no `ownership.resolve_owner`/
+      `owner_id` param on the list route — sessions aren't part of the
+      sharing-merge concept (confirmed nowhere in this doc's scope), so
+      routes are owner-scoped via `CurrentUser` only, same shape as
+      `meta_decks.py`'s write routes rather than its shared-aware
+      `list_meta_decks`.
+- [x] Extended `MatchWrite`/`ResponseMatch` (not `CardTestWrite`) with
+      optional `session_id`. **Deviation**: validated via a new
+      `_validate_session` helper in `matches.py` (owner + matching
+      `personal_deck_id` check) rather than `ownership.resolve_owner`,
+      which is a GET-only, shared-view concept (see above) — write-side
+      validation needed a different helper, consistent with how
+      `_validate_match_refs`/`_validate_decklist_version` already work in
+      that same file.
+- [x] `GET .../sessions/{id}/comparison` — fetches both subsets, reuses
+      `compute_archetype_summary`/`compute_matchup_summary` (via
+      `sharing_merge._from_match` to satisfy the `MatchLike` protocol —
+      reused rather than duplicated), diffs session vs. baseline.
+- [x] Frontend: optional session selector on `MatchFormFields`
+      (`SessionField` in `MatchForm.tsx`), backed by new `api/sessions.ts`
+      + `hooks/useSessions.ts`. Per the user (2026-07-30): same searchable
+      Popover/Command combobox + inline "Create" dialog shape as
+      `OpponentDeckField`, not a plain Select — the first draft used a
+      plain Select (matching the sibling "Decklist version" field) and
+      was corrected to match the opponent-deck field's UX exactly, per
+      the original "Frontend touchpoints" spec above. A "— none —" entry
+      at the top of the list is the only addition, since a session is
+      optional (unlike the opponent).
+- [x] **Dedicated Sessions tab, built 2026-07-31** per the design handoff
+      (`z-handoff-session-tab/README.md` + `.dc.html`), 4th tab in
+      `AppShell` (`/app/sessions`, after "My decklist"):
+      `pages/SessionsTab.tsx` + `pages/sessions/SessionsSections.tsx`
+      (`SessionsOverviewSection`, `SessionSummarySection`,
+      `MatchupComparisonTable`, `StatTile`). The summary reads
+      `GET .../sessions/{id}/comparison` directly (winrate already
+      computed server-side); no client-side recalculation.
+      **Deviation from the handoff, confirmed by the user (2026-07-31)**:
+      the handoff explicitly marks the `ExpectedMetagameSection` move as
+      out of scope for this tab ("hors scope... à traiter dans un handoff
+      séparé si besoin") — the user chose to keep the earlier decision
+      anyway. `ExpectedMetagameSection` is removed from `MetagameTab.tsx`
+      and rendered inside the session summary card when
+      `session.type === "tournament"`.
+      **Extended the comparison response** (`session_wins`/
+      `session_losses`/`baseline_wins`/`baseline_losses`, via
+      `stats._tally_games`, reused not duplicated) — needed for the
+      handoff's "V/D" ratio line, which `average_winrate` alone can't
+      produce.
+      **Reworked twice after the initial build, same day, per the user**:
+      1. Initially built as two separate blocks ("Manage sessions"
+         active-only table + "Review a closed session" list, per the
+         handoff literally) and cross-deck (no `personal_deck_id` filter,
+         matching the handoff prototype's own logic, which has no deck
+         filter anywhere in its `sessions` handling). **Merged into one
+         list** showing every non-archived session (ongoing + closed
+         together) with a Status badge ("Ongoing"/"Closed") per row —
+         the create form and Close/Reopen/✕ actions stay `canEdit`-gated,
+         the list itself stays visible read-only. **Made deck-scoped**
+         (matching every other tab's `useActiveDeck()` pattern) — the
+         list now filters to the header's currently-selected personal
+         deck via `useSessions(activeDeckId)`, and the creation form's
+         "My deck" select was removed (a session is always created for
+         the active deck). `hooks/useSessions.ts::useAllSessions` (the
+         cross-deck hook this first needed) was added then removed in
+         the same pass — no longer has a caller.
+      2. Added a **per-opponent-deck matchup comparison table**
+         (`MatchupComparisonTable`) to the summary, below
+         `ExpectedMetagameSection`'s slot, for every session (not just
+         tournaments): Deck / W/R global (baseline) / W/R session / Delta
+         / Delta OTP / Delta OTD, one row per deck faced during the
+         session, baseline looked up by `opponent_deck_id` from
+         `baseline_matchup_summary.rows` (absent baseline = first time
+         facing that deck this history contains — deltas show `—`).
+         Entirely derived from the comparison endpoint's already-returned
+         `session_matchup_summary`/`baseline_matchup_summary` rows — no
+         backend change needed.
+- [x] **Fix (2026-07-31): a closed session can no longer be picked** when
+      logging or editing a match — `SessionField` (`MatchForm.tsx`) now
+      splits the fetched sessions into a full list (for resolving the
+      currently-assigned session's name, even if closed — an
+      already-logged match shouldn't lose its label) and a
+      `selectableSessions` list (`ended_at === null` only) for the
+      combobox itself.
+- [x] **Added (2026-07-31): reopening a closed session.** `SessionPatch`
+      gains a `reopen: bool` flag (clears `ended_at`), symmetric to
+      `close`; a "Reopen" button on each closed row in the sessions list
+      (edit-mode only). `reopen` wins if a request somehow sends both
+      flags — not a real path today, both are separate button actions.
+- [x] **Added (2026-07-31): session shown on match journal rows.**
+      `MatchJournalSection` now shows a neutral badge with the session's
+      name (resolved via `useSessions(activeDeckId)`) on both the
+      collapsed row and the View popup, when `match.session_id` is set.
 
 ## UAT (manual)
 
-- [ ] Create a session for a deck, log matches into it and separately log
-      ungrouped matches; confirm the comparison view's baseline excludes
-      the session's own matches and reflects only prior history (including
-      any matches tied to a different session).
-- [ ] Archive the session; confirm its matches keep their `session_id`
-      (unlike a hard delete, nothing falls back to the ungrouped pool),
-      the session drops out of the default (non-archived) Sessions list,
-      and its comparison view still works when explicitly viewing it via
-      `include_archived`.
+- [x] Backend: full suite green (308 tests including the new `reopen`
+      test and win/loss-tally assertions) — confirms the baseline query
+      excludes the session's own matches and includes prior history from
+      other sessions/ungrouped, archiving leaves `ts_matches.session_id`
+      untouched, and `reopen` clears `ended_at`. Frontend: full suite
+      green (94 tests) — includes the closed-session-exclusion test, the
+      session-badge-on-journal tests, and
+      `sessions/SessionsSections.test.tsx` (merged-list status badges,
+      canEdit gating, deck-scoped creation, close/reopen/archive,
+      `ExpectedMetagameSection` shown only for tournament-typed sessions,
+      and the matchup-comparison table's computed deltas).
+- [ ] Manual UAT on staging (create a session, log matches into it and
+      separately, view the comparison, close/reopen/archive it, confirm
+      the Metagame tab no longer shows "Expected metagame" and the
+      Sessions tab does for a tournament session) — not yet run; blocked
+      on nothing technically, just not done yet.
 
 ## Non-regression tests
 
