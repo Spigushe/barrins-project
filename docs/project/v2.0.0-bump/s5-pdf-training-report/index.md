@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `apps/barrins_api`, `apps/tamiyo_scroll` | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — **I8 resolved 2026-07-27**: WeasyPrint | / |
+| **Initial date** | 2026-07-30 | / |
+| **Status** | ✅ Done (2026-07-31) — **I8 resolved 2026-07-27**: WeasyPrint | / |
 | **Source** | Request item 2.4 | / |
 | **Dependency** | S3 (more useful once matches carry a version reference), S9 (defines what "training session" actually means — resolves this page's report-scope open task) | / |
 
@@ -113,38 +113,75 @@ This resolves I8.
 
 ## Done statement
 
-- A new endpoint (e.g. `GET .../sessions/{id}/report.pdf`, scoped to one
-  S9 `ts_sessions` session — resolved below) returns a server-rendered
-  PDF (via WeasyPrint) summarizing: the decklist version used, matches
-  logged against it during that session (leveraging S3's version stamp),
-  win rates vs. the session's baseline (S9's comparison, reused rather
-  than recomputed), and card-test feedback for the same deck/period.
+- `GET .../sessions/{id}/report.pdf`, scoped to one S9 `ts_sessions`
+  session, returns a server-rendered PDF (via WeasyPrint) summarizing:
+  the decklist version used, matches logged against it during that
+  session (leveraging S3's version stamp), win rates vs. the session's
+  baseline (S9's comparison, reused rather than recomputed), and
+  card-test feedback for the same deck/period.
+- **Added during implementation (2026-07-31, user request)**:
+  `GET .../personal-decks/{deck_id}/report.pdf` — the same report shape
+  with no session required, for a rolling last-30-days window across all
+  of a deck's history. Folds in S1's shared/merged sharer data
+  (`build_merged_view`) when the viewer has `receive_shared_data`
+  enabled, same as the live `/archetype-summary`/`/matchup-summary`
+  endpoints. Fixed to the last 30 days for now — letting the caller pick
+  the data/timeframe instead is deferred, see
+  `docs/content/front/tamiyo_scroll/roadmap.md`'s v2+ table.
+- Both reports share one calculation path
+  (`stats.compute_period_stats`/`PeriodStats`) and one renderer
+  (`report.render_session_report_pdf`) — no duplicated winrate/matchup
+  logic between the session-scoped and deck-level variants
+  (Constitution §4.2).
+- The decklist section is two columns, tight line spacing, and placed
+  last in the report (fits on one page for a typical decklist).
+- Matches against an archived opponent deck are excluded entirely from
+  both reports (and from S9's session comparison, where the same bug
+  pre-existed) rather than surfacing as an unresolvable "Opponent deck:
+  ?" row.
+- No "Baseline games" stat tile — removed from both report variants per
+  user request (2026-07-31); the record/winrate baseline comparisons
+  stay, only the raw baseline match-count tile was dropped.
 - No client-side PDF composition — the frontend only triggers a download
-  of a backend-rendered file.
+  of a backend-rendered file: a "Download report (PDF)" button on the
+  session summary panel, a matching file-pdf icon button per session row
+  (`apps/tamiyo_scroll/src/components/icons.tsx`, inlined Font Awesome
+  SVG rather than a new icon-library dependency), and a "Download report
+  (PDF)" button on the deck's current-decklist section for the
+  deck-level report.
 
 ## Tasks
 
-- [ ] Add `weasyprint` as a backend dependency (pinned to a version
+- [x] Add `weasyprint` as a backend dependency (pinned to `>=69.0`,
       confirmed to include both CVEs' fixes).
 - [x] Design the report's exact scope: **resolved by S9** — "training
       session" is now a real entity (`ts_sessions`), not TBD. The report
       is scoped to one session, reusing S9's session-vs-baseline
       comparison rather than a whole deck's history or an arbitrary date
-      range.
-- [ ] Implement the rendering service, consuming the same
+      range. Extended during implementation with a second, session-less
+      "last 30 days" scope for the deck-level report (see Done
+      statement).
+- [x] Implement the rendering service, consuming the same
       `stats`/`decklist_coloring` services already used elsewhere (no
       duplicated calculation, Constitution §4.2), plus S9's comparison
       output for the session-vs-baseline section.
-- [ ] Add the download trigger in the frontend.
+- [x] Add the download trigger in the frontend (session summary button,
+      per-row icon, and deck-level report button).
 
 ## UAT (manual)
 
-- [ ] Generate a report for a deck with real match/card-test history on
+- [x] Generate a report for a deck with real match/card-test history on
       staging; confirm the PDF's numbers match what the UI already shows
       for the same deck.
 
 ## Non-regression tests
 
-- New backend test asserting the PDF-generating service calls the same
-  `stats`/`decklist_coloring` functions as the JSON endpoints (same
-  numbers, different rendering) rather than a parallel calculation.
+- Backend: `tests/tamiyo_scroll/test_session_report.py` and
+  `test_deck_report.py` assert the PDF-generating service is called with
+  the same numbers the JSON comparison/stats endpoints return (same
+  `stats`/`decklist_coloring` calculation, different rendering) rather
+  than a parallel calculation — plus coverage for archived-opponent
+  exclusion, the 30-day period/baseline split, and shared-data inclusion.
+- Frontend: `SessionsSections.test.tsx` and
+  `CurrentDecklistSection.test.tsx` assert each download trigger calls
+  the report mutation with the right id/filename.
