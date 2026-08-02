@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useMySettings } from '@/hooks/useSettings'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
@@ -54,6 +54,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-sm text-muted-foreground">
               Welcome, {currentUser.display_name ?? currentUser.email}
             </span>
+          )}
+
+          {currentUser?.role === 'admin' && (
+            <Button type="button" variant="outline" asChild>
+              <Link to="/app/admin/metrics">Admin metrics</Link>
+            </Button>
           )}
 
           <Button

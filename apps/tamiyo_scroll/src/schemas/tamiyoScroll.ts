@@ -3,6 +3,21 @@ import { z } from 'zod'
 export const archetypeCategorySchema = z.enum(['aggro', 'midrange', 'control', 'combo'])
 export type ArchetypeCategory = z.infer<typeof archetypeCategorySchema>
 
+export const cardGameSchema = z.enum([
+  'magic',
+  'yu_gi_oh',
+  'pokemon',
+  'flesh_and_blood',
+  'one_piece',
+  'lorcana',
+  'star_wars_unlimited',
+  'digimon',
+  'cardfight_vanguard',
+  'riftbound',
+  'other',
+])
+export type CardGame = z.infer<typeof cardGameSchema>
+
 export const expectedLevelSchema = z.enum([
   'as_expected',
   'more_expected',
@@ -34,6 +49,10 @@ export type UserSettings = z.infer<typeof userSettingsSchema>
 export const personalDeckSchema = z.object({
   id: z.uuid(),
   name: z.string(),
+  // Nullable (S10/S11) — NULL on a historical deck until PATCHed; gates
+  // logging a match (backend 422) until set.
+  game: cardGameSchema.nullable(),
+  category: archetypeCategorySchema.nullable(),
   archived_at: z.iso.datetime({ offset: true }).nullable(),
   created_at: z.iso.datetime({ offset: true }),
 })
@@ -295,3 +314,27 @@ export const teamDeckMessageSchema = z.object({
   created_at: z.iso.datetime({ offset: true }),
 })
 export type TeamDeckMessage = z.infer<typeof teamDeckMessageSchema>
+
+// ---------------------------------------------------------------------------
+// Admin usage/metrics dashboard (S6) — v2.0.0 ships exactly these three
+// aggregate counts, nothing more (deeper metrics are explicitly deferred).
+// ---------------------------------------------------------------------------
+
+// v2.0.0 only ever populates "tamiyo_scroll" — see
+// app/services/metrics/aggregates.py's `MetricSource` for why the tag
+// exists at all (a v3.0.0 externalization seam, not overengineering).
+export const metricSourceSchema = z.enum(['tamiyo_scroll'])
+export type MetricSource = z.infer<typeof metricSourceSchema>
+
+export const aggregateMetricSchema = z.object({
+  value: z.number().int(),
+  source: metricSourceSchema,
+})
+export type AggregateMetric = z.infer<typeof aggregateMetricSchema>
+
+export const platformMetricsSchema = z.object({
+  total_accounts: aggregateMetricSchema,
+  total_personal_decks: aggregateMetricSchema,
+  total_matches: aggregateMetricSchema,
+})
+export type PlatformMetrics = z.infer<typeof platformMetricsSchema>
