@@ -342,7 +342,7 @@ export type PlatformMetrics = z.infer<typeof platformMetricsSchema>
 // Time-bucketed comparison (added 2026-08-02) — same three counts above,
 // broken down per period instead of collapsed to one all-time total.
 export const metricTimeseriesPointSchema = z.object({
-  period_start: z.string(),
+  period_start: z.iso.datetime({ offset: true }),
   count: z.number().int(),
 })
 export type MetricTimeseriesPoint = z.infer<typeof metricTimeseriesPointSchema>
@@ -359,6 +359,4 @@ export const platformMetricsTimeseriesSchema = z.object({
   personal_decks: metricTimeseriesSchema,
   matches: metricTimeseriesSchema,
 })
-export type PlatformMetricsTimeseries = z.infer<
-  typeof platformMetricsTimeseriesSchema
->
+export type PlatformMetricsTimeseries = z.infer<typeof platformMetricsTimeseriesSchema>

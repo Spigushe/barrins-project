@@ -12,3 +12,14 @@ export function usePlatformMetrics() {
     enabled: currentUser?.role === 'admin',
   })
 }
+
+/** Day/week/month bucketed comparison of the same three metrics above
+ * (added 2026-08-02) — same admin-gating rationale as `usePlatformMetrics`. */
+export function usePlatformMetricsTimeseries() {
+  const { data: currentUser } = useCurrentUser()
+  return useQuery({
+    queryKey: ['admin', 'metrics', 'timeseries'],
+    queryFn: () => adminApi.getPlatformMetricsTimeseries(),
+    enabled: currentUser?.role === 'admin',
+  })
+}
