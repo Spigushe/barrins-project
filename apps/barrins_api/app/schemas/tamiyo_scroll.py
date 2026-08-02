@@ -23,6 +23,14 @@ class PersonalDeckCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
 
+class PersonalDeckPatch(BaseModel):
+    """Payload for PATCH /personal-decks/{id} — rename, owner-only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+
+
 class DecklistVersionCreate(BaseModel):
     """Payload for POST .../versions — manual entry of the decklist text."""
 
@@ -122,3 +130,55 @@ class CardTestWrite(BaseModel):
     opponent_deck_id: uuid.UUID | None = None
     rating: int = Field(ge=1, le=5)
     notes: str | None = None
+
+
+class TeamCreate(BaseModel):
+    """Payload for POST /teams. Description is set later, from the team
+    page (`TeamPatch`) — not at creation (S2 spec)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=255)
+
+
+class TeamPatch(BaseModel):
+    """Payload for PATCH /teams/{id} — description only, owner-only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    description: str | None = None
+
+
+class TeamJoin(BaseModel):
+    """Payload for POST /teams/join."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    invite_code: str = Field(min_length=1, max_length=32)
+
+
+class TeamDelete(BaseModel):
+    """Payload for DELETE /teams/{id} — the second confirmation step:
+    the owner must re-type the team's exact invite code server-side, not
+    just click through a client-side confirmation dialog."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    invite_code: str = Field(min_length=1, max_length=32)
+
+
+class TeamDeckFlagCreate(BaseModel):
+    """Payload for POST /teams/{id}/decks/flags — owner picks an existing
+    member's deck; its *name* is what gets flagged into the rotation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    deck_id: uuid.UUID
+
+
+class TeamDeckThreadMessageCreate(BaseModel):
+    """Payload for POST .../thread/messages."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=4000)

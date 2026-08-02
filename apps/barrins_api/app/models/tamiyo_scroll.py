@@ -388,3 +388,198 @@ class TSSession(Base):
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class TSTeam(Base):
+    """A team of players sharing decks/reports (S2, "Team Decks").
+
+    Deletion is a hard `DELETE`, unlike every other `ts_*` entity's
+    archive-only soft-delete — nothing team-specific needs retaining once
+    dissolved (a deck's own match/test history lives on
+    `ts_personal_decks`/`ts_matches`, untouched; see
+    `TSPersonalDeck.shared_team_id`'s `ON DELETE SET NULL`).
+    `owner_id` is `RESTRICT` (not `CASCADE`): a team always needs an
+    explicit owner, so deleting that user's account while still owning a
+    team must fail loudly rather than orphan the team.
+    """
+
+    __tablename__ = "ts_teams"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invite_code: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSTeamMember(Base):
+    """Membership row (`team_id`, `user_id`).
+
+    Composite PK, no `UNIQUE(user_id)` — multi-team membership is allowed
+    (S2 spec, resolved 2026-07-30).
+    """
+
+    __tablename__ = "ts_team_members"
+
+    team_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_teams.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSTeamDeckFlag(Base):
+    """A deck *name* flagged into a team's testing rotation (S2, revised
+    2026-08-01).
+
+    Sharing is name-based, not per-deck-instance — mirrors
+    `sharing_merge.py`'s existing "matched by exact name" convention.
+    Flagging one member's "King T'Challa" auto-includes every other team
+    member's own "King T'Challa", present or future, with no per-deck
+    action needed on their part. `name_key` is the case/whitespace-
+    normalized form used for matching and uniqueness; `deck_name` keeps
+    the original casing for display (whichever deck the owner picked when
+    flagging).
+    """
+
+    __tablename__ = "ts_team_deck_flags"
+    __table_args__ = (
+        UniqueConstraint("team_id", "name_key", name="uq_ts_team_deck_flag"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    team_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_teams.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    deck_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    flagged_by: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSTeamDeckThread(Base):
+    """A discussion thread enabled for one *deck name* within a team.
+
+    Name-keyed (like `TSTeamDeckFlag`), not tied to one physical deck row
+    — the thread is "about the King T'Challa matchup", shared by whoever
+    in the team owns a same-named deck, not about one specific person's
+    copy of it.
+    """
+
+    __tablename__ = "ts_team_deck_threads"
+    __table_args__ = (
+        UniqueConstraint("team_id", "name_key", name="uq_ts_team_deck_thread"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    team_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_teams.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSTeamDeckMessage(Base):
+    """A single chat-like message within a `TSTeamDeckThread`."""
+
+    __tablename__ = "ts_team_deck_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_team_deck_threads.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSInviteAttempt(Base):
+    """Per-user sliding-window rate-limit state for invite-code redemption.
+
+    Mirrors `EmailVerification`'s DB-backed cooldown/attempts pattern
+    (no Redis) — `last_attempt_at` enforces the 1-per-5-seconds rule,
+    `window_started_at`/`attempts_in_window` the 5-per-minute rule. One
+    row per user, upserted on every attempt.
+    """
+
+    __tablename__ = "ts_invite_attempts"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    window_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    attempts_in_window: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

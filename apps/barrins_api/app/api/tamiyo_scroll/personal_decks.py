@@ -15,6 +15,7 @@ from app.models.tamiyo_scroll import (
     TSPersonalDeck,
     TSPersonalDecklistVersion,
 )
+from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
     ResponseDecklistLine,
     ResponseDecklistVersion,
@@ -24,6 +25,7 @@ from app.schemas.tamiyo_scroll import (
     DecklistVersionCreate,
     MoxfieldImportRequest,
     PersonalDeckCreate,
+    PersonalDeckPatch,
 )
 from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
@@ -35,6 +37,7 @@ from app.services.tamiyo_scroll.report import (
 )
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 from app.services.tamiyo_scroll.stats import compute_period_stats
+from app.services.tamiyo_scroll.teams import resolve_team_deck_access
 
 REPORT_ROLLING_WINDOW = timedelta(days=30)
 
@@ -150,6 +153,30 @@ async def archive_personal_deck(
     deck.archived_at = datetime.now(UTC)
     session.add(deck)
     await session.commit()
+
+
+@router.patch("/personal-decks/{deck_id}", response_model=ResponsePersonalDeck)
+async def rename_personal_deck(
+    deck_id: uuid.UUID,
+    payload: PersonalDeckPatch,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> ResponsePersonalDeck:
+    """Rename this deck — owner-only.
+
+    Team-deck sharing is name-based (S2) — renaming a deck away from a
+    flagged name drops it out of that team's rotation for this member
+    (still shown if other members' decks keep the old name), and renaming
+    it *to* an already-flagged name picks it up automatically. No extra
+    bookkeeping needed here: `list_team_deck_groups` matches by name at
+    read time, not by a stored link on this row.
+    """
+    deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
+    deck.name = payload.name
+    session.add(deck)
+    await session.commit()
+    await session.refresh(deck)
+    return ResponsePersonalDeck.model_validate(deck)
 
 
 @router.get(
@@ -310,18 +337,29 @@ async def get_deck_period_report(
     everything logged before that window, same shape as a session's
     report (`sessions.get_session_report`), just windowed by time instead
     of by explicit session membership.
+
+    Access (S2): the deck's owner, or any member of the team it's shared
+    into (`resolve_team_deck_access`). Either way the report always shows
+    the deck **owner's** own data — a team member sees the same report the
+    owner would see themselves, never their own unrelated stats.
     """
-    deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
+    deck = await resolve_team_deck_access(session, deck_id, current_user)
+    deck_owner = current_user
+    if deck.owner_id != current_user.id:
+        deck_owner_result = await session.execute(
+            select(User).where(User.id == deck.owner_id)
+        )
+        deck_owner = deck_owner_result.scalar_one()
     period_end = datetime.now(UTC)
     period_start = period_end - REPORT_ROLLING_WINDOW
 
-    # Own matches/roster for this deck, plus any sharer data merged in
-    # read-only (S1) when the viewer opted into `receive_shared_data` —
+    # The deck owner's own matches/roster, plus any sharer data merged in
+    # read-only (S1) when the owner opted into `receive_shared_data` —
     # same merge `/archetype-summary`/`/matchup-summary` already apply,
     # split here into period/baseline by timestamp since `build_merged_view`
     # itself has no time-window concept (a session's matches are scoped by
     # explicit membership instead — see `sessions.get_session_report`).
-    view = await build_merged_view(session, current_user, personal_deck_id=deck.id)
+    view = await build_merged_view(session, deck_owner, personal_deck_id=deck.id)
     period_matches = [m for m in view.matches if m.created_at >= period_start]
     baseline_matches = [m for m in view.matches if m.created_at < period_start]
 
@@ -342,7 +380,7 @@ async def get_deck_period_report(
 
     all_card_tests_result = await session.execute(
         select(TSCardTest).where(
-            TSCardTest.owner_id == current_user.id,
+            TSCardTest.owner_id == deck.owner_id,
             TSCardTest.personal_deck_id == deck.id,
         )
     )

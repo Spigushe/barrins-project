@@ -10,6 +10,7 @@ from app.api.tamiyo_scroll import (
     sessions,
     settings,
     stats,
+    teams,
 )
 
 router = APIRouter(prefix="/bff/tamiyo-scroll", tags=["tamiyo-scroll"])
@@ -21,3 +22,4 @@ router.include_router(matches.router)
 router.include_router(card_tests.router)
 router.include_router(stats.router)
 router.include_router(sessions.router)
+router.include_router(teams.router)

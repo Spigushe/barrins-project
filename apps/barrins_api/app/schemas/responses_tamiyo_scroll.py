@@ -167,3 +167,79 @@ class ResponseSessionComparison(BaseResponse):
     baseline_archetype_summary: list[ResponseArchetypeSummary]
     session_matchup_summary: ResponseMatchupSummary
     baseline_matchup_summary: ResponseMatchupSummary
+
+
+class ResponseTeamSummary(BaseResponse):
+    """Minimal team shape for GET /teams/mine (popup quick-mode + team
+    pickers) — no member list, no invite code."""
+
+    id: uuid.UUID
+    name: str
+    is_owner: bool
+
+
+class ResponseTeamMember(BaseResponse):
+    user_id: uuid.UUID
+    email: str
+    display_name: str | None
+    is_owner: bool
+    joined_at: datetime
+    # Tests + matches logged across every deck this member has flagged
+    # into the team (Done statement's member-list activity column).
+    activity_count: int
+
+
+class ResponseTeam(BaseResponse):
+    """Full team-page shape (GET /teams/{id}).
+
+    `invite_code` is visible to every member, not owner-only — §1.6's
+    "given out by existing members to anyone they want to invite" reads as
+    any member being allowed to share it; the account-settings popup's
+    quick mode simply chooses not to *display* it for non-owners.
+    """
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    invite_code: str
+    owner_id: uuid.UUID
+    created_at: datetime
+    members: list[ResponseTeamMember]
+
+
+class ResponseTeamDeckOwner(BaseResponse):
+    deck_id: uuid.UUID
+    display: str
+
+
+class ResponseTeamDeck(BaseResponse):
+    """One *name* flagged into a team's testing rotation (S2, revised
+    2026-08-01 — name-based, not per-deck-instance). `owners` lists every
+    current member owning a matching deck (with that deck's own id, so the
+    frontend can still request e.g. a specific owner's PDF report); empty
+    if nobody currently does (e.g. renamed away since flagging)."""
+
+    name_key: str
+    deck_name: str
+    owners: list[ResponseTeamDeckOwner]
+    has_thread: bool
+
+
+class ResponseMemberDeck(BaseResponse):
+    """One team member's own personal deck — the owner's flagging picker
+    (GET /teams/{id}/members/decks)."""
+
+    id: uuid.UUID
+    name: str
+    owner_id: uuid.UUID
+    owner_display: str
+    is_flagged: bool
+
+
+class ResponseTeamDeckMessage(BaseResponse):
+    id: uuid.UUID
+    thread_id: uuid.UUID
+    author_id: uuid.UUID
+    author_display: str
+    body: str
+    created_at: datetime
