@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { useCurrentUser, useUpdateProfile } from '@/hooks/useAuth'
+import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
+import {
+  DISPLAY_PREF_MATCHUP_RESULT_FORMAT_2W0L,
+  DISPLAY_PREF_MATCHUP_ROW_TINT,
+  DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
+  DISPLAY_PREF_ROSTER_TIER_COLOR,
+} from '@/lib/displayPrefs'
 import { AccountSettingsTeamSection } from './AccountSettingsTeamSection'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -48,6 +55,27 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [shareMyData, setShareMyData] = useState(() => settings?.data_shared ?? false)
   const [receiveSharedData, setReceiveSharedData] = useState(
     () => settings?.receive_shared_data ?? false,
+  )
+
+  // S12 items 8-11: four purely-visual toggles, `localStorage`-backed
+  // (not part of the Save/Cancel form above — they apply immediately,
+  // same as the game/category migration notice's dismiss button in
+  // `PersonalDeckSelector.tsx`).
+  const [rowTintEnabled, setRowTintEnabled] = useLocalStorageFlag(
+    DISPLAY_PREF_MATCHUP_ROW_TINT,
+    true,
+  )
+  const [resultFormat2w0lEnabled, setResultFormat2w0lEnabled] = useLocalStorageFlag(
+    DISPLAY_PREF_MATCHUP_RESULT_FORMAT_2W0L,
+    false,
+  )
+  const [rosterArchetypeColorEnabled, setRosterArchetypeColorEnabled] = useLocalStorageFlag(
+    DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
+    false,
+  )
+  const [rosterTierColorEnabled, setRosterTierColorEnabled] = useLocalStorageFlag(
+    DISPLAY_PREF_ROSTER_TIER_COLOR,
+    false,
   )
 
   const saving = updateProfile.isPending || updateSettings.isPending
@@ -126,6 +154,72 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
             into a deck of yours with the exact same name.
           </p>
         </div>
+
+        <div role="separator" className="h-px bg-accent" />
+
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <p className="text-[13.5px] font-semibold text-foreground">Display</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">Winrate row tint</p>
+              <p className="text-xs text-muted-foreground">
+                Color match-up summary rows red/green for very negative/positive winrates.
+              </p>
+            </div>
+            <Switch
+              checked={rowTintEnabled}
+              onCheckedChange={setRowTintEnabled}
+              label="Winrate row tint"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                "2W / 0L" result format
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Show W/L OTP and W/L OTD as "2W / 0L" instead of "2-0".
+              </p>
+            </div>
+            <Switch
+              checked={resultFormat2w0lEnabled}
+              onCheckedChange={setResultFormat2w0lEnabled}
+              label='"2W / 0L" result format'
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Colored archetype cell
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Color the deck roster's archetype cell, matching "Breakdown by archetype".
+              </p>
+            </div>
+            <Switch
+              checked={rosterArchetypeColorEnabled}
+              onCheckedChange={setRosterArchetypeColorEnabled}
+              label="Colored archetype cell"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Tier background color
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Color the deck roster's Tier cell by a 3-way strong/mid/weak grouping.
+              </p>
+            </div>
+            <Switch
+              checked={rosterTierColorEnabled}
+              onCheckedChange={setRosterTierColorEnabled}
+              label="Tier background color"
+            />
+          </div>
+        </div>
+
+        <div role="separator" className="h-px bg-accent" />
 
         <AccountSettingsTeamSection onClose={onClose} />
 

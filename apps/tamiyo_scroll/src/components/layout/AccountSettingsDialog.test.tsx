@@ -77,9 +77,10 @@ describe('AccountSettingsDialog', () => {
     expect(screen.getByText('Create a team')).toBeInTheDocument()
   })
 
-  it('renders a separator between the display name and sharing sections', () => {
+  it('renders separators between the display name, sharing, display and team sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    expect(screen.getByRole('separator')).toBeInTheDocument()
+    // Display name / Share my data / Display (S12) / Team de test.
+    expect(screen.getAllByRole('separator')).toHaveLength(3)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -148,5 +149,51 @@ describe('AccountSettingsDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(updateProfileMutateAsync).not.toHaveBeenCalled()
     expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+  })
+})
+
+// S12 items 8-11: four `localStorage`-backed display preferences,
+// independent from the Save/Cancel form above.
+describe('AccountSettingsDialog — Display section', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('defaults row tint on, and the other three off', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    expect(screen.getByRole('switch', { name: 'Winrate row tint' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(
+      screen.getByRole('switch', { name: '"2W / 0L" result format' }),
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('switch', { name: 'Colored archetype cell' }),
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('switch', { name: 'Tier background color' }),
+    ).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('persists a toggle to localStorage immediately, not on Save', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: '"2W / 0L" result format' }))
+
+    expect(localStorage.getItem('ts-matchup-result-format-2w0l')).toBe('true')
+    expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('reads a previously stored preference over its default', () => {
+    localStorage.setItem('ts-matchup-row-tint-enabled', 'false')
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    expect(screen.getByRole('switch', { name: 'Winrate row tint' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 })

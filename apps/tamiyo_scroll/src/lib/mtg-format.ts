@@ -81,6 +81,43 @@ export function winrateTextClass(value: number | null): string {
   return 'text-winrate-0'
 }
 
+/** S12 item 8's opt-in match-up row tint — reuses the same "Very negative"
+ * (0-19%) / "Very positive" (80-100%) thresholds as `winrateTextClass`
+ * and `WINRATE_BANDS`, applied at the row level instead of the cell
+ * level. A low-opacity fill (not a solid one) so per-cell winrate text
+ * colors and shared/multi-share badges sitting on top stay legible.
+ * Middle bands and `null` (no data yet) get no tint. */
+export function winrateRowTintClass(value: number | null): string {
+  if (value === null) return ''
+  if (value >= 80) return 'bg-success/10'
+  if (value < 20) return 'bg-destructive/10'
+  return ''
+}
+
+/** S12 item 9's opt-in "2W / 0L" result format — parses the backend's
+ * always-`"wins-losses"` string (`stats.py`'s `_ratio()`) client-side.
+ * Draws aren't possible in a BO3 match count, so a two-part split is
+ * safe. Returns the original string unchanged when the format is off
+ * (default). */
+export function formatMatchRatio(ratio: string, use2w0lFormat: boolean): string {
+  if (!use2w0lFormat) return ratio
+  const [wins, losses] = ratio.split('-')
+  return `${wins}W / ${losses}L`
+}
+
+/** S12 item 11's 3-color tier background scale — no existing tier→color
+ * mapping to reuse (unlike the archetype colors or winrate bands), so
+ * this groups the `TIERS` scale (`[0, 0.5, 1, 1.5, 2, 2.5, 3]`) into
+ * three bands: 0/0.5/1 read as strong (green), 1.5/2 as middling
+ * (amber), 2.5/3 as weak (red) — loosely mirroring the winrate
+ * palette's good/mid/bad framing, same low-opacity tint convention as
+ * `winrateRowTintClass`. */
+export function tierBackgroundClass(tier: number): string {
+  if (tier <= 1) return 'bg-success/10'
+  if (tier <= 2) return 'bg-warning/10'
+  return 'bg-destructive/10'
+}
+
 export const RATING_LABELS: Record<number, string> = {
   1: 'Bad',
   2: 'Weak',
