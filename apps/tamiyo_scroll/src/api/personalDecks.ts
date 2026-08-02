@@ -26,6 +26,13 @@ export function archivePersonalDeck(deckId: string) {
   })
 }
 
+export function renamePersonalDeck(deckId: string, name: string) {
+  return apiRequest(`/bff/tamiyo-scroll/personal-decks/${deckId}`, personalDeckSchema, {
+    method: 'PATCH',
+    body: { name },
+  })
+}
+
 export function listDecklistVersions(deckId: string) {
   return apiRequest(
     `/bff/tamiyo-scroll/personal-decks/${deckId}/versions`,

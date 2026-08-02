@@ -8,6 +8,10 @@ import { MetagameTab } from '@/pages/MetagameTab'
 import { SessionsTab } from '@/pages/SessionsTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
 import { DecklistTab } from '@/pages/DecklistTab'
+import { TeamsTab } from '@/pages/TeamsTab'
+import { TeamsIndexRedirect } from '@/pages/TeamsIndexRedirect'
+import { TeamCreateJoinPage } from '@/pages/TeamCreateJoinPage'
+import { TeamPage } from '@/pages/TeamPage'
 
 function RootRedirect() {
   const session = useSession()
@@ -64,6 +68,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/app/team"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <TeamsTab />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<TeamsIndexRedirect />} />
+          <Route path="new" element={<TeamCreateJoinPage />} />
+          <Route path=":teamId" element={<TeamPage />} />
+        </Route>
 
         <Route path="*" element={<RootRedirect />} />
       </Routes>

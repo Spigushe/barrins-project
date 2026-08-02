@@ -31,6 +31,17 @@ export function useArchivePersonalDeck() {
   })
 }
 
+export function useRenamePersonalDeck() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ deckId, name }: { deckId: string; name: string }) =>
+      personalDecksApi.renamePersonalDeck(deckId, name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['personal-decks'] })
+    },
+  })
+}
+
 export function useDownloadDeckReport() {
   return useMutation({
     mutationFn: async ({ deckId, filename }: { deckId: string; filename: string }) => {

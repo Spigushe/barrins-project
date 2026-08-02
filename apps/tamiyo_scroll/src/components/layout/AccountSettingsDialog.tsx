@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCurrentUser, useUpdateProfile } from '@/hooks/useAuth'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
+import { AccountSettingsTeamSection } from './AccountSettingsTeamSection'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -16,9 +17,9 @@ import { Switch } from '@/components/ui/switch'
  * entry point was removed from the header entirely (not this popup's
  * scope; where/whether it resurfaces is a product decision). The
  * underlying read-as-another-user mechanism (`useViewingOwner`,
- * `applyOwnerParam`) is untouched. The "Team de test" section is
- * deliberately NOT rendered yet — team creation/join/leave/delete (S2)
- * isn't implemented. Add that section back once S2 lands.
+ * `applyOwnerParam`) is untouched. The "Team de test" section
+ * (`AccountSettingsTeamSection`, S2) acts immediately on click — it isn't
+ * part of the Save/Cancel form state below.
  */
 export function AccountSettingsDialog({
   open,
@@ -86,12 +87,9 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[13.5px] font-semibold text-foreground">
-                Share my data
-              </p>
+              <p className="text-[13.5px] font-semibold text-foreground">Share my data</p>
               <p className="text-xs text-muted-foreground">
-                Your decks, matches and card tests become visible to other
-                accounts.
+                Your decks, matches and card tests become visible to other accounts.
               </p>
             </div>
             <Switch
@@ -124,10 +122,12 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Sharing is matched by deck name: a shared match or roster entry
-            only merges into a deck of yours with the exact same name.
+            Sharing is matched by deck name: a shared match or roster entry only merges
+            into a deck of yours with the exact same name.
           </p>
         </div>
+
+        <AccountSettingsTeamSection onClose={onClose} />
 
         <div className="flex justify-end gap-2.5">
           <Button type="button" variant="ghost" onClick={onClose}>

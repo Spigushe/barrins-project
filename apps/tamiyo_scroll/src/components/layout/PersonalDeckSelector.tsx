@@ -3,6 +3,7 @@ import {
   useArchivePersonalDeck,
   useCreatePersonalDeck,
   usePersonalDecks,
+  useRenamePersonalDeck,
 } from '@/hooks/usePersonalDecks'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -33,6 +35,7 @@ export function PersonalDeckSelector() {
   const updateSettings = useUpdateMySettings()
   const createDeck = useCreatePersonalDeck()
   const archiveDeck = useArchivePersonalDeck()
+  const renameDeck = useRenamePersonalDeck()
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -40,6 +43,11 @@ export function PersonalDeckSelector() {
     id: string
     name: string
   } | null>(null)
+  const [pendingRename, setPendingRename] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
 
   const activeDeckId = settings?.active_personal_deck_id ?? null
   const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
@@ -79,6 +87,12 @@ export function PersonalDeckSelector() {
       await updateSettings.mutateAsync({ active_personal_deck_id: null })
     }
     setPendingArchive(null)
+  }
+
+  async function confirmRename() {
+    if (!pendingRename || !renameDraft.trim()) return
+    await renameDeck.mutateAsync({ deckId: pendingRename.id, name: renameDraft.trim() })
+    setPendingRename(null)
   }
 
   return (
@@ -127,19 +141,35 @@ export function PersonalDeckSelector() {
                       {deck.id === activeDeckId ? '✓ ' : ''}
                       {deck.name}
                     </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-6 shrink-0"
-                      aria-label={`Archive ${deck.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setPendingArchive({ id: deck.id, name: deck.name })
-                      }}
-                    >
-                      ✕
-                    </Button>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 shrink-0"
+                        aria-label={`Rename ${deck.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setRenameDraft(deck.name)
+                          setPendingRename({ id: deck.id, name: deck.name })
+                        }}
+                      >
+                        ✎
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 shrink-0"
+                        aria-label={`Archive ${deck.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setPendingArchive({ id: deck.id, name: deck.name })
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </span>
                   </CommandItem>
                 ))}
                 {trimmedSearch && !hasExactMatch && (
@@ -189,6 +219,46 @@ export function PersonalDeckSelector() {
                 }}
               >
                 Archive
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={pendingRename !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingRename(null)
+        }}
+      >
+        {pendingRename && (
+          <DialogContent>
+            <DialogTitle>Rename "{pendingRename.name}"</DialogTitle>
+            <Input
+              aria-label="New deck name"
+              value={renameDraft}
+              onChange={(event) => {
+                setRenameDraft(event.target.value)
+              }}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPendingRename(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={renameDeck.isPending || !renameDraft.trim()}
+                onClick={() => {
+                  void confirmRename()
+                }}
+              >
+                Save
               </Button>
             </div>
           </DialogContent>

@@ -5,6 +5,7 @@ import { useMySettings } from '@/hooks/useSettings'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
 import { AccountSettingsDialog } from '@/components/layout/AccountSettingsDialog'
 import { PersonalDeckSelector } from '@/components/layout/PersonalDeckSelector'
+import { TeamDeckSelector } from '@/components/layout/TeamDeckSelector'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ const TABS = [
   { to: '/app/metagame', label: 'Metagame' },
   { to: '/app/decklist', label: 'My decklist' },
   { to: '/app/sessions', label: 'Sessions' },
+  { to: '/app/team', label: 'Teams' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -79,6 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="mt-5 flex flex-wrap items-end gap-3">
         <PersonalDeckSelector />
+        <TeamDeckSelector />
       </div>
 
       {activeDeckId !== null && (

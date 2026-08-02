@@ -6,6 +6,7 @@ import { PersonalDeckSelector } from './PersonalDeckSelector'
 const updateSettingsMutateAsync = vi.fn()
 const createDeckMutateAsync = vi.fn()
 const archiveDeckMutateAsync = vi.fn()
+const renameDeckMutateAsync = vi.fn()
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({
@@ -17,6 +18,7 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
   }),
   useCreatePersonalDeck: () => ({ mutateAsync: createDeckMutateAsync }),
   useArchivePersonalDeck: () => ({ mutateAsync: archiveDeckMutateAsync }),
+  useRenamePersonalDeck: () => ({ mutateAsync: renameDeckMutateAsync, isPending: false }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
@@ -42,7 +44,7 @@ describe('PersonalDeckSelector', () => {
 
     const names = screen
       .getAllByRole('option')
-      .map((option) => option.textContent?.replace('✕', '').trim())
+      .map((option) => option.textContent?.replace('✎', '').replace('✕', '').trim())
     expect(names).toEqual(['Azorius Control', '✓ Mono Red', 'Zendikar Ramp'])
   })
 
@@ -132,5 +134,38 @@ describe('PersonalDeckSelector', () => {
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
       active_personal_deck_id: null,
     })
+  })
+
+  it('renames a deck, pre-filled with its current name', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+    await user.click(screen.getByRole('button', { name: 'Rename Azorius Control' }))
+
+    expect(screen.getByText('Rename "Azorius Control"')).toBeInTheDocument()
+    const input = screen.getByLabelText('New deck name')
+    expect(input).toHaveValue('Azorius Control')
+
+    await user.clear(input)
+    await user.type(input, 'Jeskai Control')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(renameDeckMutateAsync).toHaveBeenCalledWith({
+      deckId: 'deck-2',
+      name: 'Jeskai Control',
+    })
+  })
+
+  it('cancels without renaming', async () => {
+    const user = userEvent.setup()
+    render(<PersonalDeckSelector />)
+
+    await user.click(screen.getByRole('button', { name: 'My personal deck' }))
+    await user.click(screen.getByRole('button', { name: 'Rename Azorius Control' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(renameDeckMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Rename "Azorius Control"')).not.toBeInTheDocument()
   })
 })

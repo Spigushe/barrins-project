@@ -234,3 +234,64 @@ export const sessionComparisonSchema = z.object({
   baseline_matchup_summary: matchupSummarySchema,
 })
 export type SessionComparison = z.infer<typeof sessionComparisonSchema>
+
+export const teamSummarySchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  is_owner: z.boolean(),
+})
+export type TeamSummary = z.infer<typeof teamSummarySchema>
+
+export const teamMemberSchema = z.object({
+  user_id: z.uuid(),
+  email: z.email(),
+  display_name: z.string().nullable(),
+  is_owner: z.boolean(),
+  joined_at: z.iso.datetime({ offset: true }),
+  activity_count: z.number().int(),
+})
+export type TeamMember = z.infer<typeof teamMemberSchema>
+
+export const teamSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  invite_code: z.string(),
+  owner_id: z.uuid(),
+  created_at: z.iso.datetime({ offset: true }),
+  members: z.array(teamMemberSchema),
+})
+export type Team = z.infer<typeof teamSchema>
+
+export const teamDeckOwnerSchema = z.object({
+  deck_id: z.uuid(),
+  display: z.string(),
+})
+export type TeamDeckOwner = z.infer<typeof teamDeckOwnerSchema>
+
+export const teamDeckSchema = z.object({
+  name_key: z.string(),
+  deck_name: z.string(),
+  owners: z.array(teamDeckOwnerSchema),
+  has_thread: z.boolean(),
+})
+export type TeamDeck = z.infer<typeof teamDeckSchema>
+
+export const memberDeckSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  owner_id: z.uuid(),
+  owner_display: z.string(),
+  is_flagged: z.boolean(),
+})
+export type MemberDeck = z.infer<typeof memberDeckSchema>
+
+export const teamDeckMessageSchema = z.object({
+  id: z.uuid(),
+  thread_id: z.uuid(),
+  author_id: z.uuid(),
+  author_display: z.string(),
+  body: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export type TeamDeckMessage = z.infer<typeof teamDeckMessageSchema>

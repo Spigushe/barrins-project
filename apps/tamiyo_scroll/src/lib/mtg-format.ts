@@ -110,6 +110,12 @@ export function deckReportFilename(deck: { name: string }): string {
   return `deck-report-${slug}.pdf`
 }
 
+/** S2's cumulative team-deck report — one PDF per flagged name, not per owner. */
+export function teamDeckReportFilename(deck: { deck_name: string }): string {
+  const slug = deck.deck_name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `team-deck-report-${slug}.pdf`
+}
+
 export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   validated: 'Validated',
   rejected: 'Rejected',
