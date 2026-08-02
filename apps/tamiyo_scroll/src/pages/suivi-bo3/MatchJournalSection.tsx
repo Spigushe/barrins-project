@@ -36,6 +36,11 @@ function matchOutcome(match: Match): GameResult | null {
   if (wins >= 2) return 'win'
   if (losses >= 2) return 'loss'
   if (games.length === 0) return null
+  // No win recorded at all (e.g. loss + draw, third game not yet played) —
+  // the match can no longer be won, so it reads as a loss rather than the
+  // "draw" fallback below, which is reserved for a genuine no-majority
+  // result once every game has actually been played.
+  if (wins === 0 && losses >= 1) return 'loss'
   return 'draw'
 }
 

@@ -66,6 +66,30 @@ vi.mock('@/hooks/useSessions', () => ({
   useCreateSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
+describe('MatchJournalSection — match outcome badge', () => {
+  beforeEach(() => {
+    sessions = []
+  })
+
+  it('shows Loss for a loss + draw with the third game not yet played', () => {
+    matches = [{ ...baseMatch, game1: 'loss', game2: 'draw', game3: null }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Loss')).toBeInTheDocument()
+  })
+
+  it('still shows Draw once all three games are played with no majority', () => {
+    matches = [{ ...baseMatch, game1: 'loss', game2: 'win', game3: 'draw' }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Draw')).toBeInTheDocument()
+  })
+
+  it('shows Win once a majority of games are won', () => {
+    matches = [{ ...baseMatch, game1: 'win', game2: 'win', game3: null }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Win')).toBeInTheDocument()
+  })
+})
+
 describe('MatchJournalSection — View button', () => {
   beforeEach(() => {
     matches = [baseMatch]
