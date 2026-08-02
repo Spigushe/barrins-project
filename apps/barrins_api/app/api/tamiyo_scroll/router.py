@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.tamiyo_scroll import (
+    admin,
     card_tests,
     matches,
     meta_decks,
@@ -23,3 +24,4 @@ router.include_router(card_tests.router)
 router.include_router(stats.router)
 router.include_router(sessions.router)
 router.include_router(teams.router)
+router.include_router(admin.router)

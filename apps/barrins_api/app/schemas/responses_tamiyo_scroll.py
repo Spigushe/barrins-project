@@ -8,12 +8,14 @@ from pydantic import computed_field
 
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
+    CardGame,
     DecklistVersionSource,
     ExpectedLevel,
     GameResult,
     SessionType,
 )
 from app.schemas.responses_base import BaseResponse
+from app.services.metrics.aggregates import MetricSource
 
 
 class ResponseUserSettings(BaseResponse):
@@ -25,6 +27,11 @@ class ResponseUserSettings(BaseResponse):
 class ResponsePersonalDeck(BaseResponse):
     id: uuid.UUID
     name: str
+    # Nullable (S10/S11) — NULL on a historical, pre-migration deck until
+    # PATCHed; the frontend uses this to show the "set up before logging"
+    # affordance rather than waiting for a match-write 422.
+    game: CardGame | None
+    category: ArchetypeCategory | None
     archived_at: datetime | None
     created_at: datetime
 
@@ -243,3 +250,21 @@ class ResponseTeamDeckMessage(BaseResponse):
     author_display: str
     body: str
     created_at: datetime
+
+
+class ResponseAggregateMetric(BaseResponse):
+    """A single aggregate count tagged with its app/source (S6, forward
+    compat with the planned v3.0.0 externalization — see
+    `app.services.metrics.aggregates.AggregateMetric`)."""
+
+    value: int
+    source: MetricSource
+
+
+class ResponsePlatformMetrics(BaseResponse):
+    """Admin dashboard payload (S6) — the three v2.0.0 adoption signals,
+    nothing more (deeper metrics are explicitly deferred)."""
+
+    total_accounts: ResponseAggregateMetric
+    total_personal_decks: ResponseAggregateMetric
+    total_matches: ResponseAggregateMetric
