@@ -3,9 +3,11 @@ import {
   useArchivePersonalDeck,
   useCreatePersonalDeck,
   usePersonalDecks,
-  useRenamePersonalDeck,
+  useUpdatePersonalDeck,
 } from '@/hooks/usePersonalDecks'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
+import type { ArchetypeCategory, CardGame } from '@/schemas/tamiyoScroll'
+import { ARCHETYPE_LABELS, CARD_GAME_LABELS } from '@/lib/mtg-format'
 import {
   Command,
   CommandEmpty,
@@ -19,9 +21,19 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { personalDeckNeedsSetup, PersonalDeckSetupControl } from './PersonalDeckSetupControl'
 
-const CREATE_ITEM_VALUE = 'create-new-personal-deck'
+const CARD_GAME_OPTIONS = Object.keys(CARD_GAME_LABELS) as CardGame[]
+const ARCHETYPE_OPTIONS = Object.keys(ARCHETYPE_LABELS) as ArchetypeCategory[]
+const GAME_CATEGORY_NOTICE_KEY = 'ts-game-category-migration-notice-dismissed'
 
 /**
  * Single combined control replacing the old "My personal deck" select +
@@ -35,10 +47,12 @@ export function PersonalDeckSelector() {
   const updateSettings = useUpdateMySettings()
   const createDeck = useCreatePersonalDeck()
   const archiveDeck = useArchivePersonalDeck()
-  const renameDeck = useRenamePersonalDeck()
+  const updateDeck = useUpdatePersonalDeck()
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [newGame, setNewGame] = useState<CardGame | ''>('')
+  const [newCategory, setNewCategory] = useState<ArchetypeCategory | ''>('')
   const [pendingArchive, setPendingArchive] = useState<{
     id: string
     name: string
@@ -48,9 +62,13 @@ export function PersonalDeckSelector() {
     name: string
   } | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [noticeDismissed, setNoticeDismissed] = useState(
+    () => localStorage.getItem(GAME_CATEGORY_NOTICE_KEY) === 'true',
+  )
 
   const activeDeckId = settings?.active_personal_deck_id ?? null
   const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
+  const hasHistoricalDeckNeedingSetup = personalDecks?.some(personalDeckNeedsSetup) ?? false
 
   const trimmedSearch = search.trim()
   const filteredDecks = (
@@ -65,6 +83,13 @@ export function PersonalDeckSelector() {
   function closeAndReset() {
     setOpen(false)
     setSearch('')
+    setNewGame('')
+    setNewCategory('')
+  }
+
+  function dismissNotice() {
+    localStorage.setItem(GAME_CATEGORY_NOTICE_KEY, 'true')
+    setNoticeDismissed(true)
   }
 
   async function selectDeck(deckId: string) {
@@ -73,8 +98,12 @@ export function PersonalDeckSelector() {
   }
 
   async function createAndSelect() {
-    if (!trimmedSearch) return
-    const created = await createDeck.mutateAsync(trimmedSearch)
+    if (!trimmedSearch || !newGame || !newCategory) return
+    const created = await createDeck.mutateAsync({
+      name: trimmedSearch,
+      game: newGame,
+      category: newCategory,
+    })
     await updateSettings.mutateAsync({ active_personal_deck_id: created.id })
     closeAndReset()
   }
@@ -91,7 +120,7 @@ export function PersonalDeckSelector() {
 
   async function confirmRename() {
     if (!pendingRename || !renameDraft.trim()) return
-    await renameDeck.mutateAsync({ deckId: pendingRename.id, name: renameDraft.trim() })
+    await updateDeck.mutateAsync({ deckId: pendingRename.id, name: renameDraft.trim() })
     setPendingRename(null)
   }
 
@@ -172,21 +201,78 @@ export function PersonalDeckSelector() {
                     </span>
                   </CommandItem>
                 ))}
-                {trimmedSearch && !hasExactMatch && (
-                  <CommandItem
-                    value={CREATE_ITEM_VALUE}
-                    onSelect={() => {
-                      void createAndSelect()
-                    }}
-                  >
-                    Create "{trimmedSearch}"
-                  </CommandItem>
-                )}
               </CommandGroup>
             </CommandList>
+            {trimmedSearch && !hasExactMatch && (
+              <div className="flex flex-col gap-2 border-t border-border p-2">
+                <p className="text-xs text-muted-foreground">
+                  Create "{trimmedSearch}" — <span className="text-success">[new]</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Select
+                    value={newGame}
+                    onValueChange={(v) => {
+                      setNewGame(v as CardGame)
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-40 text-xs">
+                      <SelectValue placeholder="Game — required" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CARD_GAME_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {CARD_GAME_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={newCategory}
+                    onValueChange={(v) => {
+                      setNewCategory(v as ArchetypeCategory)
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-36 text-xs">
+                      <SelectValue placeholder="Archetype — required" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ARCHETYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {ARCHETYPE_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!newGame || !newCategory || createDeck.isPending}
+                  onClick={() => {
+                    void createAndSelect()
+                  }}
+                >
+                  Create
+                </Button>
+              </div>
+            )}
           </Command>
         </PopoverContent>
       </Popover>
+
+      {!noticeDismissed && hasHistoricalDeckNeedingSetup && (
+        <div className="flex items-center justify-between gap-2 rounded-(--radius-input) border border-warning/40 bg-warning/10 p-2 text-xs text-muted-foreground">
+          <span>
+            v2 requires a game and archetype per deck — set them on your
+            existing decks before logging new results.
+          </span>
+          <Button type="button" variant="ghost" size="sm" onClick={dismissNotice}>
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {activeDeck && <PersonalDeckSetupControl deck={activeDeck} />}
 
       <Dialog
         open={pendingArchive !== null}
@@ -253,7 +339,7 @@ export function PersonalDeckSelector() {
               </Button>
               <Button
                 type="button"
-                disabled={renameDeck.isPending || !renameDraft.trim()}
+                disabled={updateDeck.isPending || !renameDraft.trim()}
                 onClick={() => {
                   void confirmRename()
                 }}

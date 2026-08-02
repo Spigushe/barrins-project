@@ -338,3 +338,27 @@ export const platformMetricsSchema = z.object({
   total_matches: aggregateMetricSchema,
 })
 export type PlatformMetrics = z.infer<typeof platformMetricsSchema>
+
+// Time-bucketed comparison (added 2026-08-02) — same three counts above,
+// broken down per period instead of collapsed to one all-time total.
+export const metricTimeseriesPointSchema = z.object({
+  period_start: z.string(),
+  count: z.number().int(),
+})
+export type MetricTimeseriesPoint = z.infer<typeof metricTimeseriesPointSchema>
+
+export const metricTimeseriesSchema = z.object({
+  daily: z.array(metricTimeseriesPointSchema),
+  weekly: z.array(metricTimeseriesPointSchema),
+  monthly: z.array(metricTimeseriesPointSchema),
+})
+export type MetricTimeseries = z.infer<typeof metricTimeseriesSchema>
+
+export const platformMetricsTimeseriesSchema = z.object({
+  accounts: metricTimeseriesSchema,
+  personal_decks: metricTimeseriesSchema,
+  matches: metricTimeseriesSchema,
+})
+export type PlatformMetricsTimeseries = z.infer<
+  typeof platformMetricsTimeseriesSchema
+>

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { personalDeckNeedsSetup, PersonalDeckSetupControl } from '@/components/layout/PersonalDeckSetupControl'
 import {
   draftFromMatch,
   MatchFormFields,
@@ -34,15 +35,14 @@ function matchOutcome(match: Match): GameResult | null {
   )
   const wins = games.filter((game) => game === 'win').length
   const losses = games.filter((game) => game === 'loss').length
-  if (wins >= 2) return 'win'
-  if (losses >= 2) return 'loss'
-  if (games.length === 0) return null
-  // No win recorded at all (e.g. loss + draw, third game not yet played) —
-  // the match can no longer be won, so it reads as a loss rather than the
-  // "draw" fallback below, which is reserved for a genuine no-majority
-  // result once every game has actually been played.
-  if (wins === 0 && losses >= 1) return 'loss'
-  return 'draw'
+
+  // Matches can be closed in only one game, e.g. 1-0 or 0-1, so we need to handle that case as well.
+  if (wins > losses) return 'win'
+  if (losses > wins) return 'loss'
+  if (wins === losses && games.length > 0) return 'draw'
+
+  // If there are no games, we return null to indicate that the outcome is unknown.
+  return null
 }
 
 function gamesSummary(match: Match): string {
@@ -118,6 +118,10 @@ export function MatchJournalSection() {
       <div className="mt-3 flex flex-col gap-3">
         {matches?.map((match) => {
           if (editingId === match.id && editDraft) {
+            const editingDeck = personalDecks?.find(
+              (deck) => deck.id === editDraft.personalDeckId,
+            )
+            const blockedBySetup = personalDeckNeedsSetup(editingDeck)
             return (
               <div
                 key={match.id}
@@ -130,10 +134,19 @@ export function MatchJournalSection() {
                   metaDeckOptions={metaDecks ?? []}
                   decklistVersionOptions={editingDeckVersions}
                 />
+                {editingDeck && blockedBySetup && (
+                  <div className="mt-3">
+                    <PersonalDeckSetupControl deck={editingDeck} />
+                  </div>
+                )}
                 <div className="mt-4 flex gap-2">
                   <Button
                     type="button"
-                    disabled={!matchDraftIsValid(editDraft) || updateMatch.isPending}
+                    disabled={
+                      !matchDraftIsValid(editDraft) ||
+                      blockedBySetup ||
+                      updateMatch.isPending
+                    }
                     onClick={() => {
                       void handleSaveEdit(match.id)
                     }}

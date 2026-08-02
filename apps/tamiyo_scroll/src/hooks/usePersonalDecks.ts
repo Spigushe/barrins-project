@@ -31,11 +31,15 @@ export function useArchivePersonalDeck() {
   })
 }
 
-export function useRenamePersonalDeck() {
+export function useUpdatePersonalDeck() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ deckId, name }: { deckId: string; name: string }) =>
-      personalDecksApi.renamePersonalDeck(deckId, name),
+    mutationFn: ({
+      deckId,
+      ...payload
+    }: { deckId: string } & Parameters<
+      typeof personalDecksApi.updatePersonalDeck
+    >[1]) => personalDecksApi.updatePersonalDeck(deckId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['personal-decks'] })
     },

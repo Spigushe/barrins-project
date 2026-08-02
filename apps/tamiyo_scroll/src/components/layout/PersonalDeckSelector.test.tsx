@@ -6,19 +6,40 @@ import { PersonalDeckSelector } from './PersonalDeckSelector'
 const updateSettingsMutateAsync = vi.fn()
 const createDeckMutateAsync = vi.fn()
 const archiveDeckMutateAsync = vi.fn()
-const renameDeckMutateAsync = vi.fn()
+const updateDeckMutateAsync = vi.fn()
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({
     data: [
-      { id: 'deck-1', name: 'Mono Red', archived_at: null, created_at: '' },
-      { id: 'deck-2', name: 'Azorius Control', archived_at: null, created_at: '' },
-      { id: 'deck-4', name: 'Zendikar Ramp', archived_at: null, created_at: '' },
+      {
+        id: 'deck-1',
+        name: 'Mono Red',
+        game: 'magic',
+        category: 'aggro',
+        archived_at: null,
+        created_at: '',
+      },
+      {
+        id: 'deck-2',
+        name: 'Azorius Control',
+        game: 'magic',
+        category: 'control',
+        archived_at: null,
+        created_at: '',
+      },
+      {
+        id: 'deck-4',
+        name: 'Zendikar Ramp',
+        game: 'magic',
+        category: 'midrange',
+        archived_at: null,
+        created_at: '',
+      },
     ],
   }),
   useCreatePersonalDeck: () => ({ mutateAsync: createDeckMutateAsync }),
   useArchivePersonalDeck: () => ({ mutateAsync: archiveDeckMutateAsync }),
-  useRenamePersonalDeck: () => ({ mutateAsync: renameDeckMutateAsync, isPending: false }),
+  useUpdatePersonalDeck: () => ({ mutateAsync: updateDeckMutateAsync, isPending: false }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
@@ -60,10 +81,12 @@ describe('PersonalDeckSelector', () => {
     })
   })
 
-  it('creates and auto-selects a new deck when no exact match exists', async () => {
+  it('creates and auto-selects a new deck once game and archetype are both set', { timeout: 15000 }, async () => {
     createDeckMutateAsync.mockResolvedValue({
       id: 'deck-3',
       name: 'Boros Aggro',
+      game: 'magic',
+      category: 'aggro',
       archived_at: null,
       created_at: '',
     })
@@ -75,9 +98,27 @@ describe('PersonalDeckSelector', () => {
       screen.getByPlaceholderText('Search or create a deck…'),
       'Boros Aggro',
     )
-    await user.click(screen.getByText('Create "Boros Aggro"'))
 
-    expect(createDeckMutateAsync).toHaveBeenCalledWith('Boros Aggro')
+    // Create is disabled until both required selects are set.
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+
+    // cmdk's search input is also role="combobox" — narrow to the two
+    // Select triggers (rendered as <button>, unlike the <input> search box).
+    const [gameTrigger, archetypeTrigger] = screen
+      .getAllByRole('combobox')
+      .filter((el) => el.tagName === 'BUTTON')
+    await user.click(gameTrigger)
+    await user.click(screen.getByText('Magic: The Gathering'))
+    await user.click(archetypeTrigger)
+    await user.click(screen.getByText('Aggro'))
+
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(createDeckMutateAsync).toHaveBeenCalledWith({
+      name: 'Boros Aggro',
+      game: 'magic',
+      category: 'aggro',
+    })
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
       active_personal_deck_id: 'deck-3',
     })
@@ -90,7 +131,7 @@ describe('PersonalDeckSelector', () => {
     await user.click(screen.getByRole('button', { name: 'My personal deck' }))
     await user.type(screen.getByPlaceholderText('Search or create a deck…'), 'Mono Red')
 
-    expect(screen.queryByText('Create "Mono Red"')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create' })).not.toBeInTheDocument()
   })
 
   it('asks for confirmation before archiving, without selecting the deck', async () => {
@@ -151,7 +192,7 @@ describe('PersonalDeckSelector', () => {
     await user.type(input, 'Jeskai Control')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(renameDeckMutateAsync).toHaveBeenCalledWith({
+    expect(updateDeckMutateAsync).toHaveBeenCalledWith({
       deckId: 'deck-2',
       name: 'Jeskai Control',
     })
@@ -165,7 +206,7 @@ describe('PersonalDeckSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Rename Azorius Control' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(renameDeckMutateAsync).not.toHaveBeenCalled()
+    expect(updateDeckMutateAsync).not.toHaveBeenCalled()
     expect(screen.queryByText('Rename "Azorius Control"')).not.toBeInTheDocument()
   })
 })

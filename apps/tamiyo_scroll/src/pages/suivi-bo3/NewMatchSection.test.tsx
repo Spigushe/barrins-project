@@ -8,13 +8,30 @@ vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId, canEdit: true }),
 }))
 
+const updateDeckMutateAsync = vi.fn()
+
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({
     data: [
-      { id: 'deck-1', name: "King T'Challa", archived_at: null, created_at: '' },
-      { id: 'deck-2', name: 'Spider-Man 2099', archived_at: null, created_at: '' },
+      {
+        id: 'deck-1',
+        name: "King T'Challa",
+        game: 'magic',
+        category: 'midrange',
+        archived_at: null,
+        created_at: '',
+      },
+      {
+        id: 'deck-2',
+        name: 'Spider-Man 2099',
+        game: null,
+        category: null,
+        archived_at: null,
+        created_at: '',
+      },
     ],
   }),
+  useUpdatePersonalDeck: () => ({ mutateAsync: updateDeckMutateAsync, isPending: false }),
 }))
 
 vi.mock('@/hooks/useMetaDecks', () => ({
@@ -41,5 +58,21 @@ describe('NewMatchSection', () => {
     rerender(<NewMatchSection />)
     expect(screen.getByText('Spider-Man 2099')).toBeInTheDocument()
     expect(screen.queryByText("King T'Challa")).not.toBeInTheDocument()
+  })
+
+  it('allows logging a match on a fully set-up deck', () => {
+    activeDeckId = 'deck-1'
+    render(<NewMatchSection />)
+    expect(screen.queryByText(/set "King T'Challa"'s game and archetype/i)).not
+      .toBeInTheDocument()
+  })
+
+  it('blocks logging a match on a deck missing game/category (S10/S11)', () => {
+    activeDeckId = 'deck-2'
+    render(<NewMatchSection />)
+    expect(
+      screen.getByText(/set "Spider-Man 2099"'s game and archetype/i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save the game' })).toBeDisabled()
   })
 })

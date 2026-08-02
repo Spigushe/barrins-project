@@ -21,7 +21,7 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({ data: [] }),
   useCreatePersonalDeck: () => ({ mutateAsync: vi.fn() }),
   useArchivePersonalDeck: () => ({ mutateAsync: vi.fn() }),
-  useRenamePersonalDeck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdatePersonalDeck: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDownloadDeckReport: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 

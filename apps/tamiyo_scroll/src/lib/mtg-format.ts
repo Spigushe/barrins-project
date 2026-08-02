@@ -1,5 +1,6 @@
 import type {
   ArchetypeCategory,
+  CardGame,
   DecklistLineStatus,
   DecklistVersionSource,
   ExpectedLevel,
@@ -12,6 +13,20 @@ export const ARCHETYPE_LABELS: Record<ArchetypeCategory, string> = {
   midrange: 'Midrange',
   control: 'Control',
   combo: 'Combo',
+}
+
+export const CARD_GAME_LABELS: Record<CardGame, string> = {
+  magic: 'Magic: The Gathering',
+  yu_gi_oh: 'Yu-Gi-Oh!',
+  pokemon: 'Pokémon TCG',
+  flesh_and_blood: 'Flesh and Blood',
+  one_piece: 'One Piece Card Game',
+  lorcana: 'Disney Lorcana',
+  star_wars_unlimited: 'Star Wars: Unlimited',
+  digimon: 'Digimon Card Game',
+  cardfight_vanguard: 'Cardfight!! Vanguard',
+  riftbound: 'Riftbound',
+  other: 'Other',
 }
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {

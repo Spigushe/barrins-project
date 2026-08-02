@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ArchetypeCategory, CardGame } from '@/schemas/tamiyoScroll'
 import {
   decklistLineSchema,
   decklistVersionSchema,
@@ -13,10 +14,14 @@ export function listPersonalDecks(options: { includeArchived?: boolean } = {}) {
   })
 }
 
-export function createPersonalDeck(name: string) {
+export function createPersonalDeck(payload: {
+  name: string
+  game: CardGame
+  category: ArchetypeCategory
+}) {
   return apiRequest('/bff/tamiyo-scroll/personal-decks', personalDeckSchema, {
     method: 'POST',
-    body: { name },
+    body: payload,
   })
 }
 
@@ -26,10 +31,14 @@ export function archivePersonalDeck(deckId: string) {
   })
 }
 
-export function renamePersonalDeck(deckId: string, name: string) {
+/** Partial update (S1 rename, S10/S11 game/category) — only provided fields change. */
+export function updatePersonalDeck(
+  deckId: string,
+  payload: { name?: string; game?: CardGame; category?: ArchetypeCategory },
+) {
   return apiRequest(`/bff/tamiyo-scroll/personal-decks/${deckId}`, personalDeckSchema, {
     method: 'PATCH',
-    body: { name },
+    body: payload,
   })
 }
 
