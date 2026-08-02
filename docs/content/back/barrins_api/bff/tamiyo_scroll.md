@@ -401,3 +401,46 @@ Regression tests added in `tests/tamiyo_scroll/test_card_tests.py`
 `tests/tamiyo_scroll/test_personal_decks.py` (`decklist-view` ignores
 tests from another deck), and `tests/tamiyo_scroll/test_stats_routes.py`
 (archived deck excluded from `archetype-summary`).
+
+## Gap note (2026-08-02): v2.0.0 additions not covered above
+
+This page is a point-in-time implementation plan for the original v1
+BFF build (2026-07-15/16) — it was never converted into a living
+endpoint catalog, so it doesn't reflect the v2.0.0 work landed since.
+Rather than retrofit the "Route map" above route-by-route (a large
+job on its own), this note lists what's now out of date, so the gap is
+visible instead of silent:
+
+- **`GET /shared-users` (Route map, above) no longer exists.** The
+  per-sharer "View: {user}" selector it backed was removed: a sharer's
+  decks now merge automatically into the viewer's own Journal/Metagame
+  views by exact deck-name match. `me/settings` gained a
+  `receive_shared_data` toggle (opt-in "receive," alongside the
+  existing opt-out-by-default `data_shared` "share" toggle) — you
+  can't receive without also sharing (`422 receive_requires_share`).
+- **Sessions (S9)**: new `app/api/tamiyo_scroll/sessions.py` router —
+  `GET`/`POST /sessions`, `PATCH`/`DELETE /sessions/{id}`, and
+  `GET /sessions/{id}/report.pdf` — none of it documented here.
+- **Teams (S2)**: new `app/api/tamiyo_scroll/teams.py` router — team
+  CRUD (`POST /teams`, `GET /teams/mine`, `GET`/`PATCH`/`DELETE
+  /teams/{id}`), joining/leaving (`POST /teams/join`, `POST
+  /teams/{id}/leave`, member removal), name-based deck flagging
+  (`POST`/`DELETE /teams/{id}/decks/flags[/{name_key}]`), the
+  per-team-deck-name discussion thread (`GET`/`POST
+  /teams/{id}/decks/{name_key}/thread[/messages]`), and the team PDF
+  report (`GET /teams/{id}/decks/{name_key}/report.pdf`) — none of it
+  documented here.
+- **PDF reports (S5)**: `GET /personal-decks/{deck_id}/report.pdf`
+  (session-less, rolling 30-day deck report) is missing from the Route
+  map above; `GET /sessions/{id}/report.pdf` and the team report route
+  above are the session-scoped and team variants of the same feature.
+- **Match ↔ decklist-version (S3)**: `ts_matches` gained a
+  `decklist_version_id` FK, auto-stamped at creation and editable via
+  the existing `PUT /matches/{id}` — not called out above. Decklist
+  versions also gained Moxfield-staleness tracking (`moxfield_data`
+  JSONB, `moxfield_deck_changed_since_last_import` on re-import).
+
+If this page is meant to stay a living reference going forward, it
+needs a proper route-map refresh; if not, a short pointer to wherever
+the current route list is generated (e.g. `app.openapi()`) would serve
+better than letting this list drift further.

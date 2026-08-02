@@ -3,6 +3,30 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Added
+
+- `ops/my-server/barrins_scripture.yml` + a new
+  `ops/my-server/roles/scripture_scraper/` role (T1): a `systemd`
+  `.service`/`.timer` pair (patterned on `roles/postgres_backup/`)
+  running Barrin's Scripture's daily scrape and Sunday biweekly
+  gap-check on the VPS, replacing `mtg_scraper`'s GitHub Actions cron.
+  `ansible-lint` clean; not yet deployed to the real VPS.
+- A new `proj-release-branch-protection` GitHub ruleset (F9), covering
+  `proj/*` branches (e.g. `proj/v2.0.0-bump` and its sub-branches):
+  mandatory PRs, no direct pushes — mirroring how `staging`/`main` are
+  already protected. UAT-confirmed: a direct push to `proj/v2.0.0-bump`
+  is rejected (`GH013`).
+
+### Changed
+
+- `.github/workflows/CI.yml` (F9): added `"proj/**"` to both
+  `pull_request` and `push` branch triggers. `proj/*` release-integration
+  branches previously ran no CI at all — every `proj/v2.0.0-bump` PR
+  merged before this was only conventionally reviewed, not gated by
+  `ci-required`.
+
 ## [1.0.0] "WorldWake" - 2026-07-24
 
 ### Added

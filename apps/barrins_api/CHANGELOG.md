@@ -3,6 +3,102 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Added
+
+- Team sharing (`/bff/tamiyo-scroll/teams*`): team CRUD (create/join/leave/
+  delete) with 8-character invite codes, redemption rate-limited to 1 per
+  5 seconds and 5 per minute; member listing with per-member
+  cross-flagged-deck activity counts; name-based deck sharing
+  (`ts_team_deck_flags`) — flagging one member's deck *name* auto-includes
+  every other current or future member's same-named deck, computed at
+  read time rather than a per-deck link; per-team-deck-name discussion
+  threads (`ts_team_deck_threads`); a cumulative team-deck PDF report per
+  flagged name (`GET .../teams/{id}/decks/{name_key}/report.pdf`,
+  aggregating every contributing member's data); and
+  `PATCH /personal-decks/{id}` to rename a deck (renaming into/out of a
+  flagged name joins/leaves a team-deck's rotation).
+- Server-rendered PDF training reports (WeasyPrint, pinned `>=69.0`, see
+  ADR I8): `GET .../sessions/{id}/report.pdf` for one training/tournament
+  session (decklist version used, matches logged against it, win rate vs.
+  the session's baseline, card-test feedback) and
+  `GET .../personal-decks/{deck_id}/report.pdf` for a session-less,
+  rolling last-30-days report that also folds in a viewer's merged shared
+  data. Both share one calculation path (`stats.compute_period_stats`)
+  and one renderer, no duplicated winrate/matchup logic.
+- Tournament/training session grouping: new `ts_sessions` table (`name`,
+  `tournament`/`training` type, `notes`, soft-delete via `archived_at`)
+  with full CRUD and `GET .../sessions/{id}/comparison`, which diffs a
+  session's matches against the same deck's prior history (everything
+  logged before the session started, including other sessions), reusing
+  the existing archetype/matchup stats functions. `ts_matches` gains an
+  optional `session_id`, validated against the same owner and personal
+  deck.
+- Automatic read-only sharing merge (`app/services/tamiyo_scroll/
+  sharing_merge.py`): once a sharer has `data_shared` on and a viewer has
+  `receive_shared_data` on, the sharer's personal decks merge directly
+  into the viewer's own Journal (matches) and Metagame (roster +
+  archetype/matchup stats), matched by exact deck name — a name match
+  keeps the viewer's own tier/category. Replaces the "View: {user}"
+  selector concept entirely; the `GET /shared-users` route and its
+  supporting per-sharer opt-in table are removed along with it.
+- `PATCH /api/v1/auth/me` for self-service `display_name` updates.
+- Match-to-decklist-version auto-stamping: `ts_matches` gains a nullable
+  `decklist_version_id` FK to `ts_personal_decklist_versions`, auto-filled
+  with the personal deck's current latest version at match creation, and
+  editable afterward on the match itself.
+- Moxfield re-import staleness flag: `TSPersonalDecklistVersion` gains a
+  nullable `moxfield_data` JSONB column storing the full raw Moxfield API
+  response for Moxfield-imported versions (`NULL` for manual entries).
+  `POST .../versions/import-moxfield` now returns
+  `moxfield_deck_changed_since_last_import` by comparing the fresh
+  `lastUpdatedAtUtc` (read from the response root only, never a recursive
+  search) against the deck's prior Moxfield-sourced version.
+  `MoxfieldClient.fetch_decklist` returns this alongside the formatted
+  decklist text.
+- Barrin's Scripture scraped-tournament schema (`app/models/scripture.py`):
+  six `bs_`-prefixed tables — `bs_tournaments`, `bs_decks`,
+  `bs_deck_cards`, `bs_rounds`, `bs_round_matches`, `bs_standings` —
+  mirroring the existing `ts_*` modeling convention, each with a unique
+  constraint on its natural key so replaying the scrape archive through a
+  future ingestion route is an idempotent upsert. Not yet wired to any
+  route.
+
+### Changed
+
+- Global sharing re-enabled: the `SHARING_ENABLED` gate is removed
+  entirely. Receiving now also requires an explicit opt-in
+  (`receive_shared_data` on `ts_user_settings`) in addition to the
+  sharer's existing `data_shared`; new accounts default to
+  `data_shared=true` (opt-out) while `receive_shared_data` still defaults
+  `false` (opt-in), asymmetric on purpose.
+- `PATCH /me/settings` (`update_my_settings`) now rejects
+  `receive_shared_data: true` together with `data_shared: false` with
+  `422 receive_requires_share` — an account can share without receiving,
+  but can no longer receive without also sharing.
+- Merged/roster response schemas (`ResponseMetaDeck`,
+  `ResponseDeckWinrate`, `ResponseMatchupRow`) gain `has_shared_data`
+  (an owned deck that also received at least one merged shared match,
+  distinct from a fully-foreign `is_readonly` entry) and
+  `is_multi_share` (two or more sharers' same-named decks consolidated
+  into one read-only roster line, highest tier wins, instead of one line
+  per sharer).
+- PDF reports and the S9 session-comparison endpoint now exclude matches
+  against an archived opponent deck instead of surfacing them as an
+  unresolvable "?" row.
+
+### Fixed
+
+- Sharing merge no longer falls back to a sharer's raw email as the
+  `shared_by` label when `display_name` is unset (privacy/GDPR); falls
+  back to a generic "a kind user" label instead.
+- Archiving a name-matched roster entry no longer strands a merged match
+  pointing at the archived id with no read-only fallback line — only
+  non-archived owner roster entries count as a name match now; an
+  archived match falls back to the sharer's own entry as a new read-only
+  line, same as no match at all.
+
 ## [1.0.0] "WorldWake" - 2026-07-24
 
 ### Added
