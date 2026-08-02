@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/tamiyo_scroll` (React/Vite) only | No `barrins_api` change in any of the four |
 | **Initial date** | 2026-07-30 | Drafted 2026-07-30 |
-| **Status** | 🔲 Not started — unblocked, can start immediately | / |
+| **Status** | ✅ Done — all twelve items implemented (item 1 was already done as a side effect of S10/S11); see "Design decisions"/"Open questions" for the defaults picked. Full stack tested. | / |
 | **Source** | Items 1-4: User request, 2026-07-30 — pulled in from the "v2.0.0 candidates" section of `docs/content/front/tamiyo_scroll/roadmap.md`. Items 5-12: User request, 2026-07-31 | / |
 | **Dependency** | None. Twelve independent frontend fixes, bundled under one item ID because each is individually too small to warrant its own S-number | / |
 

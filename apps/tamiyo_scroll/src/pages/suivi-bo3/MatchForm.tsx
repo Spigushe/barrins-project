@@ -707,7 +707,9 @@ export function MatchFormFields({
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="opening-hand">Opening hand</Label>
+          {/* S12 item 3: label-only rename ("Opening hand" → "Game 1
+              Notes") — `openingHand`/`opening_hand` are unchanged. */}
+          <Label htmlFor="opening-hand">Game 1 Notes</Label>
           <Textarea
             id="opening-hand"
             rows={3}
@@ -718,7 +720,9 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="turning-point">Turning point</Label>
+          {/* S12 item 3: label-only rename ("Turning point" → "Game 2
+              Notes") — `turningPoint`/`turning_point` are unchanged. */}
+          <Label htmlFor="turning-point">Game 2 Notes</Label>
           <Textarea
             id="turning-point"
             rows={3}
@@ -729,7 +733,9 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="final-turn">Final turn</Label>
+          {/* S12 item 3: label-only rename ("Final turn" → "Game 3
+              Notes") — `finalTurn`/`final_turn` are unchanged. */}
+          <Label htmlFor="final-turn">Game 3 Notes</Label>
           <Textarea
             id="final-turn"
             rows={3}

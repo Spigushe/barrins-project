@@ -270,19 +270,22 @@ export function MatchJournalSection() {
                 )}
               </div>
               <div>
-                <Label>Opening hand</Label>
+                {/* S12 item 3: label-only rename — `opening_hand` unchanged. */}
+                <Label>Game 1 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.opening_hand || '—'}
                 </p>
               </div>
               <div>
-                <Label>Turning point</Label>
+                {/* S12 item 3: label-only rename — `turning_point` unchanged. */}
+                <Label>Game 2 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.turning_point || '—'}
                 </p>
               </div>
               <div>
-                <Label>Final turn</Label>
+                {/* S12 item 3: label-only rename — `final_turn` unchanged. */}
+                <Label>Game 3 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.final_turn || '—'}
                 </p>
