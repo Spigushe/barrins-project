@@ -13,11 +13,35 @@ from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser
 from app.schemas.responses_tamiyo_scroll import (
     ResponseAggregateMetric,
+    ResponseMetricTimeseries,
+    ResponseMetricTimeseriesPoint,
     ResponsePlatformMetrics,
+    ResponsePlatformMetricsTimeseries,
 )
-from app.services.metrics import compute_platform_metrics
+from app.services.metrics import (
+    MetricTimeseries,
+    compute_platform_metrics,
+    compute_platform_metrics_timeseries,
+)
 
 router = APIRouter()
+
+
+def _to_response_timeseries(metric: MetricTimeseries) -> ResponseMetricTimeseries:
+    return ResponseMetricTimeseries(
+        daily=[
+            ResponseMetricTimeseriesPoint(period_start=p.period_start, count=p.count)
+            for p in metric.daily
+        ],
+        weekly=[
+            ResponseMetricTimeseriesPoint(period_start=p.period_start, count=p.count)
+            for p in metric.weekly
+        ],
+        monthly=[
+            ResponseMetricTimeseriesPoint(period_start=p.period_start, count=p.count)
+            for p in metric.monthly
+        ],
+    )
 
 
 @router.get("/admin/metrics", response_model=ResponsePlatformMetrics)
@@ -43,4 +67,24 @@ async def get_platform_metrics(
         total_matches=ResponseAggregateMetric(
             value=metrics.total_matches.value, source=metrics.total_matches.source
         ),
+    )
+
+
+@router.get(
+    "/admin/metrics/timeseries", response_model=ResponsePlatformMetricsTimeseries
+)
+async def get_platform_metrics_timeseries(
+    session: DatabaseSession,
+    _admin: AdminUser,
+) -> ResponsePlatformMetricsTimeseries:
+    """Day/week/month bucketed comparison of the same three counts above
+    (added 2026-08-02, `index.md`'s "Added requirement" section) — not a
+    new metric, the same accounts/personal-decks/matches counts grouped
+    by `created_at` bucket instead of collapsed to one all-time total.
+    """
+    timeseries = await compute_platform_metrics_timeseries(session)
+    return ResponsePlatformMetricsTimeseries(
+        accounts=_to_response_timeseries(timeseries.accounts),
+        personal_decks=_to_response_timeseries(timeseries.personal_decks),
+        matches=_to_response_timeseries(timeseries.matches),
     )

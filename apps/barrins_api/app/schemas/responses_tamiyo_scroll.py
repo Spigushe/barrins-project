@@ -268,3 +268,31 @@ class ResponsePlatformMetrics(BaseResponse):
     total_accounts: ResponseAggregateMetric
     total_personal_decks: ResponseAggregateMetric
     total_matches: ResponseAggregateMetric
+
+
+class ResponseMetricTimeseriesPoint(BaseResponse):
+    """One bucket of `ResponseMetricTimeseries` (S6, added 2026-08-02)."""
+
+    period_start: datetime
+    count: int
+
+
+class ResponseMetricTimeseries(BaseResponse):
+    """A single metric's day/week/month bucketed evolution (S6, added
+    2026-08-02) — same count as the matching `ResponsePlatformMetrics`
+    field, just grouped by `created_at` bucket instead of collapsed to
+    one all-time total."""
+
+    daily: list[ResponseMetricTimeseriesPoint]
+    weekly: list[ResponseMetricTimeseriesPoint]
+    monthly: list[ResponseMetricTimeseriesPoint]
+
+
+class ResponsePlatformMetricsTimeseries(BaseResponse):
+    """Admin dashboard time-comparison payload (S6, added 2026-08-02) —
+    the same three v2.0.0 adoption signals as `ResponsePlatformMetrics`,
+    broken down per period instead of flattened to an all-time total."""
+
+    accounts: ResponseMetricTimeseries
+    personal_decks: ResponseMetricTimeseries
+    matches: ResponseMetricTimeseries

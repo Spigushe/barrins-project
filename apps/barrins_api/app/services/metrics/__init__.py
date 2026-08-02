@@ -13,5 +13,19 @@ from app.services.metrics.aggregates import (
     PlatformMetrics,
     compute_platform_metrics,
 )
+from app.services.metrics.timeseries import (
+    MetricTimeseries,
+    PlatformMetricsTimeseries,
+    TimeseriesPoint,
+    compute_platform_metrics_timeseries,
+)
 
-__all__ = ["AggregateMetric", "PlatformMetrics", "compute_platform_metrics"]
+__all__ = [
+    "AggregateMetric",
+    "MetricTimeseries",
+    "PlatformMetrics",
+    "PlatformMetricsTimeseries",
+    "TimeseriesPoint",
+    "compute_platform_metrics",
+    "compute_platform_metrics_timeseries",
+]
