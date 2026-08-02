@@ -20,8 +20,8 @@ export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
 }
 
 /** Shared by the Sessions tab and the match journal's session tag (S9). */
-export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'accent' | 'success'> = {
-  tournament: 'accent',
+export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'tournament' | 'success'> = {
+  tournament: 'tournament',
   training: 'success',
 }
 

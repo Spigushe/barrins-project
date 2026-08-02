@@ -133,18 +133,18 @@ describe('MatchJournalSection — shared (read-only) matches', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
-  it('shows a "from: {sharer}" badge on the collapsed row', () => {
+  it('shows a "sharer: {sharer}" badge on the collapsed row', () => {
     render(<MatchJournalSection />)
-    expect(screen.getByText('from: other@example.com')).toBeInTheDocument()
+    expect(screen.getByText('sharer: other@example.com')).toBeInTheDocument()
   })
 
-  it('shows a "from: {sharer}" badge in the View popup', async () => {
+  it('shows a "sharer: {sharer}" badge in the View popup', async () => {
     const user = userEvent.setup()
     render(<MatchJournalSection />)
 
     await user.click(screen.getByRole('button', { name: 'View' }))
 
-    expect(screen.getAllByText('from: other@example.com')).toHaveLength(2)
+    expect(screen.getAllByText('sharer: other@example.com')).toHaveLength(2)
   })
 })
 
@@ -156,12 +156,12 @@ describe('MatchJournalSection — session badge', () => {
     ]
   })
 
-  it('shows the session name, colored by its type, on the collapsed row', () => {
+  it('shows the session name, prefixed by its type and colored accordingly, on the collapsed row', () => {
     render(<MatchJournalSection />)
-    const badge = screen.getByText('RC Toronto 2026')
+    const badge = screen.getByText('Tournament: RC Toronto 2026')
     expect(badge).toBeInTheDocument()
-    // tournament -> accent variant (see SESSION_TYPE_BADGE_VARIANT)
-    expect(badge.className).toContain('text-accent')
+    // tournament -> tournament variant (see SESSION_TYPE_BADGE_VARIANT)
+    expect(badge.className).toContain('text-tournament')
   })
 
   it('shows the session name in the View popup', async () => {
@@ -170,6 +170,6 @@ describe('MatchJournalSection — session badge', () => {
 
     await user.click(screen.getByRole('button', { name: 'View' }))
 
-    expect(screen.getAllByText('RC Toronto 2026')).toHaveLength(2)
+    expect(screen.getAllByText('Tournament: RC Toronto 2026')).toHaveLength(2)
   })
 })

@@ -11,6 +11,7 @@ import {
   GAME_RESULT_BORDER_CLASS,
   GAME_RESULT_LABELS,
   SESSION_TYPE_BADGE_VARIANT,
+  SESSION_TYPE_LABELS,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -62,7 +63,11 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
  * archived session a historical match still points to. */
 function SessionBadge({ session }: { session: Session | undefined }) {
   if (!session) return <Badge>?</Badge>
-  return <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>{session.name}</Badge>
+  return (
+    <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>
+      {SESSION_TYPE_LABELS[session.type]}: {session.name}
+    </Badge>
+  )
 }
 
 export function MatchJournalSection() {
@@ -180,7 +185,7 @@ export function MatchJournalSection() {
                   <SessionBadge session={sessionById(match.session_id)} />
                 )}
                 {match.is_readonly && (
-                  <Badge variant="accent">from: {match.shared_by}</Badge>
+                  <Badge variant="shared">sharer: {match.shared_by}</Badge>
                 )}
               </div>
               <div className="flex gap-2">
@@ -248,7 +253,7 @@ export function MatchJournalSection() {
                   <SessionBadge session={sessionById(viewingMatch.session_id)} />
                 )}
                 {viewingMatch.is_readonly && (
-                  <Badge variant="accent">from: {viewingMatch.shared_by}</Badge>
+                  <Badge variant="shared">sharer: {viewingMatch.shared_by}</Badge>
                 )}
               </div>
               <div>

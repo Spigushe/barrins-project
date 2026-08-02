@@ -73,9 +73,9 @@ export function ArchetypeSummarySection() {
                 >
                   <span className="text-foreground">{deck.name}</span>
                   <span className="flex items-center gap-2">
-                    {deck.is_readonly && <Badge variant="accent">shared</Badge>}
+                    {deck.is_readonly && <Badge variant="shared">shared</Badge>}
                     {!deck.is_readonly && deck.has_shared_data && (
-                      <Badge variant="accent">w/ shared</Badge>
+                      <Badge variant="shared">w/ shared</Badge>
                     )}
                     <span className={cn('font-mono', winrateTextClass(deck.winrate))}>
                       {formatPercent(deck.winrate)}
@@ -119,9 +119,9 @@ export function MatchupSummarySection() {
               <TableCell>
                 <span className="flex items-center gap-2">
                   {row.opponent_deck_name}
-                  {row.is_readonly && <Badge variant="accent">shared</Badge>}
+                  {row.is_readonly && <Badge variant="shared">shared</Badge>}
                   {!row.is_readonly && row.has_shared_data && (
-                    <Badge variant="accent">w/ shared</Badge>
+                    <Badge variant="shared">w/ shared</Badge>
                   )}
                 </span>
               </TableCell>
