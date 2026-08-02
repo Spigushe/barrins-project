@@ -1,15 +1,39 @@
 """Tests for /bff/tamiyo-scroll/matches."""
 
-from httpx import AsyncClient
+import uuid
 
+from httpx import AsyncClient
+from sqlalchemy import update
+
+from app.models.tamiyo_scroll import TSPersonalDeck
 from app.models.user import User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
+
+
+async def _null_out(
+    db_session, personal_id: str, *, game: bool, category: bool
+) -> None:
+    """Directly nulls `game`/`category` on a deck to simulate a historical,
+    pre-migration deck (nullable, no backfill) — the only way to reach that
+    state now that `PersonalDeckCreate` requires both fields."""
+    values: dict[str, None] = {}
+    if game:
+        values["game"] = None
+    if category:
+        values["category"] = None
+    stmt = update(TSPersonalDeck).where(
+        TSPersonalDeck.id == uuid.UUID(personal_id)
+    )
+    await db_session.execute(stmt.values(**values))
+    await db_session.commit()
 
 
 async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
     headers = auth_headers(user)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+        f"{BASE}/personal-decks",
+        json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+        headers=headers,
     )
     meta_resp = await client.post(
         f"{BASE}/meta-decks",
@@ -138,6 +162,53 @@ class TestCreateMatch:
         assert resp.status_code == 404
 
 
+class TestCreateMatchGameCategoryGate:
+    """S10/S11: a personal deck's `game` and `category` must both be set
+    before a match can be logged on it — a historical (pre-migration or
+    still-incomplete) deck is rejected with a stable 422 detail code."""
+
+    async def test_null_game_returns_422(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        await _null_out(db_session, personal_id, game=True, category=False)
+
+        resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "personal_deck_game_required"
+
+    async def test_null_category_returns_422(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        await _null_out(db_session, personal_id, game=False, category=True)
+
+        resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "personal_deck_macrotype_required"
+
+    async def test_succeeds_once_both_are_set(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """Non-regression: a deck created through the normal flow (both
+        fields required at creation) is never gated."""
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 201
+
+
 class TestListMatches:
     async def test_lists_own_matches(self, client: AsyncClient, owner_user: User):
         personal_id, meta_id = await _setup_decks(client, owner_user)
@@ -156,7 +227,9 @@ class TestListMatches:
         headers = auth_headers(owner_user)
         deck_a, meta_id = await _setup_decks(client, owner_user)
         deck_b_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Azorius Control"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Azorius Control", "game": "magic", "category": "control"},
+            headers=headers,
         )
         deck_b = deck_b_resp.json()["id"]
         await client.post(
@@ -296,7 +369,9 @@ class TestUpdateMatch:
         personal_id, meta_id = await _setup_decks(client, owner_user)
         headers = auth_headers(owner_user)
         other_deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Azorius Control"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Azorius Control", "game": "magic", "category": "control"},
+            headers=headers,
         )
         other_deck_id = other_deck_resp.json()["id"]
         foreign_version = await _create_version(client, headers, other_deck_id)
@@ -315,6 +390,55 @@ class TestUpdateMatch:
             headers=headers,
         )
         assert resp.status_code == 404
+
+
+class TestUpdateMatchGameCategoryGate:
+    """S10/S11: the gate blocks re-saving an existing match, not just
+    creating a new one — "block create and modify" (matches.py's
+    `_validate_match_refs`, called from both `create_match` and
+    `update_match`)."""
+
+    async def test_null_game_returns_422(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=headers,
+        )
+        match_id = create_resp.json()["id"]
+        await _null_out(db_session, personal_id, game=True, category=False)
+
+        resp = await client.put(
+            f"{BASE}/matches/{match_id}",
+            json=_match_payload(personal_id, meta_id, on_play=False),
+            headers=headers,
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "personal_deck_game_required"
+
+    async def test_null_category_returns_422(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=headers,
+        )
+        match_id = create_resp.json()["id"]
+        await _null_out(db_session, personal_id, game=False, category=True)
+
+        resp = await client.put(
+            f"{BASE}/matches/{match_id}",
+            json=_match_payload(personal_id, meta_id, on_play=False),
+            headers=headers,
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "personal_deck_macrotype_required"
 
 
 class TestDeleteMatch:
@@ -376,7 +500,9 @@ class TestSharedDataMerge:
         owner_headers = auth_headers(owner_user)
         # Same name as other_user's deck ("Mono Red", from _setup_decks).
         owner_personal_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         owner_personal = owner_personal_resp.json()["id"]
 
@@ -412,7 +538,9 @@ class TestSharedDataMerge:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)
 
@@ -435,7 +563,9 @@ class TestSharedDataMerge:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
 
         resp = await client.get(f"{BASE}/matches", headers=owner_headers)
@@ -455,7 +585,11 @@ class TestSharedDataMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Totally Different Deck"},
+            json={
+                "name": "Totally Different Deck",
+                "game": "magic",
+                "category": "midrange",
+            },
             headers=owner_headers,
         )
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)
@@ -477,7 +611,7 @@ class TestSharedDataMerge:
         owner_headers = auth_headers(owner_user)
         owner_personal_resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "  mono red  "},
+            json={"name": "  mono red  ", "game": "magic", "category": "aggro"},
             headers=owner_headers,
         )
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)
@@ -503,7 +637,9 @@ class TestSharedDataMerge:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)
 
@@ -538,7 +674,9 @@ class TestSharedDataMerge:
 
         owner_headers = auth_headers(owner_user)
         owner_personal_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         owner_personal = owner_personal_resp.json()["id"]
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)

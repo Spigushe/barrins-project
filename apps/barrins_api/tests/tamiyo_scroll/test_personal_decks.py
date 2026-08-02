@@ -3,10 +3,10 @@
 import uuid
 
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.main import app
-from app.models.tamiyo_scroll import TSPersonalDecklistVersion
+from app.models.tamiyo_scroll import TSPersonalDeck, TSPersonalDecklistVersion
 from app.models.user import User
 from app.services.moxfield import get_moxfield_client
 from app.services.moxfield.base import MoxfieldDeckFetch
@@ -15,7 +15,9 @@ from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 async def _create_deck(client: AsyncClient, user: User, name: str = "Mono Red") -> str:
     resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": name}, headers=auth_headers(user)
+        f"{BASE}/personal-decks",
+        json={"name": name, "game": "magic", "category": "aggro"},
+        headers=auth_headers(user),
     )
     assert resp.status_code == 201
     return resp.json()["id"]
@@ -61,18 +63,167 @@ class TestCreatePersonalDeck:
     async def test_creates_deck(self, client: AsyncClient, owner_user: User):
         resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Boros Aggro"},
+            json={"name": "Boros Aggro", "game": "magic", "category": "aggro"},
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 201
         body = resp.json()
         assert body["name"] == "Boros Aggro"
+        assert body["game"] == "magic"
+        assert body["category"] == "aggro"
         assert body["archived_at"] is None
 
     async def test_blank_name_returns_422(self, client: AsyncClient, owner_user: User):
         resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": ""},
+            json={"name": "", "game": "magic", "category": "aggro"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
+    async def test_missing_game_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S10: `game` is required, no default — a payload without it is
+        rejected server-side, not silently defaulted."""
+        resp = await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Boros Aggro", "category": "aggro"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
+    async def test_missing_category_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S11: `category` is required, no default — same rule as `game`."""
+        resp = await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Boros Aggro", "game": "magic"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
+
+class TestPatchPersonalDeck:
+    async def test_renames_without_touching_game_or_category(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"name": "Mono Red V2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Mono Red V2"
+        assert body["game"] == "magic"
+        assert body["category"] == "aggro"
+
+    async def test_sets_game_without_touching_name_or_category(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"game": "pokemon"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Mono Red"
+        assert body["game"] == "pokemon"
+        assert body["category"] == "aggro"
+
+    async def test_sets_category_without_touching_name_or_game(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"category": "control"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Mono Red"
+        assert body["game"] == "magic"
+        assert body["category"] == "control"
+
+    async def test_empty_payload_changes_nothing(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}", json={}, headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Mono Red"
+        assert body["game"] == "magic"
+        assert body["category"] == "aggro"
+
+    async def test_unblocks_a_historical_null_game_deck(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """A pre-migration deck (`game`/`category` NULL) is unblocked by
+        PATCH — the whole point of the route existing (S10/S11)."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Historical Deck")
+        await db_session.execute(
+            update(TSPersonalDeck)
+            .where(TSPersonalDeck.id == uuid.UUID(deck_id))
+            .values(game=None, category=None)
+        )
+        await db_session.commit()
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"game": "magic", "category": "aggro"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["game"] == "magic"
+        assert body["category"] == "aggro"
+
+    async def test_foreign_deck_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"name": "Hijacked"},
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_unknown_deck_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.patch(
+            f"{BASE}/personal-decks/00000000-0000-0000-0000-000000000000",
+            json={"name": "Doesn't matter"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_extra_field_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"owner_id": str(owner_user.id)},
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 422

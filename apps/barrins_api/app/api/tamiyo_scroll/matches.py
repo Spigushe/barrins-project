@@ -42,13 +42,27 @@ async def _validate_match_refs(
     opponent_deck_id: uuid.UUID,
 ) -> None:
     personal_result = await session.execute(
-        select(TSPersonalDeck.id).where(
+        select(TSPersonalDeck.game, TSPersonalDeck.category).where(
             TSPersonalDeck.id == personal_deck_id, TSPersonalDeck.owner_id == owner_id
         )
     )
-    if personal_result.scalar_one_or_none() is None:
+    personal_row = personal_result.one_or_none()
+    if personal_row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Personal deck not found."
+        )
+    # S10/S11: a deck must have both set before any match can be logged or
+    # edited on it — the gate that gives the "required at creation" rule
+    # teeth against historical, pre-migration decks (nullable, no backfill).
+    if personal_row.game is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="personal_deck_game_required",
+        )
+    if personal_row.category is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="personal_deck_macrotype_required",
         )
 
     opponent_result = await session.execute(

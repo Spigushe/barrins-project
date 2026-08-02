@@ -57,7 +57,7 @@ class TestReadAccessWithSharing:
         )
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Other's Deck"},
+            json={"name": "Other's Deck", "game": "magic", "category": "midrange"},
             headers=other_headers,
         )
         await client.patch(
@@ -78,7 +78,7 @@ class TestReadAccessWithSharing:
     ):
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "My Deck"},
+            json={"name": "My Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         resp = await client.get(
@@ -106,7 +106,7 @@ class TestWriteRoutesIgnoreOwnerParam:
 
         resp = await client.post(
             f"{BASE}/personal-decks?owner_id={other_user.id}",
-            json={"name": "Sneaky Deck"},
+            json={"name": "Sneaky Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 201

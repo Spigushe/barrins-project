@@ -21,7 +21,9 @@ from tests.tamiyo_scroll.conftest import BASE, auth_headers
 async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
     headers = auth_headers(user)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+        f"{BASE}/personal-decks",
+        json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+        headers=headers,
     )
     meta_resp = await client.post(
         f"{BASE}/meta-decks",
@@ -226,7 +228,9 @@ class TestGetDeckReport:
 
         owner_headers = auth_headers(owner_user)
         personal_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         personal_id = personal_resp.json()["id"]
         await client.patch(

@@ -14,7 +14,9 @@ from tests.tamiyo_scroll.conftest import BASE, auth_headers
 async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
     headers = auth_headers(user)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+        f"{BASE}/personal-decks",
+        json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+        headers=headers,
     )
     meta_resp = await client.post(
         f"{BASE}/meta-decks",
@@ -124,7 +126,9 @@ class TestListSessions:
         headers = auth_headers(owner_user)
         deck_a, _ = await _setup_decks(client, owner_user)
         deck_b_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Azorius Control"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Azorius Control", "game": "magic", "category": "control"},
+            headers=headers,
         )
         deck_b = deck_b_resp.json()["id"]
         await client.post(
@@ -431,7 +435,9 @@ class TestMatchSessionLink:
         headers = auth_headers(owner_user)
         personal_id, meta_id = await _setup_decks(client, owner_user)
         other_deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Azorius Control"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Azorius Control", "game": "magic", "category": "control"},
+            headers=headers,
         )
         other_deck_id = other_deck_resp.json()["id"]
         session_resp = await client.post(

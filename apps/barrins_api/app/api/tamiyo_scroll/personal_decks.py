@@ -135,7 +135,12 @@ async def create_personal_deck(
     session: DatabaseSession,
     current_user: CurrentUser,
 ) -> ResponsePersonalDeck:
-    deck = TSPersonalDeck(owner_id=current_user.id, name=payload.name)
+    deck = TSPersonalDeck(
+        owner_id=current_user.id,
+        name=payload.name,
+        game=payload.game,
+        category=payload.category,
+    )
     session.add(deck)
     await session.commit()
     await session.refresh(deck)
@@ -156,13 +161,14 @@ async def archive_personal_deck(
 
 
 @router.patch("/personal-decks/{deck_id}", response_model=ResponsePersonalDeck)
-async def rename_personal_deck(
+async def patch_personal_deck(
     deck_id: uuid.UUID,
     payload: PersonalDeckPatch,
     session: DatabaseSession,
     current_user: CurrentUser,
 ) -> ResponsePersonalDeck:
-    """Rename this deck — owner-only.
+    """Partial update — rename (S1), and/or set/correct game/category
+    (S10/S11) — owner-only. Only the fields present in the payload change.
 
     Team-deck sharing is name-based (S2) — renaming a deck away from a
     flagged name drops it out of that team's rotation for this member
@@ -172,7 +178,12 @@ async def rename_personal_deck(
     read time, not by a stored link on this row.
     """
     deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
-    deck.name = payload.name
+    if payload.name is not None:
+        deck.name = payload.name
+    if payload.game is not None:
+        deck.game = payload.game
+    if payload.category is not None:
+        deck.category = payload.category
     session.add(deck)
     await session.commit()
     await session.refresh(deck)

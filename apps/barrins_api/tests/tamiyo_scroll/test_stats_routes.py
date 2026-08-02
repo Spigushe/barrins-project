@@ -11,7 +11,9 @@ async def _setup_match(
 ) -> tuple[str, str]:
     headers = auth_headers(user)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+        f"{BASE}/personal-decks",
+        json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+        headers=headers,
     )
     personal_id = personal_resp.json()["id"]
     meta_resp = await client.post(
@@ -81,7 +83,9 @@ class TestArchetypeSummary:
         headers = auth_headers(owner_user)
         personal_id, _ = await _setup_match(client, owner_user, category="control")
         other_personal_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Other Deck"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Other Deck", "game": "magic", "category": "control"},
+            headers=headers,
         )
         other_personal_id = other_personal_resp.json()["id"]
 
@@ -126,7 +130,7 @@ class TestMatchupSummary:
         personal_id, _ = await _setup_match(client, owner_user)
         other_personal_resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Other Deck"},
+            json={"name": "Other Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         other_personal_id = other_personal_resp.json()["id"]
@@ -160,7 +164,9 @@ class TestSharedDataInStats:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         await client.patch(
             f"{BASE}/me/settings",
@@ -188,7 +194,9 @@ class TestSharedDataInStats:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         await client.patch(
             f"{BASE}/me/settings",
@@ -215,7 +223,9 @@ class TestSharedDataInStats:
 
         owner_headers = auth_headers(owner_user)
         await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=owner_headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
         )
         await client.post(
             f"{BASE}/meta-decks",

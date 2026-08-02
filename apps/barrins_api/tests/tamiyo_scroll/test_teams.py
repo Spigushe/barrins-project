@@ -49,7 +49,9 @@ async def _clear_invite_cooldown(db_session, user: User) -> None:
 
 async def _create_personal_deck(client: AsyncClient, user: User, name: str) -> str:
     resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": name}, headers=auth_headers(user)
+        f"{BASE}/personal-decks",
+        json={"name": name, "game": "magic", "category": "midrange"},
+        headers=auth_headers(user),
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]

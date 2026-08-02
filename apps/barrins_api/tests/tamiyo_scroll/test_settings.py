@@ -117,7 +117,9 @@ class TestUpdateMySettings:
     ):
         headers = auth_headers(owner_user)
         deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=headers,
         )
         deck_id = deck_resp.json()["id"]
 
@@ -134,7 +136,7 @@ class TestUpdateMySettings:
     ):
         other_deck_resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Not Yours"},
+            json={"name": "Not Yours", "game": "magic", "category": "midrange"},
             headers=auth_headers(other_user),
         )
         other_deck_id = other_deck_resp.json()["id"]
@@ -151,7 +153,9 @@ class TestUpdateMySettings:
     ):
         headers = auth_headers(owner_user)
         deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=headers,
         )
         deck_id = deck_resp.json()["id"]
         await client.patch(

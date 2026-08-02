@@ -134,7 +134,9 @@ async def _share_a_match(
     shares; `receiver` (same-named personal deck) enables receiving."""
     sharer_headers = auth_headers(sharer)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "King T'Challa"}, headers=sharer_headers
+        f"{BASE}/personal-decks",
+        json={"name": "King T'Challa", "game": "magic", "category": "midrange"},
+        headers=sharer_headers,
     )
     personal_id = personal_resp.json()["id"]
     meta_deck = await _create_meta_deck(
@@ -171,7 +173,7 @@ class TestSharedRosterMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "King T'Challa"},
+            json={"name": "King T'Challa", "game": "magic", "category": "midrange"},
             headers=owner_headers,
         )
         own_deck = await _create_meta_deck(
@@ -214,7 +216,7 @@ class TestSharedRosterMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "King T'Challa"},
+            json={"name": "King T'Challa", "game": "magic", "category": "midrange"},
             headers=owner_headers,
         )
         await _share_a_match(
@@ -257,7 +259,7 @@ class TestSharedRosterMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "King T'Challa"},
+            json={"name": "King T'Challa", "game": "magic", "category": "midrange"},
             headers=owner_headers,
         )
         own_deck = await _create_meta_deck(
@@ -291,7 +293,7 @@ class TestSharedRosterMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "King T'Challa"},
+            json={"name": "King T'Challa", "game": "magic", "category": "midrange"},
             headers=owner_headers,
         )
         await _share_a_match(
@@ -315,7 +317,7 @@ class TestSharedRosterMerge:
         owner_headers = auth_headers(owner_user)
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Not King T'Challa"},
+            json={"name": "Not King T'Challa", "game": "magic", "category": "midrange"},
             headers=owner_headers,
         )
         await _share_a_match(

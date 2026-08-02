@@ -66,6 +66,24 @@ class SessionType(enum.StrEnum):
     training = "training"
 
 
+class CardGame(enum.StrEnum):
+    """Card game a personal deck belongs to (S10) — lets ML training data
+    be filtered to Magic decks only, while still keeping other games'
+    decks in the database rather than discarding them."""
+
+    magic = "magic"
+    yu_gi_oh = "yu_gi_oh"
+    pokemon = "pokemon"
+    flesh_and_blood = "flesh_and_blood"
+    one_piece = "one_piece"
+    lorcana = "lorcana"
+    star_wars_unlimited = "star_wars_unlimited"
+    digimon = "digimon"
+    cardfight_vanguard = "cardfight_vanguard"
+    riftbound = "riftbound"
+    other = "other"
+
+
 # Instance shared between game1/game2/game3 — a single PostgreSQL type
 # `ts_game_result` created by the migration, not three.
 _game_result_column = Enum(GameResult, name="ts_game_result")
@@ -252,6 +270,17 @@ class TSPersonalDeck(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Nullable, no default/backfill (S10/S11) — a deck must declare both
+    # explicitly at creation; historical decks read NULL until PATCHed.
+    # Logging/editing a match on a NULL-game or NULL-category deck is
+    # rejected by `_validate_match_refs` (api/tamiyo_scroll/matches.py).
+    game: Mapped[CardGame | None] = mapped_column(
+        Enum(CardGame, name="ts_card_game"), nullable=True
+    )
+    category: Mapped[ArchetypeCategory | None] = mapped_column(
+        Enum(ArchetypeCategory, name="ts_archetype_category", create_type=False),
+        nullable=True,
+    )
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

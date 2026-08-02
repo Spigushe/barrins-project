@@ -4,7 +4,13 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.tamiyo_scroll import ArchetypeCategory, ExpectedLevel, GameResult, SessionType
+from app.models.tamiyo_scroll import (
+    ArchetypeCategory,
+    CardGame,
+    ExpectedLevel,
+    GameResult,
+    SessionType,
+)
 
 
 class UserSettingsUpdate(BaseModel):
@@ -21,14 +27,24 @@ class PersonalDeckCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=255)
+    # Required, no default (S10/S11) — a new deck must declare both up
+    # front; the logging gate only has teeth because neither is guessed.
+    game: CardGame
+    category: ArchetypeCategory
 
 
 class PersonalDeckPatch(BaseModel):
-    """Payload for PATCH /personal-decks/{id} — rename, owner-only."""
+    """Payload for PATCH /personal-decks/{id} — partial update, owner-only.
+
+    Rename (S1), and/or set/correct `game`/`category` (S10/S11) — whichever
+    fields are provided are applied; the others are left untouched.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    game: CardGame | None = None
+    category: ArchetypeCategory | None = None
 
 
 class DecklistVersionCreate(BaseModel):
