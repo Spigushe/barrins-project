@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { useLogin, useSignup } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -139,6 +139,12 @@ export function LoginPage() {
 
         <p className="mt-6 border-t border-border pt-4 text-center text-[11.5px] text-subtle-foreground">
           Account managed by barrins_identity.
+        </p>
+        <p className="mt-2 text-center text-[12.5px] text-muted-foreground">
+          Not ready to sign up?{' '}
+          <Link to="/demo" className="font-semibold text-accent hover:underline">
+            Try the demo
+          </Link>
         </p>
       </div>
     </div>
