@@ -182,6 +182,19 @@ export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string>
   neutral: 'text-foreground',
 }
 
+/**
+ * Literal `bg-*` classes, kept as their own map rather than derived from
+ * `DECKLIST_LINE_STATUS_TEXT_CLASS` via a `text-` → `bg-` string replace:
+ * Tailwind's scanner only generates utilities it finds as literal strings
+ * in source, so a runtime-computed class name never gets built.
+ */
+export const DECKLIST_LINE_STATUS_BG_CLASS: Record<DecklistLineStatus, string> = {
+  validated: 'bg-success',
+  rejected: 'bg-destructive',
+  in_test: 'bg-warning',
+  neutral: 'bg-foreground',
+}
+
 export const DECKLIST_VERSION_SOURCE_LABELS: Record<DecklistVersionSource, string> = {
   manual: 'Manual entry',
   moxfield_import: 'Moxfield import',

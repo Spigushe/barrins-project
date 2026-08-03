@@ -2,6 +2,7 @@ import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useDecklistVersions, useDecklistView } from '@/hooks/useDecklistVersions'
 import { useDownloadDeckReport, usePersonalDecks } from '@/hooks/usePersonalDecks'
 import {
+  DECKLIST_LINE_STATUS_BG_CLASS,
   DECKLIST_LINE_STATUS_LABELS,
   DECKLIST_LINE_STATUS_TEXT_CLASS,
   deckReportFilename,
@@ -39,6 +40,16 @@ export function CurrentDecklistSection() {
               </span>
             </>
           )}
+          <div className="flex flex-wrap items-center gap-3 text-[11.5px] text-muted-foreground">
+            {LEGEND_STATUSES.map((status) => (
+              <span key={status} className="flex items-center gap-1.5">
+                <span
+                  className={cn('size-2.5 rounded-full', DECKLIST_LINE_STATUS_BG_CLASS[status])}
+                />
+                {DECKLIST_LINE_STATUS_LABELS[status]}
+              </span>
+            ))}
+          </div>
           <Button
             type="button"
             size="sm"
@@ -55,20 +66,6 @@ export function CurrentDecklistSection() {
             {downloadReport.isPending ? 'Generating…' : 'Download report (PDF)'}
           </Button>
         </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-3 text-[11.5px] text-muted-foreground">
-        {LEGEND_STATUSES.map((status) => (
-          <span key={status} className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                'size-2.5 rounded-full',
-                DECKLIST_LINE_STATUS_TEXT_CLASS[status].replace('text-', 'bg-'),
-              )}
-            />
-            {DECKLIST_LINE_STATUS_LABELS[status]}
-          </span>
-        ))}
       </div>
 
       {!latest && (
