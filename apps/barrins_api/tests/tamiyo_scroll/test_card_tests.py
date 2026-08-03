@@ -10,7 +10,9 @@ async def _create_personal_deck(
     client: AsyncClient, user: User, *, name: str = "Mono Red"
 ) -> str:
     resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": name}, headers=auth_headers(user)
+        f"{BASE}/personal-decks",
+        json={"name": name, "game": "magic", "category": "midrange"},
+        headers=auth_headers(user),
     )
     return resp.json()["id"]
 

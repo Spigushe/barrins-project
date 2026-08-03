@@ -1,0 +1,469 @@
+import { useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { useCurrentUser } from '@/hooks/useAuth'
+import {
+  useDownloadTeamDeckReport,
+  useEnableTeamDeckThread,
+  useFlagTeamDeck,
+  useMemberDecks,
+  usePostTeamDeckThreadMessage,
+  useRemoveTeamMember,
+  useTeam,
+  useTeamDeckThreadMessages,
+  useTeamDecks,
+  useUnflagTeamDeck,
+  useUpdateTeamDescription,
+} from '@/hooks/useTeams'
+import { formatDateTime, teamDeckReportFilename } from '@/lib/mtg-format'
+import type { TeamDeckOwner } from '@/schemas/tamiyoScroll'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+
+/**
+ * Route-level wrapper — pulls `teamId` from the URL and `currentUserId` from
+ * the real (token-gated) `useCurrentUser`, then delegates to
+ * `TeamPageContent`. Split out so the demo (`DemoTeamsSection`) can render
+ * the same content with a locally-selected team id and its fixed demo
+ * identity, without either of them touching real routing or auth.
+ */
+export function TeamPage() {
+  const { teamId } = useParams<{ teamId: string }>()
+  const { data: currentUser } = useCurrentUser()
+
+  if (!teamId) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">Loading team…</p>
+      </Card>
+    )
+  }
+
+  return <TeamPageContent teamId={teamId} currentUserId={currentUser?.id ?? null} />
+}
+
+/**
+ * Full team page ("full mode") — member list, the owner's deck-flagging
+ * picker, per-deck-name discussion threads. Reached from the
+ * account-settings popup's team-name banner (`AccountSettingsTeamSection`,
+ * "quick mode") or the "Teams" tab.
+ */
+export function TeamPageContent({
+  teamId,
+  currentUserId,
+}: {
+  teamId: string
+  currentUserId: string | null
+}) {
+  const { data: team } = useTeam(teamId)
+  const { data: decks } = useTeamDecks(teamId)
+  const removeMember = useRemoveTeamMember()
+  const [pendingRemove, setPendingRemove] = useState<{
+    userId: string
+    label: string
+  } | null>(null)
+
+  if (!team) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">Loading team…</p>
+      </Card>
+    )
+  }
+
+  const isOwner = currentUserId === team.owner_id
+  const resolvedTeamId: string = team.id
+
+  async function confirmRemoveMember() {
+    if (!pendingRemove) return
+    await removeMember.mutateAsync({
+      teamId: resolvedTeamId,
+      userId: pendingRemove.userId,
+    })
+    setPendingRemove(null)
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      <TeamHeaderCard
+        teamId={team.id}
+        name={team.name}
+        description={team.description}
+        inviteCode={team.invite_code}
+        isOwner={isOwner}
+      />
+
+      {isOwner && <FlagDeckCard teamId={team.id} />}
+
+      <Card>
+        <CardTitle>Members</CardTitle>
+        <Table className="mt-3">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Member</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Tests + matches logged</TableHead>
+              <TableHead>Joined</TableHead>
+              {isOwner && <TableHead />}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {team.members.map((member) => (
+              <TableRow key={member.user_id}>
+                <TableCell>{member.display_name ?? member.email}</TableCell>
+                <TableCell>
+                  <Badge variant={member.is_owner ? 'owner' : 'default'}>
+                    {member.is_owner ? 'Owner' : 'Member'}
+                  </Badge>
+                </TableCell>
+                <TableCell>{member.activity_count}</TableCell>
+                <TableCell>{formatDateTime(member.joined_at)}</TableCell>
+                {isOwner && (
+                  <TableCell>
+                    {!member.is_owner && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6"
+                        aria-label={`Remove ${member.display_name ?? member.email}`}
+                        onClick={() => {
+                          setPendingRemove({
+                            userId: member.user_id,
+                            label: member.display_name ?? member.email,
+                          })
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Card>
+        <CardTitle>Team Decks</CardTitle>
+        {(!decks || decks.length === 0) && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No deck has been flagged into this team yet
+            {isOwner ? ' — use "Flag a deck" above.' : '.'}
+          </p>
+        )}
+        <div className="mt-3 flex flex-col gap-4">
+          {decks?.map((deck) => (
+            <TeamDeckThread
+              key={deck.name_key}
+              teamId={team.id}
+              isOwner={isOwner}
+              deck={deck}
+            />
+          ))}
+        </div>
+      </Card>
+
+      <Dialog
+        open={pendingRemove !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingRemove(null)
+        }}
+      >
+        {pendingRemove && (
+          <DialogContent>
+            <DialogTitle>Remove {pendingRemove.label}?</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              They'll lose access to this team's shared decks and discussion threads.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setPendingRemove(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={removeMember.isPending}
+                onClick={() => {
+                  void confirmRemoveMember()
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+    </div>
+  )
+}
+
+function FlagDeckCard({ teamId }: { teamId: string }) {
+  const { data: memberDecks } = useMemberDecks(teamId)
+  const flagDeck = useFlagTeamDeck()
+  const unflagDeck = useUnflagTeamDeck()
+
+  const decks = memberDecks ?? []
+  if (decks.length === 0) return null
+
+  return (
+    <Card>
+      <CardTitle>Flag a deck</CardTitle>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Flagging a deck's name shares it — and every other member's deck with the exact
+        same name, present or future — into this team's testing rotation. Owner-only.
+      </p>
+      <div className="mt-3 flex flex-col gap-2">
+        {decks.map((deck) => (
+          <div key={deck.id} className="flex items-center justify-between gap-3">
+            <span className="text-sm text-foreground">
+              {deck.name}{' '}
+              <span className="text-xs text-muted-foreground">
+                ({deck.owner_display})
+              </span>
+            </span>
+            <Switch
+              checked={deck.is_flagged}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  flagDeck.mutate({ teamId, deckId: deck.id })
+                } else {
+                  unflagDeck.mutate({ teamId, nameKey: deck.name.trim().toLowerCase() })
+                }
+              }}
+              label={`Flag ${deck.name} into this team`}
+            />
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function TeamHeaderCard({
+  teamId,
+  name,
+  description,
+  inviteCode,
+  isOwner,
+}: {
+  teamId: string
+  name: string
+  description: string | null
+  inviteCode: string
+  isOwner: boolean
+}) {
+  const [draftDescription, setDraftDescription] = useState(description ?? '')
+  const [copied, setCopied] = useState(false)
+  const updateDescription = useUpdateTeamDescription()
+
+  async function copyCode() {
+    await navigator.clipboard.writeText(inviteCode)
+    setCopied(true)
+    setTimeout(() => {
+      setCopied(false)
+    }, 2000)
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <CardTitle>{name}</CardTitle>
+          <Badge variant={isOwner ? 'owner' : 'default'}>
+            {isOwner ? 'Owner' : 'Member'}
+          </Badge>
+        </div>
+      </div>
+      {isOwner ? (
+        <div className="mt-3 flex flex-col gap-1.5">
+          <Textarea
+            aria-label="Team description"
+            value={draftDescription}
+            onChange={(event) => {
+              setDraftDescription(event.target.value)
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="self-end"
+            disabled={updateDescription.isPending}
+            onClick={() => {
+              updateDescription.mutate({
+                teamId,
+                description: draftDescription.trim() || null,
+              })
+            }}
+          >
+            Save description
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {description ?? 'No description yet.'}
+        </p>
+      )}
+
+      {isOwner && (
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border/70 bg-input-inline px-3.5 py-3">
+            <span className="font-mono text-base font-semibold tracking-wider text-foreground">
+              {inviteCode}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void copyCode()}
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Share this code with the players you want to invite to this team.
+          </p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function TeamDeckThread({
+  teamId,
+  isOwner,
+  deck,
+}: {
+  teamId: string
+  isOwner: boolean
+  deck: {
+    name_key: string
+    deck_name: string
+    owners: TeamDeckOwner[]
+    has_thread: boolean
+  }
+}) {
+  const [messageBody, setMessageBody] = useState('')
+  const enableThread = useEnableTeamDeckThread()
+  const postMessage = usePostTeamDeckThreadMessage()
+  const downloadReport = useDownloadTeamDeckReport()
+  const { data: messages } = useTeamDeckThreadMessages(
+    deck.has_thread ? teamId : null,
+    deck.has_thread ? deck.name_key : null,
+  )
+
+  async function handleSend() {
+    if (!messageBody.trim()) return
+    await postMessage.mutateAsync({
+      teamId,
+      nameKey: deck.name_key,
+      body: messageBody.trim(),
+    })
+    setMessageBody('')
+  }
+
+  return (
+    <div className="rounded-(--radius-input) border border-border p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{deck.deck_name}</p>
+          <p className="text-xs text-muted-foreground">
+            {deck.owners.length > 0
+              ? `Owned by: ${deck.owners.map((owner) => owner.display).join(', ')}`
+              : 'No current member owns a matching deck.'}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={downloadReport.isPending || deck.owners.length === 0}
+            onClick={() => {
+              downloadReport.mutate({
+                teamId,
+                nameKey: deck.name_key,
+                filename: teamDeckReportFilename(deck),
+              })
+            }}
+          >
+            {downloadReport.isPending ? 'Generating…' : 'Download report (PDF)'}
+          </Button>
+          {isOwner && !deck.has_thread && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={enableThread.isPending}
+              onClick={() => {
+                enableThread.mutate({ teamId, nameKey: deck.name_key })
+              }}
+            >
+              Enable discussion thread
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {deck.has_thread && (
+        <div className="mt-3 flex flex-col gap-2">
+          <div className="flex max-h-56 flex-col gap-2 overflow-y-auto">
+            {messages?.map((message) => (
+              <div key={message.id} className="text-sm">
+                <span className="font-semibold text-foreground">
+                  {message.author_display}
+                </span>{' '}
+                <span className="text-xs text-muted-foreground">
+                  {formatDateTime(message.created_at)}
+                </span>
+                <p className="text-foreground">{message.body}</p>
+              </div>
+            ))}
+            {(messages?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground">No messages yet.</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              aria-label={`Message for ${deck.deck_name}`}
+              value={messageBody}
+              onChange={(event) => {
+                setMessageBody(event.target.value)
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              disabled={postMessage.isPending || !messageBody.trim()}
+              onClick={() => {
+                void handleSend()
+              }}
+            >
+              Send
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

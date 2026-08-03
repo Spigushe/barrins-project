@@ -1,9 +1,11 @@
 import type {
   ArchetypeCategory,
+  CardGame,
   DecklistLineStatus,
   DecklistVersionSource,
   ExpectedLevel,
   GameResult,
+  SessionType,
 } from '@/schemas/tamiyoScroll'
 
 export const ARCHETYPE_LABELS: Record<ArchetypeCategory, string> = {
@@ -11,6 +13,31 @@ export const ARCHETYPE_LABELS: Record<ArchetypeCategory, string> = {
   midrange: 'Midrange',
   control: 'Control',
   combo: 'Combo',
+}
+
+export const CARD_GAME_LABELS: Record<CardGame, string> = {
+  magic: 'Magic: The Gathering',
+  yu_gi_oh: 'Yu-Gi-Oh!',
+  pokemon: 'Pokémon TCG',
+  flesh_and_blood: 'Flesh and Blood',
+  one_piece: 'One Piece Card Game',
+  lorcana: 'Disney Lorcana',
+  star_wars_unlimited: 'Star Wars: Unlimited',
+  digimon: 'Digimon Card Game',
+  cardfight_vanguard: 'Cardfight!! Vanguard',
+  riftbound: 'Riftbound',
+  other: 'Other',
+}
+
+export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
+  tournament: 'Tournament',
+  training: 'Training',
+}
+
+/** Shared by the Sessions tab and the match journal's session tag (S9). */
+export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'tournament' | 'success'> = {
+  tournament: 'tournament',
+  training: 'success',
 }
 
 export const ARCHETYPE_TEXT_CLASS: Record<ArchetypeCategory, string> = {
@@ -54,6 +81,43 @@ export function winrateTextClass(value: number | null): string {
   return 'text-winrate-0'
 }
 
+/** S12 item 8's opt-in match-up row tint — reuses the same "Very negative"
+ * (0-19%) / "Very positive" (80-100%) thresholds as `winrateTextClass`
+ * and `WINRATE_BANDS`, applied at the row level instead of the cell
+ * level. A low-opacity fill (not a solid one) so per-cell winrate text
+ * colors and shared/multi-share badges sitting on top stay legible.
+ * Middle bands and `null` (no data yet) get no tint. */
+export function winrateRowTintClass(value: number | null): string {
+  if (value === null) return ''
+  if (value >= 80) return 'bg-success/10'
+  if (value < 20) return 'bg-destructive/10'
+  return ''
+}
+
+/** S12 item 9's opt-in "2W / 0L" result format — parses the backend's
+ * always-`"wins-losses"` string (`stats.py`'s `_ratio()`) client-side.
+ * Draws aren't possible in a BO3 match count, so a two-part split is
+ * safe. Returns the original string unchanged when the format is off
+ * (default). */
+export function formatMatchRatio(ratio: string, use2w0lFormat: boolean): string {
+  if (!use2w0lFormat) return ratio
+  const [wins, losses] = ratio.split('-')
+  return `${wins}W / ${losses}L`
+}
+
+/** S12 item 11's 3-color tier background scale — no existing tier→color
+ * mapping to reuse (unlike the archetype colors or winrate bands), so
+ * this groups the `TIERS` scale (`[0, 0.5, 1, 1.5, 2, 2.5, 3]`) into
+ * three bands: 0/0.5/1 read as strong (green), 1.5/2 as middling
+ * (amber), 2.5/3 as weak (red) — loosely mirroring the winrate
+ * palette's good/mid/bad framing, same low-opacity tint convention as
+ * `winrateRowTintClass`. */
+export function tierBackgroundClass(tier: number): string {
+  if (tier <= 1) return 'bg-success/10'
+  if (tier <= 2) return 'bg-warning/10'
+  return 'bg-destructive/10'
+}
+
 export const RATING_LABELS: Record<number, string> = {
   1: 'Bad',
   2: 'Weak',
@@ -86,6 +150,24 @@ export function formatDateTime(isoDateTime: string): string {
   return new Date(isoDateTime).toLocaleDateString('fr-FR')
 }
 
+/** Shared by both S5 session-report download entry points (row icon + summary button). */
+export function sessionReportFilename(session: { name: string }): string {
+  const slug = session.name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `session-report-${slug}.pdf`
+}
+
+/** S5's deck-level (no-session, last-30-days) report download entry point. */
+export function deckReportFilename(deck: { name: string }): string {
+  const slug = deck.name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `deck-report-${slug}.pdf`
+}
+
+/** S2's cumulative team-deck report — one PDF per flagged name, not per owner. */
+export function teamDeckReportFilename(deck: { deck_name: string }): string {
+  const slug = deck.deck_name.trim().toLowerCase().replace(/\s+/g, '-')
+  return `team-deck-report-${slug}.pdf`
+}
+
 export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   validated: 'Validated',
   rejected: 'Rejected',
@@ -98,6 +180,19 @@ export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string>
   rejected: 'text-destructive',
   in_test: 'text-warning',
   neutral: 'text-foreground',
+}
+
+/**
+ * Literal `bg-*` classes, kept as their own map rather than derived from
+ * `DECKLIST_LINE_STATUS_TEXT_CLASS` via a `text-` → `bg-` string replace:
+ * Tailwind's scanner only generates utilities it finds as literal strings
+ * in source, so a runtime-computed class name never gets built.
+ */
+export const DECKLIST_LINE_STATUS_BG_CLASS: Record<DecklistLineStatus, string> = {
+  validated: 'bg-success',
+  rejected: 'bg-destructive',
+  in_test: 'bg-warning',
+  neutral: 'bg-foreground',
 }
 
 export const DECKLIST_VERSION_SOURCE_LABELS: Record<DecklistVersionSource, string> = {

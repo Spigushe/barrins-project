@@ -36,6 +36,7 @@ nav:
           - Home: front/index.md
           - Tamiyo Scroll:
                 - Home: front/tamiyo_scroll/index.md
+                - Roadmap: front/tamiyo_scroll/roadmap.md
                 - Implementation:
                       - Design: front/tamiyo_scroll/handoff.md
                       - Bootstrap: front/tamiyo_scroll/bootstrap.md

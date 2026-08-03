@@ -1,6 +1,8 @@
 """Tests for app/services/moxfield/ (client, console stub, factory, rate limiter)."""
 
+import json
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 import pytest
@@ -19,14 +21,18 @@ from app.services.moxfield.http_client import HttpxMoxfieldClient, _extract_deck
 _SETTINGS = "app.services.moxfield.http_client.settings.base"
 _FACTORY_SETTINGS = "app.services.moxfield.settings"
 
-_SAMPLE_RESPONSE = {
-    "commanders": {"Atraxa, Praetors' Voice": {"quantity": 1}},
-    "companions": {},
-    "mainboard": {
-        "Sol Ring": {"quantity": 1},
-        "Command Tower": {"quantity": 1},
-    },
-}
+# A real `GET /v2/decks/all/{publicId}` response (fetched 2026-07-30, trimmed
+# to one commander + two mainboard cards — see S3's staleness-check scoping
+# notes), not a hand-written guess at the shape. Keeps the exact trap this
+# feature has to avoid: `lastUpdatedAtUtc` exists both at the response root
+# (the deck's own last-update time) and nested inside every card's
+# `card.prices` object (an unrelated per-card price-refresh time, always a
+# different value in real data).
+_SAMPLE_RESPONSE = json.loads(
+    (Path(__file__).parent / "fixtures" / "moxfield_deck_response.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 
 def _mock_transport(
@@ -65,14 +71,43 @@ class TestHttpxMoxfieldClient:
             return httpx.Response(200, json=_SAMPLE_RESPONSE)
 
         client = HttpxMoxfieldClient(transport=_mock_transport(handler))
-        content = await client.fetch_decklist("https://moxfield.com/decks/abc123")
+        fetch = await client.fetch_decklist("https://moxfield.com/decks/abc123")
 
-        assert content.splitlines() == [
-            "1 Atraxa, Praetors' Voice",
-            "1 Sol Ring",
-            "1 Command Tower",
+        assert fetch.content.splitlines() == [
+            "1 King T'Challa // Black Panther, Hope Enduring",
+            "6 Island",
+            "1 Brazen Borrower // Petty Theft",
         ]
         assert seen_headers["user-agent"] == "real-agent"
+
+    async def test_fetch_decklist_returns_the_full_raw_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(f"{_SETTINGS}.moxfield_user_agent", SecretStr("real-agent"))
+        monkeypatch.setattr(
+            "app.services.moxfield.http_client._last_request_monotonic", None
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=_SAMPLE_RESPONSE)
+
+        client = HttpxMoxfieldClient(transport=_mock_transport(handler))
+        fetch = await client.fetch_decklist("https://moxfield.com/decks/abc123")
+
+        assert fetch.raw_data == _SAMPLE_RESPONSE
+        assert isinstance(fetch.raw_data, dict)
+        assert fetch.raw_data["lastUpdatedAtUtc"] == "2026-07-30T20:18:45.923Z"
+        # The trap: the same key also lives nested per-card, unrelated to
+        # the deck-level value asserted above.
+        mainboard = fetch.raw_data["mainboard"]
+        assert isinstance(mainboard, dict)
+        island = mainboard["Island"]
+        assert isinstance(island, dict)
+        card = island["card"]
+        assert isinstance(card, dict)
+        prices = card["prices"]
+        assert isinstance(prices, dict)
+        assert prices["lastUpdatedAtUtc"] != fetch.raw_data["lastUpdatedAtUtc"]
 
     async def test_fetch_decklist_404_raises_not_found(
         self, monkeypatch: pytest.MonkeyPatch
@@ -166,10 +201,12 @@ class TestHttpxMoxfieldClient:
 
 class TestConsoleMoxfieldClient:
     async def test_returns_fixed_sample_without_network_call(self):
-        content = await ConsoleMoxfieldClient().fetch_decklist(
+        fetch = await ConsoleMoxfieldClient().fetch_decklist(
             "https://moxfield.com/decks/anything"
         )
-        assert "Sol Ring" in content
+        assert "Sol Ring" in fetch.content
+        assert isinstance(fetch.raw_data, dict)
+        assert fetch.raw_data.get("lastUpdatedAtUtc") is None
 
 
 class TestGetMoxfieldClient:
