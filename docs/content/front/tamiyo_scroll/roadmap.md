@@ -1,7 +1,7 @@
 # Tamiyo Scroll — Feature Roadmap
 
 Backlog of Tamiyo Scroll UX/feature requests, distinct from
-[Ops Roadmap](../ops/roadmap.md) (release-cut scope and known issues) and
+[Ops Roadmap](../../ops/roadmap.md) (release-cut scope and known issues) and
 from `docs/project/v2.0.0-bump/index.md` (internal tracking for the
 work already committed to v2.0.0 — S1–S12). This page evaluates backlog
 items for a future release bucket; adding one to an actual release plan
@@ -87,7 +87,7 @@ file/line references, and open questions live there.
 
 ## See also
 
-- [Ops Roadmap](../ops/roadmap.md) — release-cut scope and known issues,
+- [Ops Roadmap](../../ops/roadmap.md) — release-cut scope and known issues,
   v1.0.0 → v2.0.0.
 - `docs/project/v2.0.0-bump/index.md` (internal tracking, not part of
   this published site) — the committed v2.0.0 scope (S1–S12) this
