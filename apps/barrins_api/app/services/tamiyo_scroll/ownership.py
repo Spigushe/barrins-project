@@ -24,8 +24,12 @@ async def resolve_owner(
     """Resolve the user whose data must be read.
 
     `owner_id` missing or equal to `current_user.id` -> returns `current_user`.
-    `owner_id` different -> requires that the target exists (404 otherwise) and
-    has enabled sharing (`ts_user_settings.data_shared = True`, 403 otherwise).
+    `owner_id` different -> requires that the target exists (404 otherwise), has
+    enabled sharing (`ts_user_settings.data_shared = True`), and that
+    `current_user` has enabled receiving shared data
+    (`ts_user_settings.receive_shared_data = True`) — 403 otherwise for
+    either condition. Single global toggles on both sides (account-settings
+    popup handoff), not a per-sharer opt-in.
     """
     if owner_id is None or owner_id == current_user.id:
         return current_user
@@ -45,6 +49,16 @@ async def resolve_owner(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This user does not share their data.",
+        )
+
+    viewer_settings_result = await session.execute(
+        select(TSUserSettings).where(TSUserSettings.user_id == current_user.id)
+    )
+    viewer_settings = viewer_settings_result.scalar_one_or_none()
+    if viewer_settings is None or not viewer_settings.receive_shared_data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You have not enabled receiving shared data.",
         )
 
     return target

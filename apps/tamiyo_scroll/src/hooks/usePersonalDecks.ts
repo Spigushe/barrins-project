@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as personalDecksApi from '@/api/personalDecks'
+import { downloadBlob } from '@/lib/utils'
 import { useViewingOwner } from './useViewingOwner'
 
 export function usePersonalDecks() {
@@ -26,6 +27,30 @@ export function useArchivePersonalDeck() {
     mutationFn: personalDecksApi.archivePersonalDeck,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['personal-decks'] })
+    },
+  })
+}
+
+export function useUpdatePersonalDeck() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      deckId,
+      ...payload
+    }: { deckId: string } & Parameters<
+      typeof personalDecksApi.updatePersonalDeck
+    >[1]) => personalDecksApi.updatePersonalDeck(deckId, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['personal-decks'] })
+    },
+  })
+}
+
+export function useDownloadDeckReport() {
+  return useMutation({
+    mutationFn: async ({ deckId, filename }: { deckId: string; filename: string }) => {
+      const blob = await personalDecksApi.getDeckReportPdf(deckId)
+      downloadBlob(blob, filename)
     },
   })
 }

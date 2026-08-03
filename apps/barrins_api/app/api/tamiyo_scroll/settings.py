@@ -1,4 +1,4 @@
-"""Routes GET/PATCH /me/settings, GET /shared-users."""
+"""Routes GET/PATCH /me/settings."""
 
 import uuid
 
@@ -8,8 +8,7 @@ from sqlalchemy import select
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import TSPersonalDeck, TSUserSettings
-from app.models.user import User
-from app.schemas.responses_tamiyo_scroll import ResponseSharedUser, ResponseUserSettings
+from app.schemas.responses_tamiyo_scroll import ResponseUserSettings
 from app.schemas.tamiyo_scroll import UserSettingsUpdate
 
 router = APIRouter()
@@ -30,20 +29,6 @@ async def _get_or_create_settings(
     return user_settings
 
 
-@router.get("/shared-users", response_model=list[ResponseSharedUser])
-async def list_shared_users(
-    session: DatabaseSession, current_user: CurrentUser
-) -> list[ResponseSharedUser]:
-    """Users who have enabled sharing (selector "View: {user}")."""
-    result = await session.execute(
-        select(User)
-        .join(TSUserSettings, TSUserSettings.user_id == User.id)
-        .where(TSUserSettings.data_shared.is_(True), User.id != current_user.id)
-        .order_by(User.email)
-    )
-    return [ResponseSharedUser.model_validate(u) for u in result.scalars().all()]
-
-
 @router.get("/me/settings", response_model=ResponseUserSettings)
 async def get_my_settings(
     session: DatabaseSession, current_user: CurrentUser
@@ -62,6 +47,15 @@ async def update_my_settings(
 
     if payload.data_shared is not None:
         user_settings.data_shared = payload.data_shared
+
+    if payload.receive_shared_data is not None:
+        user_settings.receive_shared_data = payload.receive_shared_data
+
+    if user_settings.receive_shared_data and not user_settings.data_shared:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="receive_requires_share",
+        )
 
     if "active_personal_deck_id" in payload.model_fields_set:
         if payload.active_personal_deck_id is not None:

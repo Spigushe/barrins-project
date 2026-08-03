@@ -4,7 +4,6 @@ import { apiRequest } from './client'
 
 export function listMatches(personalDeckId: string) {
   return apiRequest('/bff/tamiyo-scroll/matches', matchSchema.array(), {
-    applyOwnerParam: true,
     params: { personal_deck_id: personalDeckId },
   })
 }

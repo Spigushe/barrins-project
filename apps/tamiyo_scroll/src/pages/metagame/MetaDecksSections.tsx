@@ -6,15 +6,30 @@ import {
   useUpdateMetaDeck,
 } from '@/hooks/useMetaDecks'
 import { useActiveDeck } from '@/contexts/active-deck-context'
+import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import type {
   ArchetypeCategory,
   ExpectedLevel,
   MetaDeck,
   MetaDeckWrite,
 } from '@/schemas/tamiyoScroll'
-import { ARCHETYPE_LABELS, EXPECTED_LABELS, formatPercent } from '@/lib/mtg-format'
+import {
+  DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
+  DISPLAY_PREF_ROSTER_TIER_COLOR,
+} from '@/lib/displayPrefs'
+import {
+  ARCHETYPE_BORDER_CLASS,
+  ARCHETYPE_LABELS,
+  ARCHETYPE_TEXT_CLASS,
+  EXPECTED_LABELS,
+  formatPercent,
+  tierBackgroundClass,
+} from '@/lib/mtg-format'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -185,16 +200,25 @@ function RosterRow({
 }) {
   const [name, setName] = useState(deck.name)
   const [notes, setNotes] = useState(deck.decklist_notes ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const editable = canEdit && !deck.is_readonly
+  // S12 items 10-11 (both default off) — see `AccountSettingsDialog`'s
+  // "Display" section for the toggle UI.
+  const [archetypeColorEnabled] = useLocalStorageFlag(
+    DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
+    false,
+  )
+  const [tierColorEnabled] = useLocalStorageFlag(DISPLAY_PREF_ROSTER_TIER_COLOR, false)
 
   return (
     <TableRow>
-      <TableCell>
+      <TableCell className={tierColorEnabled ? tierBackgroundClass(deck.tier) : undefined}>
         <Select
           value={String(deck.tier)}
           onValueChange={(value) => {
             onSave(toWrite(deck, { tier: Number(value) }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -209,17 +233,28 @@ function RosterRow({
         </Select>
       </TableCell>
       <TableCell>
-        <Input
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value)
-          }}
-          onBlur={() => {
-            if (name.trim() && name !== deck.name)
-              onSave(toWrite(deck, { name: name.trim() }))
-          }}
-          disabled={!canEdit}
-        />
+        <div className="flex flex-col gap-1">
+          <Input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+            }}
+            onBlur={() => {
+              if (name.trim() && name !== deck.name)
+                onSave(toWrite(deck, { name: name.trim() }))
+            }}
+            disabled={!editable}
+          />
+          {deck.is_readonly && deck.is_multi_share && (
+            <Badge variant="shared">multi share</Badge>
+          )}
+          {deck.is_readonly && !deck.is_multi_share && (
+            <Badge variant="shared">from: {deck.shared_by}</Badge>
+          )}
+          {!deck.is_readonly && deck.has_shared_data && (
+            <Badge variant="shared">with shared</Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <Select
@@ -227,9 +262,14 @@ function RosterRow({
           onValueChange={(value) => {
             onSave(toWrite(deck, { category: value as ArchetypeCategory }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
-          <SelectTrigger>
+          <SelectTrigger
+            className={cn(
+              archetypeColorEnabled && ARCHETYPE_TEXT_CLASS[deck.category],
+              archetypeColorEnabled && ARCHETYPE_BORDER_CLASS[deck.category],
+            )}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -252,14 +292,64 @@ function RosterRow({
               onSave(toWrite(deck, { decklist_notes: notes || null }))
             }
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       {canEdit && (
         <TableCell>
-          <Button type="button" variant="ghost" size="icon" onClick={onDelete}>
-            ✕
-          </Button>
+          {editable && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setConfirmingDelete(true)
+                }}
+              >
+                ✕
+              </Button>
+              {/* S12 item 12: confirm before delete, same Dialog-based
+                  pattern already used for archiving a personal deck
+                  (`PersonalDeckSelector.tsx`) and deleting a team
+                  (`AccountSettingsTeamSection.tsx`) — not a native
+                  `window.confirm`. */}
+              <Dialog
+                open={confirmingDelete}
+                onOpenChange={(next) => {
+                  if (!next) setConfirmingDelete(false)
+                }}
+              >
+                <DialogContent>
+                  <DialogTitle>Delete "{deck.name}"?</DialogTitle>
+                  <p className="text-sm text-muted-foreground">
+                    It will disappear from the roster. This can't be undone.
+                  </p>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setConfirmingDelete(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => {
+                        setConfirmingDelete(false)
+                        onDelete()
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </TableCell>
       )}
     </TableRow>
@@ -314,10 +404,24 @@ function ExpectedRow({
   const [top8, setTop8] = useState(String(deck.top8))
   const [presence, setPresence] = useState(String(deck.presence))
   const [testsStatus, setTestsStatus] = useState(deck.tests_status ?? '')
+  const editable = canEdit && !deck.is_readonly
 
   return (
     <TableRow>
-      <TableCell>{deck.name}</TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <span>{deck.name}</span>
+          {deck.is_readonly && deck.is_multi_share && (
+            <Badge variant="shared">multi share</Badge>
+          )}
+          {deck.is_readonly && !deck.is_multi_share && (
+            <Badge variant="shared">from: {deck.shared_by}</Badge>
+          )}
+          {!deck.is_readonly && deck.has_shared_data && (
+            <Badge variant="shared">w/ shared</Badge>
+          )}
+        </div>
+      </TableCell>
       <TableCell>
         <Input
           type="number"
@@ -330,7 +434,7 @@ function ExpectedRow({
             const next = Math.max(0, Number(top8) || 0)
             if (next !== deck.top8) onSave(toWrite(deck, { top8: next }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       <TableCell>
@@ -345,7 +449,7 @@ function ExpectedRow({
             const next = Math.max(0, Number(presence) || 0)
             if (next !== deck.presence) onSave(toWrite(deck, { presence: next }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
       <TableCell className="font-mono">{formatPercent(deck.conversion)}</TableCell>
@@ -355,7 +459,7 @@ function ExpectedRow({
           onValueChange={(value) => {
             onSave(toWrite(deck, { expected: value as ExpectedLevel }))
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -380,7 +484,7 @@ function ExpectedRow({
               onSave(toWrite(deck, { tests_status: testsStatus || null }))
             }
           }}
-          disabled={!canEdit}
+          disabled={!editable}
         />
       </TableCell>
     </TableRow>

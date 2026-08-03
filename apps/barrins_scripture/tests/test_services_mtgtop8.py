@@ -1,0 +1,154 @@
+import importlib
+from collections import defaultdict
+from pathlib import Path
+from queue import Queue
+from threading import Lock
+from unittest.mock import Mock, patch
+
+from bs4 import BeautifulSoup
+
+# Same package-shadowing situation as test_services_mtgo.py — see that
+# file's comment for why importlib.import_module is used here.
+service = importlib.import_module("barrins_scripture.services.mtgtop8")
+
+
+class TestProducer:
+    def test_queues_a_scrapable_tournament(self) -> None:
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        soup = BeautifulSoup(
+            "<div class='meta_arch'>Duel Commander</div>", "html.parser"
+        )
+        with (
+            patch.object(
+                service.mtgtop8_utils, "get_tournament_soup", return_value=soup
+            ),
+            patch.object(
+                service.mtgtop8_utils, "we_should_scrape_it", return_value=True
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.producer(88803, queue, Lock())
+
+        assert queue.qsize() == 1
+        url, queued_soup = queue.get()
+        assert url == "https://mtgtop8.com/event?e=88803"
+        assert queued_soup is soup
+
+    def test_skips_a_missing_event(self) -> None:
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        soup = BeautifulSoup("No event could be found.", "html.parser")
+        with (
+            patch.object(
+                service.mtgtop8_utils, "get_tournament_soup", return_value=soup
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.producer(1, queue, Lock())
+        assert queue.empty()
+
+    def test_skips_an_already_scraped_tournament(self) -> None:
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        soup = BeautifulSoup(
+            "<div class='meta_arch'>Duel Commander</div>", "html.parser"
+        )
+        with (
+            patch.object(
+                service.mtgtop8_utils, "get_tournament_soup", return_value=soup
+            ),
+            patch.object(
+                service.mtgtop8_utils, "we_should_scrape_it", return_value=False
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.producer(1, queue, Lock())
+        assert queue.empty()
+
+    def test_skips_an_unknown_format(self) -> None:
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        soup = BeautifulSoup("<div class='meta_arch'>Chess</div>", "html.parser")
+        with (
+            patch.object(
+                service.mtgtop8_utils, "get_tournament_soup", return_value=soup
+            ),
+            patch.object(
+                service.mtgtop8_utils, "we_should_scrape_it", return_value=True
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.producer(1, queue, Lock())
+        assert queue.empty()
+
+
+class TestConsumer:
+    def test_saves_a_successful_scrape(self) -> None:
+        soup = BeautifulSoup("<html></html>", "html.parser")
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        queue.put(("https://mtgtop8.com/event?e=1", soup))
+        scrape = Mock()
+
+        with (
+            patch.object(
+                service.mtgtop8_utils, "scrape_tournament", return_value=scrape
+            ) as mock_scrape,
+            patch.object(service.mtgtop8_utils, "save_tournament_scrape") as mock_save,
+            patch.object(service.time, "sleep"),
+        ):
+            service.consumer(queue, Lock(), 1, defaultdict(int))
+
+        mock_scrape.assert_called_once()
+        mock_save.assert_called_once_with(scrape)
+
+    def test_retries_keep_the_same_soup_then_give_up(self) -> None:
+        soup = BeautifulSoup("<html></html>", "html.parser")
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        queue.put(("https://mtgtop8.com/event?e=1", soup))
+        retries: defaultdict[str, int] = defaultdict(int)
+
+        with (
+            patch.object(service.mtgtop8_utils, "scrape_tournament", return_value=None),
+            patch.object(service.time, "sleep"),
+        ):
+            service.consumer(queue, Lock(), 1, retries, max_retries=2)
+
+        assert retries["https://mtgtop8.com/event?e=1"] == 2
+        assert queue.empty()
+
+    def test_an_unexpected_exception_marks_the_task_done(self) -> None:
+        soup = BeautifulSoup("<html></html>", "html.parser")
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        queue.put(("https://mtgtop8.com/event?e=1", soup))
+
+        with (
+            patch.object(
+                service.mtgtop8_utils,
+                "scrape_tournament",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.consumer(queue, Lock(), 1, defaultdict(int))
+
+        assert queue.empty()
+
+
+class TestScrapeMtgtop8:
+    def test_wires_producers_then_consumers(self) -> None:
+        with (
+            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=0),
+            patch.object(service, "producer") as mock_producer,
+            patch.object(service, "consumer") as mock_consumer,
+        ):
+            service.scrape_mtgtop8(span=10, num_threads=2)
+
+        assert mock_producer.call_count == 10
+        assert mock_consumer.call_count == 2
+
+    def test_output_dir_overrides_the_default_base_path(self, tmp_path: Path) -> None:
+        with (
+            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=0),
+            patch.object(service, "producer"),
+            patch.object(service, "consumer"),
+        ):
+            service.scrape_mtgtop8(span=10, num_threads=1, output_dir=tmp_path)
+
+        assert service.mtgtop8_utils.BASE_PATH == tmp_path / "mtgtop8.com"

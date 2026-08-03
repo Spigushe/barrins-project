@@ -232,6 +232,32 @@ reproduce that).
 - Winrate bands: ≥80% `oklch(0.62 0.15 145)`, ≥60% `oklch(0.68 0.14
   105)`, ≥40% `oklch(0.75 0.1 85)`, ≥20% `oklch(0.65 0.15 55)`, <20%
   `oklch(0.6 0.18 25)`
+- Sarcelle (`--color-owner`, badge variant `owner`): `oklch(0.65 0.13
+  170)` — team "Owner" role badge (`TeamPage.tsx`,
+  `AccountSettingsTeamSection.tsx`)
+- Azur (`--color-shared`, badge variant `shared`): `oklch(0.65 0.14
+  200)` — data-sharing badges ("shared", "multi share", "w/ shared",
+  "sharer: X") in `MetaDecksSections.tsx`, `StatsSections.tsx`,
+  `MatchJournalSection.tsx`
+- Rose (`--color-tournament`, badge variant `tournament`): `oklch(0.65
+  0.16 345)` — session type "Tournament" badge (`SESSION_TYPE_BADGE_VARIANT`
+  in `mtg-format.ts`)
+
+**Reserved, not yet assigned** (chosen alongside the three above to stay
+visually distinct from the whole palette — pick from these before
+inventing a new hue):
+
+- Lime `oklch(0.62 0.15 120)` — candidate: a "New"/"Draft" status once
+  such a status exists.
+- Indigo `oklch(0.62 0.15 275)` — candidate: a new session type (e.g.
+  "Ladder") or deck category (e.g. "Ramp"), if those get added.
+- Ardoise (neutral) `oklch(0.55 0.02 260)` — candidate: an "Archived"/
+  "Inactive" status badge (none currently rendered — archived items are
+  filtered out of lists today, not tagged).
+- A distinct "team admin" role (as opposed to "team owner") doesn't
+  exist in the code yet (`is_owner: boolean` only) — when it's added,
+  give it one of the three colors above rather than reusing Sarcelle
+  (already taken by "Owner").
 
 **Typography**:
 

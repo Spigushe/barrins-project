@@ -9,6 +9,14 @@ vi.mock('@/hooks/useMetaDecks', () => ({
   useCreateMetaDeck: () => ({ mutateAsync: createMetaDeckMutateAsync }),
 }))
 
+let sessions: { id: string; name: string; ended_at: string | null }[] = []
+const createSessionMutateAsync = vi.fn()
+
+vi.mock('@/hooks/useSessions', () => ({
+  useSessions: () => ({ data: sessions }),
+  useCreateSession: () => ({ mutateAsync: createSessionMutateAsync, isPending: false }),
+}))
+
 const personalDeckOptions = [{ id: 'deck-mine', name: 'Mono Red' }]
 const metaDeckOptions = [{ id: 'deck-theirs', name: 'Azorius Control' }]
 
@@ -70,5 +78,92 @@ describe('MatchFormFields — opponent deck field', () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ opponentDeckId: 'deck-new' }),
     )
+  })
+})
+
+describe('MatchFormFields — session field', () => {
+  it('selects an existing session, same combobox shape as the opponent field', async () => {
+    sessions = [{ id: 'session-1', name: 'RC Toronto 2026', ended_at: null }]
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MatchFormFields
+        draft={emptyMatchDraft('deck-mine')}
+        onChange={onChange}
+        personalDeckOptions={personalDeckOptions}
+        metaDeckOptions={metaDeckOptions}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Session' }))
+    await user.click(screen.getByText('RC Toronto 2026'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-1' }),
+    )
+  })
+
+  it('creates a new session via the inline "Create" item', async () => {
+    sessions = []
+    createSessionMutateAsync.mockResolvedValue({
+      id: 'session-new',
+      name: 'Weekly Training',
+    })
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MatchFormFields
+        draft={emptyMatchDraft('deck-mine')}
+        onChange={onChange}
+        personalDeckOptions={personalDeckOptions}
+        metaDeckOptions={metaDeckOptions}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Session' }))
+    await user.type(screen.getByPlaceholderText('Search or create…'), 'Weekly Training')
+    await user.click(screen.getByText('Create "Weekly Training"'))
+
+    expect(screen.getByText('Weekly Training')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(createSessionMutateAsync).toHaveBeenCalledWith({
+      name: 'Weekly Training',
+      type: 'training',
+      personal_deck_id: 'deck-mine',
+    })
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-new' }),
+    )
+  })
+
+  it('does not offer a closed session as selectable, but still shows its name if already assigned', async () => {
+    sessions = [
+      { id: 'session-open', name: 'Open Session', ended_at: null },
+      { id: 'session-closed', name: 'Closed Session', ended_at: '2026-07-01T00:00:00Z' },
+    ]
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    const draft = { ...emptyMatchDraft('deck-mine'), sessionId: 'session-closed' }
+    render(
+      <MatchFormFields
+        draft={draft}
+        onChange={onChange}
+        personalDeckOptions={personalDeckOptions}
+        metaDeckOptions={metaDeckOptions}
+      />,
+    )
+
+    // The trigger still shows the closed session's name...
+    expect(screen.getByRole('button', { name: 'Session' })).toHaveTextContent(
+      'Closed Session',
+    )
+
+    // ...but it isn't offered again in the picker, only the open one is.
+    // ("Closed Session" still appears once — the trigger's own label.)
+    await user.click(screen.getByRole('button', { name: 'Session' }))
+    expect(screen.getByText('Open Session')).toBeInTheDocument()
+    expect(screen.getAllByText('Closed Session')).toHaveLength(1)
   })
 })

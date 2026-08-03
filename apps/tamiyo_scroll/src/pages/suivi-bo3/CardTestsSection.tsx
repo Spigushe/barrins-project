@@ -8,13 +8,22 @@ import {
 import { useMetaDecks } from '@/hooks/useMetaDecks'
 import { useCurrentUser } from '@/hooks/useAuth'
 import { useActiveDeck } from '@/contexts/active-deck-context'
-import type { CardTest, CardTestWrite } from '@/schemas/tamiyoScroll'
+import type { CardTest, CardTestWrite, MetaDeck } from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -32,7 +41,128 @@ import {
 } from '@/components/ui/table'
 
 const NO_MATCHUP = '__none__'
+const NO_MATCHUP_LABEL = '— none —'
 const RATINGS = [1, 2, 3, 4, 5]
+
+/**
+ * Match-up deck field: search existing meta decks, same
+ * `Popover`+`Command` combobox shape as `OpponentDeckField`
+ * (`MatchForm.tsx`), including the "shared — tap to add to your roster"
+ * sub-label for `is_readonly` decks (S12 item 2).
+ *
+ * Deliberately no inline "Create "…"" affordance — per S12's open
+ * question 3, this select is about search/selection parity with the BO3
+ * opponent field, not adding a new deck-creation path; selecting any
+ * option (including a shared one) directly sets the matchup, same as
+ * this select's previous plain-`<Select>` behavior.
+ */
+function MatchupDeckField({
+  value,
+  onChange,
+  options,
+  idPrefix,
+  visibleLabel,
+  triggerClassName,
+}: {
+  value: string
+  onChange: (deckId: string) => void
+  options: MetaDeck[]
+  idPrefix: string
+  /** Create form shows a standalone `<Label>`; the edit row (inside a
+   * table cell) only needs an accessible name via `aria-label`. */
+  visibleLabel: boolean
+  triggerClassName?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const selected = options.find((deck) => deck.id === value)
+  const selectedLabel =
+    value === NO_MATCHUP ? NO_MATCHUP_LABEL : (selected?.name ?? NO_MATCHUP_LABEL)
+  const trimmedSearch = search.trim()
+  const filtered = options.filter((deck) =>
+    deck.name.toLowerCase().includes(trimmedSearch.toLowerCase()),
+  )
+
+  function selectDeck(deckId: string) {
+    onChange(deckId)
+    setOpen(false)
+    setSearch('')
+  }
+
+  const labelId = `${idPrefix}-label`
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {visibleLabel && <Label id={labelId}>Match-up</Label>}
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setSearch('')
+        }}
+      >
+        <PopoverTrigger
+          aria-labelledby={visibleLabel ? labelId : undefined}
+          aria-label={visibleLabel ? undefined : 'Match-up'}
+          className={cn(
+            'flex h-9 items-center justify-between gap-2 rounded-(--radius-input) border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition-colors',
+            'focus-visible:border-accent',
+            triggerClassName ?? 'w-44',
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate text-left">{selectedLabel}</span>
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search…"
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              <CommandGroup>
+                <CommandItem
+                  value={NO_MATCHUP}
+                  onSelect={() => {
+                    selectDeck(NO_MATCHUP)
+                  }}
+                >
+                  {value === NO_MATCHUP ? '✓ ' : ''}
+                  {NO_MATCHUP_LABEL}
+                </CommandItem>
+                {filtered.map((deck) => (
+                  <CommandItem
+                    key={deck.id}
+                    value={deck.id}
+                    onSelect={() => {
+                      selectDeck(deck.id)
+                    }}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>
+                        {deck.id === value ? '✓ ' : ''}
+                        {deck.name}
+                      </span>
+                      {deck.is_readonly && (
+                        <span className="text-[11px] text-muted-foreground">
+                          shared — tap to add to your roster
+                        </span>
+                      )}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              {filtered.length === 0 && trimmedSearch && (
+                <CommandEmpty>No match found.</CommandEmpty>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
 
 interface Draft {
   tester: string
@@ -146,27 +276,15 @@ export function CardTestsSection() {
               className="w-48"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Match-up</Label>
-            <Select
-              value={newDraft.opponentDeckId}
-              onValueChange={(value) => {
-                setNewDraft({ ...newDraft, opponentDeckId: value })
-              }}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_MATCHUP}>— none —</SelectItem>
-                {deckOptions.map((deck) => (
-                  <SelectItem key={deck.id} value={deck.id}>
-                    {deck.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <MatchupDeckField
+            value={newDraft.opponentDeckId}
+            onChange={(value) => {
+              setNewDraft({ ...newDraft, opponentDeckId: value })
+            }}
+            options={deckOptions}
+            idPrefix="new-test-matchup"
+            visibleLabel
+          />
           <div className="flex flex-col gap-1.5">
             <Label>Effectiveness</Label>
             <Select
@@ -237,24 +355,16 @@ export function CardTestsSection() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Select
+                    <MatchupDeckField
                       value={editDraft.opponentDeckId}
-                      onValueChange={(value) => {
+                      onChange={(value) => {
                         setEditDraft({ ...editDraft, opponentDeckId: value })
                       }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NO_MATCHUP}>— none —</SelectItem>
-                        {deckOptions.map((deck) => (
-                          <SelectItem key={deck.id} value={deck.id}>
-                            {deck.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={deckOptions}
+                      idPrefix={`edit-test-matchup-${test.id}`}
+                      visibleLabel={false}
+                      triggerClassName="w-full"
+                    />
                   </TableCell>
                   <TableCell>
                     <Select

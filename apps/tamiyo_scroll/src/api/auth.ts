@@ -47,6 +47,13 @@ export function getMe() {
   return apiRequest('/api/v1/auth/me', userSchema)
 }
 
+export function updateProfile(payload: { display_name: string | null }) {
+  return apiRequest('/api/v1/auth/me', userSchema, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
 export function logout() {
   return apiRequest('/api/v1/auth/logout', z.void(), { method: 'POST' })
 }

@@ -1,0 +1,388 @@
+{
+  "personalDecks": [
+    {
+      "id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "name": "Boros Aggro (Demo)",
+      "game": "magic",
+      "category": "aggro",
+      "archived_at": null,
+      "created_at": "2026-06-01T09:00:00+00:00"
+    },
+    {
+      "id": "9cbc96f7-0534-4fef-a8a8-58fcf8004994",
+      "name": "Dimir Control (Demo)",
+      "game": "magic",
+      "category": "control",
+      "archived_at": "2026-07-15T09:00:00+00:00",
+      "created_at": "2026-05-01T09:00:00+00:00"
+    }
+  ],
+
+  "metaDecks": [
+    {
+      "id": "4259faaa-431d-4d0c-9b20-b70436558af4",
+      "name": "Golgari Midrange",
+      "tier": 1,
+      "category": "midrange",
+      "decklist_notes": "Grindy value deck, watch out for edict effects.",
+      "top8": 2,
+      "presence": 12,
+      "expected": "as_expected",
+      "tests_status": "Reviewed",
+      "archived_at": null,
+      "conversion": 16.67,
+      "is_readonly": false,
+      "shared_by": null,
+      "has_shared_data": false,
+      "is_multi_share": false
+    },
+    {
+      "id": "37c95738-f081-476b-a1ce-7a64e1549808",
+      "name": "Izzet Spells",
+      "tier": 1,
+      "category": "combo",
+      "decklist_notes": "Storm-adjacent, race it or disrupt the graveyard.",
+      "top8": 2,
+      "presence": 9,
+      "expected": "more_expected",
+      "tests_status": "In progress",
+      "archived_at": null,
+      "conversion": 22.22,
+      "is_readonly": false,
+      "shared_by": null,
+      "has_shared_data": false,
+      "is_multi_share": false
+    },
+    {
+      "id": "c5f81885-ffb5-4eea-b934-e1d3b578b1e2",
+      "name": "Mono White Aggro",
+      "tier": 2,
+      "category": "aggro",
+      "decklist_notes": "Go wide, watch out for anthem effects.",
+      "top8": 1,
+      "presence": 7,
+      "expected": "as_expected",
+      "tests_status": null,
+      "archived_at": null,
+      "conversion": 14.29,
+      "is_readonly": false,
+      "shared_by": null,
+      "has_shared_data": false,
+      "is_multi_share": false
+    },
+    {
+      "id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
+      "name": "Azorius Control",
+      "tier": 1,
+      "category": "control",
+      "decklist_notes": "Counterspells + card draw, close it out fast.",
+      "top8": 2,
+      "presence": 14,
+      "expected": "as_expected",
+      "tests_status": "Reviewed",
+      "archived_at": null,
+      "conversion": 14.29,
+      "is_readonly": false,
+      "shared_by": null,
+      "has_shared_data": false,
+      "is_multi_share": false
+    },
+    {
+      "id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
+      "name": "Gruul Stompy",
+      "tier": 2,
+      "category": "aggro",
+      "decklist_notes": "Big dumb creatures, out-value the top end.",
+      "top8": 1,
+      "presence": 6,
+      "expected": "less_expected",
+      "tests_status": null,
+      "archived_at": null,
+      "conversion": 16.67,
+      "is_readonly": false,
+      "shared_by": null,
+      "has_shared_data": false,
+      "is_multi_share": false
+    }
+  ],
+
+  "matches": [
+    {
+      "id": "c2ebb3a2-54bc-44f4-87ca-f51abd9f5587",
+      "date": "2026-07-20",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
+      "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
+      "session_id": null,
+      "on_play": true,
+      "game1": "win",
+      "game2": "win",
+      "game3": null,
+      "opening_hand": "3 land, Boros Charm, Aurelia, Lightning Helix, Sacred Foundry.",
+      "turning_point": "Aurelia on curve took over the game.",
+      "final_turn": "Attacked for lethal on turn 7.",
+      "created_at": "2026-07-20T18:04:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    },
+    {
+      "id": "0411c4d5-3bdc-4e5d-ae0e-ce4bb502b023",
+      "date": "2026-07-22",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
+      "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
+      "session_id": null,
+      "on_play": false,
+      "game1": "loss",
+      "game2": "loss",
+      "game3": null,
+      "opening_hand": "2 land, three 3-drops, no removal.",
+      "turning_point": "Got counterspelled twice back to back.",
+      "final_turn": "Decked out on resources before finding a third land.",
+      "created_at": "2026-07-22T19:30:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    },
+    {
+      "id": "c3cb3fd1-a6b8-413e-88a2-2a32695bf9b1",
+      "date": "2026-07-24",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "c5f81885-ffb5-4eea-b934-e1d3b578b1e2",
+      "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
+      "session_id": null,
+      "on_play": true,
+      "game1": "win",
+      "game2": "loss",
+      "game3": "win",
+      "opening_hand": "Strong curve, kept a two-lander with a Helix.",
+      "turning_point": "Wear // Tear on their anthem effect in game 3.",
+      "final_turn": "Raced them down after stabilizing at 6 life.",
+      "created_at": "2026-07-24T20:15:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    },
+    {
+      "id": "13cecaa6-f066-4c5d-b1a2-9bcc49eae162",
+      "date": "2026-07-26",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "37c95738-f081-476b-a1ce-7a64e1549808",
+      "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
+      "session_id": null,
+      "on_play": false,
+      "game1": "loss",
+      "game2": "win",
+      "game3": "loss",
+      "opening_hand": "One-lander, mulliganed to 6.",
+      "turning_point": "They comboed off on turn 5 in games 1 and 3.",
+      "final_turn": "Couldn't apply enough early pressure to race the combo.",
+      "created_at": "2026-07-26T21:00:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    },
+    {
+      "id": "fa524b58-d197-47d7-b0ec-605c73523f7e",
+      "date": "2026-07-29",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
+      "decklist_version_id": "4d4baa2c-716f-42d9-ba1e-8eaf5b3f34a8",
+      "session_id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
+      "on_play": true,
+      "game1": "win",
+      "game2": "win",
+      "game3": null,
+      "opening_hand": "Fast start, double one-drop into Helix.",
+      "turning_point": "Killed their only blocker with Lightning Helix.",
+      "final_turn": "Lethal swing on turn 5.",
+      "created_at": "2026-07-29T17:45:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    },
+    {
+      "id": "bd1549eb-d15b-463a-8b6f-3b79db09f112",
+      "date": "2026-08-01",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
+      "decklist_version_id": "4d4baa2c-716f-42d9-ba1e-8eaf5b3f34a8",
+      "session_id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
+      "on_play": true,
+      "game1": "loss",
+      "game2": "win",
+      "game3": "draw",
+      "opening_hand": "Slow hand, kept anyway on the play.",
+      "turning_point": "Time was called mid-combat in game 3.",
+      "final_turn": "Board stall at time limit.",
+      "created_at": "2026-08-01T18:30:00+00:00",
+      "is_readonly": false,
+      "shared_by": null
+    }
+  ],
+
+  "cardTests": [
+    {
+      "id": "695248b4-a96a-4466-a184-9a05b6d688e1",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "tester": "Ravi",
+      "card_name": "Lightning Helix",
+      "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
+      "rating": 5,
+      "notes": "Great removal vs control matchups, also closes games.",
+      "created_at": "2026-07-10T10:00:00+00:00"
+    },
+    {
+      "id": "82a07208-249c-4475-958b-6a30c172c149",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "tester": "Ravi",
+      "card_name": "Wear // Tear",
+      "opponent_deck_id": null,
+      "rating": 4,
+      "notes": "Flexible artifact/enchantment removal, sideboard-only feel.",
+      "created_at": "2026-07-11T10:00:00+00:00"
+    },
+    {
+      "id": "2a46690c-c979-4fab-b4fd-828d25e777ef",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "tester": "Naya",
+      "card_name": "Boros Charm",
+      "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
+      "rating": 3,
+      "notes": "Fine but rarely closes the game alone.",
+      "created_at": "2026-07-12T10:00:00+00:00"
+    },
+    {
+      "id": "3d54df36-16b1-4230-9798-da1602640e98",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "tester": "Ravi",
+      "card_name": "Sunset Pyramid",
+      "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
+      "rating": 2,
+      "notes": "Too slow against faster aggro mirrors.",
+      "created_at": "2026-07-13T10:00:00+00:00"
+    }
+  ],
+
+  "decklistVersions": [
+    {
+      "id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "version": 1,
+      "content": "1 Aurelia, the Warleader\n1 Lightning Helix\n1 Wear // Tear\n1 Sunset Pyramid\n1 Boros Charm\n1 Sulfuric Vortex\n1 Sacred Foundry\n1 Godless Shrine",
+      "source": "manual",
+      "created_at": "2026-06-02T09:00:00+00:00",
+      "moxfield_deck_changed_since_last_import": null
+    },
+    {
+      "id": "4d4baa2c-716f-42d9-ba1e-8eaf5b3f34a8",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "version": 2,
+      "content": "1 Aurelia, the Warleader\n1 Lightning Helix\n1 Wear // Tear\n1 Boros Charm\n1 Sacred Foundry\n1 Godless Shrine\n1 Clifftop Retreat\n1 Sunbaked Canyon",
+      "source": "moxfield_import",
+      "created_at": "2026-07-18T09:00:00+00:00",
+      "moxfield_deck_changed_since_last_import": null
+    }
+  ],
+
+  "decklistLines": {
+    "f36f82f5-5435-4053-b0ff-353bb4a5e293": [
+      { "line": "1 Aurelia, the Warleader", "status": "validated" },
+      { "line": "1 Lightning Helix", "status": "validated" },
+      { "line": "1 Wear // Tear", "status": "validated" },
+      { "line": "1 Boros Charm", "status": "in_test" },
+      { "line": "1 Sunset Pyramid", "status": "in_test" },
+      { "line": "1 Sulfuric Vortex", "status": "rejected" },
+      { "line": "1 Sacred Foundry", "status": "neutral" },
+      { "line": "1 Godless Shrine", "status": "neutral" },
+      { "line": "1 Clifftop Retreat", "status": "neutral" },
+      { "line": "1 Sunbaked Canyon", "status": "neutral" }
+    ]
+  },
+
+  "sessions": [
+    {
+      "id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
+      "owner_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+      "name": "Store Championship",
+      "type": "tournament",
+      "notes": "Local store championship, 4 rounds Swiss.",
+      "created_at": "2026-07-29T16:00:00+00:00",
+      "ended_at": null,
+      "archived_at": null
+    }
+  ],
+
+  "currentUser": {
+    "id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+    "email": "you@tamiyo-scroll.demo",
+    "display_name": "You (Demo)"
+  },
+
+  "teams": [
+    {
+      "id": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
+      "name": "The Cabal (Demo)",
+      "description": "Playtest crew for the local Duel Commander meta.",
+      "invite_code": "DEMO-TEAM",
+      "owner_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+      "created_at": "2026-06-15T10:00:00+00:00",
+      "members": [
+        {
+          "user_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+          "email": "you@tamiyo-scroll.demo",
+          "display_name": "You (Demo)",
+          "is_owner": true,
+          "joined_at": "2026-06-15T10:00:00+00:00",
+          "activity_count": 7
+        },
+        {
+          "user_id": "3f1a9c5e-8b2d-4e6f-9a1c-2d3e4f5a6b7c",
+          "email": "ravi@tamiyo-scroll.demo",
+          "display_name": "Ravi",
+          "is_owner": false,
+          "joined_at": "2026-06-16T09:00:00+00:00",
+          "activity_count": 4
+        },
+        {
+          "user_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+          "email": "naya@tamiyo-scroll.demo",
+          "display_name": "Naya",
+          "is_owner": false,
+          "joined_at": "2026-06-20T14:00:00+00:00",
+          "activity_count": 2
+        }
+      ],
+      "memberDecks": [
+        {
+          "id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+          "name": "Boros Aggro (Demo)",
+          "owner_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+          "owner_display": "You (Demo)"
+        },
+        {
+          "id": "9c1a2b3d-4e5f-4a61-8a2b-3c4d5e6f7a8b",
+          "name": "Golgari Midrange",
+          "owner_id": "3f1a9c5e-8b2d-4e6f-9a1c-2d3e4f5a6b7c",
+          "owner_display": "Ravi"
+        },
+        {
+          "id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+          "name": "Izzet Spells",
+          "owner_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+          "owner_display": "Naya"
+        }
+      ],
+      "flaggedNameKeys": ["boros aggro (demo)", "izzet spells"],
+      "threads": {
+        "izzet spells": [
+          {
+            "id": "6e5d4c3b-2a1f-4e8d-9c7b-6a5f4e3d2c1b",
+            "thread_id": "2c1b6e5d-4c3b-4a1f-8d9c-7b6a5f4e3d2c",
+            "author_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+            "author_display": "Naya",
+            "body": "Careful with their turn-4 combo line — hold up interaction if you can.",
+            "created_at": "2026-07-25T12:00:00+00:00"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -11,7 +11,9 @@ async def _setup_match(
 ) -> tuple[str, str]:
     headers = auth_headers(user)
     personal_resp = await client.post(
-        f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+        f"{BASE}/personal-decks",
+        json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+        headers=headers,
     )
     personal_id = personal_resp.json()["id"]
     meta_resp = await client.post(
@@ -81,7 +83,9 @@ class TestArchetypeSummary:
         headers = auth_headers(owner_user)
         personal_id, _ = await _setup_match(client, owner_user, category="control")
         other_personal_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Other Deck"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Other Deck", "game": "magic", "category": "control"},
+            headers=headers,
         )
         other_personal_id = other_personal_resp.json()["id"]
 
@@ -126,7 +130,7 @@ class TestMatchupSummary:
         personal_id, _ = await _setup_match(client, owner_user)
         other_personal_resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Other Deck"},
+            json={"name": "Other Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         other_personal_id = other_personal_resp.json()["id"]
@@ -142,3 +146,113 @@ class TestMatchupSummary:
             headers=auth_headers(owner_user),
         )
         assert len(resp.json()["rows"]) == 1
+
+
+class TestSharedDataInStats:
+    """No "view as" selector (overhauled 2026-07-30): a sharer's matches for a
+    same-named deck are folded into the viewer's own stats, not shown
+    separately."""
+
+    async def test_matchup_summary_combines_own_and_shared_matches(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        other_headers = auth_headers(other_user)
+        await _setup_match(client, other_user)
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        resp = await client.get(f"{BASE}/matchup-summary", headers=owner_headers)
+        body = resp.json()
+        assert len(body["rows"]) == 1
+        assert body["rows"][0]["opponent_deck_name"] == "Burn"
+        assert body["rows"][0]["match_count"] == 1
+        assert body["rows"][0]["is_readonly"] is True
+
+    async def test_archetype_summary_includes_shared_matches(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        other_headers = auth_headers(other_user)
+        await _setup_match(client, other_user, category="control")
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        resp = await client.get(f"{BASE}/archetype-summary", headers=owner_headers)
+        control = next(s for s in resp.json() if s["category"] == "control")
+        assert control["average_winrate"] == 50.0
+        assert control["decks"][0]["is_readonly"] is True
+
+    async def test_mixed_own_deck_has_shared_data_true_in_both_summaries(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        """A deck the owner ranks themselves that also received a merged
+        shared match is "mixed" — flagged via has_shared_data, distinct
+        from a fully-foreign (is_readonly) roster line."""
+        other_headers = auth_headers(other_user)
+        await _setup_match(client, other_user, category="control")
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=other_headers
+        )
+
+        owner_headers = auth_headers(owner_user)
+        await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=owner_headers,
+        )
+        await client.post(
+            f"{BASE}/meta-decks",
+            json={
+                "name": "Burn",
+                "tier": 2.0,
+                "category": "control",
+                "top8": 0,
+                "presence": 0,
+                "expected": "as_expected",
+            },
+            headers=owner_headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=owner_headers,
+        )
+
+        matchup_resp = await client.get(
+            f"{BASE}/matchup-summary", headers=owner_headers
+        )
+        row = matchup_resp.json()["rows"][0]
+        assert row["is_readonly"] is False
+        assert row["has_shared_data"] is True
+
+        archetype_resp = await client.get(
+            f"{BASE}/archetype-summary", headers=owner_headers
+        )
+        control = next(s for s in archetype_resp.json() if s["category"] == "control")
+        assert control["decks"][0]["is_readonly"] is False
+        assert control["decks"][0]["has_shared_data"] is True

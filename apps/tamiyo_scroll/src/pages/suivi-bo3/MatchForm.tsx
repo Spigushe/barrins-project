@@ -1,6 +1,12 @@
 import { type FormEvent, useState } from 'react'
 import { useCreateMetaDeck } from '@/hooks/useMetaDecks'
-import type { ArchetypeCategory, Match, MatchWrite } from '@/schemas/tamiyoScroll'
+import { useCreateSession, useSessions } from '@/hooks/useSessions'
+import type {
+  ArchetypeCategory,
+  Match,
+  MatchWrite,
+  SessionType,
+} from '@/schemas/tamiyoScroll'
 import { ARCHETYPE_LABELS, GAME_RESULT_LABELS } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -24,6 +30,11 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
+const SESSION_TYPE_LABELS: Record<SessionType, string> = {
+  tournament: 'Tournament',
+  training: 'Training',
+}
+
 export const GAME_NOT_PLAYED = '__not_played__'
 const GAME_OPTIONS = ['win', 'loss', 'draw'] as const
 const TIERS = [0, 0.5, 1, 1.5, 2, 2.5, 3]
@@ -33,6 +44,8 @@ const CREATE_ITEM_VALUE = 'create-new-opponent-deck'
 export interface MatchDraft {
   personalDeckId: string
   opponentDeckId: string
+  decklistVersionId: string | null
+  sessionId: string | null
   onPlay: boolean
   game1: string
   game2: string
@@ -46,6 +59,8 @@ export function emptyMatchDraft(defaultPersonalDeckId: string | null): MatchDraf
   return {
     personalDeckId: defaultPersonalDeckId ?? '',
     opponentDeckId: '',
+    decklistVersionId: null,
+    sessionId: null,
     onPlay: true,
     game1: GAME_NOT_PLAYED,
     game2: GAME_NOT_PLAYED,
@@ -60,6 +75,8 @@ export function draftFromMatch(match: Match): MatchDraft {
   return {
     personalDeckId: match.personal_deck_id,
     opponentDeckId: match.opponent_deck_id,
+    decklistVersionId: match.decklist_version_id,
+    sessionId: match.session_id,
     onPlay: match.on_play,
     game1: match.game1 ?? GAME_NOT_PLAYED,
     game2: match.game2 ?? GAME_NOT_PLAYED,
@@ -74,6 +91,8 @@ export function matchDraftToWrite(draft: MatchDraft): MatchWrite {
   return {
     personal_deck_id: draft.personalDeckId,
     opponent_deck_id: draft.opponentDeckId,
+    decklist_version_id: draft.decklistVersionId,
+    session_id: draft.sessionId,
     on_play: draft.onPlay,
     game1: draft.game1 === GAME_NOT_PLAYED ? null : (draft.game1 as MatchWrite['game1']),
     game2: draft.game2 === GAME_NOT_PLAYED ? null : (draft.game2 as MatchWrite['game2']),
@@ -117,6 +136,14 @@ function GameResultSelect({
   )
 }
 
+interface OpponentDeckOption {
+  id: string
+  name: string
+  is_readonly?: boolean
+  tier?: number
+  category?: ArchetypeCategory
+}
+
 /**
  * Opponent deck field: search existing meta decks, or type a new name and
  * "Create" it without leaving this form. name/tier/category match exactly
@@ -125,6 +152,14 @@ function GameResultSelect({
  * it does (0/0/'as_expected': a freshly-noted deck genuinely has zero
  * recorded Top 8s/presence so far, and hasn't been evaluated against
  * expectations yet).
+ *
+ * A `is_readonly` option (present only because a sharer's data merged it
+ * in — see `sharing_merge.py`) can't be used as-is: it isn't owned by the
+ * current user, so the backend 404s on it (`_validate_match_refs`).
+ * Selecting one opens the same create dialog instead, pre-filled with the
+ * shared tier/category as a starting point — submitting it creates the
+ * user's own roster entry (same name, so future merges resolve to it per
+ * the "own ranking wins" rule) and uses that as the opponent.
  */
 function OpponentDeckField({
   value,
@@ -133,13 +168,14 @@ function OpponentDeckField({
 }: {
   value: string
   onChange: (deckId: string) => void
-  options: { id: string; name: string }[]
+  options: OpponentDeckOption[]
 }) {
   const createMetaDeck = useCreateMetaDeck()
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [claimingShared, setClaimingShared] = useState(false)
   const [pendingName, setPendingName] = useState('')
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
@@ -153,14 +189,27 @@ function OpponentDeckField({
     (deck) => deck.name.toLowerCase() === trimmedSearch.toLowerCase(),
   )
 
-  function selectDeck(deckId: string) {
-    onChange(deckId)
+  function selectDeck(deck: OpponentDeckOption) {
+    if (deck.is_readonly) {
+      setPendingName(deck.name)
+      setNewTier(deck.tier ?? 1)
+      setNewCategory(deck.category ?? 'midrange')
+      setClaimingShared(true)
+      setCreating(true)
+      setOpen(false)
+      setSearch('')
+      return
+    }
+    onChange(deck.id)
     setOpen(false)
     setSearch('')
   }
 
   function openCreateDialog() {
     setPendingName(trimmedSearch)
+    setNewTier(1)
+    setNewCategory('midrange')
+    setClaimingShared(false)
     setCreating(true)
     setOpen(false)
     setSearch('')
@@ -180,6 +229,7 @@ function OpponentDeckField({
     })
     onChange(created.id)
     setCreating(false)
+    setClaimingShared(false)
     setNewTier(1)
     setNewCategory('midrange')
   }
@@ -222,11 +272,20 @@ function OpponentDeckField({
                     key={deck.id}
                     value={deck.id}
                     onSelect={() => {
-                      selectDeck(deck.id)
+                      selectDeck(deck)
                     }}
                   >
-                    {deck.id === value ? '✓ ' : ''}
-                    {deck.name}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>
+                        {deck.id === value ? '✓ ' : ''}
+                        {deck.name}
+                      </span>
+                      {deck.is_readonly && (
+                        <span className="text-[11px] text-muted-foreground">
+                          shared — tap to add to your roster
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 ))}
                 {trimmedSearch && !hasExactMatch && (
@@ -247,7 +306,9 @@ function OpponentDeckField({
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent>
-          <DialogTitle>Create opponent deck</DialogTitle>
+          <DialogTitle>
+            {claimingShared ? 'Add shared deck to your roster' : 'Create opponent deck'}
+          </DialogTitle>
           <form
             className="flex flex-col gap-3"
             onSubmit={(event) => {
@@ -257,6 +318,12 @@ function OpponentDeckField({
             <div>
               <Label>Name</Label>
               <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
+              {claimingShared && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This deck exists via shared data. Confirm its tier and
+                  archetype to add it to your own roster.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1.5">
@@ -302,6 +369,198 @@ function OpponentDeckField({
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={createMetaDeck.isPending}>
+                {claimingShared ? 'Add to roster' : 'Create'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreating(false)
+                  setClaimingShared(false)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+const NO_VERSION_VALUE = '__no_version__'
+const NO_SESSION_LABEL = '— none —'
+const CREATE_SESSION_ITEM_VALUE = 'create-new-session'
+
+/**
+ * Optional tournament/training session grouping (S9). Fetches sessions for
+ * whatever deck is currently selected in the form. Same searchable
+ * combobox + inline "Create" shape as `OpponentDeckField` above (per the
+ * user, 2026-07-30) — a "— none —" entry at the top of the list is the
+ * only addition, since unlike the opponent a session is optional.
+ */
+function SessionField({
+  personalDeckId,
+  value,
+  onChange,
+}: {
+  personalDeckId: string
+  value: string | null
+  onChange: (sessionId: string | null) => void
+}) {
+  const { data: sessions } = useSessions(personalDeckId || null)
+  const createSession = useCreateSession()
+
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [pendingName, setPendingName] = useState('')
+  const [newType, setNewType] = useState<SessionType>('training')
+
+  const allSessions = sessions ?? []
+  // A closed session can't be picked for a new/changed match — but if the
+  // match is already tied to one (logged before it closed), its name must
+  // still resolve correctly rather than falling back to "— none —".
+  const selectableSessions = allSessions.filter((session) => session.ended_at === null)
+  const selected = allSessions.find((session) => session.id === value)
+  const trimmedSearch = search.trim()
+  const filtered = selectableSessions.filter((session) =>
+    session.name.toLowerCase().includes(trimmedSearch.toLowerCase()),
+  )
+  const hasExactMatch = selectableSessions.some(
+    (session) => session.name.toLowerCase() === trimmedSearch.toLowerCase(),
+  )
+
+  function selectSession(sessionId: string | null) {
+    onChange(sessionId)
+    setOpen(false)
+    setSearch('')
+  }
+
+  function openCreateDialog() {
+    setPendingName(trimmedSearch)
+    setNewType('training')
+    setCreating(true)
+    setOpen(false)
+    setSearch('')
+  }
+
+  async function handleCreate(event: FormEvent) {
+    event.preventDefault()
+    const created = await createSession.mutateAsync({
+      name: pendingName,
+      type: newType,
+      personal_deck_id: personalDeckId,
+    })
+    onChange(created.id)
+    setCreating(false)
+    setNewType('training')
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label id="session-label">Session</Label>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setSearch('')
+        }}
+      >
+        <PopoverTrigger
+          aria-labelledby="session-label"
+          disabled={!personalDeckId}
+          className={cn(
+            'flex h-9 w-52 items-center justify-between gap-2 rounded-(--radius-input) border border-border bg-input px-3 py-2 text-sm text-foreground outline-none transition-colors',
+            'focus-visible:border-accent',
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate text-left">
+            {selected?.name ?? NO_SESSION_LABEL}
+          </span>
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search or create…"
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              <CommandGroup>
+                <CommandItem
+                  value={NO_SESSION_LABEL}
+                  onSelect={() => {
+                    selectSession(null)
+                  }}
+                >
+                  {value === null ? '✓ ' : ''}
+                  {NO_SESSION_LABEL}
+                </CommandItem>
+                {filtered.map((session) => (
+                  <CommandItem
+                    key={session.id}
+                    value={session.id}
+                    onSelect={() => {
+                      selectSession(session.id)
+                    }}
+                  >
+                    {session.id === value ? '✓ ' : ''}
+                    {session.name}
+                  </CommandItem>
+                ))}
+                {trimmedSearch && !hasExactMatch && (
+                  <CommandItem
+                    value={CREATE_SESSION_ITEM_VALUE}
+                    onSelect={() => {
+                      openCreateDialog()
+                    }}
+                  >
+                    Create "{trimmedSearch}"
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <DialogTitle>Create session</DialogTitle>
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              void handleCreate(event)
+            }}
+          >
+            <div>
+              <Label>Name</Label>
+              <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Type</Label>
+              <Select
+                value={newType}
+                onValueChange={(v) => {
+                  setNewType(v as SessionType)
+                }}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SESSION_TYPE_LABELS) as SessionType[]).map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {SESSION_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={createSession.isPending}>
                 Create
               </Button>
               <Button
@@ -326,11 +585,15 @@ export function MatchFormFields({
   onChange,
   personalDeckOptions,
   metaDeckOptions,
+  decklistVersionOptions,
 }: {
   draft: MatchDraft
   onChange: (next: MatchDraft) => void
   personalDeckOptions: { id: string; name: string }[]
-  metaDeckOptions: { id: string; name: string }[]
+  metaDeckOptions: OpponentDeckOption[]
+  /** Only passed (and rendered) by the edit flow — never on match creation,
+   * which always auto-stamps the deck's current version server-side. */
+  decklistVersionOptions?: { id: string; version: number }[]
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -340,7 +603,9 @@ export function MatchFormFields({
           <Select
             value={draft.personalDeckId}
             onValueChange={(value) => {
-              onChange({ ...draft, personalDeckId: value })
+              // A session belongs to one deck — switching decks invalidates
+              // whatever session was selected for the previous one.
+              onChange({ ...draft, personalDeckId: value, sessionId: null })
             }}
           >
             <SelectTrigger className="w-52">
@@ -355,6 +620,32 @@ export function MatchFormFields({
             </SelectContent>
           </Select>
         </div>
+        {decklistVersionOptions && decklistVersionOptions.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <Label>Decklist version</Label>
+            <Select
+              value={draft.decklistVersionId ?? NO_VERSION_VALUE}
+              onValueChange={(value) => {
+                onChange({
+                  ...draft,
+                  decklistVersionId: value === NO_VERSION_VALUE ? null : value,
+                })
+              }}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_VERSION_VALUE}>— none —</SelectItem>
+                {decklistVersionOptions.map((version) => (
+                  <SelectItem key={version.id} value={version.id}>
+                    v{version.version}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <OpponentDeckField
           value={draft.opponentDeckId}
           onChange={(deckId) => {
@@ -362,6 +653,15 @@ export function MatchFormFields({
           }}
           options={metaDeckOptions}
         />
+        {draft.personalDeckId && (
+          <SessionField
+            personalDeckId={draft.personalDeckId}
+            value={draft.sessionId}
+            onChange={(sessionId) => {
+              onChange({ ...draft, sessionId })
+            }}
+          />
+        )}
         <div className="flex flex-col gap-1.5">
           <Label>Play/Draw</Label>
           <Select
@@ -407,7 +707,9 @@ export function MatchFormFields({
 
       <div className="grid gap-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="opening-hand">Opening hand</Label>
+          {/* S12 item 3: label-only rename ("Opening hand" → "Game 1
+              Notes") — `openingHand`/`opening_hand` are unchanged. */}
+          <Label htmlFor="opening-hand">Game 1 Notes</Label>
           <Textarea
             id="opening-hand"
             rows={3}
@@ -418,7 +720,9 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="turning-point">Turning point</Label>
+          {/* S12 item 3: label-only rename ("Turning point" → "Game 2
+              Notes") — `turningPoint`/`turning_point` are unchanged. */}
+          <Label htmlFor="turning-point">Game 2 Notes</Label>
           <Textarea
             id="turning-point"
             rows={3}
@@ -429,7 +733,9 @@ export function MatchFormFields({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="final-turn">Final turn</Label>
+          {/* S12 item 3: label-only rename ("Final turn" → "Game 3
+              Notes") — `finalTurn`/`final_turn` are unchanged. */}
+          <Label htmlFor="final-turn">Game 3 Notes</Label>
           <Textarea
             id="final-turn"
             rows={3}
