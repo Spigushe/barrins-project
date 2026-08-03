@@ -82,7 +82,12 @@ git merge-base between two long-lived branches, so a conflict between
 resurfaces immediately in the other) — recorded as
 [`consitution-amendment.md`](consitution-amendment.md) **Proposal 7**,
 not yet reviewed, ahead of Group R's own `proj/v2.0.0-bump` → `staging`
-promotion hitting the same thing later this release.
+promotion hitting the same thing later this release. **RA2 and RA3 both
+completed the same day** using Proposal 7's workaround — RA3 hit it at
+much larger scale (`main`/`staging` share no real ancestry since this
+repo's first commit), confirming the mechanism generalizes beyond the
+one pair of branches it was first found on. `v2.0.0-alpha` is now on
+`main`; RA4 (tag) and RA5 (deploy) remain.
 
 ---
 
