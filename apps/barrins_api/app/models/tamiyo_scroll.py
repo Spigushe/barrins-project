@@ -225,6 +225,15 @@ class TSMetaDeck(Base):
     category: Mapped[ArchetypeCategory] = mapped_column(
         Enum(ArchetypeCategory, name="ts_archetype_category"), nullable=False
     )
+    # Nullable, no backfill — inherited automatically (never user-picked)
+    # from whichever personal deck's game a meta deck is created against
+    # (match-logging "create opponent" flow, or the active personal deck
+    # on the roster quick-add form). A soft data tag for ML export
+    # filtering, not an enforced constraint: a meta deck can still be used
+    # against a personal deck of a different game, nothing blocks it.
+    game: Mapped[CardGame | None] = mapped_column(
+        Enum(CardGame, name="ts_card_game", create_type=False), nullable=True
+    )
     decklist_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     top8: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"

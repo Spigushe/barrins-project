@@ -68,7 +68,14 @@ class MoxfieldImportRequest(BaseModel):
 
 
 class MetaDeckWrite(BaseModel):
-    """Payload shared by POST and PUT /meta-decks — full replacement."""
+    """Payload shared by POST and PUT /meta-decks — full replacement.
+
+    `personal_deck_id` is a creation-time-only hint, not a stored FK: on
+    create, its game is copied onto the new meta deck's own `game` (soft
+    inheritance, no selector, no enforced constraint — see
+    `TSMetaDeck.game`'s docstring). Ignored on update — a meta deck's
+    `game`, once set, isn't silently changed by a later edit.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -80,6 +87,7 @@ class MetaDeckWrite(BaseModel):
     presence: int = Field(default=0, ge=0)
     expected: ExpectedLevel = ExpectedLevel.as_expected
     tests_status: str | None = None
+    personal_deck_id: uuid.UUID | None = None
 
 
 class MatchWrite(BaseModel):

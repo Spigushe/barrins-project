@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
@@ -12,6 +12,8 @@ from app.models._types import JsonValue
 from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     TSCardTest,
+    TSMatch,
+    TSMetaDeck,
     TSPersonalDeck,
     TSPersonalDecklistVersion,
 )
@@ -58,6 +60,29 @@ async def _get_owned_personal_deck(
             status_code=status.HTTP_404_NOT_FOUND, detail="Personal deck not found."
         )
     return deck
+
+
+async def _sync_opponent_deck_games(
+    session: DatabaseSession, deck: TSPersonalDeck, owner_id: uuid.UUID
+) -> None:
+    """Cascades a corrected `game` onto every opponent (meta) deck this
+    personal deck has been matched against — always overwrites, unlike
+    the creation-time hint (`TSMetaDeck.game`'s docstring): once a
+    personal deck's game is fixed via PATCH, the opponent decks logged
+    against it should carry that same corrected value for ML export
+    filtering, not a stale/mismatched one.
+    """
+    opponent_ids_result = await session.execute(
+        select(TSMatch.opponent_deck_id)
+        .where(TSMatch.personal_deck_id == deck.id, TSMatch.owner_id == owner_id)
+        .distinct()
+    )
+    opponent_ids = opponent_ids_result.scalars().all()
+    if not opponent_ids:
+        return
+    await session.execute(
+        update(TSMetaDeck).where(TSMetaDeck.id.in_(opponent_ids)).values(game=deck.game)
+    )
 
 
 def _moxfield_last_updated_at(raw_data: JsonValue | None) -> datetime | None:
@@ -176,12 +201,17 @@ async def patch_personal_deck(
     it *to* an already-flagged name picks it up automatically. No extra
     bookkeeping needed here: `list_team_deck_groups` matches by name at
     read time, not by a stored link on this row.
+
+    Setting/correcting `game` also cascades onto every opponent (meta)
+    deck this deck has been matched against (`_sync_opponent_deck_games`)
+    — unlike the creation-time inheritance hint, this always overwrites.
     """
     deck = await _get_owned_personal_deck(session, deck_id, current_user.id)
     if payload.name is not None:
         deck.name = payload.name
     if payload.game is not None:
         deck.game = payload.game
+        await _sync_opponent_deck_games(session, deck, current_user.id)
     if payload.category is not None:
         deck.category = payload.category
     session.add(deck)

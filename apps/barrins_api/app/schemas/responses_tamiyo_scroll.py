@@ -54,6 +54,11 @@ class ResponseMetaDeck(BaseResponse):
     name: str
     tier: float
     category: ArchetypeCategory
+    # Nullable — inherited automatically from whichever personal deck this
+    # meta deck was created against (soft data tag, no enforced constraint;
+    # see TSMetaDeck.game's docstring). None if created without that
+    # context, or if that personal deck itself had no game set yet.
+    game: CardGame | None
     decklist_notes: str | None
     top8: int
     presence: int

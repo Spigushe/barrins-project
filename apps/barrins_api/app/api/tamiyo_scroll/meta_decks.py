@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
-from app.models.tamiyo_scroll import TSMetaDeck
+from app.models.tamiyo_scroll import TSMetaDeck, TSPersonalDeck
 from app.schemas.responses_tamiyo_scroll import ResponseMetaDeck
 from app.schemas.tamiyo_scroll import MetaDeckWrite
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
@@ -74,6 +74,18 @@ async def create_meta_deck(
 ) -> ResponseMetaDeck:
     deck = TSMetaDeck(owner_id=current_user.id)
     _apply_payload(deck, payload)
+    if payload.personal_deck_id is not None:
+        # Soft inheritance, not a validated reference: an unknown/foreign
+        # id is silently ignored (deck.game stays None) rather than 404ing
+        # — this hint has no user-facing selector, it's a best-effort tag
+        # for ML export filtering, not a checked business rule.
+        personal_deck_result = await session.execute(
+            select(TSPersonalDeck.game).where(
+                TSPersonalDeck.id == payload.personal_deck_id,
+                TSPersonalDeck.owner_id == current_user.id,
+            )
+        )
+        deck.game = personal_deck_result.scalar_one_or_none()
     session.add(deck)
     await session.commit()
     await session.refresh(deck)
