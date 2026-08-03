@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `proj/v2.0.0-bump` → `staging` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started | / |
+| **Status** | 🟡 In progress — PR #46 (`proj/v2.0.0-bump` → `staging`) hit a real, structurally-recurring conflict (`recharts`/`uv.lock`, see Proposal 7); closed and replaced by #49 (`release/v2.0.0-alpha` → `staging`), built with `staging` as a real ancestor per Proposal 7's workaround | / |
 | **Source** | Mirrors R1/v1.0.0's B3, scoped to the alpha cut (§1.11) | / |
 | **Dependency** | RA1 | Blocks RA3 |
 
@@ -25,6 +25,24 @@ about *this* release's release-tracking docs should end up committed
 directly to `main` after a squash-merge — anything that can be finalized
 now (this document's own status updates) lands here, on `staging`, before
 RA3 promotes to `main`.
+
+**What actually happened (2026-08-03), not what was planned above**: the
+first attempt (PR #46, `proj/v2.0.0-bump` → `staging` directly) showed
+`mergeable: CONFLICTING` — `staging`'s own dependabot bumps
+(`@radix-ui/react-tabs` #34, others) landed after `proj/v2.0.0-bump`
+branched off, conflicting with `apps/tamiyo_scroll/package.json`/
+`package-lock.json` and `apps/barrins_api/uv.lock`. Two sync attempts
+into `proj/v2.0.0-bump` (#47, then #48 — the second a no-op, confirming
+the first already fully reconciled the *content*) did **not** clear
+PR #46's conflict, because this repository's squash-only branch
+protection never advances the git merge-base between two long-lived
+branches — see [`../consitution-amendment.md`](../consitution-amendment.md)
+**Proposal 7** for the full mechanism. The fix: PR #46 was closed, and a
+new branch (`release/v2.0.0-alpha`) was built by merging
+`proj/v2.0.0-bump` **into** `staging` (the reverse direction), making
+`staging` a real ancestor of the result — PR **#49** from that branch
+computed as a clean, conflict-free diff. #49, not #46, is this item's
+actual merge PR.
 
 ## Done statement
 
