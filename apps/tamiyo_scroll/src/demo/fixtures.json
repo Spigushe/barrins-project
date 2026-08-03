@@ -25,12 +25,12 @@
       "tier": 1,
       "category": "midrange",
       "decklist_notes": "Grindy value deck, watch out for edict effects.",
-      "top8": 4,
+      "top8": 2,
       "presence": 12,
       "expected": "as_expected",
       "tests_status": "Reviewed",
       "archived_at": null,
-      "conversion": 0.33,
+      "conversion": 16.67,
       "is_readonly": false,
       "shared_by": null,
       "has_shared_data": false,
@@ -42,12 +42,12 @@
       "tier": 1,
       "category": "combo",
       "decklist_notes": "Storm-adjacent, race it or disrupt the graveyard.",
-      "top8": 3,
+      "top8": 2,
       "presence": 9,
       "expected": "more_expected",
       "tests_status": "In progress",
       "archived_at": null,
-      "conversion": 0.33,
+      "conversion": 22.22,
       "is_readonly": false,
       "shared_by": null,
       "has_shared_data": false,
@@ -59,12 +59,12 @@
       "tier": 2,
       "category": "aggro",
       "decklist_notes": "Go wide, watch out for anthem effects.",
-      "top8": 2,
+      "top8": 1,
       "presence": 7,
       "expected": "as_expected",
       "tests_status": null,
       "archived_at": null,
-      "conversion": 0.5,
+      "conversion": 14.29,
       "is_readonly": false,
       "shared_by": null,
       "has_shared_data": false,
@@ -76,12 +76,12 @@
       "tier": 1,
       "category": "control",
       "decklist_notes": "Counterspells + card draw, close it out fast.",
-      "top8": 5,
+      "top8": 2,
       "presence": 14,
       "expected": "as_expected",
       "tests_status": "Reviewed",
       "archived_at": null,
-      "conversion": 0.36,
+      "conversion": 14.29,
       "is_readonly": false,
       "shared_by": null,
       "has_shared_data": false,
@@ -98,7 +98,7 @@
       "expected": "less_expected",
       "tests_status": null,
       "archived_at": null,
-      "conversion": 0.17,
+      "conversion": 16.67,
       "is_readonly": false,
       "shared_by": null,
       "has_shared_data": false,
@@ -307,6 +307,82 @@
       "created_at": "2026-07-29T16:00:00+00:00",
       "ended_at": null,
       "archived_at": null
+    }
+  ],
+
+  "currentUser": {
+    "id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+    "email": "you@tamiyo-scroll.demo",
+    "display_name": "You (Demo)"
+  },
+
+  "teams": [
+    {
+      "id": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
+      "name": "The Cabal (Demo)",
+      "description": "Playtest crew for the local Duel Commander meta.",
+      "invite_code": "DEMO-TEAM",
+      "owner_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+      "created_at": "2026-06-15T10:00:00+00:00",
+      "members": [
+        {
+          "user_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+          "email": "you@tamiyo-scroll.demo",
+          "display_name": "You (Demo)",
+          "is_owner": true,
+          "joined_at": "2026-06-15T10:00:00+00:00",
+          "activity_count": 7
+        },
+        {
+          "user_id": "3f1a9c5e-8b2d-4e6f-9a1c-2d3e4f5a6b7c",
+          "email": "ravi@tamiyo-scroll.demo",
+          "display_name": "Ravi",
+          "is_owner": false,
+          "joined_at": "2026-06-16T09:00:00+00:00",
+          "activity_count": 4
+        },
+        {
+          "user_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+          "email": "naya@tamiyo-scroll.demo",
+          "display_name": "Naya",
+          "is_owner": false,
+          "joined_at": "2026-06-20T14:00:00+00:00",
+          "activity_count": 2
+        }
+      ],
+      "memberDecks": [
+        {
+          "id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
+          "name": "Boros Aggro (Demo)",
+          "owner_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
+          "owner_display": "You (Demo)"
+        },
+        {
+          "id": "9c1a2b3d-4e5f-4a61-8a2b-3c4d5e6f7a8b",
+          "name": "Golgari Midrange",
+          "owner_id": "3f1a9c5e-8b2d-4e6f-9a1c-2d3e4f5a6b7c",
+          "owner_display": "Ravi"
+        },
+        {
+          "id": "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
+          "name": "Izzet Spells",
+          "owner_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+          "owner_display": "Naya"
+        }
+      ],
+      "flaggedNameKeys": ["boros aggro (demo)", "izzet spells"],
+      "threads": {
+        "izzet spells": [
+          {
+            "id": "6e5d4c3b-2a1f-4e8d-9c7b-6a5f4e3d2c1b",
+            "thread_id": "2c1b6e5d-4c3b-4a1f-8d9c-7b6a5f4e3d2c",
+            "author_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
+            "author_display": "Naya",
+            "body": "Careful with their turn-4 combo line — hold up interaction if you can.",
+            "created_at": "2026-07-25T12:00:00+00:00"
+          }
+        ]
+      }
     }
   ]
 }

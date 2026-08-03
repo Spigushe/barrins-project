@@ -33,23 +33,17 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 
 /**
- * Full team page ("full mode") — member list, the owner's deck-flagging
- * picker, per-deck-name discussion threads. Reached from the
- * account-settings popup's team-name banner (`AccountSettingsTeamSection`,
- * "quick mode") or the "Teams" tab.
+ * Route-level wrapper — pulls `teamId` from the URL and `currentUserId` from
+ * the real (token-gated) `useCurrentUser`, then delegates to
+ * `TeamPageContent`. Split out so the demo (`DemoTeamsSection`) can render
+ * the same content with a locally-selected team id and its fixed demo
+ * identity, without either of them touching real routing or auth.
  */
 export function TeamPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { data: currentUser } = useCurrentUser()
-  const { data: team } = useTeam(teamId ?? null)
-  const { data: decks } = useTeamDecks(teamId ?? null)
-  const removeMember = useRemoveTeamMember()
-  const [pendingRemove, setPendingRemove] = useState<{
-    userId: string
-    label: string
-  } | null>(null)
 
-  if (!teamId || !team) {
+  if (!teamId) {
     return (
       <Card>
         <p className="text-sm text-muted-foreground">Loading team…</p>
@@ -57,7 +51,39 @@ export function TeamPage() {
     )
   }
 
-  const isOwner = currentUser?.id === team.owner_id
+  return <TeamPageContent teamId={teamId} currentUserId={currentUser?.id ?? null} />
+}
+
+/**
+ * Full team page ("full mode") — member list, the owner's deck-flagging
+ * picker, per-deck-name discussion threads. Reached from the
+ * account-settings popup's team-name banner (`AccountSettingsTeamSection`,
+ * "quick mode") or the "Teams" tab.
+ */
+export function TeamPageContent({
+  teamId,
+  currentUserId,
+}: {
+  teamId: string
+  currentUserId: string | null
+}) {
+  const { data: team } = useTeam(teamId)
+  const { data: decks } = useTeamDecks(teamId)
+  const removeMember = useRemoveTeamMember()
+  const [pendingRemove, setPendingRemove] = useState<{
+    userId: string
+    label: string
+  } | null>(null)
+
+  if (!team) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">Loading team…</p>
+      </Card>
+    )
+  }
+
+  const isOwner = currentUserId === team.owner_id
   const resolvedTeamId: string = team.id
 
   async function confirmRemoveMember() {
@@ -263,7 +289,9 @@ function TeamHeaderCard({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CardTitle>{name}</CardTitle>
-          <Badge variant={isOwner ? 'owner' : 'default'}>{isOwner ? 'Owner' : 'Member'}</Badge>
+          <Badge variant={isOwner ? 'owner' : 'default'}>
+            {isOwner ? 'Owner' : 'Member'}
+          </Badge>
         </div>
       </div>
       {isOwner ? (

@@ -39,12 +39,24 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
   // before this provider's own effect had a chance to install the router.
   // A lazy initializer runs synchronously during this component's own
   // render, before any child even mounts.
-  const [uninstallDemoFetch] = useState(() => {
+  useState(() => {
     resetDemoStore()
-    return installDemoFetch()
+    installDemoFetch()
   })
 
-  useEffect(() => uninstallDemoFetch, [uninstallDemoFetch])
+  // Also re-installs from *inside* the effect itself, not just on that
+  // first render: React's Strict Mode (dev only) mounts effects, runs
+  // their cleanup, then mounts them again, specifically to catch a
+  // setup/teardown pair where only the first setup ever runs. Returning
+  // an already-captured cleanup here (the previous shape) is exactly that
+  // bug — the simulated cleanup call reverts `window.fetch` to the real
+  // one, and nothing puts the interceptor back before children re-fetch
+  // on the next tab switch, so their queries go out over the real fetch,
+  // 401 with no token, and `client.ts` hard-navigates to `/login`.
+  // `installDemoFetch` is idempotent, so calling it again here is a no-op
+  // on the very first pass and a genuine reinstall on Strict Mode's
+  // simulated remount.
+  useEffect(() => installDemoFetch(), [])
 
   return (
     <QueryClientProvider client={queryClient}>

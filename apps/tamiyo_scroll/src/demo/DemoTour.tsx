@@ -66,7 +66,15 @@ export function DemoTour({
       if (cancelled) return
       const target = findHeading(step.heading)
       if (target) {
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        // `behavior: 'auto'` (never 'smooth'): a smooth scroll animates over
+        // several frames, so a `getBoundingClientRect()` read on the very
+        // next line — as below — captures the heading's *pre-scroll*
+        // position. The ring/popover would render offset from the real
+        // heading until something else (e.g. a window resize) forced a
+        // re-measure, since nothing here listens for the scroll finishing.
+        // An instant scroll lands synchronously, so the immediate read is
+        // already correct.
+        target.scrollIntoView({ block: 'center', behavior: 'auto' })
         setRect(target.getBoundingClientRect())
         return
       }

@@ -3,8 +3,10 @@ import { getStore, nextId, nowIso } from '../demoStore'
 
 /** Mirrors `src/api/metaDecks.ts` — see `../api/types.ts` for the compile-time proof. */
 
+/** Top8/presence in % — mirrors the backend's `@computed_field` exactly (0-100 scale,
+ * never trusted from storage: recomputed on every read, same as the real response). */
 function conversionOf(topEight: number, presence: number): number | null {
-  return presence > 0 ? topEight / presence : null
+  return presence > 0 ? Math.round((topEight / presence) * 100 * 100) / 100 : null
 }
 
 export function listMetaDecks(
@@ -14,7 +16,12 @@ export function listMetaDecks(
   const decks = options.includeArchived
     ? store.metaDecks
     : store.metaDecks.filter((deck) => deck.archived_at === null)
-  return Promise.resolve(structuredClone(decks))
+  return Promise.resolve(
+    structuredClone(decks).map((deck) => ({
+      ...deck,
+      conversion: conversionOf(deck.top8, deck.presence),
+    })),
+  )
 }
 
 export function createMetaDeck(payload: MetaDeckWrite): Promise<MetaDeck> {

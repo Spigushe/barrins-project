@@ -4,22 +4,29 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DecklistTab } from '@/pages/DecklistTab'
 import { MetagameTab } from '@/pages/MetagameTab'
+import { SessionsTab } from '@/pages/SessionsTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
 import { DemoModeProvider } from './DemoModeProvider'
+import { DemoTeamsSection } from './DemoTeamsSection'
 import { DemoTour } from './DemoTour'
 import { type DemoTabKey } from './tourSteps'
 
+// Order and labels match the real app's tab strip (`AppShell.tsx`'s `TABS`).
 const TAB_LABELS: Record<DemoTabKey, string> = {
-  metagame: 'Metagame',
   tracker: 'BO3 Tracking',
+  metagame: 'Metagame',
   decklist: 'My decklist',
+  sessions: 'Sessions',
+  team: 'Teams',
 }
 
 /**
- * Public `/demo` route (S7) — no auth, no `barrins_api`, nothing persisted.
- * `MetagameTab`/`SuiviBo3Tab`/`DecklistTab` are the exact same components
- * used by the real app; `DemoModeProvider` is the only thing that differs
- * from a normal signed-in session.
+ * Public `/demo` route (S7, extended to 5 tabs). `MetagameTab`/`SuiviBo3Tab`/
+ * `DecklistTab`/`SessionsTab` are the exact same components used by the real
+ * app; `DemoModeProvider` is the only thing that differs from a normal
+ * signed-in session. `DemoTeamsSection` is demo-only — the real "Teams" tab
+ * navigates via `/app/team/*` routes, which don't exist under `/demo` (see
+ * its own doc comment).
  */
 export function DemoPage() {
   const [activeTab, setActiveTab] = useState<DemoTabKey>('metagame')
@@ -75,14 +82,20 @@ export function DemoPage() {
           </TabsList>
 
           <div className="mt-7 flex flex-col gap-7">
-            <TabsContent value="metagame">
-              <MetagameTab />
-            </TabsContent>
             <TabsContent value="tracker">
               <SuiviBo3Tab />
             </TabsContent>
+            <TabsContent value="metagame">
+              <MetagameTab />
+            </TabsContent>
             <TabsContent value="decklist">
               <DecklistTab />
+            </TabsContent>
+            <TabsContent value="sessions">
+              <SessionsTab />
+            </TabsContent>
+            <TabsContent value="team">
+              <DemoTeamsSection />
             </TabsContent>
           </div>
         </Tabs>

@@ -4,6 +4,8 @@ import type {
   CardTestWrite,
   MatchWrite,
   MetaDeckWrite,
+  SessionCreate,
+  SessionPatch,
 } from '@/schemas/tamiyoScroll'
 import * as cardTestsDemo from './api/cardTests'
 import * as matchesDemo from './api/matches'
@@ -11,6 +13,7 @@ import * as metaDecksDemo from './api/metaDecks'
 import * as personalDecksDemo from './api/personalDecks'
 import * as sessionsDemo from './api/sessions'
 import * as statsDemo from './api/stats'
+import * as teamsDemo from './api/teams'
 
 /**
  * The seam that lets `MetagameTab`/`SuiviBo3Tab`/`DecklistTab` — and every
@@ -215,6 +218,131 @@ const routes: Route[] = [
       sessionsDemo.listSessions(
         searchParams.get('personal_deck_id') ?? '',
         searchParams.get('include_archived') === 'true',
+      ),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/sessions$`),
+    handler: ({ body }) => sessionsDemo.createSession(body as SessionCreate),
+  },
+  {
+    method: 'PATCH',
+    pattern: new RegExp(`^${BASE}/sessions/([^/]+)$`),
+    handler: ({ params, body }) =>
+      sessionsDemo.updateSession(params[0], body as SessionPatch),
+  },
+  {
+    method: 'DELETE',
+    pattern: new RegExp(`^${BASE}/sessions/([^/]+)$`),
+    handler: ({ params }) => sessionsDemo.archiveSession(params[0]),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/sessions/([^/]+)/comparison$`),
+    handler: ({ params }) => sessionsDemo.getSessionComparison(params[0]),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/sessions/([^/]+)/report\\.pdf$`),
+    handler: ({ params }) => sessionsDemo.getSessionReportPdf(params[0]),
+    isBlob: true,
+  },
+
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/mine$`),
+    handler: () => teamsDemo.listMyTeams(),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams$`),
+    handler: ({ body }) => teamsDemo.createTeam((body as { name: string }).name),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams/join$`),
+    handler: ({ body }) =>
+      teamsDemo.joinTeam((body as { invite_code: string }).invite_code),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)$`),
+    handler: ({ params }) => teamsDemo.getTeam(params[0]),
+  },
+  {
+    method: 'PATCH',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)$`),
+    handler: ({ params, body }) =>
+      teamsDemo.updateTeamDescription(
+        params[0],
+        (body as { description: string | null }).description,
+      ),
+  },
+  {
+    method: 'DELETE',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)$`),
+    handler: ({ params, body }) =>
+      teamsDemo.deleteTeam(params[0], (body as { invite_code: string }).invite_code),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/leave$`),
+    handler: ({ params }) => teamsDemo.leaveTeam(params[0]),
+  },
+  {
+    method: 'DELETE',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/members/([^/]+)$`),
+    handler: ({ params }) => teamsDemo.removeTeamMember(params[0], params[1]),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks$`),
+    handler: ({ params }) => teamsDemo.listTeamDecks(params[0]),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/members/decks$`),
+    handler: ({ params }) => teamsDemo.listMemberDecks(params[0]),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/flags$`),
+    handler: ({ params, body }) =>
+      teamsDemo.flagTeamDeck(params[0], (body as { deck_id: string }).deck_id),
+  },
+  {
+    method: 'DELETE',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/flags/([^/]+)$`),
+    handler: ({ params }) =>
+      teamsDemo.unflagTeamDeck(params[0], decodeURIComponent(params[1])),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/([^/]+)/report\\.pdf$`),
+    handler: ({ params }) =>
+      teamsDemo.getTeamDeckReportPdf(params[0], decodeURIComponent(params[1])),
+    isBlob: true,
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/([^/]+)/thread$`),
+    handler: ({ params }) =>
+      teamsDemo.enableTeamDeckThread(params[0], decodeURIComponent(params[1])),
+  },
+  {
+    method: 'GET',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/([^/]+)/thread/messages$`),
+    handler: ({ params }) =>
+      teamsDemo.listTeamDeckThreadMessages(params[0], decodeURIComponent(params[1])),
+  },
+  {
+    method: 'POST',
+    pattern: new RegExp(`^${BASE}/teams/([^/]+)/decks/([^/]+)/thread/messages$`),
+    handler: ({ params, body }) =>
+      teamsDemo.postTeamDeckThreadMessage(
+        params[0],
+        decodeURIComponent(params[1]),
+        (body as { body: string }).body,
       ),
   },
 ]

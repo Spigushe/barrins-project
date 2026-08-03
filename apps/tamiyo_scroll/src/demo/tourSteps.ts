@@ -1,4 +1,4 @@
-export type DemoTabKey = 'metagame' | 'tracker' | 'decklist'
+export type DemoTabKey = 'tracker' | 'metagame' | 'decklist' | 'sessions' | 'team'
 
 export interface TourStep {
   tab: DemoTabKey
@@ -66,5 +66,19 @@ export const TOUR_STEPS: TourStep[] = [
     heading: 'Version history',
     title: 'Version history',
     description: 'Every saved version of the decklist, most recent first.',
+  },
+  {
+    tab: 'sessions',
+    heading: 'Sessions',
+    title: 'Sessions',
+    description:
+      'Group games by tournament or training. Select a session to see its winrate compared against the deck’s history before it started.',
+  },
+  {
+    tab: 'team',
+    heading: 'Members',
+    title: 'Teams',
+    description:
+      'Share a testing rotation with teammates: flag decks into the team, see who owns what, and discuss matchups per deck.',
   },
 ]
