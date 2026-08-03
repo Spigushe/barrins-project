@@ -32,6 +32,7 @@ from sqlalchemy import select
 from app.database.session import DatabaseSession
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
+    CardGame,
     ExpectedLevel,
     GameResult,
     TSMatch,
@@ -98,6 +99,7 @@ class EffectiveMetaDeck:
     name: str
     tier: Decimal
     category: ArchetypeCategory
+    game: CardGame | None
     decklist_notes: str | None
     top8: int
     presence: int
@@ -145,6 +147,7 @@ def _from_meta_deck(
         name=deck.name,
         tier=deck.tier,
         category=deck.category,
+        game=deck.game,
         decklist_notes=deck.decklist_notes,
         top8=deck.top8,
         presence=deck.presence,
@@ -343,7 +346,8 @@ async def build_merged_view(
 
     if own_ids_with_shared_matches:
         effective_meta_decks = [
-            replace(d, has_shared_data=True) if d.id in own_ids_with_shared_matches
+            replace(d, has_shared_data=True)
+            if d.id in own_ids_with_shared_matches
             else d
             for d in effective_meta_decks
         ]
