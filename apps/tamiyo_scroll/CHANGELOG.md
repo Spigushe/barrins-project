@@ -3,7 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0-alpha] - 2026-08-03
 
 ### Added
 
@@ -76,6 +76,41 @@ section of the docs site for details.
   badges (`warning`/`destructive`/`success`).
 - App logo (`/favicon.svg`) shown next to the "Tamiyo Scroll" header
   title.
+- Admin-only usage/metrics page (`AdminMetricsPage`, gated the same way
+  as every other protected route, reachable only to `admin`-role
+  accounts): flat account/deck/match totals, plus a day/week/month
+  time-bucketed chart per metric (new `recharts` dependency — no
+  charting library existed in this app before).
+- Public, unauthenticated demo/tutorial interface at `/demo` (linked
+  from `LoginPage` and `RootRedirect`): a fixture-backed
+  (`src/demo/fixtures.json`) mirror of the real app — all five tabs
+  (Tracker, Metagame, Decklist, Sessions, Team), matching prod's tab
+  order and default landing tab — plus a guided-tour overlay (existing
+  Radix/shadcn primitives, no new dependency) walking through the seeded
+  data. Nothing typed/edited during a demo session is ever sent to
+  `barrins_api` or persisted anywhere; a page reload resets it. Winrate/
+  conversion figures are computed by a line-for-line port of the
+  backend's own formulas (`demo/api/statsCore.ts`), not a separate,
+  divergent calculation.
+- `game` (S10) and `category`/macrotype (S11) selectors, **required**,
+  on personal-deck creation; an inline "set game"/"set macrotype"
+  affordance (calling the new `PATCH /personal-decks/{id}`) wherever a
+  `NULL`-valued historical deck blocks match logging/editing; a
+  one-time, dismissible migration notice explaining the new required
+  fields; and a colored macrotype badge (same tokens as the stats block)
+  shown wherever a deck is displayed or selected.
+- Personal-deck creation's inline "Create …" row now shows a green
+  `[new]` label while the typed name doesn't match an existing deck.
+- The tested-cards deck select (`CardTestsSection`, create form and edit
+  row) is rebuilt on the same search + shared-deck-badge combobox
+  pattern already used by the BO3 opponent select.
+- A new "Display" section in the account-settings popup: four
+  `localStorage`-backed, per-browser preferences (not synced
+  server-side) — match-up row background tint by winrate band (default
+  on), "2W / 0L"-style result format (default off), colored roster
+  archetype cell (default off), and a 3-color roster tier background
+  (default off).
+- Deleting a roster deck now asks for confirmation before archiving it.
 
 ### Changed
 
@@ -94,6 +129,14 @@ section of the docs site for details.
   small accent checkmark, replacing the previous abstract purple mark,
   to match the app's own OKLCH design tokens.
 - `MetagameTab.tsx`: sections reordered for improved layout.
+- Match journal's "Final turn" field relabelled; the underlying
+  `final_turn`/`finalTurn` field name is unchanged (display-only).
+- Match-up summary table: "Games" column header relabelled "Matches"
+  (still the same `match_count` value); the six non-"Vs. deck" columns
+  are narrower so the deck-name column gets the freed space; the
+  winrate-band legend now renders above the table instead of below;
+  the W/L OTP/OTD cells render in muted grey instead of the default
+  text color.
 
 ### Fixed
 
@@ -103,6 +146,12 @@ section of the docs site for details.
   is now reserved for a genuine no-majority result once all three
   games have actually been played.
 - `index.html` title: corrected spelling from "Tamyio" to "Tamiyo".
+- Current-decklist legend swatch color never applied — it was derived
+  at runtime (`DECKLIST_LINE_STATUS_TEXT_CLASS[status].replace('text-',
+  'bg-')`), which Tailwind's class scanner can't detect since only
+  literal class strings get built. Added an explicit
+  `DECKLIST_LINE_STATUS_BG_CLASS` map instead, and moved the legend row
+  up next to the version controls.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

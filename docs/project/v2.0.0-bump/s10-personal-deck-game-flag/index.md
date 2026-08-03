@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (FastAPI), `apps/tamiyo_scroll` (React/Vite) | / |
 | **Initial date** | 2026-07-27 | Drafted 2026-07-27 |
-| **Status** | 🔲 Not started — **in scope for v2.0.0 (2026-07-28)**, built as a parallel of S11 | Un-deferred from v3.0.0 on 2026-07-28: the logging gate gives it a live v2 consumer. Added to the Group S table in `../index.md` |
+| **Status** | ✅ Done — backend (`12689bf`) + frontend (`94bfed0`), plus the 2026-08-03 follow-up cascading `game` to opponent/meta decks (`58d847c`). Final enum: `magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana` (resolves open question 1 below — `other` dropped, `one_piece` added) | Un-deferred from v3.0.0 on 2026-07-28: the logging gate gives it a live v2 consumer. Added to the Group S table in `../index.md` |
 | **Source** | User request, 2026-07-27 conversation (scope confirmed for v2.0.0 on 2026-07-28) | / |
 | **Dependency** | None (technical). Coordinates with **S3** and **S11** — all edit the match-creation path (`_validate_match_refs`), and S10/S11 share the new `PATCH /personal-decks/{id}` route | / |
 

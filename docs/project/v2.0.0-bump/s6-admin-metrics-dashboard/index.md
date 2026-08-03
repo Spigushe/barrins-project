@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (`app/api/tamiyo_scroll/admin.py`, `app/services/metrics/`), `apps/tamiyo_scroll` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — scope resolved 2026-07-25 (§1.7), staged | / |
+| **Status** | ✅ Done — flat-count dashboard (`24467cd`/`ff1171f`) and the time-bucketed comparison (`41a3a1b`/`e37215c`) both shipped; recorded `cb0fe44` | / |
 | **Source** | Request; `v2.0.0-bump/index.md` §1.7 | / |
 | **Dependency** | None technical (role infra already exists) | / |
 

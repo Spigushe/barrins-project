@@ -3,7 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0-alpha] - 2026-08-03
 
 ### Added
 
@@ -16,9 +16,10 @@ section of the docs site for details.
   read time rather than a per-deck link; per-team-deck-name discussion
   threads (`ts_team_deck_threads`); a cumulative team-deck PDF report per
   flagged name (`GET .../teams/{id}/decks/{name_key}/report.pdf`,
-  aggregating every contributing member's data); and
-  `PATCH /personal-decks/{id}` to rename a deck (renaming into/out of a
-  flagged name joins/leaves a team-deck's rotation).
+  aggregating every contributing member's data); and reuses the new
+  `PATCH /personal-decks/{id}` route (below, S10/S11) to rename a deck —
+  renaming into/out of a flagged name joins/leaves a team-deck's
+  rotation.
 - Server-rendered PDF training reports (WeasyPrint, pinned `>=69.0`, see
   ADR I8): `GET .../sessions/{id}/report.pdf` for one training/tournament
   session (decklist version used, matches logged against it, win rate vs.
@@ -64,6 +65,29 @@ section of the docs site for details.
   constraint on its natural key so replaying the scrape archive through a
   future ingestion route is an idempotent upsert. Not yet wired to any
   route.
+- Admin usage/metrics dashboard (`app/api/tamiyo_scroll/admin.py`, gated
+  by `AdminUser`): flat totals (accounts, personal decks, matches
+  recorded) via `app/services/metrics/`, plus day (last 30)/week (last
+  12)/month (last 12) time-bucketed breakdowns of the same three counts
+  (`app/services/metrics/timeseries.py`, `GET
+  /admin/metrics/timeseries`), computed server-side via `GROUP BY
+  date_trunc(...)`.
+- `CardGame` field on `TSPersonalDeck` (S10) and a reused
+  `ArchetypeCategory` `category` field (S11, same enum/Postgres type as
+  the meta-deck roster): both nullable, no default/backfill, **required**
+  on new-deck creation, and gating `_validate_match_refs` — logging or
+  editing a match on a deck with `game`/`category IS NULL` is rejected
+  with `422 personal_deck_game_required`/`422
+  personal_deck_macrotype_required`. New `PATCH /personal-decks/{id}`
+  route (first-ever PATCH on this resource) sets either field, and an
+  optional `name`, to unblock historical decks and allow renames (a
+  rename is also how a member joins/leaves a team-deck's name-based
+  sharing rotation, S2). `CardGame`: `magic`, `yu_gi_oh`, `pokemon`,
+  `flesh_and_blood`, `one_piece`, `lorcana`.
+- Meta-deck `game` inheritance: a newly-created opponent/meta deck
+  inherits its creating personal deck's `game`, and cascades to that
+  meta deck's own opponent entries, so a non-Magic personal deck doesn't
+  silently produce `NULL`-game meta decks (2026-08-03 follow-up to S10).
 
 ### Changed
 
@@ -98,6 +122,11 @@ section of the docs site for details.
   non-archived owner roster entries count as a name match now; an
   archived match falls back to the sharer's own entry as a new read-only
   line, same as no match at all.
+- `GET /meta-decks` no longer 422s for any account with sharing enabled:
+  `EffectiveMetaDeck` (`sharing_merge.py`) wasn't updated when S10 added
+  `game` to `TSPersonalDeck`/meta decks, so `ResponseMetaDeck.
+  model_validate()` failed Pydantic validation on the merged roster,
+  breaking the whole list rather than just the new decks.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 
