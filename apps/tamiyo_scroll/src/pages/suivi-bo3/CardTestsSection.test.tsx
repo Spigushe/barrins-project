@@ -1,16 +1,33 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CardTestsSection } from './CardTestsSection'
 
+const createTestMutateAsync = vi.fn()
+const updateTestMutateAsync = vi.fn()
+
 vi.mock('@/hooks/useCardTests', () => ({
-  useCardTests: () => ({ data: [] }),
-  useCreateCardTest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCardTests: () => ({ data: cardTests }),
+  useCreateCardTest: () => ({ mutateAsync: createTestMutateAsync, isPending: false }),
   useDeleteCardTest: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useUpdateCardTest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateCardTest: () => ({ mutateAsync: updateTestMutateAsync, isPending: false }),
 }))
 
+const metaDecks = [
+  { id: 'deck-a', name: 'Azorius Control', is_readonly: false },
+  { id: 'deck-b', name: 'Boros Aggro', is_readonly: true },
+]
+let cardTests: {
+  id: string
+  tester: string
+  card_name: string
+  opponent_deck_id: string | null
+  rating: number
+  notes: string | null
+}[] = []
+
 vi.mock('@/hooks/useMetaDecks', () => ({
-  useMetaDecks: () => ({ data: [] }),
+  useMetaDecks: () => ({ data: metaDecks }),
 }))
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -23,8 +40,63 @@ vi.mock('@/contexts/active-deck-context', () => ({
 
 describe('CardTestsSection', () => {
   it('prefills the tester input with the current user display name', () => {
+    cardTests = []
     render(<CardTestsSection />)
 
     expect(screen.getByLabelText('Nickname')).toHaveValue('Alice')
+  })
+})
+
+// S12 item 2: the Match-up select is rebuilt on the same Popover+Command
+// combobox pattern as `OpponentDeckField` — search, select, and a
+// "shared" sub-label, no inline create (out of scope per the doc).
+describe('CardTestsSection — Match-up combobox parity', () => {
+  it('searches and selects an opponent deck in the create form', async () => {
+    cardTests = []
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Match-up' }))
+    await user.type(screen.getByPlaceholderText('Search…'), 'Azorius')
+    await user.click(screen.getByText('Azorius Control'))
+
+    expect(screen.getByRole('button', { name: 'Match-up' })).toHaveTextContent(
+      'Azorius Control',
+    )
+  })
+
+  it('shows the shared sub-label for a readonly deck, without offering inline create', async () => {
+    cardTests = []
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Match-up' }))
+
+    expect(
+      screen.getByText('shared — tap to add to your roster'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/^Create "/)).not.toBeInTheDocument()
+  })
+
+  it('uses the same combobox for the edit row, pre-filled with the current matchup', async () => {
+    cardTests = [
+      {
+        id: 'test-1',
+        tester: 'Alice',
+        card_name: 'Lightning Bolt',
+        opponent_deck_id: 'deck-a',
+        rating: 3,
+        notes: null,
+      },
+    ]
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+
+    const matchupButtons = screen.getAllByRole('button', { name: 'Match-up' })
+    // One in the create form, one in the now-editing row.
+    expect(matchupButtons).toHaveLength(2)
+    expect(matchupButtons[1]).toHaveTextContent('Azorius Control')
   })
 })

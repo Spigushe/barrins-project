@@ -3,17 +3,16 @@
 import uuid
 
 from fastapi import APIRouter
-from sqlalchemy import select
 
 from app.database.session import DatabaseSession
-from app.models.tamiyo_scroll import TSMatch, TSMetaDeck
+from app.dependencies.auth import CurrentUser
 from app.schemas.responses_tamiyo_scroll import (
     ResponseArchetypeSummary,
     ResponseDeckWinrate,
     ResponseMatchupRow,
     ResponseMatchupSummary,
 )
-from app.services.tamiyo_scroll.ownership import ResolvedOwner
+from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 from app.services.tamiyo_scroll.stats import (
     compute_archetype_summary,
     compute_matchup_summary,
@@ -25,23 +24,17 @@ router = APIRouter()
 @router.get("/archetype-summary", response_model=list[ResponseArchetypeSummary])
 async def get_archetype_summary(
     session: DatabaseSession,
-    owner: ResolvedOwner,
+    current_user: CurrentUser,
     personal_deck_id: uuid.UUID | None = None,
 ) -> list[ResponseArchetypeSummary]:
-    meta_decks_result = await session.execute(
-        select(TSMetaDeck).where(
-            TSMetaDeck.owner_id == owner.id, TSMetaDeck.archived_at.is_(None)
-        )
+    view = await build_merged_view(
+        session, current_user, personal_deck_id=personal_deck_id
     )
-    meta_decks = meta_decks_result.scalars().all()
+    meta_decks = [d for d in view.meta_decks if d.archived_at is None]
 
-    stmt = select(TSMatch).where(TSMatch.owner_id == owner.id)
-    if personal_deck_id is not None:
-        stmt = stmt.where(TSMatch.personal_deck_id == personal_deck_id)
-    matches_result = await session.execute(stmt)
-    matches = matches_result.scalars().all()
-
-    summaries = compute_archetype_summary(meta_decks, matches)
+    summaries = compute_archetype_summary(
+        meta_decks, view.matches, view.readonly_meta_deck_ids
+    )
     return [
         ResponseArchetypeSummary(
             category=summary["category"],
@@ -55,21 +48,17 @@ async def get_archetype_summary(
 @router.get("/matchup-summary", response_model=ResponseMatchupSummary)
 async def get_matchup_summary(
     session: DatabaseSession,
-    owner: ResolvedOwner,
+    current_user: CurrentUser,
     personal_deck_id: uuid.UUID | None = None,
 ) -> ResponseMatchupSummary:
-    stmt = select(TSMatch).where(TSMatch.owner_id == owner.id)
-    if personal_deck_id is not None:
-        stmt = stmt.where(TSMatch.personal_deck_id == personal_deck_id)
-    matches_result = await session.execute(stmt)
-    matches = matches_result.scalars().all()
-
-    meta_decks_result = await session.execute(
-        select(TSMetaDeck).where(TSMetaDeck.owner_id == owner.id)
+    view = await build_merged_view(
+        session, current_user, personal_deck_id=personal_deck_id
     )
-    meta_decks_by_id = {d.id: d for d in meta_decks_result.scalars().all()}
+    meta_decks_by_id = {d.id: d for d in view.meta_decks}
 
-    rows, average_winrate = compute_matchup_summary(matches, meta_decks_by_id)
+    rows, average_winrate = compute_matchup_summary(
+        view.matches, meta_decks_by_id, view.readonly_meta_deck_ids
+    )
     return ResponseMatchupSummary(
         rows=[ResponseMatchupRow(**row) for row in rows],
         average_winrate=average_winrate,

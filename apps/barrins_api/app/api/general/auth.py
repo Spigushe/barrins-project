@@ -32,6 +32,7 @@ from app.schemas.auth import (
     SignupResponse,
     TokenPair,
     UserCreate,
+    UserProfileUpdate,
     UserRead,
     UserSignup,
     VerifyEmailRequest,
@@ -124,6 +125,18 @@ async def register(
 @router.get("/me", response_model=UserRead)
 async def get_me(user: CurrentUser) -> UserRead:
     """Return the authenticated user's profile."""
+    return UserRead.model_validate(user)
+
+
+@router.patch("/me", response_model=UserRead)
+async def update_me(
+    payload: UserProfileUpdate, session: DatabaseSession, user: CurrentUser
+) -> UserRead:
+    """Self-service profile update (display name only)."""
+    user.display_name = payload.display_name
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
     return UserRead.model_validate(user)
 
 

@@ -25,7 +25,7 @@ npm run dev        # Vite dev server, http://localhost:5173
 Log in, then the 3 tabs are under `/app/*`:
 
 - `/app/metagame` — roster, expected metagame, personal decklist import, archetype summary
-- `/app/bo3-tracker` — new match, match log, tested cards
+- `/app/tracker` — new match, match log, tested cards
 - `/app/decklist` — current decklist + version history
 
 ## CLI commands for writing code

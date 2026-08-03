@@ -3,6 +3,19 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [2.0.0-alpha] - 2026-08-03
+
+### Added
+
+- `docs/mkdocs.yml`: nav entry for the new Tamiyo Scroll feature roadmap
+  page (`front/tamiyo_scroll/roadmap.md`), the source of S12's bundled
+  UI/UX polish items.
+- `docs/cspell.json`: technical terms and proper nouns introduced while
+  planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
+  `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,
+  `skillset`, `unvalidated`, `Weasy`/`weasyprint`, `workstreams`, among
+  others).
+
 ## [1.0.0] "WorldWake" - 2026-07-24
 
 ### Added

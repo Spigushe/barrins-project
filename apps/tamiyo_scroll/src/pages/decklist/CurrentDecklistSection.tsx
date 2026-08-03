@@ -1,12 +1,16 @@
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useDecklistVersions, useDecklistView } from '@/hooks/useDecklistVersions'
+import { useDownloadDeckReport, usePersonalDecks } from '@/hooks/usePersonalDecks'
 import {
+  DECKLIST_LINE_STATUS_BG_CLASS,
   DECKLIST_LINE_STATUS_LABELS,
   DECKLIST_LINE_STATUS_TEXT_CLASS,
+  deckReportFilename,
   formatDateTime,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 
 const LEGEND_STATUSES = ['in_test', 'validated', 'rejected'] as const
@@ -15,37 +19,53 @@ export function CurrentDecklistSection() {
   const { activeDeckId } = useActiveDeck()
   const { data: versions } = useDecklistVersions(activeDeckId)
   const { data: lines } = useDecklistView(activeDeckId)
+  const { data: personalDecks } = usePersonalDecks()
+  const downloadReport = useDownloadDeckReport()
 
   if (activeDeckId === null) return null
 
   const latest = versions?.[0]
+  const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
 
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <CardTitle>Current decklist</CardTitle>
-        {latest && (
-          <div className="flex items-center gap-2">
-            <Badge variant="accent">VERSION {latest.version}</Badge>
-            <span className="text-[12.5px] text-muted-foreground">
-              {formatDateTime(latest.created_at)}
-            </span>
+        <div className="ml-auto flex items-center gap-2">
+          {latest && (
+            <>
+              <Badge variant="accent">VERSION {latest.version}</Badge>
+              <span className="text-[12.5px] text-muted-foreground">
+                {formatDateTime(latest.created_at)}
+              </span>
+            </>
+          )}
+          <div className="flex flex-wrap items-center gap-3 text-[11.5px] text-muted-foreground">
+            {LEGEND_STATUSES.map((status) => (
+              <span key={status} className="flex items-center gap-1.5">
+                <span
+                  className={cn('size-2.5 rounded-full', DECKLIST_LINE_STATUS_BG_CLASS[status])}
+                />
+                {DECKLIST_LINE_STATUS_LABELS[status]}
+              </span>
+            ))}
           </div>
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-3 text-[11.5px] text-muted-foreground">
-        {LEGEND_STATUSES.map((status) => (
-          <span key={status} className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                'size-2.5 rounded-full',
-                DECKLIST_LINE_STATUS_TEXT_CLASS[status].replace('text-', 'bg-'),
-              )}
-            />
-            {DECKLIST_LINE_STATUS_LABELS[status]}
-          </span>
-        ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={downloadReport.isPending || !activeDeck}
+            onClick={() => {
+              if (!activeDeck) return
+              downloadReport.mutate({
+                deckId: activeDeck.id,
+                filename: deckReportFilename(activeDeck),
+              })
+            }}
+          >
+            {downloadReport.isPending ? 'Generating…' : 'Download report (PDF)'}
+          </Button>
+        </div>
       </div>
 
       {!latest && (

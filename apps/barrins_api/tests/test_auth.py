@@ -459,6 +459,48 @@ class TestGetMe:
         assert resp.status_code == 401
 
 
+class TestUpdateMe:
+    async def test_sets_display_name(self, client: AsyncClient, regular_user: User):
+        token = _access_token_for(regular_user)
+        resp = await client.patch(
+            "/api/v1/auth/me",
+            json={"display_name": "Jace"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["display_name"] == "Jace"
+
+    async def test_clears_display_name_with_explicit_null(
+        self, client: AsyncClient, regular_user: User
+    ):
+        token = _access_token_for(regular_user)
+        headers = {"Authorization": f"Bearer {token}"}
+        await client.patch(
+            "/api/v1/auth/me", json={"display_name": "Jace"}, headers=headers
+        )
+
+        resp = await client.patch(
+            "/api/v1/auth/me", json={"display_name": None}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["display_name"] is None
+
+    async def test_no_token_returns_401(self, client: AsyncClient):
+        resp = await client.patch("/api/v1/auth/me", json={"display_name": "Jace"})
+        assert resp.status_code == 401
+
+    async def test_extra_field_returns_422(
+        self, client: AsyncClient, regular_user: User
+    ):
+        token = _access_token_for(regular_user)
+        resp = await client.patch(
+            "/api/v1/auth/me",
+            json={"role": "admin"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # POST /auth/register
 # ---------------------------------------------------------------------------

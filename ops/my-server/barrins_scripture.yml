@@ -1,0 +1,36 @@
+---
+# Dedicated playbook for Barrin's Scripture's scheduled scrape. This app
+# has no HTTP-facing component (see apps/barrins_scripture/README.md) —
+# it's a scheduled job, not a deployed web service — so no domain/SSL/
+# reverse-proxy roles are involved here, unlike barrins_api.yml/docs.yml.
+- name: Deploy/schedule the Barrin's Scripture scraper
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    scripture_scraper_repo: Spigushe/barrins-project
+    scripture_scraper_repo_subdir: apps/barrins_scripture
+    scripture_scraper_app_name: barrins_scripture
+    # Defaults to staging until T1's rewrite is proven equivalent to
+    # mtg_scraper (see that item's own done statement) — pass
+    # -e scripture_scraper_git_branch=main once it's ready to cut over.
+    scripture_scraper_git_branch: "{{ deploy_branch | default('staging') }}"
+
+  roles:
+    - role: github_token
+
+    - role: scripture_scraper
+      tags: [scripture, deploy]
+
+  post_tasks:
+    - name: Reminder — the JSON archive isn't a git submodule yet
+      ansible.builtin.debug:
+        msg:
+          - "{{ scripture_scraper_config.output_dir }} is a plain"
+          - "directory on this host, not (yet) a git submodule pointing"
+          - "at mtg_decklist_cache — see T1's remaining tasks"
+          - "(docs/project/v2.0.0-bump/t1-scripture-repo-migration/)."
+          - "Nothing here commits or pushes the archive anywhere; wiring"
+          - "that up is still open."
+      tags: [scripture, deploy]

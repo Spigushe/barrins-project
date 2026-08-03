@@ -29,6 +29,22 @@
     # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
 
+  pre_tasks:
+    - name: Install WeasyPrint's native dependencies (S5 — Pango/cairo/GDK-Pixbuf)
+      tags:
+        - backend
+        - deploy
+      ansible.builtin.apt:
+        state: present
+        update_cache: true
+        cache_valid_time: "3600"
+        name:
+          - libpango-1.0-0
+          - libpangocairo-1.0-0
+          - libcairo2
+          - libgdk-pixbuf-2.0-0
+          - shared-mime-info
+
   roles:
     - role: github_token
 

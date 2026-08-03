@@ -26,8 +26,9 @@ def _match(
     game2: GameResult | None = None,
     game3: GameResult | None = None,
     personal_deck_id: uuid.UUID | None = None,
+    is_readonly: bool = False,
 ) -> TSMatch:
-    return TSMatch(
+    match = TSMatch(
         owner_id=uuid.uuid4(),
         personal_deck_id=personal_deck_id or uuid.uuid4(),
         opponent_deck_id=opponent_deck_id,
@@ -36,6 +37,11 @@ def _match(
         game2=game2,
         game3=game3,
     )
+    # TSMatch itself has no is_readonly column — only the EffectiveMatch
+    # wrapper (sharing_merge.py) does. Set it as a plain attribute so
+    # these fixtures still satisfy MatchLike's is_readonly requirement.
+    match.is_readonly = is_readonly  # type: ignore[attr-defined]
+    return match
 
 
 def _meta_deck(
@@ -115,7 +121,15 @@ class TestComputeArchetypeSummary:
         control = next(
             s for s in summaries if s["category"] == ArchetypeCategory.control
         )
-        assert control["decks"] == [{"id": deck.id, "name": deck.name, "winrate": None}]
+        assert control["decks"] == [
+            {
+                "id": deck.id,
+                "name": deck.name,
+                "winrate": None,
+                "is_readonly": False,
+                "has_shared_data": False,
+            }
+        ]
         assert control["average_winrate"] is None
 
     def test_average_winrate_ignores_decks_without_data(self):
@@ -132,6 +146,34 @@ class TestComputeArchetypeSummary:
         assert combo["average_winrate"] == 100.0
         winrates = {d["name"]: d["winrate"] for d in combo["decks"]}
         assert winrates == {"A": 100.0, "B": None}
+
+    def test_has_shared_data_true_when_an_own_deck_has_a_readonly_match(self):
+        deck = _meta_deck(name="Mixed Deck", category=ArchetypeCategory.midrange)
+        matches = [
+            _match(opponent_deck_id=deck.id, game1=GameResult.win, is_readonly=False),
+            _match(opponent_deck_id=deck.id, game1=GameResult.loss, is_readonly=True),
+        ]
+        summaries = compute_archetype_summary([deck], matches)
+        midrange = next(
+            s for s in summaries if s["category"] == ArchetypeCategory.midrange
+        )
+        assert midrange["decks"][0]["has_shared_data"] is True
+
+    def test_has_shared_data_false_for_a_fully_readonly_deck(self):
+        """A fully-foreign deck is flagged via is_readonly already — its own
+        matches being read-only isn't additionally "mixed" data."""
+        deck = _meta_deck(name="Foreign Deck", category=ArchetypeCategory.midrange)
+        matches = [
+            _match(opponent_deck_id=deck.id, game1=GameResult.win, is_readonly=True)
+        ]
+        summaries = compute_archetype_summary(
+            [deck], matches, readonly_meta_deck_ids=frozenset({deck.id})
+        )
+        midrange = next(
+            s for s in summaries if s["category"] == ArchetypeCategory.midrange
+        )
+        assert midrange["decks"][0]["is_readonly"] is True
+        assert midrange["decks"][0]["has_shared_data"] is False
 
     def test_decks_sorted_by_name(self):
         deck_z = _meta_deck(name="Zoo", category=ArchetypeCategory.aggro)

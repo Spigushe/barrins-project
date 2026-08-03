@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { useActiveDeck } from '@/contexts/active-deck-context'
+import { useDecklistVersions } from '@/hooks/useDecklistVersions'
 import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
 import { useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
-import type { GameResult, Match } from '@/schemas/tamiyoScroll'
+import { useSessions } from '@/hooks/useSessions'
+import type { GameResult, Match, Session } from '@/schemas/tamiyoScroll'
 import {
   formatDate,
   GAME_RESULT_BORDER_CLASS,
   GAME_RESULT_LABELS,
+  SESSION_TYPE_BADGE_VARIANT,
+  SESSION_TYPE_LABELS,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { personalDeckNeedsSetup, PersonalDeckSetupControl } from '@/components/layout/PersonalDeckSetupControl'
 import {
   draftFromMatch,
   MatchFormFields,
@@ -30,10 +35,14 @@ function matchOutcome(match: Match): GameResult | null {
   )
   const wins = games.filter((game) => game === 'win').length
   const losses = games.filter((game) => game === 'loss').length
-  if (wins >= 2) return 'win'
-  if (losses >= 2) return 'loss'
-  if (games.length === 0) return null
-  return 'draw'
+
+  // Matches can be closed in only one game, e.g. 1-0 or 0-1, so we need to handle that case as well.
+  if (wins > losses) return 'win'
+  if (losses > wins) return 'loss'
+  if (wins === losses && games.length > 0) return 'draw'
+
+  // If there are no games, we return null to indicate that the outcome is unknown.
+  return null
 }
 
 function gamesSummary(match: Match): string {
@@ -48,23 +57,43 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
   draw: 'warning',
 }
 
+/** Session tag, colored by session type (S9) — same mapping as the
+ * Sessions tab (`SESSION_TYPE_BADGE_VARIANT`). Falls back to the default
+ * badge variant if the session isn't in the (non-archived) list, e.g. an
+ * archived session a historical match still points to. */
+function SessionBadge({ session }: { session: Session | undefined }) {
+  if (!session) return <Badge>?</Badge>
+  return (
+    <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>
+      {SESSION_TYPE_LABELS[session.type]}: {session.name}
+    </Badge>
+  )
+}
+
 export function MatchJournalSection() {
   const { canEdit, activeDeckId } = useActiveDeck()
   const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
+  const { data: sessions } = useSessions(activeDeckId)
   const updateMatch = useUpdateMatch()
   const deleteMatch = useDeleteMatch()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MatchDraft | null>(null)
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null)
+  const { data: editingDeckVersions } = useDecklistVersions(
+    editDraft?.personalDeckId ?? null,
+  )
 
   function personalDeckName(id: string) {
     return personalDecks?.find((deck) => deck.id === id)?.name ?? '?'
   }
   function opponentDeckName(id: string) {
     return metaDecks?.find((deck) => deck.id === id)?.name ?? '?'
+  }
+  function sessionById(id: string) {
+    return sessions?.find((session) => session.id === id)
   }
 
   function startEdit(match: Match) {
@@ -89,6 +118,10 @@ export function MatchJournalSection() {
       <div className="mt-3 flex flex-col gap-3">
         {matches?.map((match) => {
           if (editingId === match.id && editDraft) {
+            const editingDeck = personalDecks?.find(
+              (deck) => deck.id === editDraft.personalDeckId,
+            )
+            const blockedBySetup = personalDeckNeedsSetup(editingDeck)
             return (
               <div
                 key={match.id}
@@ -99,11 +132,21 @@ export function MatchJournalSection() {
                   onChange={setEditDraft}
                   personalDeckOptions={personalDecks ?? []}
                   metaDeckOptions={metaDecks ?? []}
+                  decklistVersionOptions={editingDeckVersions}
                 />
+                {editingDeck && blockedBySetup && (
+                  <div className="mt-3">
+                    <PersonalDeckSetupControl deck={editingDeck} />
+                  </div>
+                )}
                 <div className="mt-4 flex gap-2">
                   <Button
                     type="button"
-                    disabled={!matchDraftIsValid(editDraft) || updateMatch.isPending}
+                    disabled={
+                      !matchDraftIsValid(editDraft) ||
+                      blockedBySetup ||
+                      updateMatch.isPending
+                    }
                     onClick={() => {
                       void handleSaveEdit(match.id)
                     }}
@@ -151,6 +194,12 @@ export function MatchJournalSection() {
                 <span className="text-[12.5px] text-subtle-foreground">
                   {formatDate(match.date)}
                 </span>
+                {match.session_id && (
+                  <SessionBadge session={sessionById(match.session_id)} />
+                )}
+                {match.is_readonly && (
+                  <Badge variant="shared">sharer: {match.shared_by}</Badge>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -163,7 +212,7 @@ export function MatchJournalSection() {
                 >
                   View
                 </Button>
-                {canEdit && (
+                {canEdit && !match.is_readonly && (
                   <>
                     <Button
                       type="button"
@@ -209,25 +258,34 @@ export function MatchJournalSection() {
               {opponentDeckName(viewingMatch.opponent_deck_id)}
             </DialogTitle>
             <div className="flex flex-col gap-3 text-sm">
-              <div className="flex flex-wrap gap-3 text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                 <span>{formatDate(viewingMatch.date)}</span>
                 <span>{viewingMatch.on_play ? 'On the Play' : 'On the Draw'}</span>
                 <span className="font-mono">{gamesSummary(viewingMatch)}</span>
+                {viewingMatch.session_id && (
+                  <SessionBadge session={sessionById(viewingMatch.session_id)} />
+                )}
+                {viewingMatch.is_readonly && (
+                  <Badge variant="shared">sharer: {viewingMatch.shared_by}</Badge>
+                )}
               </div>
               <div>
-                <Label>Opening hand</Label>
+                {/* S12 item 3: label-only rename — `opening_hand` unchanged. */}
+                <Label>Game 1 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.opening_hand || '—'}
                 </p>
               </div>
               <div>
-                <Label>Turning point</Label>
+                {/* S12 item 3: label-only rename — `turning_point` unchanged. */}
+                <Label>Game 2 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.turning_point || '—'}
                 </p>
               </div>
               <div>
-                <Label>Final turn</Label>
+                {/* S12 item 3: label-only rename — `final_turn` unchanged. */}
+                <Label>Game 3 Notes</Label>
                 <p className="mt-1 whitespace-pre-wrap text-foreground">
                   {viewingMatch.final_turn || '—'}
                 </p>
