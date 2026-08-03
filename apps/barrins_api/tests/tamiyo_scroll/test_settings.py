@@ -1,4 +1,4 @@
-"""Tests for /bff/tamiyo-scroll/me/settings and /shared-users."""
+"""Tests for /bff/tamiyo-scroll/me/settings."""
 
 from httpx import AsyncClient
 
@@ -10,10 +10,13 @@ class TestGetMySettings:
     async def test_creates_default_settings_on_first_access(
         self, client: AsyncClient, owner_user: User
     ):
+        """Sharing is opt-out (defaults True); receiving stays opt-in
+        (defaults False) — decided 2026-07-30."""
         resp = await client.get(f"{BASE}/me/settings", headers=auth_headers(owner_user))
         assert resp.status_code == 200
         body = resp.json()
-        assert body["data_shared"] is False
+        assert body["data_shared"] is True
+        assert body["receive_shared_data"] is False
         assert body["active_personal_deck_id"] is None
 
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
@@ -31,12 +34,92 @@ class TestUpdateMySettings:
         assert resp.status_code == 200
         assert resp.json()["data_shared"] is True
 
+    async def test_enables_receiving_shared_data(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["receive_shared_data"] is True
+
+    async def test_sharing_on_does_not_force_receiving_on(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": True}, headers=headers
+        )
+        assert resp.json()["receive_shared_data"] is False
+
+        resp = await client.patch(
+            f"{BASE}/me/settings", json={"receive_shared_data": True}, headers=headers
+        )
+        assert resp.json()["data_shared"] is True
+        assert resp.json()["receive_shared_data"] is True
+
+    async def test_enabling_receive_without_share_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """Decided 2026-07-30: receiving requires sharing on the same
+        account (distinct from the existing cross-account check on
+        GET /shared-users)."""
+        headers = auth_headers(owner_user)
+        await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": False}, headers=headers
+        )
+
+        resp = await client.patch(
+            f"{BASE}/me/settings", json={"receive_shared_data": True}, headers=headers
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "receive_requires_share"
+
+    async def test_disabling_share_while_receive_is_on_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True, "receive_shared_data": True},
+            headers=headers,
+        )
+
+        resp = await client.patch(
+            f"{BASE}/me/settings", json={"data_shared": False}, headers=headers
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["message"] == "receive_requires_share"
+
+    async def test_disabling_both_together_succeeds(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True, "receive_shared_data": True},
+            headers=headers,
+        )
+
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": False, "receive_shared_data": False},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data_shared"] is False
+        assert resp.json()["receive_shared_data"] is False
+
     async def test_sets_active_personal_deck(
         self, client: AsyncClient, owner_user: User
     ):
         headers = auth_headers(owner_user)
         deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=headers,
         )
         deck_id = deck_resp.json()["id"]
 
@@ -53,7 +136,7 @@ class TestUpdateMySettings:
     ):
         other_deck_resp = await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Not Yours"},
+            json={"name": "Not Yours", "game": "magic", "category": "midrange"},
             headers=auth_headers(other_user),
         )
         other_deck_id = other_deck_resp.json()["id"]
@@ -70,7 +153,9 @@ class TestUpdateMySettings:
     ):
         headers = auth_headers(owner_user)
         deck_resp = await client.post(
-            f"{BASE}/personal-decks", json={"name": "Mono Red"}, headers=headers
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=headers,
         )
         deck_id = deck_resp.json()["id"]
         await client.patch(
@@ -106,30 +191,3 @@ class TestUpdateMySettings:
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 422
-
-
-class TestSharedUsers:
-    async def test_excludes_self_and_non_sharing_users(
-        self, client: AsyncClient, owner_user: User, other_user: User
-    ):
-        resp = await client.get(
-            f"{BASE}/shared-users", headers=auth_headers(owner_user)
-        )
-        assert resp.status_code == 200
-        assert resp.json() == []
-
-    async def test_lists_users_who_enabled_sharing(
-        self, client: AsyncClient, owner_user: User, other_user: User
-    ):
-        await client.patch(
-            f"{BASE}/me/settings",
-            json={"data_shared": True},
-            headers=auth_headers(other_user),
-        )
-
-        resp = await client.get(
-            f"{BASE}/shared-users", headers=auth_headers(owner_user)
-        )
-        assert resp.status_code == 200
-        emails = [u["email"] for u in resp.json()]
-        assert emails == ["other@tamiyo-scroll.example.com"]

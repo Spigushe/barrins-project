@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `apps/tamiyo_scroll`, `apps/barrins_api` | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — cheapest item in this plan, unblocked | / |
+| **Initial date** | 2026-07-30 | Completed 2026-07-30 |
+| **Status** | ✅ Done, including the 2026-07-30 follow-up — account-settings popup (`z_handoff_params_popup`) implemented; single global toggles, not per-sharer; share/receive coupling and separator styling shipped same day (see Follow-up section below) | / |
 | **Source** | Request item 2.5 | / |
 | **Dependency** | None for the "share" half; I1 only for the new "receive" half | / |
 
@@ -42,30 +42,205 @@ opt-in on the *viewing* side; the request wants that to become explicit.
 
 ## Tasks
 
-- [ ] Flip `SHARING_ENABLED`; re-run `SharingControls.test.tsx` to
-      confirm the existing tests still pass unmodified.
-- [ ] Design the "toggle to receive" concept: likely a new boolean or a
-      per-relationship row (design choice — a single "I want to see
-      shared data" toggle only changes whether the "View: {user}"
-      selector is offered at all, vs. a per-sharer opt-in which needs a
-      new table). Escalate this specific design choice before starting,
-      per Constitution §16.2.
-- [ ] Extend `GET /shared-users` (or add a new endpoint) to respect
-      whatever "receive" model is chosen.
-- [ ] Update `SharingControls.tsx` and its test suite for the new
-      control.
+- [x] Flip `SHARING_ENABLED` (removed the gate entirely — dead flag with
+      no remaining callers).
+- [x] Design the "toggle to receive" concept: **decided (2026-07-30) —
+      per-sharer opt-in** (new `ts_receive_opt_ins` table), escalated per
+      Constitution §16.2. **Superseded same day** by the
+      `z_handoff_params_popup` handoff: single global
+      `receive_shared_data` toggle on `ts_user_settings`, matching
+      `data_shared`'s existing shape. `ts_receive_opt_ins` was dropped via
+      a follow-up migration (never reached `staging`, only a feature
+      branch) — see `a9f27e6c1b34_replace_receive_opt_ins_with_toggle.py`.
+- [x] `GET /shared-users` requires both `data_shared = True` on the
+      sharer and `receive_shared_data = True` on the viewer.
+- [x] New `PATCH /api/v1/auth/me` route (`app/api/general/auth.py`) for
+      self-service `display_name` updates — needed by the popup's "Nom
+      affiché" field, didn't exist before (shared-identity field per
+      Constitution §13.1, not Tamiyo-Scroll-scoped).
+- [x] Built the account-settings popup (`AccountSettingsDialog.tsx`) per
+      the handoff: display name field, "Share my data"/"Receive shared
+      data" switches (custom `components/ui/switch.tsx` — no new
+      dependency added), Cancel/Save footer. Replaces the header's old
+      inline checkbox.
+- [x] **"View: {user}" selector — built, then retired the same day.**
+      Per the handoff, first extracted out of the popup into its own
+      `ViewingSelector.tsx` component in `AppShell`'s header.
+      **Bug found during 2-account manual UAT (2026-07-30)**: it was
+      removed from `AppShell` mid-session as apparently redundant, and
+      the now-unused `useSharedUsers`/`listSharedUsers`/`sharedUserSchema`
+      chain was swept as dead code in the same pass — silently breaking
+      "receive" end-to-end (`useViewingOwner`/`applyOwnerParam`/
+      `GET /shared-users` were still correctly wired through every read
+      hook, but with no UI calling `setViewingOwner`, a receiving user had
+      no way to actually view a sharer's data). First fixed by restoring
+      the selector — then **superseded for good** by the automatic-merge
+      overhaul below, which makes an explicit "view as" selector
+      unnecessary. `ViewingSelector.tsx`, `useSharedUsers`,
+      `listSharedUsers`, `sharedUserSchema`, and the backend
+      `GET /shared-users` route are all **deleted**, not just unused.
+- [x] **Overhauled (2026-07-30) from "view as" to automatic read-only
+      merge.** Per the user's real-world 2-account test (a personal deck
+      named "King T'Challa" existing under two different accounts): a
+      sharer's data no longer requires switching into a separate "view
+      as" mode. Instead, once both toggles are on, a sharer's personal
+      deck merges automatically — matched by **exact deck name**
+      (trimmed, case-insensitive; no team/per-sharer linkage exists yet,
+      see S2) — directly into the viewer's own Journal (matches,
+      read-only) and Metagame (roster + archetype/matchup stats). Roster
+      reconciliation: a name match uses the **viewer's own** tier/
+      category (their ranking wins); no match adds the sharer's roster
+      entry as a new read-only line. New backend module
+      `app/services/tamiyo_scroll/sharing_merge.py`; `ResponseMatch`/
+      `ResponseMetaDeck`/`ResponseDeckWinrate`/`ResponseMatchupRow` all
+      gained `is_readonly`/`shared_by`. Frontend: read-only matches hide
+      **both** Edit and Delete (View-only), and show a "from: {sharer}"
+      badge both on the collapsed row and in the View popup; read-only
+      roster rows are non-editable with the same badge. The popup also
+      gained an explanatory line: sharing is matched by deck name.
+- [x] **Team section intentionally omitted** from the popup — the handoff
+      fully specifies team creation/join/leave/delete inline in this
+      popup, but that duplicates/conflicts with the separate, not-yet-
+      started `s2-team-sharing/index.md` spec. Team buttons stay hidden
+      until S2 implementation starts; see the conflict list recorded
+      there.
+- [x] **Privacy fix (2026-07-30): `shared_by` never exposes an email.**
+      The merge originally fell back to the sharer's email when
+      `display_name` was unset — a real GDPR/privacy breach (any
+      receiving account could read a sharer's email off a match/roster
+      badge). Fixed in `sharing_merge.py`: falls back to the generic
+      label `"a kind user"` instead. Covered by new assertions in
+      `test_matches.py`/`test_meta_decks.py` (`shared_by` is never the
+      raw email; using `display_name` when set still works).
+- [x] **Bug fix (2026-07-30): archiving a name-matched roster entry
+      silently dropped the foreign opponent.** `sharing_merge.py` matched
+      a foreign opponent deck against the viewer's own roster **including
+      archived entries** — so archiving the viewer's own same-named deck
+      left the merged match still pointing at that (now-hidden) archived
+      id instead of falling back to a fresh read-only line, showing "?"
+      as the opponent name in the Journal and no read-only line in the
+      roster. Fixed: only **non-archived** owner roster entries count as
+      a name match; an archived match falls back to the sharer's own
+      entry as a new read-only line, same as "no match at all." Covered
+      by `test_own_ranking_wins_when_names_match`'s new sibling
+      `test_archiving_own_matched_deck_falls_back_to_a_read_only_line`.
+- [x] **Decided (2026-07-30): new accounts default to sharing.**
+      `ts_user_settings.data_shared` now defaults `True` (opt-out) for
+      newly-created settings rows; `receive_shared_data` still defaults
+      `False` (opt-in) — asymmetric on purpose. Existing rows are
+      untouched (migration only changes the column default for future
+      inserts, never retroactively opts an existing user in). Caveat: the
+      default only takes effect once a `ts_user_settings` row actually
+      exists for that account — rows are still created on demand
+      (`_get_or_create_settings`, first touched by `GET /me/settings`,
+      which `AppShell` calls on every load), not eagerly at signup
+      (`general/auth.py` and the Tamiyo Scroll domain remain decoupled).
+      For all practical purposes this means "on first app load," not
+      literally "at signup" — flagged in case that distinction matters
+      later.
+
+## Follow-up (2026-07-30): share/receive coupling + popup separator — ✅ Done
+
+Raised against the shipped popup (`AccountSettingsDialog.tsx`), screenshot
+review. Two changes, same file/pass:
+
+1. **New rule: you can share without receiving, but you can't receive
+   without sharing.** Today `shareMyData`/`receiveSharedData`
+   (`AccountSettingsDialog.tsx:47-50`) are two fully independent
+   booleans — nothing stops a user saving `data_shared: false,
+   receive_shared_data: true`. Decided: `receive_shared_data` requires
+   `data_shared` on the **same** account (this is a same-account
+   coupling, distinct from the existing cross-account check in
+   `GET /shared-users`/the merge path, which stays as-is). Per
+   Constitution §4.1 (backend owns business rules), this can't be a
+   frontend-only nicety:
+   - **Frontend**: the "Receive shared data" `Switch`
+     (`:110-114`) gets `disabled={!shareMyData}` — the `Switch`
+     component already supports `disabled` (`switch.tsx:8,21`,
+     `disabled:opacity-50` already styled). Also: turning "Share my
+     data" off while "Receive shared data" is on must turn the latter
+     off too (`setShareMyData` handler flips `receiveSharedData` to
+     `false` in the same update when going `true → false`), so `Save`
+     never submits an inconsistent local state even before a round
+     trip to the backend.
+   - **Backend**: `update_my_settings` (`app/api/tamiyo_scroll/
+     settings.py:40-72`) previously applied `data_shared` and
+     `receive_shared_data` independently (`:48-52`) with no
+     cross-field check. **Resolved**: after both are applied, if the
+     resulting `user_settings.receive_shared_data` is `True` while
+     `user_settings.data_shared` is `False`, reject with `422` and
+     detail `receive_requires_share` (matching S10/S11's `422` gate
+     pattern) — chosen over silently clamping, for the same reason
+     other invalid-state gates in this codebase fail loudly rather than
+     rewriting the caller's intent.
+   - `UserSettingsUpdate` (`schemas/tamiyo_scroll.py:10-16`) itself
+     doesn't need a shape change — both fields already exist and are
+     independently optional; the new rule is a value-level check in the
+     route, not a schema change.
+2. **Visual separator between the display-name block and the sharing
+   block.** No divider exists today between
+   `AccountSettingsDialog.tsx:69-82` (display name) and `:84-120` (the
+   `bg-input-inline` sharing card) — just the `gap-[22px]` on the
+   outer `flex flex-col` (`:68`). Add a 1px horizontal rule using the
+   existing `accent` design token (the same yellow/amber already used
+   by `Switch`'s checked state and `Button`'s default variant —
+   `bg-accent`, see `switch.tsx:27`/`button.tsx:11` — not a new raw
+   color), e.g. `<div className="h-px bg-accent" />` between the two
+   blocks, so the separator matches the popup's existing accent color
+   rather than introducing a new one.
+
+### Tasks
+
+- [x] Frontend: `disabled={!shareMyData}` on the receive `Switch`.
+- [x] Frontend: auto-clear `receiveSharedData` when `shareMyData` is
+      turned off.
+- [x] Backend: reject `receive_shared_data: true` with `data_shared:
+      false` (`422 receive_requires_share`) in `update_my_settings`.
+- [x] Frontend: add the `bg-accent` `role="separator"` between the
+      display-name and sharing sections.
+- [x] Updated `AccountSettingsDialog.test.tsx`: separator renders;
+      receive switch disables and unchecks when share is turned off;
+      disabled receive switch doesn't toggle on click. 10/10 passing.
+- [x] Backend: `test_settings.py` — renamed the now-inaccurate
+      "toggles are independent" test
+      (`test_sharing_on_does_not_force_receiving_on`), added
+      `test_enabling_receive_without_share_returns_422`,
+      `test_disabling_share_while_receive_is_on_returns_422`,
+      `test_disabling_both_together_succeeds`. Full backend suite:
+      286 passed, 98.14% coverage. Full frontend suite: 74/74 passed.
 
 ## UAT (manual)
 
-- [ ] On staging, two accounts: user A enables sharing, user B has not
-      opted in to receiving — confirm B does **not** see A in their
-      "View: {user}" selector.
-- [ ] User B opts in to receiving — confirm A now appears.
-- [ ] Confirm every write-side backend test from
-      `tests/tamiyo_scroll/test_ownership.py` still passes unmodified.
+- [x] On staging (2 real accounts, 2026-07-30): user A (martin.cuchet)
+      shares only, user B (spigushe) shares **and** receives, both with a
+      personal deck named "King T'Challa" — confirmed B's own
+      journal/metagame stayed empty before the fixes above (neither the
+      selector-removal bug nor the automatic-merge overhaul had landed
+      yet), and after both fixes B's Journal/Metagame show A's matches
+      and roster merged in, read-only, under B's own "King T'Challa".
+- ~~Confirm the "View: {user}" selector shows/restores correctly~~ — no
+  longer applicable; the selector is deprecated and deleted, superseded
+  by the automatic merge above.
+- [x] Confirm every write-side backend test from
+      `tests/tamiyo_scroll/test_ownership.py` still passes unmodified —
+      validated by running the suite directly (2026-07-30): 6/6 passed.
+- [x] Confirm the account-settings popup saves display name + both
+      toggles together, and Cancel discards in-progress edits.
 
 ## Non-regression tests
 
-- Existing: `SharingControls.test.tsx`, `test_ownership.py`,
-  `test_settings.py` — must stay green.
-- New: a test for the "receive" opt-in gating the selector's contents.
+- Backend: `test_ownership.py` (6 tests), `test_settings.py`
+  (global-toggle semantics, default-sharing), `test_auth.py::TestUpdateMe`,
+  plus merge-behavior coverage in `test_matches.py` (`TestSharedDataMerge`,
+  including the privacy/email-leak assertions), `test_meta_decks.py`
+  (`TestSharedRosterMerge`, including the archived-deck regression), and
+  `test_stats_routes.py` (`TestSharedDataInStats`) — 277 backend tests,
+  98.05% coverage, all passing.
+- Frontend: `AccountSettingsDialog.test.tsx` (pre-fill, save, cancel,
+  team section absent, deck-name-matching explanation),
+  `MatchJournalSection.test.tsx` (read-only matches hide Edit/Delete,
+  show the "from:" badge), `AppShell.test.tsx` — 71 tests, all passing.
+  `ViewingSelector.test.tsx` deleted along with the component.
+
+**Not done here**: broader manual UAT beyond the one 2-account pass above
+(e.g. roster tier-conflict reconciliation on staging) is not yet run.

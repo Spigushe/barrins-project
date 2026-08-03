@@ -6,10 +6,12 @@
         "**/*.toml"
     ],
     "words": [
+        "Ardoise",
         "asyncio",
         "asyncpg",
         "Aucun",
         "automount",
+        "Azur",
         "Backblaze",
         "banlist",
         "Barrin's",
@@ -87,8 +89,10 @@
         "Referer",
         "Renvoyer",
         "repointed",
+        "rescope",
         "Resends",
         "retour",
+        "Sarcelle",
         "signups",
         "skillset",
         "smtplib",
@@ -99,9 +103,11 @@
         "subdir",
         "Suivi",
         "Tamiyo",
+        "Tauri",
         "testées",
         "textareas",
         "Tolaria",
+        "uiux",
         "unvalidated",
         "userrole",
         "uvicorn",
@@ -114,6 +120,7 @@
         "weasyprint",
         "winrate",
         "winrates",
+        "workstream",
         "workstreams"
     ]
 }

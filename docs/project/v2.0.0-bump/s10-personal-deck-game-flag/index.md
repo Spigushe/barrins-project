@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (FastAPI), `apps/tamiyo_scroll` (React/Vite) | / |
 | **Initial date** | 2026-07-27 | Drafted 2026-07-27 |
-| **Status** | 🔲 Not started — **in scope for v2.0.0 (2026-07-28)**, built as a parallel of S11 | Un-deferred from v3.0.0 on 2026-07-28: the logging gate gives it a live v2 consumer. Added to the Group S table in `../index.md` |
+| **Status** | ✅ Done — backend (`12689bf`) + frontend (`94bfed0`), plus the 2026-08-03 follow-up cascading `game` to opponent/meta decks (`58d847c`). Final enum: `magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana` (resolves open question 1 below — `other` dropped, `one_piece` added) | Un-deferred from v3.0.0 on 2026-07-28: the logging gate gives it a live v2 consumer. Added to the Group S table in `../index.md` |
 | **Source** | User request, 2026-07-27 conversation (scope confirmed for v2.0.0 on 2026-07-28) | / |
 | **Dependency** | None (technical). Coordinates with **S3** and **S11** — all edit the match-creation path (`_validate_match_refs`), and S10/S11 share the new `PATCH /personal-decks/{id}` route | / |
 
@@ -72,6 +72,39 @@ create **and** update, new `PATCH /personal-decks/{id}` route,
 stats-block color identity). If S10 moves into v2, it should be built as
 a parallel of S11 — same shape, `CardGame` in place of
 `ArchetypeCategory`.
+
+## Added requirement (2026-07-30): the shared PATCH route must also rename
+
+S1's sharing overhaul (see `../s1-global-sharing-reenable/index.md`,
+"account-settings popup" and `app/services/tamiyo_scroll/sharing_merge.py`)
+landed after this item was drafted, and changes what's at stake here: a
+personal deck's **name** is now the sole correlation key that merges a
+sharer's matches/roster into the viewer's own Journal/Metagame (exact
+match, trimmed, case-insensitive — no per-sharer linkage, no team concept
+yet). There is currently **no way to rename a personal deck** anywhere in
+the app — `PersonalDeckSelector.tsx` only creates and archives. A typo at
+creation, or ever wanting to fix a deck's name later, is not just a
+cosmetic annoyance now: it silently breaks an existing merge (rename away
+from a sharer's deck name) or silently creates an unintended one (rename
+into collision with an unrelated user's identically-named deck).
+
+Since S10/S11 already plan the first-ever `PATCH /personal-decks/{id}`
+route (today: `game`/`category` only), renaming should ship on that same
+route rather than opening a second one later. Concretely, when S10/S11
+are implemented:
+
+- `PersonalDeckPatch` (shared schema, see Backend schemas below) gains an
+  optional `name` field alongside `game`/`category`.
+- The frontend needs a real rename affordance (not just the game/category
+  controls) — e.g. an inline-editable deck name in `PersonalDeckSelector.tsx`
+  or the deck view, calling the same `useUpdatePersonalDeck` mutation.
+- Same validation as creation (`PersonalDeckCreate`'s `min_length=1,
+  max_length=255`, presumably `extra="forbid"` on the patch schema).
+
+Not scoped further here (exact UI placement, whether renaming re-triggers
+a merge recompute automatically or needs a page refresh) — flagged so the
+requirement isn't lost before S10/S11 implementation starts, per this
+project's escalate-don't-guess convention.
 
 ## Context
 
@@ -193,7 +226,9 @@ Each item is modeled on code that already exists and is already tested.
       **required** (no default) — a new deck must declare its game.
 - [ ] Add a `PersonalDeckPatch` schema (`game: CardGame`) for the PATCH
       route — coordinate with S11's `PersonalDeckPatch` (`category`): one
-      shared patch schema/route setting both fields, not two.
+      shared patch schema/route setting both fields, not two. **Added
+      2026-07-30**: also add an optional `name` field (renaming — see
+      "Added requirement" above) to the same shared schema/route.
 
 ### Route(s)
 

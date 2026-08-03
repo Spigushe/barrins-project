@@ -50,3 +50,18 @@ async def other_user(db_session) -> User:
     await db_session.commit()
     await db_session.refresh(user)
     return user
+
+
+@pytest.fixture()
+async def third_user(db_session) -> User:
+    """Third user — for scenarios needing two distinct sharers at once."""
+    user = User(
+        email="third@tamiyo-scroll.example.com",
+        hashed_password=hash_password("Third#Pass1word"),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user

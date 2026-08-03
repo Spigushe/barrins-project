@@ -90,6 +90,19 @@ class UserSignup(BaseModel):
     display_name: str | None = None
 
 
+class UserProfileUpdate(BaseModel):
+    """Payload for PATCH /me — self-service profile update.
+
+    Only `display_name` for now — shared-identity field (Constitution
+    §13.1), not app-specific. `None`/empty falls back to the email
+    wherever the display name is shown.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = None
+
+
 class UserRead(BaseModel):
     """Public representation of a user (without password)."""
 

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (`app/api/tamiyo_scroll/admin.py`, `app/services/metrics/`), `apps/tamiyo_scroll` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — scope resolved 2026-07-25 (§1.7), staged | / |
+| **Status** | ✅ Done — flat-count dashboard (`24467cd`/`ff1171f`) and the time-bucketed comparison (`41a3a1b`/`e37215c`) both shipped; recorded `cb0fe44` | / |
 | **Source** | Request; `v2.0.0-bump/index.md` §1.7 | / |
 | **Dependency** | None technical (role infra already exists) | / |
 
@@ -32,10 +32,42 @@ explicit follow-on work. See `../index.md` §1.7.
 - Total personal decks created.
 - Total matches recorded.
 
-**Explicitly deferred, not v2.0.0**: active-user counts (daily/weekly),
-sharing-adoption rate, per-feature engagement, retention — anything
-beyond raw adoption counts. "Smart KPIs" beyond these three are only
-worth defining once there's usage data to justify which ones matter.
+**Explicitly deferred, not v2.0.0**: sharing-adoption rate, per-feature
+engagement, retention — anything beyond these three counts and their
+time evolution (see below). "Smart KPIs" beyond these are only worth
+defining once there's usage data to justify which ones matter.
+
+## Added requirement (2026-08-02): time-bucketed comparison
+
+**Decided by the user, direct instruction**: the three counts above
+need a time-comparison view — day-by-day, weekly, and monthly evolution
+— not just an all-time flat total. This supersedes the "active-user
+counts (daily/weekly)... deferred" line as originally written here: a
+per-period breakdown of the same three existing counts (not a new,
+separate "active users" metric) is now in scope. Kept simple, matching
+the rest of this item's staged scope: bucketed counts (new accounts /
+new decks / new matches per day, week, and month), no new dependency,
+no charting library unless already present.
+
+**Implemented (2026-08-02)**: `app/services/metrics/timeseries.py`
+computes each metric's day (last 30 days) / week (last 12 weeks) /
+month (last 12 months) buckets server-side via `GROUP BY
+date_trunc(...)`, exposed on a new `GET /admin/metrics/timeseries`
+route (same `AdminUser` gate as the flat-count route). Frontend renders
+one chart per metric on `AdminMetricsPage`, switchable between the
+three granularities, above the existing flat-total tiles (additive).
+
+**Dependency added (2026-08-02): `recharts`**. The user asked for
+this comparison as actual charts, not tables — `apps/tamiyo_scroll`
+had no charting library (checked `package.json`), so this is a new
+dependency (constitution §4.7/§16.2/§22). `recharts` was chosen because
+it's the standard, well-maintained choice for React (SVG-based, no
+extra Vite/build config needed) and covers this need — three simple
+per-metric line charts — without pulling in a heavier canvas/D3-level
+library. No deeper alternatives comparison was judged necessary for a
+dependency this low-stakes (a display-only charting library over
+already-aggregate, non-sensitive counts), unlike ADR-11's WeasyPrint
+choice.
 
 ## Done statement
 
@@ -56,6 +88,10 @@ worth defining once there's usage data to justify which ones matter.
   was accepted by the user (2026-07-26), so this feature has a real
   policy to point to (aggregate-only data, no new collection, documented
   alongside the feature) instead of an ad hoc per-feature note.
+- **Implemented (2026-08-02)**: the time-bucketed comparison above is
+  built — `app/services/metrics/timeseries.py`, `GET
+  /admin/metrics/timeseries`, and a chart per metric (`recharts`) on
+  `AdminMetricsPage`, additive alongside the existing flat-total tiles.
 
 ## Tasks
 

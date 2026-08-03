@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (FastAPI), `apps/tamiyo_scroll` (React/Vite) | / |
 | **Initial date** | 2026-07-28 | Drafted 2026-07-28 |
-| **Status** | 🔲 Not started — unblocked, can start immediately (enum, model pattern, and color identity all already exist) | / |
+| **Status** | ✅ Done — backend (`12689bf`) + frontend (`94bfed0`), shipped together with S10 on the shared `PATCH /personal-decks/{id}` route. Error code shipped as `422 personal_deck_macrotype_required` (resolves open question 1 below) | / |
 | **Source** | User request, 2026-07-28 conversation | / |
 | **Dependency** | None (technical). Coordinates with **S3** — both edit the match-creation path (`_validate_match_refs` / `create_match`) | / |
 
@@ -126,7 +126,11 @@ there.)
       (`responses_tamiyo_scroll.py:31`) so the frontend can detect
       `NULL` decks.
 - [ ] Add a `PersonalDeckPatch` schema (`category: ArchetypeCategory`)
-      for the new route.
+      for the new route. **Added 2026-07-30**: also add an optional
+      `name` field (renaming) to this same shared schema/route — see
+      `../s10-personal-deck-game-flag/index.md`'s "Added requirement"
+      section for why deck renaming now matters (S1's sharing merge is
+      name-keyed) and what the frontend needs.
 
 ### Routes
 

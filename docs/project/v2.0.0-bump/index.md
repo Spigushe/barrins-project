@@ -38,14 +38,43 @@ scoping T3: `bs_deck_cards.card_name` has no authoritative MTG card list
 to validate against, since S8 doesn't exist yet — decided that T3 now
 **blocks on S8** rather than ingesting unvalidated strings, reopening
 S8's scope to cover T3 in addition to S4; the `proj/v2.0.0-bump` T-group
-work is on hold behind this until S8 is scoped). **Every item
-in §1 is now decided.** A decision recorded
+work is on hold behind this until S8 is scoped); and, the same day, a new
+item **S12** (UI/UX polish bundle — four small, independent
+`tamiyo_scroll`-only fixes carried in from the feature-roadmap backlog:
+a green `[new]` label on personal-deck creation (no icon library
+needed), tested-cards/BO3-opponent select parity, the "Final turn"
+label rename, and the matchup-summary "Games" → "Matches" column
+rename; no schema/API impact); and, the same day, **a missed
+dependency on S2's row corrected**: S2's Done statement/UAT already
+assumed team members can open a shared deck's PDF report (S5's
+deliverable), but S2's dependency row never listed S5 — now added,
+alongside a reciprocal "blocks S2" note on S5's row; and **S3 completed**
+— the remaining Moxfield-staleness sub-feature (brought into scope
+2026-07-27) shipped, storing the full raw Moxfield response per version
+(`moxfield_data` JSONB) rather than a single timestamp column, and
+surfacing a `moxfield_deck_changed_since_last_import` flag on re-import,
+tested against a real fetched Moxfield response
+(`tests/fixtures/moxfield_deck_response.json`), not a hand-written
+guess. **Every item in §1 is now decided.** A decision recorded
 here is not yet a committed ADR — per Constitution §16.2 ("never guess
 requirements... changing deployment architecture, introducing a
 dependency, handling secrets"), each item was written in the
 Context/Alternatives/Trade-offs shape used by `architecture/decisions.md`
 before being decided, and R5 still needs to turn each resolved item into
-a real ADR.
+a real ADR. **Updated again 2026-08-02**: a documentation-sync pass —
+the Group S/T/F status cells below (S1, S2, S9, T1, T2, F9) had fallen
+behind their own subfolder pages and actual merged PRs; corrected here
+to match. T1's subfolder page also had a stale **Status** row (claimed
+CI/ops playbook were still open; PR #41 already shipped both) — fixed.
+Per-app `CHANGELOG.md` files and `docs/content/` are being brought back
+in sync in the same pass, see those files' own history for specifics.
+**Updated again 2026-08-03**: a second documentation-sync pass — S6,
+S10, and S11's own pages (and their Group S table rows below) still said
+"Not started" despite being fully merged (`feat/v2-tamiyo-upgrade`,
+ahead of `proj/v2.0.0-bump`); corrected. Same day, a new item **§1.11**
+records the decision to cut an early **`v2.0.0-alpha`** release scoped to
+Tamiyo Scroll only, ahead of the full v2.0.0 (which still needs Group T's
+remaining items, S4, and S8) — see the new **Group RA** table in §2.
 
 ---
 
@@ -900,6 +929,81 @@ This resolves **I9**.
 
 ---
 
+### 1.11 Cutting an early `v2.0.0-alpha` release, scoped to Tamiyo Scroll only
+
+**Context.** By 2026-08-03, every Group S (Tamiyo Scroll) item except S4
+and S8 is done — S1, S2, S3, S5, S6, S7, S9, S10, S11, S12 are all merged
+on `feat/v2-tamiyo-upgrade`, which branches directly off `proj/v2.0.0-
+bump`'s current head (T1 + T2 already merged there, §1.1–§1.3). Group T's
+remaining items (T3–T8: the ingestion pipeline, Tolaria News BFF/frontend,
+Karn Tablets, docs, deployment playbooks) haven't started — T3 is still
+on hold behind S8 (§1.10), and S8 (MTGJSON) itself hasn't started either.
+At the current pace, the full `v2.0.0` (everything in this document) is
+still some way off, while a large, user-facing batch of deck-management
+improvements has been sitting done and undeployed. The user's call:
+Tolaria News is not related to Tamiyo Scroll except insofar as S4/S8 use
+MTGJSON card data to improve the decklist display — that piece can wait
+for the full release. Ship the rest now, as its own tagged, deployed
+pre-release, so real users can try the new deck-management features and
+give feedback while Group T continues in parallel.
+
+**Decided (2026-08-03): cut `v2.0.0-alpha`** from the current state of
+`feat/v2-tamiyo-upgrade` — a real, tagged, production-deployed release
+(not a staging-only preview), following the same branch → `staging` →
+`main` → tag → deploy flow as every prior release (§3, mirrors v1.0.0's
+B-group). In scope: every done Group S item (S1, S2, S3, S5, S6, S7, S9,
+S10, S11, S12) — entirely `apps/tamiyo_scroll` + the Tamiyo Scroll BFF in
+`apps/barrins_api`. Out of scope, unchanged from the full v2.0.0 plan:
+S4, S8, and all of Group T (T3–T8) — none of it is done, none of it is
+pulled forward.
+
+**Two scoping calls made explicitly by the user, recorded here per the
+same "escalate, don't guess" convention as the rest of §1:**
+
+1. **T1 (Barrin's Scripture rewrite) and T2 (`bs_*` schema) ride along
+   inert, rather than being stripped out of the alpha.** Both are already
+   merged onto `feat/v2-tamiyo-upgrade` *ahead of* the Tamiyo Scroll work
+   (it branched from `proj/v2.0.0-bump`'s post-T1/T2 head), so keeping
+   them out would mean cherry-picking ~40 Group-S commits onto a fresh
+   branch off `staging` and re-basing S10/S11's Alembic migration (which
+   chains on top of T2's `49c50188ee55`) by hand — real rework and risk
+   for a purely cosmetic diff. Instead: merge as-is, and rely on the
+   existing per-app Ansible playbook structure (`ops/my-server/*.yml`,
+   Constitution §26.1 — one playbook per application, run independently)
+   to keep Barrin's Scripture **undeployed**: `barrins_scripture.yml`
+   (the scraper's systemd service/timer) is simply not run during this
+   release's deploy step (RA5 below). The `bs_*` Alembic migration still
+   applies to production (it's additive — new, empty tables unrelated to
+   any `ts_*`/`users` data — so there's no behavioral risk to Tamiyo
+   Scroll), but no Barrin's Scripture code ever executes.
+2. **The plan is written the same way as the rest of this document** — a
+   new **Group RA** (Release Alpha) table in §2, mirroring Group R's
+   shape (R1–R5) but scoped to just this cut, with its own per-item pages
+   under `ra1-…`–`ra5-…`.
+
+**What this does not change.** Group R (R1–R5) still describes the wrap
+for the **full** `v2.0.0` tag, once Group T, S4, and S8 land — this
+document now expects **two** tags in this release cycle
+(`v2.0.0-alpha` now, `v2.0.0` later), not a renumbering of the existing
+plan. `proj/v2.0.0-bump` keeps existing after RA-group work lands on
+`staging`/`main` — Group T work (already on hold behind S8, §1.10)
+resumes on it exactly where it left off.
+
+**Left open, not guessed here:** whether every app's `CHANGELOG.md`/
+version marker bumps to `2.0.0-alpha` together (continuing the "one
+version number shared across the monorepo" convention noted in §0, even
+for apps with zero changes this cut, e.g. `tolaria_news`) or only the two
+changed apps (`barrins_api`, `tamiyo_scroll`) version-bump this time.
+Flagged as a task on RA1's page rather than decided here.
+
+This resolves nothing in the Group I table (it isn't a foundational
+architecture decision — no new dependency, no secret, no deployment
+architecture change) and so, per Constitution §16.2, doesn't need its own
+ADR; R5's existing ADR-5–ADR-11 already cover every decision this alpha
+actually ships.
+
+---
+
 ### A note on Playwright — deferred, not part of v2.0.0
 
 Playwright was suggested to the user during this planning process. It
@@ -981,8 +1085,8 @@ R5 turning each into a real ADR.
 
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
-| T1 | Migrate/create `apps/barrins_scripture` per I2's outcome | I2 | Includes retiring or repointing `mtg_scraper`; keep the JSON archive in its own dump sub-repo (§1.3), never inlined into the monorepo. **Given, not urgent**: the `barrins-project` org hosting both `mtg_scraper` and `mtg_decklist_cache` will eventually be deleted by the user once no longer needed — both repos get transferred to a durable location as part of this item's own migration work, whenever there's confidence to do so, not on a deadline | [t1-scripture-repo-migration/](t1-scripture-repo-migration/index.md) |
-| T2 | Design the scraped-tournament schema in `barrins_api` (the domain previously referenced as "`dl_*`" but never built — see §0, F7) | I3 | This is genuinely new work, not a resurrection of hidden code. **Decided (2026-07-26)**: the domain/table prefix is `bs_` (Barrin's Scripture), not `dl_`, matching the existing `ts_` (Tamiyo Scroll) two-letter-per-app convention — `dl_` was inherited from a dead reference doc (F7), never a real convention | [t2-scraped-tournament-schema/](t2-scraped-tournament-schema/index.md) |
+| T1 | Migrate/create `apps/barrins_scripture` per I2's outcome | I2 | 🟡 **In progress (PR #41 merged)** — rewrite (schemas/parsers/services/CLI), CI job, and the `ops/my-server` deploy playbook are done (118 tests, 95%+ coverage). Still open: transferring `mtg_scraper`/`mtg_decklist_cache` to their durable location, standing up the JSON archive's own dump sub-repo (§1.3), and archiving `mtg_scraper` once parity is confirmed. **Given, not urgent**: the `barrins-project` org hosting both repos will eventually be deleted by the user once no longer needed — no deadline | [t1-scripture-repo-migration/](t1-scripture-repo-migration/index.md) |
+| T2 | Design the scraped-tournament schema in `barrins_api` (the domain previously referenced as "`dl_*`" but never built — see §0, F7) | I3 | 🟡 **In progress (PR #43 merged)** — `bs_*` models, Alembic migration (`49c50188ee55`), and 13 model tests done (253 passing, 98.30% coverage). Prefix decided as `bs_` (Barrin's Scripture), not `dl_` — `dl_` was inherited from a dead reference doc (F7), never a real convention. Still open: the `docs/decklist_integration/` doc decision (F7), and applying the migration to a real database (blocked on T3 existing to use the tables) | [t2-scraped-tournament-schema/](t2-scraped-tournament-schema/index.md) |
 | T3 | Build the scrape → JSON-archive → ingest pipeline per I3's outcome | T1, T2, S8 | Keeps the existing `mtg_decklist_cache`-style JSON archive (§1.3); ingestion route must support a maintenance-mode gate (§1.2). **Blocked on S8 (added 2026-07-30, §1.10)**: scraped card names must validate against real MTG data before being stored — on hold until S8 is scoped | [t3-scripture-ingestion-pipeline/](t3-scripture-ingestion-pipeline/index.md) |
 | T4 | Tolaria News BFF routes (`/api/v1/tolaria-news/...`), publicly readable (no per-user `CurrentUser` requirement), access-restricted by rate-limiting per I7 (resolved) — already anticipated by a comment in `bff/tamiyo_scroll.md` ("unlike the Tolaria News BFF which is publicly readable") | T2 | Follows the same router/service-package pattern as the Tamiyo Scroll BFF. **I7 resolved (Option 4, §1.9)**: no `CurrentUser`-style dependency added; instead needs an inbound rate limiter (policy — key/threshold/window/`429`/scope — still undefined, see D1/`consitution-amendment.md` Proposal 6) | [t4-tolaria-news-bff/](t4-tolaria-news-bff/index.md) |
 | T5 | `apps/tolaria_news` real frontend (React/Vite), calling `barrins_api`'s BFF only — no direct DB/calculation client-side, per §4.1/§4.2 | T4, I1 | `ops/my-server/tolaria_news.yml` already exists and is ready to deploy real code once this lands. **I7 resolved as Option 4** — T5's calling pattern is unaffected (no same-origin proxy flip; that was option 3, not chosen) | [t5-tolaria-news-frontend/](t5-tolaria-news-frontend/index.md) |
@@ -994,17 +1098,33 @@ R5 turning each into a real ADR.
 
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
-| S1 | Re-enable + extend global sharing (request 2.5) | — (I1 only for the new "toggle to receive" half) | Cheapest item in this plan: `SharingControls.tsx` and its backend are already built and tested. The "share" toggle already exists (`data_shared`). The "toggle to receive" half is new — no such concept exists today (any user can currently view any sharer without opting in on their own side) | [s1-global-sharing-reenable/](s1-global-sharing-reenable/index.md) |
-| S2 | Team sharing: read-only "Team Decks" selector + flag-to-share | I5, S1 | Builds on S1's mechanism once teams exist. **Deck-validation gate deferred to v3.0.0 (2026-07-27)** — S2 no longer depends on S8 | [s2-team-sharing/](s2-team-sharing/index.md) |
-| S3 | Auto-flag match result to a specific decklist version, editable after | — | Schema change: add nullable `decklist_version_id` FK to `ts_matches`, defaulting to the deck's currently-active version at creation time (`ts_user_settings.active_personal_deck_id`'s sibling concept, per-deck). Small, unblocked, can start immediately. An additional idea — checking Moxfield's last-update timestamp to flag a version "in the past" — is recorded on the item page as a flagged enhancement, not yet scoped for v2.0.0. **Constrained (2026-07-27)**: only usable opportunistically, from a Moxfield call already being made for another reason — never a dedicated call added just for this | [s3-match-decklist-version/](s3-match-decklist-version/index.md) |
+| S1 | Re-enable + extend global sharing (request 2.5) | — (I1 only for the new "toggle to receive" half) | ✅ **Done**, including the 2026-07-30 follow-up (share/receive coupling, account-settings popup separator). 277 backend / 71 frontend tests passing | [s1-global-sharing-reenable/](s1-global-sharing-reenable/index.md) |
+| S2 | Team sharing: read-only "Team Decks" selector + flag-to-share | I5, S1, S5 | ✅ **Done (2026-08-01)**. Implementation revised mid-build from per-deck to name-based sharing (see the page's "Implementation note"). Deck-validation gate stays deferred to v3.0.0 (2026-07-27). 135 frontend tests, full backend suite green | [s2-team-sharing/](s2-team-sharing/index.md) |
+| S3 | Auto-flag match result to a specific decklist version, editable after | — | ✅ **Done (2026-07-30)**. Schema change: nullable `decklist_version_id` FK on `ts_matches`, auto-stamped to the deck's latest version at creation, editable after. Moxfield staleness flag (brought into v2.0.0 scope 2026-07-30, constrained 2026-07-27 to opportunistic-only — no dedicated Moxfield call) also implemented: the full raw Moxfield response is stored per version (`moxfield_data` JSONB), and a re-import surfaces `moxfield_deck_changed_since_last_import` on the response | [s3-match-decklist-version/](s3-match-decklist-version/index.md) |
 | S4 | Better decklist display (request 2.3, "UI TBD"), now including card images + sort-by-{type, mana value, color identity, mana cost} | S8 | Needs a design pass (same "hifi design first" pattern `handoff.md` used for the original build) **and** S8's card/set data — decided default sort: Card Type → Mana Value, with the "face A Land" rule for multi-face cards (§S4 page) | [s4-decklist-display-redesign/](s4-decklist-display-redesign/index.md) |
-| S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | Backend-generated (Constitution §4.1: no client-side composition of computed stats). **I8 resolved 2026-07-27: WeasyPrint** (see S5 page for the full Context/Alternatives/Trade-offs research) | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
-| S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | Confirmed v2.0.0-embedded, v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
+| S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | ✅ **Done (2026-07-31)**. Backend-generated (Constitution §4.1: no client-side composition of computed stats), WeasyPrint (**I8 resolved 2026-07-27**, see S5 page). Session-scoped report **and** an added session-less deck-level report (last 30 days, S1 shared-data merge included) share one calculation path (`PeriodStats`) and one renderer. **Blocks S2** — team members' PDF-report access is part of S2's Done statement | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
+| S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | ✅ **Done**. Flat-count tiles plus the 2026-08-02 time-bucketed (day/week/month) comparison, charted via `recharts` (new dependency, §4.7/§22). v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
 | S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images) and, **added 2026-07-30 (§1.10), T3** (scraped card-name validation at ingestion — transitively blocks T6). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
-| S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | New `ts_sessions` table, soft-deleted via `archived_at` (consistent with `TSPersonalDeck`/`TSMetaDeck`). Matches-only for v1 — card-test analysis across decklist versions is already extrapolable without a session concept. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
-| S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | `CardGame` enum (recommended), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. Un-deferred because the logging gate is a live v2 consumer. Enum-vs-boolean + game list still to confirm | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
-| S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (none exists today) unblocks historical decks. Distinct from S10 (deferred): the logging gate is a live v2 consumer | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
+| S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | ✅ **Done**. Dedicated Sessions tab (manage/create/close/reopen/archive, comparison summary, relocated `ExpectedMetagameSection` for tournament-typed sessions), full stack tested. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
+| S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | ✅ **Done**. `CardGame` enum (`magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana`), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. 2026-08-03 follow-up: `game` cascades to opponent/meta decks | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
+| S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
+| S12 | UI/UX polish bundle — four small frontend fixes brought into v2.0.0 from the feature-roadmap backlog (`docs/content/front/tamiyo_scroll/roadmap.md`, "v2.0.0 candidates" section), added 2026-07-30 | — | All four are frontend-only (`apps/tamiyo_scroll`), no schema/API change: personal-deck creation affordance gets a green `[new]` text label (no icon library needed — `apps/tamiyo_scroll` has none today); the "tested cards" matchup select is rebuilt on the same combobox pattern as the BO3 opponent select; "Final turn" label renamed; matchup-summary "Games" column (already counting `match_count`) relabelled "Matches" | [s12-uiux-polish/](s12-uiux-polish/index.md) |
+
+### Group RA — Release wrap for `v2.0.0-alpha` (Tamiyo Scroll only, §1.11)
+
+An early, tagged, production-deployed pre-release cutting everything
+done in Group S (minus S4/S8) out from under Group T, which continues
+separately. Mirrors Group R's shape (R1–R5) at a smaller scope. Once
+this ships, Group R below still runs, later, for the full `v2.0.0` tag.
+
+| # | Item | Depends on | Page |
+| --- | --- | --- | --- |
+| RA1 | Confirm final `v2.0.0-alpha` scope, decide the version-bump convention, merge `feat/v2-tamiyo-upgrade` → `proj/v2.0.0-bump` | Every done Group S item (S1, S2, S3, S5, S6, S7, S9, S10, S11, S12) | [ra1-merge-proj-branch/](ra1-merge-proj-branch/index.md) |
+| RA2 | `proj/v2.0.0-bump` → `staging` | RA1 | [ra2-merge-staging/](ra2-merge-staging/index.md) |
+| RA3 | `staging` → `main` | RA2 | [ra3-promote-main/](ra3-promote-main/index.md) |
+| RA4 | Tag `v2.0.0-alpha` | RA3 | [ra4-tag-release/](ra4-tag-release/index.md) |
+| RA5 | Deploy from tag (production) — `barrins_api` + `tamiyo_scroll` only, **not** `barrins_scripture.yml` (§1.11) | RA4 | [ra5-deploy-production/](ra5-deploy-production/index.md) |
 
 ### Group F — Fixes flagged in docs and roadmap (request item 3)
 
@@ -1028,7 +1148,7 @@ repo on 2026-07-25, not previously written down anywhere):
 | F6 | `docs/content/ops/deployment/backend.md`'s "Validation" section states "no dedicated `/health` route in `barrins_api` today" — this is stale. `GET /health` is implemented (`app/api/general/health.py`, mounted in `main.py`) and `docs/content/ops/operations/index.md`'s own "Open items summary" table correctly lists it as implemented. The two docs contradict each other. | Direct code read: `apps/barrins_api/app/api/general/router.py`, `health.py` | [f6-health-doc-fix/](f6-health-doc-fix/index.md) |
 | F7 | Several files reference planning documents that do not exist anywhere in the repository: `docs/decklist_integration/`, `docs/tolaria_news/00_plan_general.md`, `docs/tamiyo_scroll_tracker/00_plan_general.md`, `docs/signup_email_verification/00_plan_general.md`, and (found while scoping S6/§1.7) `docs/auth_roles/10_deploiement.md` — cited from `docs/content/back/barrins_api/bff/tamiyo_scroll.md`, `docs/content/back/barrins_api/signup_email_verification.md`, `docs/content/front/tamiyo_scroll/bootstrap.md`, `apps/barrins_api/scripts/create_admin.py`, and from code comments in `app/services/tamiyo_scroll/*.py`, `app/models/tamiyo_scroll.py`, `app/core/security.py`, `app/services/email/*.py`. Either these were real, unpublished planning docs that were never migrated into `docs/content/` during the docs restructuring, or the paths were always aspirational. Worth a deliberate decision: recreate them under `docs/content/` (if the design decisions they're cited for still need a home) or update every citing file to stop pointing at a dead path. | Full-repo search, zero matches for any of the five paths as an existing file | [f7-broken-doc-references/](f7-broken-doc-references/index.md) |
 | F8 | Same category of gap as F7, found 2026-07-26 while scoping S4: `docs/content/back/barrins_api/auth_roles.md` describes a `POST /mtgjson/import` route, an `admin`-gated MTGJSON import capability, and implies `sets`/`cards` read routes exist (`GET /sets/`, `GET /cards/{uuid}`, etc.) as part of the **already-implemented** role/security matrix. **None of it exists in code.** Zero Python files anywhere in the repository reference `mtgjson`; no `Card`/`Set` ORM model exists. This is purely aspirational documentation, not a resurrected or hidden feature — S4 and S2's deck-validation gate were both originally scoped assuming this pipeline already existed; both now depend on **S8** instead. | Full-repo search (`grep -ri mtgjson`), zero Python matches; `auth_roles.md`'s security matrix and role table are the only places this is described | [f8-mtgjson-docs-gap/](f8-mtgjson-docs-gap/index.md) |
-| F9 | Branch protection & CI coverage gap for `proj/*` branches, decided 2026-07-26 (§3): `.github/workflows/CI.yml` only triggers on `pull_request`/`push` to `[staging, main]` — verified directly in the workflow file — so every `proj/*` PR (including this release's own `proj/v2.0.0-bump` and its sub-branches) runs **no CI at all** today. No GitHub branch-protection ruleset covers `proj/*` either, so PRs into it aren't actually mandatory, only conventional. | `.github/workflows/CI.yml` (direct read); carried-over open item from v1.0.0, now decided | [f9-proj-branch-protection/](f9-proj-branch-protection/index.md) |
+| F9 | ✅ **Done** (PR #23) — branch protection & CI coverage gap for `proj/*` branches, decided 2026-07-26 (§3): `.github/workflows/CI.yml` only triggered on `pull_request`/`push` to `[staging, main]` — verified directly in the workflow file — so every `proj/*` PR (including this release's own `proj/v2.0.0-bump` and its sub-branches) ran **no CI at all**. No GitHub branch-protection ruleset covered `proj/*` either, so PRs into it weren't actually mandatory, only conventional. Both gaps closed: `proj/*` added to `CI.yml`'s triggers, and a new `proj-release-branch-protection` ruleset added; UAT confirmed (test PR ran CI, direct push rejected) | `.github/workflows/CI.yml` (direct read); carried-over open item from v1.0.0, now decided | [f9-proj-branch-protection/](f9-proj-branch-protection/index.md) |
 
 ### Group D — Deployment playbooks for new applications/services (request item 4)
 

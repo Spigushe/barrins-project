@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | New: `apps/barrins_scripture` (monorepo, rewrite per §1.1 Option 3) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 In progress — schemas/parsers/utils/services/CLI written, test-driven (118 tests, 95%+ coverage); CI wiring, ops playbook, and the archive submodule still open | / |
+| **Status** | 🟡 In progress — schemas/parsers/utils/services/CLI, CI job (`.github/workflows/CI.yml`), and the `ops/my-server/barrins_scripture.yml` + `roles/scripture_scraper/` deploy playbook all written and test-driven (118 tests, 95%+ coverage — see Tasks below, corrected 2026-08-02: CI/ops were previously listed as open here but are done, per PR #41); durable-location transfer, pointing at the archive's new home, and archiving `mtg_scraper` still open | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.1 | / |
 | **Dependency** | None (this is the first domino) | Blocks T2, T3 |
 

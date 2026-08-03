@@ -17,6 +17,16 @@ export function useCurrentUser() {
   })
 }
 
+export function useUpdateProfile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: authApi.updateProfile,
+    onSuccess: (user) => {
+      queryClient.setQueryData(['me'], user)
+    },
+  })
+}
+
 export function useLogin() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>

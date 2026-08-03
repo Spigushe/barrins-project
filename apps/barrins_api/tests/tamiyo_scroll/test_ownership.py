@@ -29,6 +29,23 @@ class TestReadAccessWithoutSharing:
         )
         assert resp.status_code == 404
 
+    async def test_shared_but_not_receiving_returns_403(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        """Sharing alone (`data_shared = True`) is not enough — the viewer's
+        own `receive_shared_data` toggle must also be on."""
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"data_shared": True},
+            headers=auth_headers(other_user),
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks?owner_id={other_user.id}",
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 403
+
 
 class TestReadAccessWithSharing:
     async def test_shared_owner_data_is_readable(
@@ -40,8 +57,13 @@ class TestReadAccessWithSharing:
         )
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "Other's Deck"},
+            json={"name": "Other's Deck", "game": "magic", "category": "midrange"},
             headers=other_headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"receive_shared_data": True},
+            headers=auth_headers(owner_user),
         )
 
         resp = await client.get(
@@ -56,7 +78,7 @@ class TestReadAccessWithSharing:
     ):
         await client.post(
             f"{BASE}/personal-decks",
-            json={"name": "My Deck"},
+            json={"name": "My Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         resp = await client.get(
@@ -84,7 +106,7 @@ class TestWriteRoutesIgnoreOwnerParam:
 
         resp = await client.post(
             f"{BASE}/personal-decks?owner_id={other_user.id}",
-            json={"name": "Sneaky Deck"},
+            json={"name": "Sneaky Deck", "game": "magic", "category": "midrange"},
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 201
