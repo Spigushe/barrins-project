@@ -75,6 +75,14 @@ ahead of `proj/v2.0.0-bump`); corrected. Same day, a new item **§1.11**
 records the decision to cut an early **`v2.0.0-alpha`** release scoped to
 Tamiyo Scroll only, ahead of the full v2.0.0 (which still needs Group T's
 remaining items, S4, and S8) — see the new **Group RA** table in §2.
+**Later the same day**, executing RA2 surfaced a structural gap in this
+repository's branch protection (squash-only merges never advance the
+git merge-base between two long-lived branches, so a conflict between
+`proj/v2.0.0-bump` and `staging`, once squash-resolved in one direction,
+resurfaces immediately in the other) — recorded as
+[`consitution-amendment.md`](consitution-amendment.md) **Proposal 7**,
+not yet reviewed, ahead of Group R's own `proj/v2.0.0-bump` → `staging`
+promotion hitting the same thing later this release.
 
 ---
 

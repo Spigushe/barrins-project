@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/CLAUDE.md` (the project constitution) | / |
 | **Initial date** | 2026-07-25 | / |
-| **Status** | ✅ **All six proposals reviewed and accepted.** 1, 4, 5, 6 accepted as written; 2, 3 accepted with modifications (see each). Nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
+| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). 🔲 **Proposal 7 added 2026-08-03, not yet reviewed.** Nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
 | **Source** | Decisions recorded in `index.md` §1.2, §1.3, §1.6, §1.7, §1.9 | / |
 
 ---
@@ -30,6 +30,14 @@ below documents exactly what changed and why).
 **Reviewed by the user, 2026-07-27**: Proposal 6 (inbound
 rate-limiting), surfaced while resolving §1.9/I7, **accepted as
 written**. All six proposals are now reviewed.
+
+**Added 2026-08-03, not yet reviewed**: Proposal 7 (long-lived
+integration branches need a documented workaround for this repo's
+squash-only/linear-history branch protection), discovered live while
+executing RA2 — recorded per the user's instruction to store the finding
+for later rather than leave it undocumented, ahead of the full `v2.0.0`
+release's own `proj/v2.0.0-bump` → `staging` promotion (Group R) hitting
+the same thing.
 
 None are yet applied to `docs/content/CLAUDE.md` itself — see "Applying
 these proposals" at the end of this file for that remaining step.
@@ -531,6 +539,123 @@ Gives T4 (and whoever eventually picks up `POST /auth/token`'s P-03) a
 rule to build against instead of inventing the "which layer, why"
 reasoning from scratch, and forecloses the specific per-worker mistake
 before it ships once instead of catching it in review each time.
+
+---
+
+## Proposal 7 — Long-Lived Integration Branches Need an Exception to Squash-Only/Linear-History
+
+**Status: 🔲 Proposed, not yet reviewed** — added 2026-08-03, discovered
+live while executing RA2 (`ra2-merge-staging/index.md`, the
+`v2.0.0-alpha` release plan's `proj/v2.0.0-bump` → `staging` step).
+
+**Target**: new subsection `§18.5` (after existing §18.4, Git Standards
+— this is a branch/merge-strategy rule, not a release-deployment rule,
+so it belongs alongside the existing commit-philosophy rules rather than
+in §25 Release Policy).
+
+### Context
+
+F9 (`f9-proj-branch-protection/index.md`) added a repository ruleset
+requiring PRs (no direct pushes) on `proj/*` branches, mirroring
+`staging`/`main`'s existing protection. Checking that protection's exact
+shape while resolving RA2's own conflict (`gh api
+repos/.../rules/branches/...`) surfaced that both `staging` and
+`proj/v2.0.0-bump` share one repository-wide ruleset requiring
+`allowed_merge_methods: ["squash"]`, `required_linear_history`, and
+`non_fast_forward` (no force-push) — every merge between any two
+branches in this repository, including between two long-lived
+integration branches, is forced to be a squash commit.
+
+This has a structural consequence nothing in this project's docs
+anticipated: **squash merges never advance the git merge-base between
+the two branches involved.** Reconciling `proj/v2.0.0-bump` with
+`staging` (RA1 §1.11's T1/T2-inert decision meant they'd diverged on
+`apps/tamiyo_scroll/package.json`/`package-lock.json` and
+`apps/barrins_api/uv.lock`, from unrelated dependency bumps landing on
+each branch independently) required a "sync" PR (#47, mirroring the
+existing #40 precedent from v1.0.0-bump's own history) to resolve a real
+textual conflict. But because #47 squash-merged into
+`proj/v2.0.0-bump`, git's recorded merge-base with `staging` **stayed
+frozen** at the commit from *before either branch had diverged*
+(`9fa40bf`, 2026-07-25) — so the identical conflict reappeared
+immediately on the next comparison (RA2's own PR, checked via `gh pr
+view --json mergeable`), and would keep reappearing on every future
+comparison between these two branches for as long as they both touch the
+same lines, no matter how many times a sync PR "resolves" it. A second
+sync PR (#48) confirmed this: it squash-merged with **zero net diff**
+(content was already fully reconciled) and, as predicted, did not clear
+the conflict.
+
+**The actual fix** (used to unblock RA2): build the reconciliation
+branch starting **from the target branch** (`staging`) and merge the
+*source* branch (`proj/v2.0.0-bump`) into it, resolving the conflict
+once, so `staging` becomes a real git ancestor of the result — a PR from
+that branch back into `staging` then computes as a clean, trivial diff,
+because nothing on `staging`'s side needs reconciling against a stale
+base anymore. This only works one-directionally (it fixed the
+`proj/v2.0.0-bump` → `staging` direction; the reverse — syncing
+`staging`'s later changes back into `proj/v2.0.0-bump`, as PR #47/#48
+attempted — remains structurally unfixable under squash-only, since
+`proj/v2.0.0-bump` is not the branch actually being merged into GitHub's
+UI in that direction either way).
+
+### Alternatives
+
+1. **Leave it undocumented.** Whoever hits this next (the same
+   `proj/v2.0.0-bump` → `staging` promotion happens again for the full
+   `v2.0.0` release, per `index.md`'s Group R) re-derives the same
+   "why is this still conflicting after I just fixed it" confusion from
+   scratch.
+2. **Record the mechanism and the one-directional workaround** (build
+   from the target branch, not the source branch) as a documented rule —
+   without changing the branch-protection ruleset itself.
+3. **Carve out a ruleset exception** allowing real merge commits (not
+   squash) specifically between long-lived integration branches
+   (`proj/*` ↔ `staging`), which would let the merge-base actually
+   advance and prevent this class of conflict from recurring at all —
+   at the cost of `staging`'s/`proj/*`'s history no longer being fully
+   linear, and touches repo-wide merge-button settings, not just this
+   one pair of branches.
+
+### Trade-offs
+
+Option 1 costs nothing to write but guarantees the same debugging
+detour recurs at least once more this release cycle (the full `v2.0.0`'s
+own `proj/v2.0.0-bump` → `staging` promotion, Group R). Option 3 is the
+structurally cleaner fix (real ancestry, no recurring conflict at all)
+but is a repository-wide policy change the user explicitly declined to
+make when this was found live (2026-08-03) — "keep squash-syncing" was
+chosen over changing merge settings, matching this project's general
+preference (§39/§48, YAGNI) for not re-architecting infrastructure to
+solve a problem a documented workaround already handles. Option 2
+matches that decision: cheap, no infrastructure change, and turns a
+one-off discovery into a repeatable recipe.
+
+### Decision (proposed)
+
+Add `§18.5`: when reconciling two long-lived branches under this
+repository's squash-only/linear-history branch protection, **build the
+reconciliation branch starting from whichever branch is the merge
+*target*, merging the *source* branch into it** — never the reverse —
+so the target becomes a real ancestor of the result and the resulting PR
+computes as a clean diff instead of re-deriving the same conflict from a
+stale, frozen merge-base. Document plainly that squash merges do not
+advance the merge-base between the branches involved, so a conflict
+"resolved" by squash-merging into the *source* branch (e.g. syncing
+`staging`'s changes into `proj/v2.0.0-bump`) will **not** clear the
+corresponding conflict in the *opposite* direction (`proj/v2.0.0-bump`
+into `staging`) — these are two independent reconciliations under
+squash-only, not one.
+
+### Consequences
+
+Gives whoever runs the full `v2.0.0` release's own `proj/v2.0.0-bump` →
+`staging` promotion (Group R, not Group RA) a documented recipe instead
+of re-discovering this the same way RA2 did. Doesn't fix the underlying
+mechanism (still squash-only) — a future release could still hit
+one-off confusion the first time a *different* pair of long-lived
+branches needs reconciling, but at least this exact `proj/*` ↔ `staging`
+shape now has a written answer.
 
 ---
 
