@@ -322,9 +322,7 @@ class TestSessionComparison:
         )
         earlier_match_resp = await client.post(
             f"{BASE}/matches",
-            json=_match_payload(
-                personal_id, meta_id, session_id=earlier_session_id
-            ),
+            json=_match_payload(personal_id, meta_id, session_id=earlier_session_id),
             headers=headers,
         )
         await _set_created_at(

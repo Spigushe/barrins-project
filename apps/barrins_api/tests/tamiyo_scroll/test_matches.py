@@ -21,9 +21,7 @@ async def _null_out(
         values["game"] = None
     if category:
         values["category"] = None
-    stmt = update(TSPersonalDeck).where(
-        TSPersonalDeck.id == uuid.UUID(personal_id)
-    )
+    stmt = update(TSPersonalDeck).where(TSPersonalDeck.id == uuid.UUID(personal_id))
     await db_session.execute(stmt.values(**values))
     await db_session.commit()
 

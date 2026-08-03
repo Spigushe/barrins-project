@@ -174,9 +174,7 @@ class TestSharedDataInStats:
             headers=owner_headers,
         )
 
-        resp = await client.get(
-            f"{BASE}/matchup-summary", headers=owner_headers
-        )
+        resp = await client.get(f"{BASE}/matchup-summary", headers=owner_headers)
         body = resp.json()
         assert len(body["rows"]) == 1
         assert body["rows"][0]["opponent_deck_name"] == "Burn"

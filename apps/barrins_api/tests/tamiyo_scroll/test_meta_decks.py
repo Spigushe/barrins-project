@@ -236,9 +236,7 @@ class TestSharedRosterMerge:
 
         resp = await client.get(f"{BASE}/meta-decks", headers=owner_headers)
         assert resp.status_code == 200
-        matching = [
-            d for d in resp.json() if d["name"] == "Aragorn, King of Gondor"
-        ]
+        matching = [d for d in resp.json() if d["name"] == "Aragorn, King of Gondor"]
         assert len(matching) == 1
         assert matching[0]["tier"] == 3.0
         assert matching[0]["is_readonly"] is True

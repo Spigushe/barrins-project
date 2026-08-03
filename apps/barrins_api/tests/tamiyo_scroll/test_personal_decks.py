@@ -217,9 +217,7 @@ class TestPatchPersonalDeck:
         )
         assert resp.status_code == 404
 
-    async def test_extra_field_returns_422(
-        self, client: AsyncClient, owner_user: User
-    ):
+    async def test_extra_field_returns_422(self, client: AsyncClient, owner_user: User):
         deck_id = await _create_deck(client, owner_user)
         resp = await client.patch(
             f"{BASE}/personal-decks/{deck_id}",
