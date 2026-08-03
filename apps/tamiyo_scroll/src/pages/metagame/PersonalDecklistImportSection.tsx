@@ -14,6 +14,7 @@ export function PersonalDecklistImportSection() {
   const [rawText, setRawText] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [staleWarning, setStaleWarning] = useState(false)
   const importMoxfield = useImportMoxfield()
   const createVersion = useCreateDecklistVersion()
 
@@ -26,8 +27,13 @@ export function PersonalDecklistImportSection() {
     event.preventDefault()
     if (!moxfieldUrl.trim()) return
     setImportError(null)
+    setStaleWarning(false)
     try {
-      await importMoxfield.mutateAsync({ deckId, moxfieldUrl: moxfieldUrl.trim() })
+      const version = await importMoxfield.mutateAsync({
+        deckId,
+        moxfieldUrl: moxfieldUrl.trim(),
+      })
+      setStaleWarning(version.moxfield_deck_changed_since_last_import === true)
       setMoxfieldUrl('')
     } catch (err) {
       setImportError(err instanceof ApiError ? err.message : 'An error occurred.')
@@ -75,6 +81,11 @@ export function PersonalDecklistImportSection() {
           </Button>
           {importError !== null && (
             <p className="text-[12.5px] text-destructive">{importError}</p>
+          )}
+          {staleWarning && (
+            <p className="text-[12.5px] text-warning">
+              This deck has changed on Moxfield since your last import from there.
+            </p>
           )}
         </form>
 

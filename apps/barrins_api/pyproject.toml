@@ -35,6 +35,8 @@ dependencies = [
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.51.0",
+    # >=69.0: includes fixes for both CVE-2025-68616 and CVE-2026-49452 (see S5 ADR/I8).
+    "weasyprint>=69.0",
 ]
 
 [dependency-groups]

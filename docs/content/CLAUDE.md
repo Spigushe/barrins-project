@@ -449,7 +449,12 @@ The backend must expose stable contracts for clients.
 
 Current backend stack:
 
-- Python
+- Python 3.14+ (see each app's `pyproject.toml` `requires-python` for the
+  exact floor — never assume an older interpreter than what's pinned
+  there, including for syntax: e.g. PEP 758 (Python 3.14) makes
+  `except OSError, ValueError:` valid and equivalent to
+  `except (OSError, ValueError):` — that is current, correct syntax on
+  this baseline, not a Python 2 relic to "fix" by re-adding parentheses)
 - FastAPI
 - PostgreSQL
 - SQLAlchemy
@@ -477,6 +482,12 @@ Avoid:
 - hidden global state;
 - unnecessary abstractions;
 - framework-specific coupling.
+
+Trust `ruff format`/`ruff check --fix`'s output against this project's
+pinned Python floor (see 11.2) before assuming it introduced a syntax
+error — verify against the interpreter actually in use
+(`uv run python -c "..."`) rather than reverting to older, more familiar
+syntax on sight.
 
 ### 11.4 Dependency injection
 
@@ -2247,7 +2258,62 @@ Claude Code must never:
 
 ---
 
-## 51. Final Instruction
+## 51. Privacy, Data Retention & Analytics Policy
+
+Aggregate or derived analytics computed only from data the backend
+already holds for its normal function (e.g. counting existing rows)
+requires no additional user consent.
+
+It must be documented alongside the feature that computes it:
+
+- what is measured;
+- why;
+- who can see it.
+
+Mirrors the API-documentation requirement in §21, extended to analytics
+surfaces specifically.
+
+---
+
+Introducing any new tracking/telemetry collection not already implied by
+the feature's own function goes through the same dependency-approval
+process as §22 (Dependency Management), applied to data-collection
+tooling and not only code libraries.
+
+Examples requiring approval:
+
+- a first- or third-party analytics SDK;
+- session recording;
+- additional request logging beyond what already exists for security
+  purposes.
+
+---
+
+Admin-facing aggregate views must not expose a specific non-admin user's
+individual behavior beyond what already exists elsewhere in admin
+tooling.
+
+A metrics dashboard shows counts/trends, not "user X did Y at time Z" —
+unless an existing admin feature (e.g. the user list) already exposes
+that.
+
+---
+
+No automatic data-retention/deletion policy exists today for user data
+(accounts, decks, matches). This section does not invent one.
+
+Named here explicitly as an open compliance question, to be resolved
+before any feature that requires it (e.g. a jurisdiction with a "right
+to be forgotten" requirement) — not before it is actually needed.
+
+If/when this needs to align with GDPR (or similar) regulation, that must
+extend this section in place — retention schedules, consent flows,
+data-subject-access handling added on top of what's here — never a
+separate policy document superseding it.
+
+---
+
+## 52. Final Instruction
 
 When starting any task:
 

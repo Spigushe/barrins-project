@@ -4,7 +4,6 @@ import { apiRequest } from './client'
 
 export function listMetaDecks(options: { includeArchived?: boolean } = {}) {
   return apiRequest('/bff/tamiyo-scroll/meta-decks', metaDeckSchema.array(), {
-    applyOwnerParam: true,
     params: { include_archived: options.includeArchived },
   })
 }

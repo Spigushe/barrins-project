@@ -39,6 +39,10 @@
   --color-winrate-20: oklch(0.65 0.15 55);
   --color-winrate-0: oklch(0.6 0.18 25);
 
+  --color-owner: oklch(0.65 0.13 170);
+  --color-shared: oklch(0.65 0.14 200);
+  --color-tournament: oklch(0.65 0.16 345);
+
   --radius-input: 6px;
   --radius-button: 8px;
   --radius-card: 12px;

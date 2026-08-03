@@ -9,17 +9,26 @@ let currentUser: { display_name: string | null; email: string } | undefined = un
 vi.mock('@/hooks/useAuth', () => ({
   useLogout: () => ({ mutateAsync: vi.fn() }),
   useCurrentUser: () => ({ data: currentUser }),
+  useUpdateProfile: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
   useMySettings: () => ({ data: { active_personal_deck_id: activePersonalDeckId } }),
-  useUpdateMySettings: () => ({ mutateAsync: vi.fn() }),
+  useUpdateMySettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({ data: [] }),
   useCreatePersonalDeck: () => ({ mutateAsync: vi.fn() }),
   useArchivePersonalDeck: () => ({ mutateAsync: vi.fn() }),
+  useUpdatePersonalDeck: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDownloadDeckReport: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
+vi.mock('@/hooks/useTeams', () => ({
+  useMyTeams: () => ({ data: [] }),
+  useTeamDecks: () => ({ data: [] }),
+  useDownloadTeamDeckReport: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 function renderAppShell() {
@@ -33,20 +42,22 @@ function renderAppShell() {
 }
 
 describe('AppShell tab visibility', () => {
-  it('hides the three tabs when no personal deck is selected', () => {
+  it('hides the tabs when no personal deck is selected', () => {
     activePersonalDeckId = null
     renderAppShell()
     expect(screen.queryByText('Metagame')).not.toBeInTheDocument()
     expect(screen.queryByText('BO3 Tracking')).not.toBeInTheDocument()
     expect(screen.queryByText('My decklist')).not.toBeInTheDocument()
+    expect(screen.queryByText('Teams')).not.toBeInTheDocument()
   })
 
-  it('shows the three tabs once a personal deck is selected', () => {
+  it('shows the tabs once a personal deck is selected', () => {
     activePersonalDeckId = 'deck-1'
     renderAppShell()
     expect(screen.getByText('Metagame')).toBeInTheDocument()
     expect(screen.getByText('BO3 Tracking')).toBeInTheDocument()
     expect(screen.getByText('My decklist')).toBeInTheDocument()
+    expect(screen.getByText('Teams')).toBeInTheDocument()
   })
 })
 
