@@ -11,6 +11,10 @@ __pycache__/
 # mkdocs build output
 docs/site/
 
+# graphify knowledge-graph cache/output — local, regenerated on demand
+graphify-out/
+docs/graphify-out/
+
 # api logs
 apps/barrins_api/logs/
 
