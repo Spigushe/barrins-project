@@ -6,6 +6,7 @@ docs_dir: content
 hooks:
     - hooks/sync_readmes.py
     - hooks/sync_changelogs.py
+    - hooks/sync_constitution.py
 
 exclude_docs: |
     _links.md
