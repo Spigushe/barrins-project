@@ -88,6 +88,18 @@ much larger scale (`main`/`staging` share no real ancestry since this
 repo's first commit), confirming the mechanism generalizes beyond the
 one pair of branches it was first found on. `v2.0.0-alpha` is now on
 `main`; RA4 (tag) and RA5 (deploy) remain.
+**Later still the same day**: preparing the Group T/D deployment chain
+(D1 → S8 → {S4, T3} → T6 → {T7, T8} → D2) surfaced that **T7 and D2 each
+depend on an item outside that chain** (T7 needs T4/T5; D2 needs F1) —
+the user chose to fold F1/T4/T5 into the same tracked chain rather than
+leave them dangling. **D1 completed the same session**: the checklist
+lives at `docs/content/ops/deployment/new-service-checklist.md`. Starting
+it surfaced that T1 had already built a concrete scheduled-job precedent
+(`scripture_scraper`/`barrins_scripture.yml`) ahead of D1 existing — T8's
+page and this table's T8 row are corrected accordingly (Barrin's
+Scripture half partially done, not "not started"). Next up in the chain:
+S8 (now unblocked on D1) and F1 (always unblocked, feeds D2) can both
+start; T3 stays blocked on S8; T4 stays blocked on T2 (done).
 
 ---
 
@@ -1105,7 +1117,7 @@ R5 turning each into a real ADR.
 | T5 | `apps/tolaria_news` real frontend (React/Vite), calling `barrins_api`'s BFF only — no direct DB/calculation client-side, per §4.1/§4.2 | T4, I1 | `ops/my-server/tolaria_news.yml` already exists and is ready to deploy real code once this lands. **I7 resolved as Option 4** — T5's calling pattern is unaffected (no same-origin proxy flip; that was option 3, not chosen) | [t5-tolaria-news-frontend/](t5-tolaria-news-frontend/index.md) |
 | T6 | `apps/karn_tablets`: metagame clustering + deck-type aggregation per I4's decided scope (real service, not a placeholder) | I4, T2, T3 | Basic clustering/aggregation only for v2.0.0 (§1.4); windowing strategy (rolling 30-day vs. banlist-period) and prediction targets still need narrowing; any new ML dependency follows §4.7/§22 | [t6-karn-tablets-scaffold/](t6-karn-tablets-scaffold/index.md) |
 | T7 | Docs: `docs/content/back/barrins_scripture/`, `docs/content/back/karn_tablets/` (now real content, not a stub), real content for `docs/content/front/tolaria_news/_links.md` | T1, T4–T6 | Follow the existing per-app docs pattern (`_links.md` + synced README) | [t7-new-apps-docs/](t7-new-apps-docs/index.md) |
-| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1, T6, D1 | See Group D — these don't fit the existing `fastapi_backend`/`react_frontend` role shapes; Karn Tablets' playbook is no longer deferrable now that I4 confirmed real scope | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
+| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1 (done), T6, D1 (done) | 🟡 **Partially done** — the Barrin's Scripture half (`scripture_scraper`) already shipped during T1, found 2026-08-03; remaining: check it against D1's now-written checklist, close its own "not automated yet" gaps. Karn Tablets half still blocked on T6 | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
 
 ### Group S — Tamiyo Scroll changes (request item 2)
 
@@ -1167,8 +1179,8 @@ repo on 2026-07-25, not previously written down anywhere):
 
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
-| D1 | A documented **playbook template/checklist** generalizing Constitution §37/§26.1 for service *shapes* that don't exist yet in `ops/my-server/roles/` — today there's only `fastapi_backend` (web API) and `react_frontend` (static SPA). Barrin's Scripture is a **scheduled job**, not a long-running web service; Karn Tablets (real scope confirmed by I4, §1.4) is likely a third shape again — a periodic clustering job, possibly with a small results-serving API. | I2, I4 | This is the concrete deliverable behind "new applications and services will need a playbook for deployment" — a template, not a finished playbook for a service that isn't designed yet | [d1-playbook-template/](d1-playbook-template/index.md) |
-| D2 | Extend monitoring (HetrixTools or its successor per F1) to cover the new service(s) | F1, D1 | | [d2-monitoring-extension/](d2-monitoring-extension/index.md) |
+| D1 | A documented **playbook template/checklist** generalizing Constitution §37/§26.1 for service *shapes* that don't exist yet in `ops/my-server/roles/` — today there's only `fastapi_backend` (web API) and `react_frontend` (static SPA). Barrin's Scripture is a **scheduled job**, not a long-running web service; Karn Tablets (real scope confirmed by I4, §1.4) is likely a third shape again — a periodic clustering job, possibly with a small results-serving API. | I2, I4 | ✅ **Done (2026-08-03)** — [`new-service-checklist.md`](../../content/ops/deployment/new-service-checklist.md). Found while starting this item: T1 already built a concrete scheduled-job instance (`scripture_scraper`) ahead of this template — used as a precedent instead of duplicated, see T8 | [d1-playbook-template/](d1-playbook-template/index.md) |
+| D2 | Extend monitoring (HetrixTools or its successor per F1) to cover the new service(s) | F1, D1 | 🔲 Unblocked on D1 (done); still needs F1 | [d2-monitoring-extension/](d2-monitoring-extension/index.md) |
 | D3 | Update `security/secrets.md` / `ops/my-server/secrets/README.md` for whatever new credential(s) I3 introduces (e.g. a Barrin's-Scripture-to-`barrins_api` service token) | I3 | Same "never in git" pattern as ADR-1, just documenting the new secret | [d3-secrets-docs-update/](d3-secrets-docs-update/index.md) |
 
 ### Group R — Release wrap (mirrors v1.0.0's B1–B7)

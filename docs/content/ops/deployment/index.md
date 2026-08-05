@@ -9,6 +9,9 @@ each with its own Preparation / Deployment / Validation / Rollback:
   infrastructure/admin tooling, not release-tagged.
 - [Docs Site](docs_site.md) — self-hosted mkdocs deployment, same
   environment/branch/tag options as the app playbooks.
+- [New Service Checklist](new-service-checklist.md) — template for a
+  service that is neither a backend nor a frontend (a scheduled job, a
+  background worker, a small inference service).
 - [Rollback](rollback.md) — the shared release-tag rollback mechanism, and
   the backend-specific database caveat.
 
