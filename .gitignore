@@ -69,3 +69,9 @@ docs/content/changelog/tamiyo_scroll.md
 docs/content/changelog/tolaria_news.md
 docs/content/changelog/docs.md
 docs/content/changelog/ops.md
+
+# collection_organization.py (personal script) -- both the Moxfield CSV
+# export it reads and the CSV/JSON/Markdown binder maps it generates are
+# personal collection data, never checked in.
+apps/barrins_api/scripts/input/
+apps/barrins_api/scripts/outputs/
