@@ -16,9 +16,10 @@ script -- only adding a new `BinderScheme` entry.
 - `gold3`: Binder 1 White/Blue/Black, Binder 2 Red/Green/Gold
   (multicolor), Binder 3 Colorless/Lands/Tokens.
 
-Data source: a Moxfield "Haves" CSV export, read by default from
-`scripts/input/` (see `DEFAULT_CSV_PATH`) -- both `input/` and `outputs/`
-hold personal collection data and are git-ignored, not checked in. Card
+Data source: a Moxfield "Haves" CSV export, read by default from the most
+recent `moxfield_haves_*.csv` file in `scripts/input/` (see
+`_latest_moxfield_csv`) -- both `input/` and `outputs/` hold personal
+collection data and are git-ignored, not checked in. Card
 attributes needed for sorting (color identity, mana value, type) come from
 the local MTGJSON-backed `cards`/`sets` tables (see `app/models/mtgjson.py`),
 matched by set code + collector number, falling back to a name-only lookup
@@ -57,7 +58,19 @@ from app.models.mtgjson import Card, MTGSet
 SCRIPT_DIR = Path(__file__).resolve().parent
 INPUT_DIR = SCRIPT_DIR / "input"
 OUTPUT_DIR = SCRIPT_DIR / "outputs"
-DEFAULT_CSV_PATH = INPUT_DIR / "moxfield_haves_2026-08-06-1040Z.csv"
+
+
+def _latest_moxfield_csv(directory: Path) -> Path | None:
+    """Most recent Moxfield "Haves" export in `directory`, by filename timestamp.
+
+    Filenames sort chronologically (`moxfield_haves_YYYY-MM-DD-HHMMZ.csv`), so
+    a plain lexicographic max avoids relying on filesystem mtimes.
+    """
+    candidates = sorted(directory.glob("moxfield_haves_*.csv"))
+    return candidates[-1] if candidates else None
+
+
+DEFAULT_CSV_PATH = _latest_moxfield_csv(INPUT_DIR)
 DEFAULT_CSV_OUTPUT = OUTPUT_DIR / "collection_binders.csv"
 DEFAULT_JSON_OUTPUT = OUTPUT_DIR / "collection_binders.json"
 DEFAULT_MARKDOWN_OUTPUT = OUTPUT_DIR / "collection_binders.md"
@@ -1029,8 +1042,10 @@ def _parse_args() -> argparse.Namespace:
         "--csv",
         type=Path,
         default=DEFAULT_CSV_PATH,
+        required=DEFAULT_CSV_PATH is None,
         metavar="PATH",
-        help="Path to the Moxfield 'Haves' CSV export.",
+        help="Path to the Moxfield 'Haves' CSV export "
+        "(default: most recent moxfield_haves_*.csv in scripts/input/).",
     )
     parser.add_argument(
         "--scheme",
