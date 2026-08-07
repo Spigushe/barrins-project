@@ -30,13 +30,27 @@ doesn't exist in code yet. Decided: this item now validates every scraped
 card name against S8's data before storing it, rather than ingesting
 unvalidated strings. This item is on hold until S8 lands.
 
+**Decided (2026-08-07, definitive) — pull/sweep model replaces push +
+maintenance-gate + backoff.** Originally scoped as: the scraper calls
+`POST /internal/scripture/ingest` immediately after each scrape, the route
+rejects with `HTTP 503` during a declared maintenance window, and the
+client retries with backoff. Superseded: the JSON archive is the sole
+handoff point (already true per §1.3), and a periodic, idempotent **sweep**
+— the same mechanism as the bulk-replay script below, just scoped to
+recent files instead of the full archive — is what drives ingestion,
+rather than an immediate call from the scraper. If `barrins_api` is down or
+in maintenance, the sweep simply fails that tick; the next scheduled sweep
+picks up whatever wasn't ingested, because `ON CONFLICT DO UPDATE` upserts
+by natural key make re-submission a no-op. This also gets the MTGO
+3-day-mutability requirement (below) for free — re-sweeping recent files on
+every tick re-applies any edits, not just fills gaps. Consequence: no
+scraper-side retry/backoff logic, no maintenance-flag special-casing in the
+route — a plain 5xx during a sweep is indistinguishable from "try again
+next tick." The route itself is unchanged (§1.2's private,
+backend-only-route decision stands; only who calls it and when changes).
+
 **Groundwork recorded during this scoping pass, not yet implemented:**
 
-- **Maintenance gate behavior**: reject (not queue) via `HTTP 503` when
-  `scripture_ingest_maintenance` is set, checked before any DB write starts
-  — the JSON archive already makes a rejected scrape safely replayable, so
-  the client (Barrin's Scripture) retries with backoff rather than the
-  route building real queue infrastructure.
 - **`bs_deck_cards` needs delete-and-reinsert per deck on each ingest, not
   row-level upsert.** Originally assumed decklists were immutable once
   published — wrong: MTGO decklists are mutable for about 3 days after
@@ -65,43 +79,41 @@ unvalidated strings. This item is on hold until S8 lands.
 - Every scrape still produces a JSON file in the archive first (§1.3 —
   unchanged behavior, this is the existing replay-safety net), living at
   its new, durable location (T1's urgent relocation task).
-- A second step reads that archive (new scrapes, or a bulk historical
-  replay) and calls the ingestion path into `barrins_api`'s `bs_*`
-  tables, idempotently (re-ingesting an already-ingested tournament is a
-  no-op, not a duplicate row).
+- A periodic sweep reads that archive (recent files on a routine tick, or
+  the full archive for a historical replay — same mechanism, different
+  scope) and calls the ingestion path into `barrins_api`'s `bs_*` tables,
+  idempotently (re-ingesting an already-ingested tournament is a no-op,
+  not a duplicate row).
 - If the DB is ever dropped, the full `bs_*` contents can be rebuilt from
   the JSON archive alone, with no scraping required.
-- The ingestion route rejects or queues writes during a declared
-  maintenance window (§1.2's additional requirement) via a narrow,
-  route-scoped maintenance flag — not a blanket API-wide maintenance
-  page.
+- No scraper-side retry/backoff and no maintenance-flag gate on the route
+  (2026-08-07 decision, above): a failed sweep tick is resolved by the
+  next scheduled tick, not by special-casing the failure.
 
 ## Tasks
 
 - [ ] Implement `POST /internal/scripture/ingest`: request/response
       schema, and its service-to-service credential (ties into D3).
-- [ ] Add the maintenance-mode gate to this route specifically (§1.2):
-      check a settings-backed or narrowly-scoped flag before writing,
-      reject/queue if set.
-- [ ] Wire the daily/biweekly scheduled jobs (or their post-migration
-      equivalent) to call the ingestion step after each scrape, retrying
-      against the same endpoint if a maintenance window was active.
-- [ ] Write a standalone "bulk replay" script/command for rebuilding
-      `bs_*` from the full existing `mtg_decklist_cache` archive
-      (the actual disaster-recovery answer to the original "why keep
-      JSON" question).
+- [ ] Write the sweep mechanism (recent-files mode and full-archive mode
+      share the same code path — the latter is the "bulk replay"/
+      disaster-recovery case): list archive files, call the ingestion
+      route per file, idempotent by construction. Schedule the
+      recent-files mode on its own tick, independent of the scrape
+      schedule, so an `barrins_api` outage during a scrape doesn't need
+      to be handled at scrape time at all.
 
 ## UAT (manual)
 
-- [ ] Run the bulk-replay path against the real `mtg_decklist_cache`
-      archive on staging; confirm row counts match the number of
-      archived JSON files (accounting for any intentionally-skipped
-      malformed ones).
-- [ ] Trigger a fresh scrape; confirm it lands in both the JSON archive
-      and the `bs_*` tables.
-- [ ] With the maintenance flag set, confirm the ingestion route rejects
-      or queues the write instead of erroring opaquely, and that a retry
-      after clearing the flag succeeds.
+- [ ] Run the sweep in full-archive mode against the real
+      `mtg_decklist_cache` archive on staging; confirm row counts match
+      the number of archived JSON files (accounting for any
+      intentionally-skipped malformed ones).
+- [ ] Trigger a fresh scrape; confirm it lands in the JSON archive, then
+      confirm the next sweep tick lands it in the `bs_*` tables.
+- [ ] Take `barrins_api` down (or set it to a state that 5xxs the
+      ingestion route) during a sweep tick; confirm the sweep fails that
+      tick without side effects, and the next tick ingests successfully
+      with no duplicate/missing rows.
 
 ## Non-regression tests
 

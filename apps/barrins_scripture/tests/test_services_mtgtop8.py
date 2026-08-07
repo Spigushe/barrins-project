@@ -152,3 +152,25 @@ class TestScrapeMtgtop8:
             service.scrape_mtgtop8(span=10, num_threads=1, output_dir=tmp_path)
 
         assert service.mtgtop8_utils.BASE_PATH == tmp_path / "mtgtop8.com"
+
+    def test_id_from_overrides_resuming_from_the_archive_max(self) -> None:
+        with (
+            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=999),
+            patch.object(service, "producer") as mock_producer,
+            patch.object(service, "consumer"),
+        ):
+            service.scrape_mtgtop8(span=10, num_threads=1, id_from=1)
+
+        called_ids = sorted(call.args[0] for call in mock_producer.call_args_list)
+        assert called_ids == list(range(1, 11))
+
+    def test_id_from_defaults_to_resuming_from_the_archive_max(self) -> None:
+        with (
+            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=999),
+            patch.object(service, "producer") as mock_producer,
+            patch.object(service, "consumer"),
+        ):
+            service.scrape_mtgtop8(span=10, num_threads=1)
+
+        called_ids = sorted(call.args[0] for call in mock_producer.call_args_list)
+        assert called_ids == list(range(1000, 1010))

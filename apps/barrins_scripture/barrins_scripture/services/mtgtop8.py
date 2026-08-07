@@ -16,7 +16,10 @@ Top8Queue = Queue[tuple[str, BeautifulSoup]]
 
 
 def scrape_mtgtop8(
-    span: int = 1000, num_threads: int = 4, output_dir: Path | None = None
+    span: int = 1000,
+    num_threads: int = 4,
+    output_dir: Path | None = None,
+    id_from: int | None = None,
 ) -> None:
     if output_dir is not None:
         # Overrides the module-level default (apps/barrins_scripture/scraped/
@@ -29,10 +32,14 @@ def scrape_mtgtop8(
     lock = Lock()
     retries: dict[str, int] = defaultdict(int)
 
-    # first_id is already the next unscraped id (get_max_id_scraped() + 1),
-    # so this range starts at first_id + 0, not + 1 — the original code's
-    # "+ j + 1" here skipped that very first id on every run.
-    first_id = mtgtop8_utils.get_max_id_scraped() + 1
+    # first_id is already the next unscraped id (get_max_id_scraped() + 1)
+    # by default, so this range starts at first_id + 0, not + 1 — the
+    # original code's "+ j + 1" here skipped that very first id on every
+    # run. id_from overrides this to backfill an arbitrary id range instead
+    # of only ever resuming forward from the archive's current max.
+    first_id = (
+        id_from if id_from is not None else mtgtop8_utils.get_max_id_scraped() + 1
+    )
     for i in range(span // 10):
         threads = [
             Thread(target=producer, args=(first_id + 10 * i + j, task_queue, lock))

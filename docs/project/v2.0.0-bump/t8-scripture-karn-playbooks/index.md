@@ -87,18 +87,14 @@ narrow read API, if the consumption-surface decision lands there.
       code/behavior change, only documentation.
 - [ ] Close `scripture_scraper`'s remaining documented gaps: the JSON
       archive isn't a git submodule yet (T1's own tracked task — not
-      this item's to do); no failure-notification wiring. **The second
-      one needs a decision, not just an implementation**: what
-      mechanism/channel to alert on isn't scripture-specific — it's the
-      same question [D2](../d2-monitoring-extension/index.md) is
-      already tracking for every future scheduled-job-shaped service,
-      and D2 is itself blocked on F1 (the HetrixTools-or-successor
-      decision). Picking a one-off mechanism here risks conflicting with
-      whatever D2/F1 lands on. **Left open pending the user's call** on
-      whether to (a) wait for D2/F1, (b) build a scripture-only stopgap
-      now (e.g. `OnFailure=` systemd unit + a simple mail command) and
-      let D2 supersede it later, or (c) accept manual `systemctl status`
-      for v2.0.0.
+      this item's to do); no failure-notification wiring. **Decided
+      (2026-08-07, user's call)**: option (a) — wait for
+      [D2](../d2-monitoring-extension/index.md)/F1 rather than build a
+      scripture-only stopgap. No implementation here until D2 lands its
+      generic scheduled-job notification mechanism (itself blocked on
+      F1, the HetrixTools-or-successor decision); `systemctl status`/
+      `journalctl -u barrins_scripture.service` remains how a failed run
+      is surfaced in the meantime.
 - [ ] Document the new secret(s) T3/D3 introduce (the
       Barrin's-Scripture-to-`barrins_api` service credential, if that's
       §1.2's outcome) — still open, T3 hasn't landed yet (blocked on S8,

@@ -52,7 +52,18 @@ class TestMain:
             patch.object(cli.services, "mtgtop8") as mock_mtgtop8,
         ):
             cli.main()
-        mock_mtgtop8.assert_called_once_with(42, output_dir=None)
+        mock_mtgtop8.assert_called_once_with(42, output_dir=None, id_from=None)
+
+    def test_mtgtop8_id_from_is_forwarded(self) -> None:
+        with (
+            patch(
+                "sys.argv",
+                ["scrape", "--source", "mtgtop8", "--span", "5000", "--id-from", "1"],
+            ),
+            patch.object(cli.services, "mtgtop8") as mock_mtgtop8,
+        ):
+            cli.main()
+        mock_mtgtop8.assert_called_once_with(5000, output_dir=None, id_from=1)
 
     def test_output_dir_is_forwarded(self, tmp_path: Path) -> None:
         with (
@@ -63,7 +74,7 @@ class TestMain:
             patch.object(cli.services, "mtgtop8") as mock_mtgtop8,
         ):
             cli.main()
-        mock_mtgtop8.assert_called_once_with(1000, output_dir=tmp_path)
+        mock_mtgtop8.assert_called_once_with(1000, output_dir=tmp_path, id_from=None)
 
     def test_bad_date_format_exits_with_an_error(self) -> None:
         with (

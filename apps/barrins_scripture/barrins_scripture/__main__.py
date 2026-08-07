@@ -37,6 +37,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="number of tournament ids to inspect (mtgtop8 only, default: 1000)",
     )
     parser.add_argument(
+        "--id-from",
+        type=int,
+        default=None,
+        help=(
+            "starting tournament id to scrape from (mtgtop8 only; default: "
+            "resume from the last archived id). Combine with --span to "
+            "backfill an arbitrary id range, e.g. --id-from 1 --span 5000."
+        ),
+    )
+    parser.add_argument(
         "--force-mtgo",
         action="store_true",
         help="force re-scraping of already-archived MTGO tournaments",
@@ -74,7 +84,7 @@ def main() -> None:
             )
         services.mtgo(date_from, date_to, args.force_mtgo, output_dir=args.output_dir)
     elif args.source == "mtgtop8":
-        services.mtgtop8(args.span, output_dir=args.output_dir)
+        services.mtgtop8(args.span, output_dir=args.output_dir, id_from=args.id_from)
 
 
 if __name__ == "__main__":
