@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_scripture` + `apps/barrins_api` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — T1/T2 are functionally ready, but **on hold behind S8** (added 2026-07-30, see `v2.0.0-bump/index.md` §1.10): scraped card names must validate against real MTG data before being stored in `bs_deck_cards`, and S8 (the pipeline that would provide that data) doesn't exist in code yet | / |
+| **Status** | 🟡 **Unblocked 2026-08-05** — S8's `Card`/`MTGSet` pipeline now exists (`GET /cards/by-name/{name}` returns real MTG data), so this item's own work (the ingestion route itself, its service credential, maintenance gate, and bulk-replay script — none of that built yet) can start. T1/T2 were already functionally ready | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.2, §1.3, §1.10 | / |
-| **Dependency** | T1, T2, S8 | Blocks T4 |
+| **Dependency** | T1 (done), T2 (done), S8 (core pipeline done 2026-08-05, scheduled refresh still open — not a blocker for this item) | Blocks T4 |
 
 ---
 
