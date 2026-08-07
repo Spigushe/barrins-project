@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
 | **Initial date** | 2026-08-05 | / |
-| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (13 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open | / |
+| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
 | **Dependency** | D1 (playbook shape for the scheduled refresh — still open) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
@@ -62,6 +62,15 @@ its own escalation, not assumed):
    actually proves too memory-heavy in practice. It worked fine against
    the real per-set files used for testing; the full `AllPrintings.json`
    hasn't been fetched end-to-end against production yet (see UAT).
+
+**2026-08-07 performance fix**: the first real `POST /mtgjson/import` run
+took ~45 minutes. Root cause: `import_all_printings` did one
+`INSERT ... ON CONFLICT DO UPDATE` per row (~700 sets + 100k+ card
+printings = 100k+ sequential DB round-trips). Fixed by batching into
+chunked multi-row upserts (`_UPSERT_CHUNK_SIZE = 500` rows/statement) in
+`app/services/mtgjson/importer.py` — no schema change, no new dependency,
+same idempotent-upsert contract. Cuts round-trips from ~100k to a few
+hundred.
 
 ## Done statement
 
@@ -124,6 +133,10 @@ its own escalation, not assumed):
       per-set fixtures — see decision 3 above); confirm `sets`/`cards`
       tables populate, memory usage stays reasonable, and
       `GET /cards/by-name/{name}` returns real data. **Not yet done.**
+      The first production run took ~45 minutes (see the 2026-08-07
+      performance fix above) — re-running against the full file should
+      now complete in low minutes; that improvement itself still needs
+      confirming at full scale, not just against the test fixtures.
 - [x] Confirm a multi-face card stores both faces' types separately,
       retrievable independently — done against a real MDFC in
       `tests/test_mtgjson.py` (see Done statement above).
@@ -135,7 +148,9 @@ its own escalation, not assumed):
 
 - New `tests/test_mtgjson.py`: import idempotency (re-running doesn't
   duplicate rows), public-route reachability without auth, admin-gating
-  on the import route (403 for non-admin).
+  on the import route (403 for non-admin), and (2026-08-07) an import
+  forced across multiple upsert chunks (`_UPSERT_CHUNK_SIZE` monkeypatched
+  down) to prove no rows are dropped or duplicated at a chunk boundary.
 - A test asserting a known multi-face fixture card's per-face type data
   round-trips correctly — this is the data S4's "face A Land" rule
   depends on, so it needs its own explicit regression coverage.

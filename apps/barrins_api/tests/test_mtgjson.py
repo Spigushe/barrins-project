@@ -105,6 +105,29 @@ class TestImportRoute:
         assert body["cards_upserted"] == 3
 
 
+class TestImportChunking:
+    async def test_import_spans_multiple_upsert_chunks(
+        self, db_session, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Forces the 3-card fixture across 2 chunks (chunk size 2) to
+        prove no rows are dropped or duplicated at a chunk boundary, and
+        that idempotency (see `TestImportIdempotency`) still holds when
+        a re-import's chunk boundaries land on the same rows.
+        """
+        monkeypatch.setattr("app.services.mtgjson.importer._UPSERT_CHUNK_SIZE", 2)
+        client_ = FakeMTGJSONClient()
+
+        first = await import_all_printings(db_session, client_)
+        second = await import_all_printings(db_session, client_)
+
+        assert first.sets_upserted == second.sets_upserted == 2
+        assert first.cards_upserted == second.cards_upserted == 3
+        cards_after = (
+            await db_session.execute(select(func.count()).select_from(Card))
+        ).scalar_one()
+        assert cards_after == 3
+
+
 class TestImportIdempotency:
     async def test_reimport_does_not_duplicate_rows(self, db_session):
         client_ = FakeMTGJSONClient()

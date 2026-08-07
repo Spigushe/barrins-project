@@ -1,13 +1,20 @@
 """Upserts MTGJSON's `AllPrintings.json` into the `sets`/`cards` tables.
 
-One `INSERT ... ON CONFLICT DO UPDATE` per row, in FK order (sets before
-their cards) -- the same idempotent-upsert pattern already decided for
-T3's ingestion route (`docs/project/v2.0.0-bump/t3-scripture-ingestion-pipeline/`),
-applied here since both `sets.code` and `cards.id` are natural keys that
-never change between MTGJSON releases.
+Chunked `INSERT ... ON CONFLICT DO UPDATE` (multi-row VALUES per
+statement), in FK order (all sets before any card) -- the same
+idempotent-upsert pattern already decided for T3's ingestion route
+(`docs/project/v2.0.0-bump/t3-scripture-ingestion-pipeline/`), applied
+here since both `sets.code` and `cards.id` are natural keys that never
+change between MTGJSON releases.
+
+Chunked rather than one statement per row (2026-08-07 fix): AllPrintings.json
+has ~700 sets and 100k+ card printings, and one round-trip per row made
+`POST /mtgjson/import` take ~45 minutes. Batching into `_UPSERT_CHUNK_SIZE`-row
+statements cuts that to a few hundred round-trips.
 """
 
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -17,6 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.mtgjson import Card, MTGSet
 from app.services.mtgjson.base import MTGJSONClient
+
+#: Rows per multi-row upsert statement. Cards have 19 columns, so
+#: 500 * 19 = 9,500 bind parameters per statement -- comfortably under
+#: Postgres's 65,535 parameter limit even as columns are added later.
+_UPSERT_CHUNK_SIZE = 500
 
 
 @dataclass(frozen=True)
@@ -66,24 +78,25 @@ def _card_values(set_code: str, card_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _upsert_set(
-    session: AsyncSession, set_code: str, set_data: dict[str, Any]
-) -> None:
-    values = _set_values(set_code, set_data)
-    stmt = insert(MTGSet).values(**values)
-    update_cols = {k: v for k, v in values.items() if k != "code"}
-    stmt = stmt.on_conflict_do_update(index_elements=["code"], set_=update_cols)
-    await session.execute(stmt)
+def _chunked(rows: list[dict[str, Any]], size: int) -> Iterator[list[dict[str, Any]]]:
+    for i in range(0, len(rows), size):
+        yield rows[i : i + size]
 
 
-async def _upsert_card(
-    session: AsyncSession, set_code: str, card_data: dict[str, Any]
-) -> None:
-    values = _card_values(set_code, card_data)
-    stmt = insert(Card).values(**values)
-    update_cols = {k: v for k, v in values.items() if k != "id"}
-    stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_cols)
-    await session.execute(stmt)
+async def _upsert_sets(session: AsyncSession, rows: list[dict[str, Any]]) -> None:
+    for chunk in _chunked(rows, _UPSERT_CHUNK_SIZE):
+        stmt = insert(MTGSet).values(chunk)
+        update_cols = {k: stmt.excluded[k] for k in chunk[0] if k != "code"}
+        stmt = stmt.on_conflict_do_update(index_elements=["code"], set_=update_cols)
+        await session.execute(stmt)
+
+
+async def _upsert_cards(session: AsyncSession, rows: list[dict[str, Any]]) -> None:
+    for chunk in _chunked(rows, _UPSERT_CHUNK_SIZE):
+        stmt = insert(Card).values(chunk)
+        update_cols = {k: stmt.excluded[k] for k in chunk[0] if k != "id"}
+        stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_cols)
+        await session.execute(stmt)
 
 
 async def import_all_printings(
@@ -95,18 +108,25 @@ async def import_all_printings(
     rows in place, it never inserts duplicates (both PKs are natural
     keys). Commits once at the end -- a failed run rolls back everything
     rather than leaving a half-imported dataset.
+
+    All sets are upserted (in chunks) before any card, preserving the
+    `cards.set_code -> sets.code` FK order without needing per-set
+    interleaving.
     """
     payload = await client.fetch_all_printings()
     all_sets: dict[str, Any] = payload["data"]
 
-    sets_upserted = 0
-    cards_upserted = 0
-    for set_code, set_data in all_sets.items():
-        await _upsert_set(session, set_code, set_data)
-        sets_upserted += 1
-        for card_data in set_data.get("cards", []):
-            await _upsert_card(session, set_code, card_data)
-            cards_upserted += 1
+    set_rows = [
+        _set_values(set_code, set_data) for set_code, set_data in all_sets.items()
+    ]
+    card_rows = [
+        _card_values(set_code, card_data)
+        for set_code, set_data in all_sets.items()
+        for card_data in set_data.get("cards", [])
+    ]
+
+    await _upsert_sets(session, set_rows)
+    await _upsert_cards(session, card_rows)
 
     await session.commit()
-    return ImportResult(sets_upserted=sets_upserted, cards_upserted=cards_upserted)
+    return ImportResult(sets_upserted=len(set_rows), cards_upserted=len(card_rows))

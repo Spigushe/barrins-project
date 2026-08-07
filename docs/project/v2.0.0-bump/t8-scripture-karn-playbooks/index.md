@@ -69,21 +69,45 @@ narrow read API, if the consumption-surface decision lands there.
       (`scripture_scraper`), found while starting D1. `mtg_scraper`'s
       GitHub Actions schedule is retired per T1's own plan once this is
       proven equivalent (T1's remaining task, not this one's).
-- [ ] Walk `scripture_scraper`/`barrins_scripture.yml` against D1's
+- [x] Walk `scripture_scraper`/`barrins_scripture.yml` against D1's
       checklist section by section (Preparation/Deployment/Validation/
-      Rollback, plus the six Step-0 questions) and note any gap —
-      **not yet done**, this is the item's actual next concrete step.
-- [ ] Close `scripture_scraper`'s own documented gaps: the JSON archive
-      isn't a git submodule yet (T1's task, tracked there); no
-      failure-notification wiring (this item's task — decide what
-      "Validation" should alert on, per D1 Step 0.3, rather than manual
-      `systemctl status` only).
+      Rollback, plus the six Step-0 questions) — **done 2026-08-05**.
+      Step 0's trigger/HTTP-surface/release-branch questions (0.1, 0.2,
+      0.6) and Preparation/Deployment were already answered correctly in
+      code and/or the playbook's own comments. Step 0.4 (Rollback) and
+      Step 0.5 (data ownership/backup) had real answers, but scattered
+      across T1/T3/this page's prose rather than written into the role's
+      own docs, which is where the checklist says they belong — closed
+      by adding explicit **Validation**, **Rollback**, and **Data
+      ownership & backup** sections to
+      [`scripture_scraper/README.md`](../../../../ops/my-server/roles/scripture_scraper/README.md),
+      including an idempotency note confirmed against the actual code
+      (`save_tournament_scrape`'s deterministic, URL-derived filenames —
+      a rerun overwrites in place, never duplicates). No gap required a
+      code/behavior change, only documentation.
+- [ ] Close `scripture_scraper`'s remaining documented gaps: the JSON
+      archive isn't a git submodule yet (T1's own tracked task — not
+      this item's to do); no failure-notification wiring. **The second
+      one needs a decision, not just an implementation**: what
+      mechanism/channel to alert on isn't scripture-specific — it's the
+      same question [D2](../d2-monitoring-extension/index.md) is
+      already tracking for every future scheduled-job-shaped service,
+      and D2 is itself blocked on F1 (the HetrixTools-or-successor
+      decision). Picking a one-off mechanism here risks conflicting with
+      whatever D2/F1 lands on. **Left open pending the user's call** on
+      whether to (a) wait for D2/F1, (b) build a scripture-only stopgap
+      now (e.g. `OnFailure=` systemd unit + a simple mail command) and
+      let D2 supersede it later, or (c) accept manual `systemctl status`
+      for v2.0.0.
 - [ ] Document the new secret(s) T3/D3 introduce (the
       Barrin's-Scripture-to-`barrins_api` service credential, if that's
-      §1.2's outcome) — still open, T3 hasn't landed yet.
+      §1.2's outcome) — still open, T3 hasn't landed yet (blocked on S8,
+      see T3's own page).
 - [ ] Once T6 resolves its consumption-surface question, write Karn
       Tablets' playbook: a scheduled job for the clustering run, plus a
-      minimal API role only if T6 needs one exposed.
+      minimal API role only if T6 needs one exposed. **Out of
+      Barrin's-Scripture scope** — Karn Tablets is a different
+      application; not touched without the user's go-ahead.
 
 ## UAT (manual)
 
