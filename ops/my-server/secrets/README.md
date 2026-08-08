@@ -22,11 +22,16 @@ secrets/
     staging.env.example
     staging.env
   barrins_scripture/
-    production.env.example   # SCRIPTURE_INGEST_TOKEN here must match the
-    production.env           # same-named key in secrets/barrins_api —
-    staging.env.example      # no centralized secret store for this value.
-    staging.env              # deploy_env picks which one gets deployed
-                              # (default staging — see barrins_scripture.yml)
+    production.env.example   # SCRIPTURE_INGEST_TOKEN is NOT in these
+    production.env           # files — see secrets/scripture/ below.
+    staging.env.example      # deploy_env picks which one gets deployed
+    staging.env              # (default staging — see barrins_scripture.yml)
+  scripture/
+    staging_ingest_token.txt.example     # plaintext template, committed
+    staging_ingest_token.txt             # real value, git-ignored, local-only
+    production_ingest_token.txt.example  # shared by barrins_api.yml AND
+    production_ingest_token.txt          # barrins_scripture.yml — one value
+                                          # per environment, not per app
   postgresql_pgadmin/
     admin_password.txt.example  # plaintext template, committed
     admin_password.txt          # real value, git-ignored, local-only
@@ -99,6 +104,27 @@ this one local file**, no repo edit or commit needed (previously the
 token was a vault-encrypted string duplicated inline in all three
 playbooks, so renewal meant re-encrypting and editing three tracked
 files).
+
+Same idea for the Barrin's Scripture ingestion secret (the
+`X-Scripture-Token` header `barrins_api` checks on
+`POST /internal/scripture/ingest`), shared between `barrins_api.yml` and
+`barrins_scripture.yml` via the `scripture_ingest_token` role — **one
+value per environment**, not one per app:
+
+```bash
+openssl rand -hex 32 | tr -d '\n' > secrets/scripture/staging_ingest_token.txt
+openssl rand -hex 32 | tr -d '\n' > secrets/scripture/production_ingest_token.txt
+ansible-vault encrypt secrets/scripture/staging_ingest_token.txt secrets/scripture/production_ingest_token.txt  # optional
+```
+
+Unlike `secrets/github/token.txt`, this **does** need a different value
+per environment (same reasoning as `SECRET_KEY`) — `staging_ingest_token.txt`
+and `production_ingest_token.txt` must hold different values. The role
+injects whichever one matches the play's `deploy_env` directly into the
+already-deployed `.env` after `fastapi_backend`/`scripture_scraper` copies
+it, so `SCRIPTURE_INGEST_TOKEN` is deliberately absent from
+`secrets/barrins_api/*.env`/`secrets/barrins_scripture/*.env` themselves —
+see `roles/scripture_ingest_token/README.md`.
 
 ## Safety
 

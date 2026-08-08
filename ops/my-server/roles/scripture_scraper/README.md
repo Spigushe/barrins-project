@@ -43,10 +43,13 @@ than inventing a new one.
    `RandomizedDelaySec`, `Persistent=true`).
 6. Deploys the local `.env` (`scripture_scraper_env_file`, if present —
    same "use it if available" pattern as `fastapi_backend_env_file`) to
-   `{{ work_dir }}/.env`, mode `0600`. Templates
+   `{{ work_dir }}/.env`, mode `0600`. `SCRIPTURE_INGEST_TOKEN` is then
+   injected into that same file by the playbook's own `post_tasks` (the
+   `scripture_ingest_token` role), not carried in this local `.env` —
+   see `barrins_scripture.yml`. Templates
    `/usr/local/bin/barrins_scripture_sweep.sh`: commits and pushes any
    pending archive changes at `output_dir` (git add/commit/push, only if
-   there's something to commit) *before* sourcing that `.env`
+   there's something to commit) *before* sourcing `.env`
    (`BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN`) and running
    `uv run sweep --mode recent --days <sweep_days> --archive-dir ...`.
    Templates a oneshot systemd service (`barrins_scripture_sweep.service`)
@@ -65,7 +68,7 @@ than inventing a new one.
 | `scripture_scraper_output_dir` | no | `<work_dir>/scraped` | Where the JSON archive is written — see the note below. |
 | `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily scrape timer fires. |
 | `scripture_scraper_github_token` | no | falls back to the shared `github_token` role | Only needed if a different token than the shared one is required. |
-| `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN` for the sweep — see `secrets/barrins_scripture/{staging,production}.env.example`. `barrins_scripture.yml` picks which one via its own `deploy_env` var (default `staging`). Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
+| `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL` for the sweep (`SCRIPTURE_INGEST_TOKEN` is injected separately by the `scripture_ingest_token` role, not carried in this file) — see `secrets/barrins_scripture/{staging,production}.env.example`. `barrins_scripture.yml` picks which one via its own `deploy_env` var (default `staging`). Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
 | `scripture_scraper_sweep_days` | no | `7` | Lookback window (days) the sweep's `--mode recent` rescans on every tick — mirrors `sweep.py`'s own `DEFAULT_RECENT_DAYS`. |
 | `scripture_scraper_archive_repo` | no | `Spigushe/mtg_decklist_cache` | `owner/repo` the JSON archive is cloned from/pushed to at `output_dir`. |
 | `scripture_scraper_archive_git_branch` | no | `main` | Branch the archive clone tracks and the sweep pushes to. |
@@ -83,11 +86,16 @@ than inventing a new one.
   is the first role in this repo to actually push with it. Verify this
   before relying on the sweep timer, e.g. `git -C <output_dir> push
   --dry-run`.
+- `scripture_ingest_token` role should run before this one in the
+  playbook's `roles:` list, and the playbook needs its own `post_tasks`
+  step injecting `scripture_ingest_token` into the deployed `.env` — see
+  `barrins_scripture.yml`. Without it, `.env` has no
+  `SCRIPTURE_INGEST_TOKEN` and every sweep tick's ingestion POST fails
+  with 401/503.
 - `scripture_scraper_env_file` should point at a real, filled-in `.env`
-  before the sweep timer can succeed — without it the timer still gets
-  installed and enabled, but every tick fails at `source .env` (missing
-  file) or at the ingestion POST (missing/wrong token). See
-  `secrets/README.md`.
+  (for `BARRINS_API_URL`) before the sweep timer can succeed — without it
+  the timer still gets installed and enabled, but every tick fails at
+  `source .env` (missing file). See `secrets/README.md`.
 
 ## Validation
 

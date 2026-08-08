@@ -136,10 +136,16 @@ of I4 already being resolved — alongside F1, which remains untouched.
 task landed — `scripture_scraper` now clones `output_dir` as a real
 working copy of `Spigushe/mtg_decklist_cache` (not a plain directory),
 and the sweep wrapper commits + pushes any pending archive changes at
-the start of every tick, ahead of ingestion. Code-complete but **not yet
-exercised against real infra** — see T1's own UAT, in particular
-confirming the shared `github_token` PAT actually has push (not just
-read) access to `Spigushe/mtg_decklist_cache`.
+the start of every tick, ahead of ingestion. Prompted by this: T8's
+`SCRIPTURE_INGEST_TOKEN` documentation task (above) is **also revised**
+— the "duplicate the value across both apps' secrets files, no automated
+sync" decision is superseded by a new `scripture_ingest_token` role
+(mirrors `github_token`), so the value now lives in exactly one place
+per environment (`secrets/scripture/{staging,production}_ingest_token.txt`)
+instead of two hand-synced copies. Both changes are code-complete but
+**not yet exercised against real infra** — see T1's own UAT, in
+particular confirming the shared `github_token` PAT actually has push
+(not just read) access to `Spigushe/mtg_decklist_cache`.
 
 ---
 
@@ -1157,7 +1163,7 @@ R5 turning each into a real ADR.
 | T5 | `apps/tolaria_news` real frontend (React/Vite), calling `barrins_api`'s BFF only — no direct DB/calculation client-side, per §4.1/§4.2 | T4, I1 | `ops/my-server/tolaria_news.yml` already exists and is ready to deploy real code once this lands. **I7 resolved as Option 4** — T5's calling pattern is unaffected (no same-origin proxy flip; that was option 3, not chosen) | [t5-tolaria-news-frontend/](t5-tolaria-news-frontend/index.md) |
 | T6 | `apps/karn_tablets`: metagame clustering + deck-type aggregation per I4's decided scope (real service, not a placeholder) | I4, T2, T3 | 🔲 **Not started, but now unblocked** — T2 and T3 (this item's last two dependencies) are both code-complete as of 2026-08-07. Basic clustering/aggregation only for v2.0.0 (§1.4); windowing strategy (rolling 30-day vs. banlist-period) and prediction targets still need narrowing; any new ML dependency follows §4.7/§22 | [t6-karn-tablets-scaffold/](t6-karn-tablets-scaffold/index.md) |
 | T7 | Docs: `docs/content/back/barrins_scripture/`, `docs/content/back/karn_tablets/` (now real content, not a stub), real content for `docs/content/front/tolaria_news/_links.md` | T1, T4–T6 | Follow the existing per-app docs pattern (`_links.md` + synced README) | [t7-new-apps-docs/](t7-new-apps-docs/index.md) |
-| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1 (done), T6, D1 (done) | 🟡 **Barrin's Scripture half done (2026-08-08)** — `scripture_scraper` (shipped during T1) walked against D1's checklist (2026-08-05); the T3 sweep now runs on its own timer (independent of the daily scrape), `SCRIPTURE_INGEST_TOKEN` is documented in `ops/my-server/secrets/`, and a `deploy_env` var lets the sweep be validated against staging before a production cutover. Remaining: failure-notification (deliberately deferred to D2/F1, 2026-08-07 decision). Karn Tablets half still blocked on T6 | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
+| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1 (done), T6, D1 (done) | 🟡 **Barrin's Scripture half done (2026-08-08)** — `scripture_scraper` (shipped during T1) walked against D1's checklist (2026-08-05); the T3 sweep now runs on its own timer (independent of the daily scrape). `SCRIPTURE_INGEST_TOKEN` is now shared via the new `scripture_ingest_token` role (one value per environment, `secrets/scripture/`) rather than duplicated per app — supersedes this page's original per-app-file decision, same day. A `deploy_env` var lets the sweep be validated against staging before a production cutover. Remaining: failure-notification (deliberately deferred to D2/F1, 2026-08-07 decision). Karn Tablets half still blocked on T6 | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
 
 ### Group S — Tamiyo Scroll changes (request item 2)
 

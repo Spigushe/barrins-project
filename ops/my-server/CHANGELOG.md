@@ -18,6 +18,11 @@ section of the docs site for details.
   mandatory PRs, no direct pushes — mirroring how `staging`/`main` are
   already protected. UAT-confirmed: a direct push to `proj/v2.0.0-bump`
   is rejected (`GH013`).
+- `roles/scripture_ingest_token/` (T8, mirrors `github_token`'s pattern):
+  reads `SCRIPTURE_INGEST_TOKEN` once per environment from
+  `secrets/scripture/{staging,production}_ingest_token.txt` and injects
+  it into both `barrins_api.yml`'s and `barrins_scripture.yml`'s deployed
+  `.env` files, replacing the original per-app hand-synced-copy decision.
 
 ### Changed
 

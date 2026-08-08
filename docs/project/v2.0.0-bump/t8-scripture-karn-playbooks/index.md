@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented in `ops/my-server/secrets/` (`secrets/barrins_api/{production,staging}.env.example` and the new `secrets/barrins_scripture/{staging,production}.env.example`). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover | / |
+| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
 | **Dependency** | T1 (done), T6 (open), D1 (✅ done 2026-08-03) | / |
 
@@ -110,17 +110,24 @@ narrow read API, if the consumption-surface decision lands there.
       (previously missing there despite already being in
       `apps/barrins_api/.env.example`), plus a new
       `secrets/barrins_scripture/production.env.example` mirroring
-      `apps/barrins_scripture/.env.example`. Decided: duplicate the value
-      across both apps' secrets files rather than centralize it like
-      `secrets/github/token.txt` — kept consistent with the existing
-      per-app `secrets/<app>/*.env` convention; both copies are
-      documented as needing to match, with no automated sync. The sweep
-      reads it from a local `.env` deployed to the checkout
-      (`scripture_scraper_env_file`, mirroring `fastapi_backend_env_file`'s
-      "use it if available" pattern) rather than templated
-      `Environment=` lines, since `sweep.py` reads plain env vars with no
-      dotenv-loading of its own, and this avoids putting the secret
-      directly into `/etc/systemd/system/*.service`.
+      `apps/barrins_scripture/.env.example`. Original decision: duplicate
+      the value across both apps' secrets files rather than centralize it
+      like `secrets/github/token.txt` — both copies documented as needing
+      to match, with no automated sync.
+
+      **Superseded (2026-08-08, same day, user's call): centralized after
+      all.** A new `scripture_ingest_token` role (mirrors `github_token`'s
+      pattern) reads one value per environment from
+      `secrets/scripture/{staging,production}_ingest_token.txt` and
+      injects it into both `barrins_api.yml`'s and
+      `barrins_scripture.yml`'s already-deployed `.env` via a
+      `post_tasks` `ansible.builtin.lineinfile` step — see
+      `roles/scripture_ingest_token/README.md`. `SCRIPTURE_INGEST_TOKEN`
+      is now deliberately absent from `secrets/barrins_api/*.env`/
+      `secrets/barrins_scripture/*.env` themselves, closing the
+      hand-sync gap the original decision accepted. Everything else about
+      how the sweep reads the value at runtime (a plain env var via the
+      deployed `.env`, not a templated `Environment=` line) is unchanged.
 - [x] Let the sweep be validated against staging before pointing it at
       production. **Done (2026-08-08)**: `barrins_scripture.yml` gained a
       `deploy_env` var (default `staging`), independent of
