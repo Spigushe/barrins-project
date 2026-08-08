@@ -21,6 +21,11 @@ secrets/
     production.env           # real values, git-ignored, local-only
     staging.env.example
     staging.env
+  barrins_scripture/
+    production.env.example   # SCRIPTURE_INGEST_TOKEN here must match the
+    production.env           # copy in secrets/barrins_api — no staging
+                              # variant (barrins_scripture.yml has no
+                              # deploy_env split, see its own role README)
   postgresql_pgadmin/
     admin_password.txt.example  # plaintext template, committed
     admin_password.txt          # real value, git-ignored, local-only

@@ -13,3 +13,5 @@ scripture_scraper_config:
     + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') + '/scraped') }}
   daily_hour: "{{ scripture_scraper_daily_hour | default(22) }}"
   github_token: "{{ scripture_scraper_github_token | default(github_token) }}"
+  env_file: "{{ scripture_scraper_env_file | default('') }}"
+  sweep_days: "{{ scripture_scraper_sweep_days | default(7) }}"

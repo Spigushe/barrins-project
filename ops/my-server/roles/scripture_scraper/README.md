@@ -5,7 +5,11 @@ dependencies with `uv`, and schedules its daily MTGO + MTGTop8 scrape (plus
 the Sunday-only biweekly gap-check) via a `systemd` `.service`/`.timer`
 pair — this app has no HTTP-facing component, so unlike
 `fastapi_backend`/`react_frontend` there's no domain/SSL/reverse-proxy
-role involved, just a scheduled job.
+role involved, just a scheduled job. It also schedules the T3 sweep
+(`apps/barrins_scripture/barrins_scripture/sweep.py`) on its own,
+independent `.service`/`.timer` pair — ingesting the JSON archive into
+`barrins_api`'s `bs_*` tables is a separate concern from scraping it, on
+its own tick (T3/T8's 2026-08 decision).
 
 Mirrors `mtg_scraper`'s existing GitHub Actions schedule
 (`daily_scraping.yml` + `biweekly_check_gaps.yml`, both retired once this
@@ -30,6 +34,17 @@ than inventing a new one.
 4. Templates a oneshot systemd service (`barrins_scripture.service`) and
    a daily timer (`barrins_scripture.timer`, default 22:00 UTC ±30 min
    `RandomizedDelaySec`, `Persistent=true`).
+5. Deploys the local `.env` (`scripture_scraper_env_file`, if present —
+   same "use it if available" pattern as `fastapi_backend_env_file`) to
+   `{{ work_dir }}/.env`, mode `0600`. Templates
+   `/usr/local/bin/barrins_scripture_sweep.sh`: sources that `.env`
+   (`BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN`) and runs
+   `uv run sweep --mode recent --days <sweep_days> --archive-dir ...`
+   against `output_dir`. Templates a oneshot systemd service
+   (`barrins_scripture_sweep.service`) and a timer
+   (`barrins_scripture_sweep.timer`, every 6 hours,
+   `RandomizedDelaySec=900`, `Persistent=true`) — independent of the
+   scrape timer above.
 
 ## Variables
 
@@ -40,13 +55,20 @@ than inventing a new one.
 | `scripture_scraper_app_name` | yes | / | Used to name the checkout directory under `~/projects/`. |
 | `scripture_scraper_git_branch` | no | `main` | Branch to deploy from. |
 | `scripture_scraper_output_dir` | no | `<work_dir>/scraped` | Where the JSON archive is written — see the note below. |
-| `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily timer fires. |
+| `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily scrape timer fires. |
 | `scripture_scraper_github_token` | no | falls back to the shared `github_token` role | Only needed if a different token than the shared one is required. |
+| `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN` for the sweep — see `secrets/barrins_scripture/production.env.example`. Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
+| `scripture_scraper_sweep_days` | no | `7` | Lookback window (days) the sweep's `--mode recent` rescans on every tick — mirrors `sweep.py`'s own `DEFAULT_RECENT_DAYS`. |
 
 ## Requirements
 
 - `github_token` role must run first (provides the shared clone
   credential this role falls back to).
+- `scripture_scraper_env_file` should point at a real, filled-in `.env`
+  before the sweep timer can succeed — without it the timer still gets
+  installed and enabled, but every tick fails at `source .env` (missing
+  file) or at the ingestion POST (missing/wrong token). See
+  `secrets/README.md`.
 
 ## Validation
 
@@ -65,6 +87,19 @@ to poll:
   a manual redeploy, or the timer's own `Persistent=true` catch-up run
   after a missed boot — does not duplicate archive files.
 
+The sweep (T3/T8) has its own service/timer pair, checked the same way:
+
+- **Signal**: `systemctl status barrins_scripture_sweep.service` /
+  `journalctl -u barrins_scripture_sweep.service -n 50`. Same "manual for
+  now" caveat as above.
+- **Idempotency**: `barrins_api`'s ingestion route upserts on each table's
+  natural key (T2), so a sweep tick re-posting an already-ingested file is
+  a no-op, not a duplicate row — confirmed by
+  `apps/barrins_api/tests/scripture/test_ingest.py::
+  test_ingest_is_idempotent`. A failed tick (network error, `barrins_api`
+  down/misconfigured, malformed JSON) is logged and skipped per-file, not
+  retried within the run; the next scheduled tick (every 6h) picks it up.
+
 ## Rollback
 
 Per Step 0.4/0.6:
@@ -81,6 +116,11 @@ Per Step 0.4/0.6:
   Rolling code back can at most overwrite that day's already-written
   files (see idempotency above); it never deletes prior history, and
   nothing outside this service reads `output_dir` directly today.
+- **Sweep/ingested data**: also never rolled back by this playbook. If a
+  bad sweep needs undoing, that's a `barrins_api`/database-side operation
+  (T3's ingestion route, not this role) — re-running `--mode full` from
+  this role only re-applies the current archive contents, it doesn't
+  delete rows a bad ingest already wrote.
 
 ## Data ownership & backup
 
@@ -107,6 +147,9 @@ VPS disk failure would lose any scrape newer than the last commit to
   workflows this replaces (`dawidd6/action-send-mail`) — a known,
   accepted behavior change. `systemctl status`/`journalctl -u
   barrins_scripture.service` is how a failed run is currently surfaced.
+  Same applies to `barrins_scripture_sweep.service` — **decided
+  2026-08-07**: wait for D2/F1's generic scheduled-job notification
+  mechanism rather than build a scripture-only stopgap (T8).
 
 ## Example
 

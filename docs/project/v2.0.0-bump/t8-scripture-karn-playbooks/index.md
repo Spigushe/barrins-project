@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Partially done, unblocked for its remaining half** — `barrins_scripture.yml`/`scripture_scraper` already shipped during T1, ahead of D1. D1 is now done (2026-08-03); still blocked on T6 for the Karn Tablets half | / |
+| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented in `ops/my-server/secrets/` (`secrets/barrins_api/{production,staging}.env.example` and the new `secrets/barrins_scripture/production.env.example`) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
 | **Dependency** | T1 (done), T6 (open), D1 (✅ done 2026-08-03) | / |
 
@@ -53,8 +53,9 @@ narrow read API, if the consumption-surface decision lands there.
 - Structured per Constitution §37's Preparation/Deployment/Validation/
   Rollback shape, adapted for a scheduled job rather than a service
   (e.g. "Validation" checks the last scheduled run's log/exit code
-  instead of an HTTP health check). **Already true**, informally — not
-  yet checked line-by-line against D1's now-written checklist.
+  instead of an HTTP health check). **Done** — extended to cover the
+  sweep's own `.service`/`.timer` pair (2026-08-08), same pattern as the
+  scrape's.
 - A Karn Tablets playbook exists once T6's consumption-surface decision
   lands, following the same scheduled-job pattern (plus a minimal API
   role if T6 needs one) — no longer explicitly out of scope, but not
@@ -95,10 +96,31 @@ narrow read API, if the consumption-surface decision lands there.
       F1, the HetrixTools-or-successor decision); `systemctl status`/
       `journalctl -u barrins_scripture.service` remains how a failed run
       is surfaced in the meantime.
-- [ ] Document the new secret(s) T3/D3 introduce (the
-      Barrin's-Scripture-to-`barrins_api` service credential, if that's
-      §1.2's outcome) — still open, T3 hasn't landed yet (blocked on S8,
-      see T3's own page).
+- [x] Schedule the sweep (`apps/barrins_scripture/barrins_scripture/
+      sweep.py`, T3) on its own timer tick, independent of the scrape
+      schedule. **Done (2026-08-08)**: `scripture_scraper` role now
+      templates `barrins_scripture_sweep.service`/`.timer` (every 6
+      hours, `RandomizedDelaySec=900`, `Persistent=true`) alongside the
+      existing scrape pair — same role, same checkout/venv, no new role
+      (the sweep has no clone/dependency-install needs of its own).
+- [x] Document the new secret(s) T3/D3 introduce (the
+      Barrin's-Scripture-to-`barrins_api` service credential). **Done
+      (2026-08-08)**: `SCRIPTURE_INGEST_TOKEN` added to
+      `secrets/barrins_api/production.env.example` and `staging.env.example`
+      (previously missing there despite already being in
+      `apps/barrins_api/.env.example`), plus a new
+      `secrets/barrins_scripture/production.env.example` mirroring
+      `apps/barrins_scripture/.env.example`. Decided: duplicate the value
+      across both apps' secrets files rather than centralize it like
+      `secrets/github/token.txt` — kept consistent with the existing
+      per-app `secrets/<app>/*.env` convention; both copies are
+      documented as needing to match, with no automated sync. The sweep
+      reads it from a local `.env` deployed to the checkout
+      (`scripture_scraper_env_file`, mirroring `fastapi_backend_env_file`'s
+      "use it if available" pattern) rather than templated
+      `Environment=` lines, since `sweep.py` reads plain env vars with no
+      dotenv-loading of its own, and this avoids putting the secret
+      directly into `/etc/systemd/system/*.service`.
 - [ ] Once T6 resolves its consumption-surface question, write Karn
       Tablets' playbook: a scheduled job for the clustering run, plus a
       minimal API role only if T6 needs one exposed. **Out of
@@ -108,9 +130,13 @@ narrow read API, if the consumption-surface decision lands there.
 ## UAT (manual)
 
 - [ ] A scheduled run completes end-to-end on staging: scrape → JSON
-      archive → ingestion. **Partially exercisable today** (scrape → JSON
-      archive already runs via `scripture_scraper`); the "→ ingestion"
-      leg needs T3.
+      archive → ingestion. **Now fully wired** (scrape → archive via
+      `scripture_scraper`, archive → ingestion via
+      `barrins_scripture_sweep.timer`) but **not yet exercised against a
+      real deploy** — same open UAT step T3's own page lists (deploying
+      `secrets/barrins_scripture/production.env`, confirming a real 6h
+      tick ingests successfully, confirming a `barrins_api`-down tick
+      fails cleanly and the next tick catches up).
 - [ ] Once written, Karn Tablets' scheduled clustering run completes
       end-to-end on staging and its output is reachable however T6
       decided it should be consumed.

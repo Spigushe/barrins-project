@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Managed by Ansible (scripture_scraper role) — do not edit on the server,
+# changes will be overwritten on the next deploy.
+#
+# Recent-files sweep: ingests the last {{ scripture_scraper_config.sweep_days }}
+# days of the JSON archive into barrins_api via POST /internal/scripture/ingest.
+# Runs on its own timer tick, independent of the scrape schedule (T3/T8
+# decision) — a failed tick isn't retried here, the next scheduled tick
+# picks up whatever wasn't ingested (idempotent upserts by natural key).
+set -euo pipefail
+
+WORK_DIR="{{ scripture_scraper_config.work_dir }}"
+OUTPUT_DIR="{{ scripture_scraper_config.output_dir }}"
+UV="/home/{{ username }}/.local/bin/uv"
+
+cd "$WORK_DIR"
+set -a
+source "$WORK_DIR/.env"
+set +a
+
+"$UV" run sweep --mode recent --days {{ scripture_scraper_config.sweep_days }} --archive-dir "$OUTPUT_DIR"

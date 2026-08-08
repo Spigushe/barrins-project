@@ -16,6 +16,7 @@
     dest: "{{ scripture_scraper_config.app_root }}"
     version: "{{ scripture_scraper_config.git_branch }}"
     update: true
+    force: true
 
 - name: Ensure uv is installed
   become: false
@@ -43,6 +44,35 @@
   args:
     chdir: "{{ scripture_scraper_config.work_dir }}"
   changed_when: true
+
+- name: Check whether a local .env file is available for this deploy
+  when: scripture_scraper_config.env_file | length > 0
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ scripture_scraper_config.env_file }}"
+  register: scripture_scraper_env_file_stat
+
+- name: Deploy the local .env file, if available
+  tags:
+    - deploy
+  ansible.builtin.copy:
+    src: "{{ scripture_scraper_config.env_file }}"
+    dest: "{{ scripture_scraper_config.work_dir }}/.env"
+    owner: "{{ username }}"
+    mode: "0600"
+  when: scripture_scraper_config.env_file | length > 0 and scripture_scraper_env_file_stat.stat.exists
+
+- name: Note — no local .env found, server's existing one (if any) left untouched
+  tags:
+    - deploy
+  ansible.builtin.debug:
+    msg: >-
+      {{ scripture_scraper_config.env_file }} not found locally, skipping — this file is
+      git-ignored on purpose (see secrets/README.md) and only ever lives on
+      operators' machines. {{ scripture_scraper_config.work_dir }}/.env on the server is left
+      as-is. The sweep timer will fail its tick until this is deployed.
+  when: scripture_scraper_config.env_file | length > 0 and not scripture_scraper_env_file_stat.stat.exists
 
 - name: Ensure the JSON archive output directory exists
   ansible.builtin.file:
@@ -76,6 +106,35 @@
     - deploy
   ansible.builtin.systemd:
     name: barrins_scripture.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Deploy the sweep wrapper script
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.sh.j2
+    dest: /usr/local/bin/barrins_scripture_sweep.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the sweep systemd service
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.service.j2
+    dest: /etc/systemd/system/barrins_scripture_sweep.service
+    mode: "0644"
+
+- name: Deploy the sweep systemd timer
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.timer.j2
+    dest: /etc/systemd/system/barrins_scripture_sweep.timer
+    mode: "0644"
+
+- name: Enable the sweep timer
+  tags:
+    - deploy
+  ansible.builtin.systemd:
+    name: barrins_scripture_sweep.timer
     daemon_reload: true
     enabled: true
     state: started
