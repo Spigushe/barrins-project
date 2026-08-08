@@ -31,6 +31,7 @@ dependencies = [
 
 [project.scripts]
 scrape = "barrins_scripture.__main__:main"
+sweep = "barrins_scripture.sweep:main"
 
 [dependency-groups]
 test = [

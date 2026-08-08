@@ -26,6 +26,7 @@ from app.schemas.responses_mtgjson import (
     ResponseSet,
 )
 from app.services.mtgjson import MTGJSONClientDep, import_all_printings
+from app.services.scripture.card_resolver import invalidate_name_cache
 
 router = APIRouter()
 
@@ -42,6 +43,10 @@ async def import_mtgjson(
     duplicating rows.
     """
     result = await import_all_printings(session, client)
+    # T3's card-name resolver caches "cards" name/face_name in-process; a
+    # refreshed import must invalidate it or newly-added/renamed cards stay
+    # unresolvable until the next restart.
+    invalidate_name_cache()
     return ResponseImportResult(
         sets_upserted=result.sets_upserted, cards_upserted=result.cards_upserted
     )

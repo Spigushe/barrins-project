@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_scripture` + `apps/barrins_api` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Unblocked 2026-08-05** — S8's `Card`/`MTGSet` pipeline now exists (`GET /cards/by-name/{name}` returns real MTG data), so this item's own work (the ingestion route itself, its service credential, maintenance gate, and bulk-replay script — none of that built yet) can start. T1/T2 were already functionally ready | / |
+| **Status** | 🟢 **Both Tasks implemented (2026-08-07)** — `POST /internal/scripture/ingest` (route, service credential, upsert/delete-reinsert logic, card-name resolver) and the standalone `barrins-scripture-sweep` entry point (recent/full modes) are both written and test-driven. Not yet exercised against staging/the real archive — see UAT below | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.2, §1.3, §1.10 | / |
 | **Dependency** | T1 (done), T2 (done), S8 (core pipeline done 2026-08-05, scheduled refresh still open — not a blocker for this item) | Blocks T4 |
 
@@ -92,15 +92,39 @@ backend-only-route decision stands; only who calls it and when changes).
 
 ## Tasks
 
-- [ ] Implement `POST /internal/scripture/ingest`: request/response
+- [x] Implement `POST /internal/scripture/ingest`: request/response
       schema, and its service-to-service credential (ties into D3).
-- [ ] Write the sweep mechanism (recent-files mode and full-archive mode
+      **Done (2026-08-07)**: `app/api/general/scripture.py` (route),
+      `app/schemas/scripture_ingest.py` (request/response contracts,
+      mirroring the JSON archive's own shape plus a `source` field),
+      `app/services/scripture/ingester.py` (per-table `ON CONFLICT DO
+      UPDATE ... RETURNING id` upserts in FK order; `bs_deck_cards` is
+      deleted-and-reinserted per deck, per this page's own groundwork),
+      `app/dependencies/service_auth.py` (`X-Scripture-Token`, constant-time
+      compare, 503 if unconfigured). D3's doc-update task itself is still
+      open — see T8.
+- [x] Card-name validation against S8 (this page's 2026-07-30 decision):
+      `app/services/scripture/card_resolver.py` resolves a scraped name
+      against `cards.name`/`cards.face_name` (Unicode-compat folding,
+      NFKD/ASCII accent stripping, double-face "/" alternates — adapted
+      from a pre-rewrite `barrins_api` prototype, `barrins-archive/
+      barrins_api`'s `app/services/decklist/resolver.py`). **Decided
+      2026-08-07**: an unresolved name is skipped (not stored), not a
+      whole-request rejection — reported back as `skipped_card_names`, so
+      one bad name doesn't lose an otherwise-good tournament's data.
+- [x] Write the sweep mechanism (recent-files mode and full-archive mode
       share the same code path — the latter is the "bulk replay"/
       disaster-recovery case): list archive files, call the ingestion
-      route per file, idempotent by construction. Schedule the
-      recent-files mode on its own tick, independent of the scrape
-      schedule, so an `barrins_api` outage during a scrape doesn't need
-      to be handled at scrape time at all.
+      route per file, idempotent by construction. **Done (2026-08-07)**:
+      `apps/barrins_scripture/barrins_scripture/sweep.py`, a standalone
+      module with its own entry point (`barrins-scripture-sweep`), not
+      folded into the scrape CLI's `--source` flag. `--mode recent`
+      (default `--days 7`, a safety margin over MTGO's ~3-day mutability
+      window) vs. `--mode full`; source (`mtgo`/`mtgtop8`) is derived from
+      which archive subdirectory a file lives under, since the JSON file
+      itself doesn't record it. Scheduling the recent-files mode on its
+      own systemd timer tick (independent of the scrape schedule) is T8's
+      remaining task, not built here.
 
 ## UAT (manual)
 
@@ -118,6 +142,26 @@ backend-only-route decision stands; only who calls it and when changes).
 ## Non-regression tests
 
 - Idempotency test: ingesting the same tournament file twice produces
-  no duplicate rows.
+  no duplicate rows. **Done** —
+  `apps/barrins_api/tests/scripture/test_ingest.py::TestIngestRoute::
+  test_ingest_is_idempotent`, plus `test_resweep_replaces_deck_cards`
+  covering the delete-and-reinsert behavior specifically (a changed
+  decklist on re-ingest replaces, not accumulates).
 - A test asserting the archive write happens even if the DB ingestion
-  step fails afterward (JSON-first ordering must not regress).
+  step fails afterward (JSON-first ordering must not regress). **Still
+  open** — this exercises `barrins_scripture`'s scrape path (JSON write
+  happens before any sweep/ingest call ever runs), not something T3's own
+  new code touches; not written as part of this pass.
+- Auth gate (401 missing/wrong token, 503 unconfigured) and card-name
+  resolution (exact match, case/accent normalization, Unicode
+  compatibility folding, face-name-only matches, unresolved names
+  skipped and reported) — `test_ingest.py::TestIngestAuth`,
+  `TestIngestRoute::test_ingest_upserts_everything_and_resolves_card_names`.
+- Sweep selection/posting — `apps/barrins_scripture/tests/test_sweep.py`:
+  recent-vs-full file selection by directory-encoded date, source derived
+  from archive subdirectory, per-file failure isolation (a failed POST or
+  malformed JSON file doesn't stop the rest of the sweep), CLI argument
+  parsing/env-var fallback, nonzero exit when any file failed.
+- Full suites: `barrins_api` 424 tests passing (96.92% coverage),
+  `barrins_scripture` 146 tests passing (95.74% coverage); `ruff`/`ty`/
+  `bandit` clean on both apps.

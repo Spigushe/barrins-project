@@ -140,6 +140,20 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- Barrin's Scripture ingestion (T3) ---
+    scripture_ingest_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Shared static token Barrin's Scripture's sweep sends as the "
+            "X-Scripture-Token header on POST /internal/scripture/ingest. "
+            "Compared with hmac.compare_digest, matching the constant-time "
+            "style already used for email verification codes "
+            "(app/core/security.py::verify_verification_code). Empty -> the "
+            "route always responds 503 (misconfigured), never accepts a "
+            "request unauthenticated."
+        ),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url_sync(self) -> str:
