@@ -57,7 +57,7 @@ than inventing a new one.
 | `scripture_scraper_output_dir` | no | `<work_dir>/scraped` | Where the JSON archive is written — see the note below. |
 | `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily scrape timer fires. |
 | `scripture_scraper_github_token` | no | falls back to the shared `github_token` role | Only needed if a different token than the shared one is required. |
-| `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN` for the sweep — see `secrets/barrins_scripture/production.env.example`. Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
+| `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN` for the sweep — see `secrets/barrins_scripture/{staging,production}.env.example`. `barrins_scripture.yml` picks which one via its own `deploy_env` var (default `staging`). Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
 | `scripture_scraper_sweep_days` | no | `7` | Lookback window (days) the sweep's `--mode recent` rescans on every tick — mirrors `sweep.py`'s own `DEFAULT_RECENT_DAYS`. |
 
 ## Requirements

@@ -16,15 +16,22 @@
     # mtg_scraper (see that item's own done statement) — pass
     # -e scripture_scraper_git_branch=main once it's ready to cut over.
     scripture_scraper_git_branch: "{{ deploy_branch | default('staging') }}"
+    # Which barrins_api the sweep posts to — independent of
+    # scripture_scraper_git_branch, so e.g. main-branch code can still be
+    # validated against the staging API as an intermediate step. Defaults
+    # to staging so the sweep is never pointed at production by accident;
+    # cutting over means passing both -e deploy_branch=main -e
+    # deploy_env=production together.
+    deploy_env: staging
     # Local, git-ignored .env — deployed to {{ scripture_scraper_config.work_dir
     # }}/.env on every run if present on this machine, skipped otherwise
     # (same pattern as barrins_api.yml's backend_env_file). Holds
     # BARRINS_API_URL/SCRIPTURE_INGEST_TOKEN for the sweep timer — see
     # secrets/README.md to create it. SCRIPTURE_INGEST_TOKEN in this file
-    # must match the one in secrets/barrins_api/production.env byte for
-    # byte (T3/T8 — no centralized secret store for this value, see
-    # secrets/barrins_scripture/production.env.example).
-    scripture_scraper_env_file: "{{ playbook_dir }}/secrets/barrins_scripture/production.env"
+    # must match the same-named key in secrets/barrins_api/{{ deploy_env
+    # }}.env byte for byte (T3/T8 — no centralized secret store for this
+    # value, see secrets/barrins_scripture/{{ deploy_env }}.env.example).
+    scripture_scraper_env_file: "{{ playbook_dir }}/secrets/barrins_scripture/{{ deploy_env }}.env"
 
   roles:
     - role: github_token
@@ -53,5 +60,15 @@
           - "(BARRINS_API_URL, SCRIPTURE_INGEST_TOKEN) to reach barrins_api —"
           - "that file is git-ignored (Constitution ss34) and only deployed"
           - "if {{ scripture_scraper_env_file }} exists on this machine. See"
-          - "secrets/README.md and secrets/barrins_scripture/production.env.example."
+          - "secrets/README.md and secrets/barrins_scripture/{{ deploy_env }}.env.example."
+      tags: [scripture, deploy]
+
+    - name: Reminder — which barrins_api this sweep is currently targeting
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env={{ deploy_env }}: the sweep posts to whatever"
+          - "BARRINS_API_URL is in {{ scripture_scraper_env_file }}."
+          - "Validate against staging (the default) before cutting over"
+          - "with -e deploy_branch=main -e deploy_env=production — see"
+          - "docs/project/v2.0.0-bump/t8-scripture-karn-playbooks/index.md."
       tags: [scripture, deploy]

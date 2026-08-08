@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented in `ops/my-server/secrets/` (`secrets/barrins_api/{production,staging}.env.example` and the new `secrets/barrins_scripture/production.env.example`) | / |
+| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented in `ops/my-server/secrets/` (`secrets/barrins_api/{production,staging}.env.example` and the new `secrets/barrins_scripture/{staging,production}.env.example`). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
 | **Dependency** | T1 (done), T6 (open), D1 (✅ done 2026-08-03) | / |
 
@@ -121,6 +121,17 @@ narrow read API, if the consumption-surface decision lands there.
       `Environment=` lines, since `sweep.py` reads plain env vars with no
       dotenv-loading of its own, and this avoids putting the secret
       directly into `/etc/systemd/system/*.service`.
+- [x] Let the sweep be validated against staging before pointing it at
+      production. **Done (2026-08-08)**: `barrins_scripture.yml` gained a
+      `deploy_env` var (default `staging`), independent of
+      `scripture_scraper_git_branch`/`deploy_branch` — so e.g. main-branch
+      code can still be validated against the staging API as an
+      intermediate step. `scripture_scraper_env_file` now resolves to
+      `secrets/barrins_scripture/{{ deploy_env }}.env`; added
+      `secrets/barrins_scripture/staging.env.example` alongside the
+      existing production one. Cutting over to production means passing
+      both `-e deploy_branch=main -e deploy_env=production` together —
+      the default never posts to production by accident.
 - [ ] Once T6 resolves its consumption-surface question, write Karn
       Tablets' playbook: a scheduled job for the clustering run, plus a
       minimal API role only if T6 needs one exposed. **Out of
@@ -134,9 +145,12 @@ narrow read API, if the consumption-surface decision lands there.
       `scripture_scraper`, archive → ingestion via
       `barrins_scripture_sweep.timer`) but **not yet exercised against a
       real deploy** — same open UAT step T3's own page lists (deploying
-      `secrets/barrins_scripture/production.env`, confirming a real 6h
-      tick ingests successfully, confirming a `barrins_api`-down tick
-      fails cleanly and the next tick catches up).
+      `secrets/barrins_scripture/staging.env`, the default `deploy_env`,
+      confirming a real 6h tick ingests successfully against the staging
+      `barrins_api`, confirming a `barrins_api`-down tick fails cleanly
+      and the next tick catches up). Only after that passes does cutting
+      over to `secrets/barrins_scripture/production.env`
+      (`-e deploy_branch=main -e deploy_env=production`) make sense.
 - [ ] Once written, Karn Tablets' scheduled clustering run completes
       end-to-end on staging and its output is reachable however T6
       decided it should be consumed.
