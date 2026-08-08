@@ -74,12 +74,34 @@
       as-is. The sweep timer will fail its tick until this is deployed.
   when: scripture_scraper_config.env_file | length > 0 and not scripture_scraper_env_file_stat.stat.exists
 
-- name: Ensure the JSON archive output directory exists
-  ansible.builtin.file:
-    path: "{{ scripture_scraper_config.output_dir }}"
-    state: directory
-    owner: "{{ username }}"
-    mode: "0755"
+- name: Clone/update the JSON archive repository
+  # Deliberately no force:true (unlike the app repo clone above): the
+  # sweep may have written or committed-but-not-yet-pushed archive files
+  # since the last deploy, and force:true would discard/clean those. If
+  # this task ever fails on "local modifications exist", that's the
+  # signal to let the next sweep tick push first, not to add force:true.
+  become: false
+  no_log: true
+  tags:
+    - deploy
+  ansible.builtin.git:
+    repo: "https://{{ scripture_scraper_config.github_token }}@github.com/{{ scripture_scraper_config.archive_repo }}.git"
+    dest: "{{ scripture_scraper_config.output_dir }}"
+    version: "{{ scripture_scraper_config.archive_git_branch }}"
+    update: true
+
+- name: Set the archive commit identity (needed for the sweep's own commits)
+  become: false
+  community.general.git_config:
+    repo: "{{ scripture_scraper_config.output_dir }}"
+    scope: local
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+  loop:
+    - name: user.name
+      value: "{{ scripture_scraper_config.archive_commit_name }}"
+    - name: user.email
+      value: "{{ scripture_scraper_config.archive_commit_email }}"
 
 - name: Deploy the scrape wrapper script
   ansible.builtin.template:

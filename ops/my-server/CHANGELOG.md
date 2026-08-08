@@ -26,6 +26,12 @@ section of the docs site for details.
   branches previously ran no CI at all — every `proj/v2.0.0-bump` PR
   merged before this was only conventionally reviewed, not gated by
   `ci-required`.
+- `roles/scripture_scraper/` (T1): `scripture_scraper_output_dir` is now
+  a real clone of `Spigushe/mtg_decklist_cache` (git submodule wiring),
+  not a plain directory — the sweep wrapper script commits and pushes any
+  pending archive changes at the start of every tick, before ingestion.
+  `ansible-lint` clean; not yet exercised against real infra (the shared
+  `github_token` PAT's push access to the archive repo is unverified).
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

@@ -40,15 +40,15 @@
       tags: [scripture, deploy]
 
   post_tasks:
-    - name: Reminder — the JSON archive isn't a git submodule yet
+    - name: Reminder — the archive is pushed by the sweep, not this playbook
       ansible.builtin.debug:
         msg:
-          - "{{ scripture_scraper_config.output_dir }} is a plain"
-          - "directory on this host, not (yet) a git submodule pointing"
-          - "at mtg_decklist_cache — see T1's remaining tasks"
-          - "(docs/project/v2.0.0-bump/t1-scripture-repo-migration/)."
-          - "Nothing here commits or pushes the archive anywhere; wiring"
-          - "that up is still open."
+          - "{{ scripture_scraper_config.output_dir }} is now a real clone"
+          - "of {{ scripture_scraper_config.archive_repo }} (T1, 2026-08-08)."
+          - "This playbook only clones/updates it — committing and pushing"
+          - "newly-scraped files happens inside barrins_scripture_sweep.sh"
+          - "on every sweep tick, not here. Backfilling the archive's"
+          - "history is still a separate, not-yet-run T1 task."
       tags: [scripture, deploy]
 
     - name: Reminder — the sweep timer runs independently of the scrape timer

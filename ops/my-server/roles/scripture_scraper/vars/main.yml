@@ -15,3 +15,7 @@ scripture_scraper_config:
   github_token: "{{ scripture_scraper_github_token | default(github_token) }}"
   env_file: "{{ scripture_scraper_env_file | default('') }}"
   sweep_days: "{{ scripture_scraper_sweep_days | default(7) }}"
+  archive_repo: "{{ scripture_scraper_archive_repo | default('Spigushe/mtg_decklist_cache') }}"
+  archive_git_branch: "{{ scripture_scraper_archive_git_branch | default('main') }}"
+  archive_commit_name: "{{ scripture_scraper_archive_commit_name | default(\"Barrin's Scripture\") }}"
+  archive_commit_email: "{{ scripture_scraper_archive_commit_email | default('scripture@barrins-codex.org') }}"

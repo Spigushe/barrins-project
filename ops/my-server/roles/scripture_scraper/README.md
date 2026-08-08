@@ -25,24 +25,32 @@ than inventing a new one.
    `scripture_scraper_config.app_root`, the same `github_token`-based
    auth every other app-deploying role here uses.
 2. Installs Python 3.14 + dependencies via `uv sync --all-extras --dev`.
-3. Templates `/usr/local/bin/barrins_scripture_scrape.sh`: runs
+3. Clones/updates `scripture_scraper_config.archive_repo`
+   (default `Spigushe/mtg_decklist_cache`) at `output_dir`, same
+   `github_token`-based HTTPS auth as above — this is what makes
+   `output_dir` a real git working tree the sweep wrapper script can
+   commit/push from, not a plain directory (T1, 2026-08-08). Sets a local
+   `user.name`/`user.email` on that clone (`archive_commit_name`/
+   `archive_commit_email`) so the sweep's own commits have an identity.
+4. Templates `/usr/local/bin/barrins_scripture_scrape.sh`: runs
    `uv run scrape --source mtgo --output-dir ...` and
    `--source mtgtop8`, then — only on Sundays (UTC), alternating by ISO
    week parity — either
    `python -m barrins_scripture.scripts.top8_check_gaps` or
    `python -m barrins_scripture.scripts.mtgo_empty_decks`.
-4. Templates a oneshot systemd service (`barrins_scripture.service`) and
+5. Templates a oneshot systemd service (`barrins_scripture.service`) and
    a daily timer (`barrins_scripture.timer`, default 22:00 UTC ±30 min
    `RandomizedDelaySec`, `Persistent=true`).
-5. Deploys the local `.env` (`scripture_scraper_env_file`, if present —
+6. Deploys the local `.env` (`scripture_scraper_env_file`, if present —
    same "use it if available" pattern as `fastapi_backend_env_file`) to
    `{{ work_dir }}/.env`, mode `0600`. Templates
-   `/usr/local/bin/barrins_scripture_sweep.sh`: sources that `.env`
-   (`BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN`) and runs
-   `uv run sweep --mode recent --days <sweep_days> --archive-dir ...`
-   against `output_dir`. Templates a oneshot systemd service
-   (`barrins_scripture_sweep.service`) and a timer
-   (`barrins_scripture_sweep.timer`, every 6 hours,
+   `/usr/local/bin/barrins_scripture_sweep.sh`: commits and pushes any
+   pending archive changes at `output_dir` (git add/commit/push, only if
+   there's something to commit) *before* sourcing that `.env`
+   (`BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN`) and running
+   `uv run sweep --mode recent --days <sweep_days> --archive-dir ...`.
+   Templates a oneshot systemd service (`barrins_scripture_sweep.service`)
+   and a timer (`barrins_scripture_sweep.timer`, every 6 hours,
    `RandomizedDelaySec=900`, `Persistent=true`) — independent of the
    scrape timer above.
 
@@ -59,11 +67,22 @@ than inventing a new one.
 | `scripture_scraper_github_token` | no | falls back to the shared `github_token` role | Only needed if a different token than the shared one is required. |
 | `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN` for the sweep — see `secrets/barrins_scripture/{staging,production}.env.example`. `barrins_scripture.yml` picks which one via its own `deploy_env` var (default `staging`). Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
 | `scripture_scraper_sweep_days` | no | `7` | Lookback window (days) the sweep's `--mode recent` rescans on every tick — mirrors `sweep.py`'s own `DEFAULT_RECENT_DAYS`. |
+| `scripture_scraper_archive_repo` | no | `Spigushe/mtg_decklist_cache` | `owner/repo` the JSON archive is cloned from/pushed to at `output_dir`. |
+| `scripture_scraper_archive_git_branch` | no | `main` | Branch the archive clone tracks and the sweep pushes to. |
+| `scripture_scraper_archive_commit_name` | no | `Barrin's Scripture` | Git `user.name` set locally on the archive clone, used by the sweep's commits. |
+| `scripture_scraper_archive_commit_email` | no | `scripture@barrins-codex.org` | Git `user.email` set locally on the archive clone, used by the sweep's commits. |
 
 ## Requirements
 
 - `github_token` role must run first (provides the shared clone
-  credential this role falls back to).
+  credential this role falls back to, for both the app repo and the
+  archive repo).
+- The `github_token` PAT must have **push**, not just read, access to
+  `scripture_scraper_archive_repo` — the shared token was only ever used
+  for `git clone`/`git pull` before this role's archive-push step; this
+  is the first role in this repo to actually push with it. Verify this
+  before relying on the sweep timer, e.g. `git -C <output_dir> push
+  --dry-run`.
 - `scripture_scraper_env_file` should point at a real, filled-in `.env`
   before the sweep timer can succeed — without it the timer still gets
   installed and enabled, but every tick fails at `source .env` (missing
@@ -99,6 +118,10 @@ The sweep (T3/T8) has its own service/timer pair, checked the same way:
   test_ingest_is_idempotent`. A failed tick (network error, `barrins_api`
   down/misconfigured, malformed JSON) is logged and skipped per-file, not
   retried within the run; the next scheduled tick (every 6h) picks it up.
+  The wrapper script's own archive commit/push step (ahead of the sweep
+  proper) is idempotent the same way: `git status --porcelain` gates
+  `git add`/`commit`/`push`, so a tick with nothing new to archive does
+  nothing and exits clean rather than creating an empty commit.
 
 ## Rollback
 
@@ -112,10 +135,13 @@ Per Step 0.4/0.6:
   this rewrite is proven equivalent to `mtg_scraper` (T1's own done
   statement).
 - **Data/artifact**: the JSON archive itself is never rolled back —
-  it's an append-only, replayable record (§1.3 of the v2.0.0-bump plan).
+  it's an append-only, replayable record (§1.3 of the v2.0.0-bump plan),
+  now pushed to `scripture_scraper_archive_repo` on every sweep tick.
   Rolling code back can at most overwrite that day's already-written
-  files (see idempotency above); it never deletes prior history, and
-  nothing outside this service reads `output_dir` directly today.
+  files (see idempotency above); it never deletes prior history — and a
+  bad write, once pushed, is a normal `git revert` on
+  `scripture_scraper_archive_repo` if it ever needs undoing, not
+  something this playbook automates.
 - **Sweep/ingested data**: also never rolled back by this playbook. If a
   bad sweep needs undoing, that's a `barrins_api`/database-side operation
   (T3's ingestion route, not this role) — re-running `--mode full` from
@@ -128,21 +154,23 @@ Per Step 0.5 — this service holds no database (§1.2: Barrin's Scripture
 never gets its own `DATABASE_URL`), so
 [`database.md`](../../../../docs/content/ops/deployment/database.md)'s
 Postgres backup story doesn't apply. `scripture_scraper_output_dir` is a
-plain directory of JSON files on the VPS. It's disposable/replayable in
-principle (the archive can be re-scraped from source tournaments), but
-nothing currently backs up or rotates `output_dir` on the VPS itself, and
-it isn't yet a git submodule (see below) — until that wiring lands, a
-VPS disk failure would lose any scrape newer than the last commit to
-`mtg_decklist_cache`.
+real clone of `scripture_scraper_config.archive_repo`
+(`Spigushe/mtg_decklist_cache` by default) — every sweep tick pushes any
+new/changed archive files there (T1, 2026-08-07/08). A VPS disk failure
+can now only lose whatever's been scraped since the *last sweep tick* (at
+most the sweep timer's own 6-hour interval), not everything since the
+last manual commit. The archive itself stays disposable/replayable in
+principle regardless (it can be re-scraped from source tournaments).
 
 ## Not automated yet
 
-- **The JSON archive isn't a git submodule.** `scripture_scraper_output_dir`
-  is a plain directory on the VPS — nothing here commits or pushes it
-  anywhere. Per T1's plan, the archive belongs in its own git repository
-  (a submodule pointing at `mtg_decklist_cache`/its durable successor);
-  wiring that up, and adding the commit/push step this role's wrapper
-  script would then need, is still an open T1 task.
+- **Backfilling `Spigushe/mtg_decklist_cache`'s history.** The repo this
+  role now clones was created fresh, README-only (T1, 2026-08-07) — the
+  historical archive that used to live in the (now-archived) old
+  `mtg_decklist_cache` doesn't carry forward as-is (schema change). A
+  from-scratch backfill (MTGO `--date-from`/`--date-to`, MTGTop8
+  `--id-from`) is still an open, not-yet-run T1 task, separate from this
+  role's own clone/push wiring.
 - **No email/notification on failure**, unlike the GitHub Actions
   workflows this replaces (`dawidd6/action-send-mail`) — a known,
   accepted behavior change. `systemctl status`/`journalctl -u
