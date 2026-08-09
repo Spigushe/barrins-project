@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,7 +106,15 @@ def _chunked(rows: list[dict[str, Any]], size: int) -> Iterator[list[dict[str, A
 async def _upsert_sets(session: AsyncSession, rows: list[dict[str, Any]]) -> None:
     for chunk in _chunked(rows, _UPSERT_CHUNK_SIZE):
         stmt = insert(MTGSet).values(chunk)
-        update_cols = {k: stmt.excluded[k] for k in chunk[0] if k != "code"}
+        update_cols: dict[str, Any] = {
+            k: stmt.excluded[k] for k in chunk[0] if k != "code"
+        }
+        # The raw Core upsert bypasses the ORM unit-of-work path, so the
+        # model's `onupdate=func.now()` (app/models/mtgjson.py) never fires
+        # on conflict -- set it explicitly or a re-import leaves
+        # `updated_at` (and GET /mtgjson/status's last_imported_at) frozen
+        # at each row's original insert time forever.
+        update_cols["updated_at"] = func.now()
         stmt = stmt.on_conflict_do_update(index_elements=["code"], set_=update_cols)
         await session.execute(stmt)
 
@@ -114,7 +122,10 @@ async def _upsert_sets(session: AsyncSession, rows: list[dict[str, Any]]) -> Non
 async def _upsert_cards(session: AsyncSession, rows: list[dict[str, Any]]) -> None:
     for chunk in _chunked(rows, _UPSERT_CHUNK_SIZE):
         stmt = insert(Card).values(chunk)
-        update_cols = {k: stmt.excluded[k] for k in chunk[0] if k != "id"}
+        update_cols: dict[str, Any] = {
+            k: stmt.excluded[k] for k in chunk[0] if k != "id"
+        }
+        update_cols["updated_at"] = func.now()  # see _upsert_sets
         stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=update_cols)
         await session.execute(stmt)
 

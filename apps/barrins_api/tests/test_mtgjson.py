@@ -10,12 +10,13 @@ substituted for the real HTTP download.
 import json
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.core.security import create_access_token, hash_password
 from app.main import app
@@ -159,6 +160,52 @@ class TestImportIdempotency:
         assert first.cards_upserted == second.cards_upserted == 3
         assert sets_after_first == sets_after_second == 2
         assert cards_after_first == cards_after_second == 3
+
+
+class TestImportBumpsUpdatedAt:
+    """Regression test: the chunked upsert (`_upsert_sets`/`_upsert_cards`)
+    uses a raw Core `INSERT ... ON CONFLICT DO UPDATE`, which bypasses the
+    ORM unit-of-work path entirely -- so the model's `onupdate=func.now()`
+    (`app/models/mtgjson.py`) never fired on a re-import's conflict branch,
+    leaving `updated_at` (and `GET /mtgjson/status`'s `last_imported_at`)
+    frozen at each row's original insert time forever. Both upsert helpers
+    now set `updated_at` explicitly.
+    """
+
+    async def test_reimport_bumps_set_and_card_updated_at(self, db_session):
+        """Doesn't compare timestamps across the two imports directly --
+        Postgres's `now()` is transaction-start time, and the test fixture
+        keeps the whole test inside one outer transaction, so two calls a
+        few milliseconds apart can (and did, before this was rewritten)
+        resolve to the exact same instant, making a naive `>` assertion
+        pass or fail independent of whether the fix actually works.
+        Instead: force a stale sentinel onto already-imported rows, then
+        confirm a re-import moves them off of it -- proving the DO UPDATE
+        branch actually touches `updated_at` at all.
+        """
+        client_ = FakeMTGJSONClient()
+        await import_all_printings(db_session, client_)
+
+        stale = datetime(2000, 1, 1, tzinfo=UTC)
+        await db_session.execute(
+            update(MTGSet).where(MTGSet.code == "P30A").values(updated_at=stale)
+        )
+        await db_session.execute(
+            update(Card).where(Card.set_code == "P30A").values(updated_at=stale)
+        )
+        await db_session.commit()
+
+        await import_all_printings(db_session, client_)
+
+        mtg_set = (
+            await db_session.execute(select(MTGSet).where(MTGSet.code == "P30A"))
+        ).scalar_one()
+        card = (
+            await db_session.execute(select(Card).where(Card.set_code == "P30A"))
+        ).scalar_one()
+
+        assert mtg_set.updated_at != stale
+        assert card.updated_at != stale
 
 
 class TestMultiFaceRoundTrip:

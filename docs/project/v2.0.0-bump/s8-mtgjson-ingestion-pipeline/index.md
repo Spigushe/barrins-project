@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
 | **Initial date** | 2026-08-05 | / |
-| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only) | / |
+| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only). **2026-08-09 UAT**: re-triggered `POST /mtgjson/import` against the real, full file on staging — two consecutive runs, ~3.5 minutes each, 868 sets/112,809 cards, no OOM, confirming both the performance and memory fixes at full scale; also found and fixed a follow-on bug where the raw upsert never bumped `updated_at` on conflict, freezing `GET /mtgjson/status`'s `last_imported_at` (see UAT below) | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
 | **Dependency** | D1 (playbook shape for the scheduled refresh — still open) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
@@ -182,18 +182,32 @@ because neither table has shipped in a release or held real data yet
 
 ## UAT (manual)
 
-- [ ] Trigger `POST /mtgjson/import` against the **real, full**
+- [x] Trigger `POST /mtgjson/import` against the **real, full**
       `AllPrintings.json` on staging (tests so far only exercise trimmed
       per-set fixtures — see decision 3 above); confirm `sets`/`cards`
       tables populate, memory usage stays reasonable, and
-      `GET /cards/by-name/{name}` returns real data. **Not yet done —
-      2026-08-09 attempt OOM-killed the worker before any row committed
-      (see the memory fix above); needs re-attempting now that the
-      streaming rewrite is in place.** The first production run took ~45
-      minutes (see the 2026-08-07 performance fix above) — re-running
-      against the full file should now complete in low minutes; both
-      that improvement and the memory fix still need confirming at full
-      scale, not just against the test fixtures.
+      `GET /cards/by-name/{name}` returns real data. **Done 2026-08-09**,
+      re-attempted post streaming-fix directly against `api-staging`
+      (127.0.0.1:8511, bypassing nginx's default `proxy_read_timeout`):
+      two consecutive full-file runs both succeeded in ~3.5 minutes
+      (17:49:30–17:53:00 for the confirmed one, via
+      `GET /mtgjson/import/status`), 868 sets / 112,809 cards upserted
+      each time (idempotent), `sudo dmesg -T` showed no new OOM kill past
+      the runs (the three entries present all predate them, 13:46–14:47 —
+      the last of which, `uvicorn`/~5.5GB anon-rss, is the original
+      pre-fix incident this UAT item is about). `GET /cards/by-name/Lightning
+      Bolt` returned real data. Confirms both the 2026-08-07 performance
+      fix (~45min → ~3.5min) and the 2026-08-09 memory fix at full scale.
+      **Found and fixed a second bug during this UAT pass**: the chunked
+      upsert's raw `INSERT ... ON CONFLICT DO UPDATE` bypassed the ORM's
+      `onupdate=func.now()`, so `GET /mtgjson/status`'s `last_imported_at`
+      stayed frozen at each row's original insert time on every re-import
+      instead of reflecting the run that just happened (staging showed
+      `16:58:13`, over 50 minutes stale, right after a confirmed-successful
+      17:53:00 run). Fixed in `_upsert_sets`/`_upsert_cards`
+      (`app/services/mtgjson/importer.py`) by setting `updated_at` in
+      `update_cols` explicitly; regression test added
+      (`TestImportBumpsUpdatedAt` in `tests/test_mtgjson.py`).
 - [x] Confirm a multi-face card stores both faces' types separately,
       retrievable independently — done against a real MDFC in
       `tests/test_mtgjson.py` (see Done statement above).
@@ -208,6 +222,13 @@ because neither table has shipped in a release or held real data yet
   on the import route (403 for non-admin), and (2026-08-07) an import
   forced across multiple upsert chunks (`_UPSERT_CHUNK_SIZE` monkeypatched
   down) to prove no rows are dropped or duplicated at a chunk boundary.
+  (2026-08-09) `TestImportBumpsUpdatedAt`: seeds a stale `updated_at`
+  sentinel onto already-imported rows, re-imports, and confirms it moves
+  off that sentinel — doesn't compare timestamps across the two imports
+  directly, since Postgres's `now()` is transaction-start time and the
+  test fixture keeps a whole test inside one outer transaction, so a naive
+  `>` comparison could pass or fail independent of whether the underlying
+  fix works.
 - New `tests/test_mtgjson_import_status.py` (2026-08-09): admin-gating on
   `GET /mtgjson/import/status` (401/403/404), a successful run's final
   status/counts, a mid-stream failure marking the run `failed` with

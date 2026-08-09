@@ -159,6 +159,14 @@ section of the docs site for details.
   `stream_sets()` + `_ImportBuffer`), bounding peak memory to
   `_UPSERT_CHUNK_SIZE` rows instead of file size; still one commit at the
   end, same idempotent-upsert contract.
+- `GET /mtgjson/status`'s `last_imported_at` no longer freezes at each
+  row's original insert time: the chunked upsert's raw
+  `INSERT ... ON CONFLICT DO UPDATE` bypassed the ORM unit-of-work path,
+  so `MTGSet`/`Card`'s `onupdate=func.now()` never fired on a re-import's
+  conflict branch. Found while UAT-ing the streaming fix above against
+  the real full file on staging (2026-08-09): two successful runs,
+  `last_imported_at` still showed the first run's timestamp. `updated_at`
+  is now set explicitly in `_upsert_sets`/`_upsert_cards`'s `update_cols`.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 
