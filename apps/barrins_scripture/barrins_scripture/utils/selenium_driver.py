@@ -26,10 +26,20 @@ def init_driver() -> webdriver.Chrome:
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--log-level=3")
 
-    # Selenium Manager (bundled since Selenium 4.6) resolves and downloads the
-    # matching Chrome driver directly from Google's official distribution
-    # points — no separate driver-management dependency needed.
-    service = Service(log_output=os.devnull)
+    # CHROME_BINARY_PATH/CHROMEDRIVER_PATH point at the apt-installed
+    # chromium/chromium-driver on the VPS (see
+    # ops/my-server/roles/scripture_scraper), so headless Chrome starts from
+    # a version-matched local pair with no outbound network call. Left unset
+    # for local development: Selenium Manager (bundled since Selenium 4.6)
+    # then resolves and downloads a matching Chrome + driver itself.
+    chrome_binary_path = os.environ.get("CHROME_BINARY_PATH")
+    if chrome_binary_path:
+        options.binary_location = chrome_binary_path
+
+    service = Service(
+        executable_path=os.environ.get("CHROMEDRIVER_PATH"),
+        log_output=os.devnull,
+    )
 
     return webdriver.Chrome(service=service, options=options)
 

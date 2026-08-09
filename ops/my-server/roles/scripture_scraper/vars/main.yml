@@ -27,3 +27,9 @@ scripture_scraper_config:
   archive_git_branch: "{{ scripture_scraper_archive_git_branch | default('main') }}"
   archive_commit_name: "{{ scripture_scraper_archive_commit_name | default(\"Barrin's Scripture\") }}"
   archive_commit_email: "{{ scripture_scraper_archive_commit_email | default('scripture@barrins-codex.org') }}"
+  # Debian's chromium/chromium-driver packages (installed by this role) at
+  # their standard paths — passed to the MTGO scrape service as
+  # CHROME_BINARY_PATH/CHROMEDRIVER_PATH so Selenium starts a version-matched
+  # local pair instead of downloading one over the network on every run.
+  chrome_binary_path: "{{ scripture_scraper_chrome_binary_path | default('/usr/bin/chromium') }}"
+  chromedriver_path: "{{ scripture_scraper_chromedriver_path | default('/usr/bin/chromedriver') }}"

@@ -1,4 +1,13 @@
 ---
+- name: Install Chromium and its matching driver for the MTGO Selenium scraper
+  ansible.builtin.apt:
+    state: present
+    update_cache: true
+    cache_valid_time: "3600"
+    name:
+      - chromium
+      - chromium-driver
+
 - name: Ensure app root folder is present
   ansible.builtin.file:
     state: directory

@@ -21,6 +21,14 @@ than inventing a new one.
 
 ## What it does
 
+0. Installs `chromium` and `chromium-driver` from Debian's own apt repos —
+   the MTGO scrape (`barrins_scripture/utils/selenium_driver.py`) drives
+   headless Chrome via Selenium, and a bare VPS has neither the browser
+   nor its runtime shared libraries. Using Debian's paired packages (rather
+   than Selenium Manager's own Chrome-for-Testing auto-download) guarantees
+   browser/driver version compatibility with no outbound network call
+   needed at scrape time — see `chrome_binary_path`/`chromedriver_path`
+   below.
 1. Clones/updates the monorepo at `scripture_scraper_git_branch` into
    `scripture_scraper_config.app_root`, the same `github_token`-based
    auth every other app-deploying role here uses.
@@ -81,6 +89,8 @@ than inventing a new one.
 | `scripture_scraper_archive_git_branch` | no | `main` | Branch the archive clone tracks and the sweep pushes to. |
 | `scripture_scraper_archive_commit_name` | no | `Barrin's Scripture` | Git `user.name` set locally on the archive clone, used by the sweep's commits. |
 | `scripture_scraper_archive_commit_email` | no | `scripture@barrins-codex.org` | Git `user.email` set locally on the archive clone, used by the sweep's commits. |
+| `scripture_scraper_chrome_binary_path` | no | `/usr/bin/chromium` | Passed to the scrape service as `CHROME_BINARY_PATH`. Only needed if a host installs Chrome/Chromium somewhere other than Debian's standard apt path. |
+| `scripture_scraper_chromedriver_path` | no | `/usr/bin/chromedriver` | Passed to the scrape service as `CHROMEDRIVER_PATH`. Same caveat as above. |
 
 Derived (not settable directly — computed from `scripture_scraper_app_name` in `vars/main.yml`, exposed as `scripture_scraper_config.*`):
 
@@ -90,6 +100,8 @@ Derived (not settable directly — computed from `scripture_scraper_app_name` in
 | `sweep_service_name` | `<app_name>_sweep` | Base name for the sweep service/timer. |
 | `scrape_script_path` | `/usr/local/bin/<app_name>_scrape.sh` | Where the scrape wrapper script is deployed. |
 | `sweep_script_path` | `/usr/local/bin/<app_name>_sweep.sh` | Where the sweep wrapper script is deployed. |
+| `chrome_binary_path` | `/usr/bin/chromium` | Set as `CHROME_BINARY_PATH` on the scrape systemd service — see `barrins_scripture/utils/selenium_driver.py`. |
+| `chromedriver_path` | `/usr/bin/chromedriver` | Set as `CHROMEDRIVER_PATH` on the scrape systemd service, same file. |
 
 ## Requirements
 

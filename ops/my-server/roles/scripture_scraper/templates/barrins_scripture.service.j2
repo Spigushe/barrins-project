@@ -6,4 +6,6 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 User={{ username }}
+Environment=CHROME_BINARY_PATH={{ scripture_scraper_config.chrome_binary_path }}
+Environment=CHROMEDRIVER_PATH={{ scripture_scraper_config.chromedriver_path }}
 ExecStart={{ scripture_scraper_config.scrape_script_path }}
