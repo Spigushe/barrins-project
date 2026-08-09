@@ -83,6 +83,16 @@
       as-is. The sweep timer will fail its tick until this is deployed.
   when: scripture_scraper_config.env_file | length > 0 and not scripture_scraper_env_file_stat.stat.exists
 
+- name: Ensure the archive parent folder is present
+  # output_dir defaults to a subdirectory of ~/archives (see vars/main.yml
+  # for why this lives outside app_root) — the git module below creates
+  # output_dir itself as part of cloning, but not this parent.
+  ansible.builtin.file:
+    state: directory
+    path: "/home/{{ username }}/archives"
+    owner: "{{ username }}"
+    mode: "0755"
+
 - name: Clone/update the JSON archive repository
   # Deliberately no force:true (unlike the app repo clone above): the
   # sweep may have written or committed-but-not-yet-pushed archive files

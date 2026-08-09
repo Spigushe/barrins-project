@@ -16,9 +16,14 @@ scripture_scraper_config:
   work_dir: >-
     {{ '/home/' + username + '/projects/' + scripture_scraper_app_name
     + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') }}
+  # Deliberately NOT nested under app_root/work_dir (2026-08-09 incident):
+  # the app-repo clone task above runs force:true, which wiped this
+  # directory's own nested archive clone — including everything backfilled
+  # since the last sweep push — the first time a redeploy ran after data
+  # had been scraped. Living under a path the app-repo checkout never
+  # touches makes that structurally impossible, not just discouraged.
   output_dir: >-
-    {{ scripture_scraper_output_dir | default('/home/' + username + '/projects/' + scripture_scraper_app_name
-    + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') + '/scraped') }}
+    {{ scripture_scraper_output_dir | default('/home/' + username + '/archives/' + scripture_scraper_app_name) }}
   daily_hour: "{{ scripture_scraper_daily_hour | default(22) }}"
   github_token: "{{ scripture_scraper_github_token | default(github_token) }}"
   env_file: "{{ scripture_scraper_env_file | default('') }}"

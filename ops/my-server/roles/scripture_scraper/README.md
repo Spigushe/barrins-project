@@ -80,7 +80,7 @@ than inventing a new one.
 | `scripture_scraper_repo_subdir` | no | `''` | Subdirectory `apps/barrins_scripture` lives at within the repo. |
 | `scripture_scraper_app_name` | yes | / | Used to name the checkout directory under `~/projects/`, and (derived config keys below) the systemd unit names and script paths. `barrins_scripture.yml` sets this to `barrins_scripture{{ env_suffix }}` so staging/production get distinct values. |
 | `scripture_scraper_git_branch` | no | `main` | Branch to deploy from. |
-| `scripture_scraper_output_dir` | no | `<work_dir>/scraped` | Where the JSON archive is written — see the note below. |
+| `scripture_scraper_output_dir` | no | `~/archives/<app_name>` | Where the JSON archive is written — deliberately outside `app_root`/`work_dir`, see the note below. |
 | `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily scrape timer fires. |
 | `scripture_scraper_github_token` | no | falls back to the shared `github_token` role | Only needed if a different token than the shared one is required. |
 | `scripture_scraper_env_file` | no | `''` | Local, git-ignored path to a `.env` holding `BARRINS_API_URL` for the sweep (`SCRIPTURE_INGEST_TOKEN` is injected separately by the `scripture_ingest_token` role, not carried in this file) — see `secrets/barrins_scripture/{staging,production}.env.example`. `barrins_scripture.yml` picks which one via its own `deploy_env` var (default `staging`). Deployed to `{{ work_dir }}/.env` if present, skipped (with a note) otherwise. |
@@ -201,6 +201,16 @@ most the sweep timer's own 6-hour interval), not everything since the
 last manual commit. The archive itself stays disposable/replayable in
 principle regardless (it can be re-scraped from source tournaments).
 
+**2026-08-09 incident**: a redeploy mid-backfill wiped the entire local
+archive clone, not just the last sweep interval's worth. Root cause: the
+app-repo clone task (above) runs `force: true`, and `output_dir` used to
+live nested inside `app_root` (`<work_dir>/scraped`) — the force-clean
+swept away the nested (git-ignored) archive clone, including everything
+scraped since the last sweep push, before the archive-clone task even
+ran. `output_dir` now defaults outside `app_root` entirely (`~/archives/
+<app_name>`) so this class of hazard is structurally impossible — a
+force-clean of the app repo cannot reach a directory it doesn't contain.
+
 ## Not automated yet
 
 - **Backfilling `Spigushe/mtg_decklist_cache`'s history.** The repo this
@@ -209,7 +219,10 @@ principle regardless (it can be re-scraped from source tournaments).
   `mtg_decklist_cache` doesn't carry forward as-is (schema change). A
   from-scratch backfill (MTGO `--date-from`/`--date-to`, MTGTop8
   `--id-from`) is still an open, not-yet-run T1 task, separate from this
-  role's own clone/push wiring.
+  role's own clone/push wiring. A first attempt on 2026-08-09 was lost
+  mid-run to the `output_dir` nesting hazard above (see Data ownership &
+  backup) before any sweep tick pushed it — restart from scratch once
+  `output_dir`'s relocation is deployed.
 - **No email/notification on failure**, unlike the GitHub Actions
   workflows this replaces (`dawidd6/action-send-mail`) — a known,
   accepted behavior change. `systemctl status`/`journalctl -u

@@ -191,6 +191,14 @@ section of the docs site for details.
 
 ### Fixed
 
+- `roles/scripture_scraper`: `scripture_scraper_output_dir` defaulted to
+  a path nested inside `app_root` (`<work_dir>/scraped`). The app-repo
+  clone task runs `force: true`; on 2026-08-09 a redeploy mid-backfill
+  force-cleaned that nested (git-ignored) archive clone, losing
+  everything scraped since the last sweep push. Moved the default
+  outside `app_root` entirely (`~/archives/<app_name>`) so a force-clean
+  of the app repo can no longer reach it — see the role's README
+  ("Data ownership & backup") for the incident writeup.
 - `.github/workflows/CI.yml`: the `back` job never provisioned a
   Postgres service or a real `SECRET_KEY`, so any PR touching
   `apps/barrins_api` was doomed to fail — `pytest` errors out while
