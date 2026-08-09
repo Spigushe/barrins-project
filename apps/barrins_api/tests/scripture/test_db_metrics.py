@@ -102,3 +102,4 @@ class TestDbMetricsResponse:
         table_names = {entry["table_name"] for entry in body["tables"]}
         assert table_names == _BS_TABLE_NAMES
         assert all(entry["size_bytes"] >= 0 for entry in body["tables"])
+        assert all(entry["row_count"] >= 0 for entry in body["tables"])

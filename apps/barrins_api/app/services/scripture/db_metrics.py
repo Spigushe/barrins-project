@@ -39,15 +39,31 @@ class TableSize:
     #: actually consumes disk, not just the bare heap
     #: (`pg_relation_size`).
     size_bytes: int
+    #: Live `count(*)` — `size_bytes` alone can't tell an ingestion that
+    #: wrote zero rows apart from one that wrote a few small ones.
+    row_count: int
 
 
 async def compute_scripture_db_metrics(session: AsyncSession) -> list[TableSize]:
-    """`pg_total_relation_size` for every `bs_*` table, in `_BS_TABLE_NAMES` order."""
+    """Size + row count per `bs_*` table, in `_BS_TABLE_NAMES` order."""
     sizes = []
     for table_name in _BS_TABLE_NAMES:
         size = await session.scalar(
             text("SELECT pg_total_relation_size(CAST(:table_name AS regclass))"),
             {"table_name": table_name},
         )
-        sizes.append(TableSize(table_name=table_name, size_bytes=size or 0))
+        # table_name is sourced from each model's __tablename__ (_BS_TABLE_NAMES
+        # above), never request input, so building the FROM clause this way
+        # carries no injection risk despite not being parametrized — a bind
+        # parameter can't stand in for an identifier here.
+        row_count = await session.scalar(
+            text(f"SELECT count(*) FROM {table_name}")  # noqa: S608
+        )
+        sizes.append(
+            TableSize(
+                table_name=table_name,
+                size_bytes=size or 0,
+                row_count=row_count or 0,
+            )
+        )
     return sizes
