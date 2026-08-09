@@ -65,6 +65,73 @@
       when: scripture_deployed_env_stat.stat.exists
       tags: [scripture, deploy]
 
+    - name: Check whether the staging scrape timer exists (to stop it on production cutover)
+      ansible.builtin.stat:
+        path: /etc/systemd/system/barrins_scripture-staging.timer
+      register: staging_scrape_timer_stat
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Check whether the staging sweep timer exists (to stop it on production cutover)
+      ansible.builtin.stat:
+        path: /etc/systemd/system/barrins_scripture-staging_sweep.timer
+      register: staging_sweep_timer_stat
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Stop and disable the staging scrape timer/service to save resources on production cutover
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - barrins_scripture-staging.timer
+        - barrins_scripture-staging.service
+      when: deploy_env == 'production' and staging_scrape_timer_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Stop and disable the staging sweep timer/service to save resources on production cutover
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - barrins_scripture-staging_sweep.timer
+        - barrins_scripture-staging_sweep.service
+      when: deploy_env == 'production' and staging_sweep_timer_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Immediately fire the scrape service on production deploys
+      ansible.builtin.systemd:
+        name: "{{ scripture_scraper_config.service_name }}.service"
+        state: started
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Immediately fire the sweep service on production deploys
+      ansible.builtin.systemd:
+        name: "{{ scripture_scraper_config.sweep_service_name }}.service"
+        state: started
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Reminder — production deploys stop staging and fire the scrape/sweep immediately
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env=production stops+disables barrins_scripture-staging's"
+          - "timer/service pair (both scrape and sweep, if they exist on this"
+          - "host) to avoid running both instances' scrapes/sweeps side by"
+          - "side indefinitely. It then fires"
+          - "{{ scripture_scraper_config.service_name }}.service, then (once"
+          - "it's done) {{ scripture_scraper_config.sweep_service_name }}.service,"
+          - "right here — blocking, so this playbook run doubles as the"
+          - "deploy validation instead of waiting for the daily/6h timer."
+          - "Re-running with -e deploy_env=staging re-enables and re-starts"
+          - "the staging pair (the scripture_scraper role always enables both"
+          - "timers unconditionally), so this is reversible, not destructive."
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
     - name: Reminder — the archive is pushed by the sweep, not this playbook
       ansible.builtin.debug:
         msg:
