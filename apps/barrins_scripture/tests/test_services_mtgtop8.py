@@ -2,7 +2,7 @@ import importlib
 from collections import defaultdict
 from pathlib import Path
 from queue import Queue
-from threading import Lock
+from threading import Event, Lock, Thread
 from unittest.mock import Mock, patch
 
 from bs4 import BeautifulSoup
@@ -27,7 +27,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(88803, queue, Lock(), set())
+            service.producer(88803, queue, set())
 
         assert queue.qsize() == 1
         url, queued_soup = queue.get()
@@ -43,7 +43,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock(), set())
+            service.producer(1, queue, set())
         assert queue.empty()
 
     def test_skips_an_already_scraped_tournament(self) -> None:
@@ -60,7 +60,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock(), set())
+            service.producer(1, queue, set())
         assert queue.empty()
 
     def test_skips_an_unknown_format(self) -> None:
@@ -75,7 +75,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock(), set())
+            service.producer(1, queue, set())
         assert queue.empty()
 
 
@@ -93,7 +93,11 @@ class TestConsumer:
             patch.object(service.mtgtop8_utils, "save_tournament_scrape") as mock_save,
             patch.object(service.time, "sleep"),
         ):
-            service.consumer(queue, Lock(), 1, defaultdict(int))
+            producers_done = Event()
+            producers_done.set()
+            service.consumer(
+                queue, Lock(), 1, defaultdict(int), producers_done, poll_interval=0.01
+            )
 
         mock_scrape.assert_called_once()
         mock_save.assert_called_once_with(scrape)
@@ -108,7 +112,17 @@ class TestConsumer:
             patch.object(service.mtgtop8_utils, "scrape_tournament", return_value=None),
             patch.object(service.time, "sleep"),
         ):
-            service.consumer(queue, Lock(), 1, retries, max_retries=2)
+            producers_done = Event()
+            producers_done.set()
+            service.consumer(
+                queue,
+                Lock(),
+                1,
+                retries,
+                producers_done,
+                max_retries=2,
+                poll_interval=0.01,
+            )
 
         assert retries["https://mtgtop8.com/event?e=1"] == 2
         assert queue.empty()
@@ -126,13 +140,39 @@ class TestConsumer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.consumer(queue, Lock(), 1, defaultdict(int))
+            producers_done = Event()
+            producers_done.set()
+            service.consumer(
+                queue, Lock(), 1, defaultdict(int), producers_done, poll_interval=0.01
+            )
 
         assert queue.empty()
 
+    def test_does_not_exit_while_queue_is_empty_but_producers_are_still_running(
+        self,
+    ) -> None:
+        # This is the pipelining fix itself: a consumer must keep polling an
+        # empty queue rather than treating "empty" as "done", since a slow
+        # producer batch can leave the queue momentarily empty mid-run.
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        producers_done = Event()
+        thread = Thread(
+            target=service.consumer,
+            args=(queue, Lock(), 1, defaultdict(int), producers_done),
+            kwargs={"poll_interval": 0.01},
+        )
+        thread.start()
+        try:
+            thread.join(timeout=0.2)
+            assert thread.is_alive(), "consumer exited despite producers not done"
+        finally:
+            producers_done.set()
+            thread.join(timeout=1)
+            assert not thread.is_alive()
+
 
 class TestScrapeMtgtop8:
-    def test_wires_producers_then_consumers(self) -> None:
+    def test_wires_producers_and_consumers(self) -> None:
         with (
             patch.object(service.mtgtop8_utils, "get_scraped_ids", return_value=set()),
             patch.object(service, "producer") as mock_producer,
@@ -142,6 +182,11 @@ class TestScrapeMtgtop8:
 
         assert mock_producer.call_count == 10
         assert mock_consumer.call_count == 2
+        # The queue must stay bounded: an unbounded queue is what let a large
+        # --span backfill pile up unbounded parsed BeautifulSoup trees in
+        # memory and OOM the host (see scrape_mtgtop8's comment on maxsize).
+        queue_arg = mock_consumer.call_args_list[0].args[0]
+        assert queue_arg.maxsize == 2 * 10
 
     def test_output_dir_overrides_the_default_base_path(self, tmp_path: Path) -> None:
         with (
