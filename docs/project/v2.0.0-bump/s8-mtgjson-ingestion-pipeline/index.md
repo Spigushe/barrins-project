@@ -62,6 +62,8 @@ its own escalation, not assumed):
    actually proves too memory-heavy in practice. It worked fine against
    the real per-set files used for testing; the full `AllPrintings.json`
    hasn't been fetched end-to-end against production yet (see UAT).
+   **Update 2026-08-09: it did prove too memory-heavy — see the memory
+   fix below.** The streaming parser this decision deferred was added.
 
 **2026-08-07 performance fix**: the first real `POST /mtgjson/import` run
 took ~45 minutes. Root cause: `import_all_printings` did one
@@ -71,6 +73,25 @@ chunked multi-row upserts (`_UPSERT_CHUNK_SIZE = 500` rows/statement) in
 `app/services/mtgjson/importer.py` — no schema change, no new dependency,
 same idempotent-upsert contract. Cuts round-trips from ~100k to a few
 hundred.
+
+**2026-08-09 memory fix**: the first `POST /mtgjson/import` attempt
+against the real, full `AllPrintings.json` on staging OOM-killed the
+`api-staging` uvicorn worker (~5.5GB RSS, confirmed via `dmesg`) before a
+single row committed — `HttpxMTGJSONClient.fetch_all_printings` buffered
+the whole response body, `response.json()` built the full parsed tree,
+and `import_all_printings` built `set_rows`/`card_rows` as full lists
+again on top of that, all simultaneously. Approved per §4.7/§22 (see
+decision 3 above): added `ijson` and rewrote both to stream. The client's
+`fetch_all_printings() -> dict` became `stream_sets() -> AsyncIterator[
+tuple[str, dict]]` (`ijson.from_iter(response.aiter_bytes())` +
+`ijson.kvitems(f, "data")`, never buffering the response); the importer's
+`_ImportBuffer` consumes it set-by-set and flushes `_UPSERT_CHUNK_SIZE`-row
+upserts as it goes (sets flushed before cards, so a buffered card's
+`set_code` FK is always visible within the same uncommitted transaction),
+instead of collecting `set_rows`/`card_rows` upfront. Still one commit at
+the end — the idempotent all-or-nothing contract is unchanged, only how
+memory is bounded while getting there. Real full-file run against
+staging still needs to be re-attempted post-fix (see UAT).
 
 ## Done statement
 
@@ -132,11 +153,14 @@ hundred.
       `AllPrintings.json` on staging (tests so far only exercise trimmed
       per-set fixtures — see decision 3 above); confirm `sets`/`cards`
       tables populate, memory usage stays reasonable, and
-      `GET /cards/by-name/{name}` returns real data. **Not yet done.**
-      The first production run took ~45 minutes (see the 2026-08-07
-      performance fix above) — re-running against the full file should
-      now complete in low minutes; that improvement itself still needs
-      confirming at full scale, not just against the test fixtures.
+      `GET /cards/by-name/{name}` returns real data. **Not yet done —
+      2026-08-09 attempt OOM-killed the worker before any row committed
+      (see the memory fix above); needs re-attempting now that the
+      streaming rewrite is in place.** The first production run took ~45
+      minutes (see the 2026-08-07 performance fix above) — re-running
+      against the full file should now complete in low minutes; both
+      that improvement and the memory fix still need confirming at full
+      scale, not just against the test fixtures.
 - [x] Confirm a multi-face card stores both faces' types separately,
       retrievable independently — done against a real MDFC in
       `tests/test_mtgjson.py` (see Done statement above).

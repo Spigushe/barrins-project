@@ -127,6 +127,15 @@ section of the docs site for details.
   `game` to `TSPersonalDeck`/meta decks, so `ResponseMetaDeck.
   model_validate()` failed Pydantic validation on the merged roster,
   breaking the whole list rather than just the new decks.
+- `POST /mtgjson/import` no longer OOM-kills the backend worker on a real,
+  full `AllPrintings.json` run: `HttpxMTGJSONClient` buffered the whole
+  response body and parsed JSON tree, and `import_all_printings` built
+  full `set_rows`/`card_rows` lists on top of that, all before writing a
+  single row (2026-08-09 incident: ~5.5GB RSS, worker killed mid-import,
+  zero rows committed). Both now stream via `ijson` (new dependency,
+  `stream_sets()` + `_ImportBuffer`), bounding peak memory to
+  `_UPSERT_CHUNK_SIZE` rows instead of file size; still one commit at the
+  end, same idempotent-upsert contract.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

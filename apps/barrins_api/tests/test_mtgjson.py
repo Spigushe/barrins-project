@@ -9,6 +9,7 @@ substituted for the real HTTP download.
 
 import json
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -32,10 +33,11 @@ def _load_fixture() -> dict[str, Any]:
 
 
 class FakeMTGJSONClient:
-    """Returns the real, trimmed fixture instead of calling MTGJSON."""
+    """Streams the real, trimmed fixture instead of calling MTGJSON."""
 
-    async def fetch_all_printings(self) -> dict[str, Any]:
-        return _load_fixture()
+    async def stream_sets(self) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        for set_code, set_data in _load_fixture()["data"].items():
+            yield set_code, set_data
 
 
 def _auth_headers(user: User) -> dict[str, str]:
@@ -311,13 +313,14 @@ def _mtgjson_payload_from_scryfall_card(
 
 
 class _FakeScryfallDerivedClient:
-    """Returns a payload built from a single Scryfall fixture card."""
+    """Streams a payload built from a single Scryfall fixture card."""
 
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload
 
-    async def fetch_all_printings(self) -> dict[str, Any]:
-        return self._payload
+    async def stream_sets(self) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        for set_code, set_data in self._payload["data"].items():
+            yield set_code, set_data
 
 
 class TestScryfallMultiFaceNamesFoundByName:
