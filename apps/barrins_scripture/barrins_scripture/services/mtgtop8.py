@@ -32,17 +32,25 @@ def scrape_mtgtop8(
     lock = Lock()
     retries: dict[str, int] = defaultdict(int)
 
-    # first_id is already the next unscraped id (get_max_id_scraped() + 1)
-    # by default, so this range starts at first_id + 0, not + 1 — the
-    # original code's "+ j + 1" here skipped that very first id on every
-    # run. id_from overrides this to backfill an arbitrary id range instead
-    # of only ever resuming forward from the archive's current max.
-    first_id = (
-        id_from if id_from is not None else mtgtop8_utils.get_max_id_scraped() + 1
-    )
+    # Walked once and reused by every producer below (see
+    # mtgtop8_utils.we_should_scrape_it) instead of each one re-walking the
+    # archive tree from scratch — safe because every producer batch finishes
+    # before any consumer writes a new file, so the set can't go stale
+    # mid-run.
+    scraped_ids = mtgtop8_utils.get_scraped_ids()
+
+    # first_id is already the next unscraped id (max(scraped_ids) + 1) by
+    # default, so this range starts at first_id + 0, not + 1 — the original
+    # code's "+ j + 1" here skipped that very first id on every run. id_from
+    # overrides this to backfill an arbitrary id range instead of only ever
+    # resuming forward from the archive's current max.
+    first_id = id_from if id_from is not None else max(scraped_ids, default=0) + 1
     for i in range(span // 10):
         threads = [
-            Thread(target=producer, args=(first_id + 10 * i + j, task_queue, lock))
+            Thread(
+                target=producer,
+                args=(first_id + 10 * i + j, task_queue, lock, scraped_ids),
+            )
             for j in range(10)
         ]
         for thread in threads:
@@ -62,7 +70,9 @@ def scrape_mtgtop8(
         t.join()
 
 
-def producer(id_to_scrape: int, queue: Top8Queue, lock: Lock) -> None:
+def producer(
+    id_to_scrape: int, queue: Top8Queue, lock: Lock, scraped_ids: set[int]
+) -> None:
     try:
         tournament_url = mtgtop8_utils.get_tournament_url(id_to_scrape)
         tournament_soup = mtgtop8_utils.get_tournament_soup(tournament_url)
@@ -70,7 +80,7 @@ def producer(id_to_scrape: int, queue: Top8Queue, lock: Lock) -> None:
         if "No event could be found." in tournament_soup.text:
             return
 
-        if not mtgtop8_utils.we_should_scrape_it(tournament_url):
+        if not mtgtop8_utils.we_should_scrape_it(tournament_url, scraped_ids):
             return
 
         if parser.get_format(tournament_soup) == "Unknown Format":

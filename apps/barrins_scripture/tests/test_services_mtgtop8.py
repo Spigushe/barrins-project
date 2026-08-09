@@ -27,7 +27,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(88803, queue, Lock())
+            service.producer(88803, queue, Lock(), set())
 
         assert queue.qsize() == 1
         url, queued_soup = queue.get()
@@ -43,7 +43,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock())
+            service.producer(1, queue, Lock(), set())
         assert queue.empty()
 
     def test_skips_an_already_scraped_tournament(self) -> None:
@@ -60,7 +60,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock())
+            service.producer(1, queue, Lock(), set())
         assert queue.empty()
 
     def test_skips_an_unknown_format(self) -> None:
@@ -75,7 +75,7 @@ class TestProducer:
             ),
             patch.object(service.time, "sleep"),
         ):
-            service.producer(1, queue, Lock())
+            service.producer(1, queue, Lock(), set())
         assert queue.empty()
 
 
@@ -134,7 +134,7 @@ class TestConsumer:
 class TestScrapeMtgtop8:
     def test_wires_producers_then_consumers(self) -> None:
         with (
-            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=0),
+            patch.object(service.mtgtop8_utils, "get_scraped_ids", return_value=set()),
             patch.object(service, "producer") as mock_producer,
             patch.object(service, "consumer") as mock_consumer,
         ):
@@ -145,7 +145,7 @@ class TestScrapeMtgtop8:
 
     def test_output_dir_overrides_the_default_base_path(self, tmp_path: Path) -> None:
         with (
-            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=0),
+            patch.object(service.mtgtop8_utils, "get_scraped_ids", return_value=set()),
             patch.object(service, "producer"),
             patch.object(service, "consumer"),
         ):
@@ -155,7 +155,7 @@ class TestScrapeMtgtop8:
 
     def test_id_from_overrides_resuming_from_the_archive_max(self) -> None:
         with (
-            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=999),
+            patch.object(service.mtgtop8_utils, "get_scraped_ids", return_value={999}),
             patch.object(service, "producer") as mock_producer,
             patch.object(service, "consumer"),
         ):
@@ -166,7 +166,7 @@ class TestScrapeMtgtop8:
 
     def test_id_from_defaults_to_resuming_from_the_archive_max(self) -> None:
         with (
-            patch.object(service.mtgtop8_utils, "get_max_id_scraped", return_value=999),
+            patch.object(service.mtgtop8_utils, "get_scraped_ids", return_value={999}),
             patch.object(service, "producer") as mock_producer,
             patch.object(service, "consumer"),
         ):

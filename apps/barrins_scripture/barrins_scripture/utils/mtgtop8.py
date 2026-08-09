@@ -10,30 +10,7 @@ from barrins_scripture.schemas import MTGScrape
 BASE_PATH = Path(__file__).resolve().parent.parent.parent / "scraped" / "mtgtop8.com"
 
 
-def get_max_id_scraped() -> int:
-    max_id = 0
-    for file in BASE_PATH.rglob("*.json"):
-        try:
-            max_id = max(max_id, get_id_from_filepath(file))
-        except ValueError:
-            continue
-    return max_id
-
-
-def get_id_from_filepath(filepath: Path) -> int:
-    return int(filepath.stem.split("_")[0])
-
-
-def get_tournament_url(tournament_id: int) -> str:
-    return f"https://mtgtop8.com/event?e={tournament_id}"
-
-
-def we_should_scrape_it(tournament_url: str) -> bool:
-    tournament_query = tournament_url.split("e=")[1]
-    if "&" in tournament_query:
-        tournament_query = tournament_query.split("&")[0]
-    tournament_id = int(tournament_query)
-
+def get_scraped_ids() -> set[int]:
     # rglob, not glob: archived files live nested under BASE_PATH/YYYY/MM/DD/,
     # never directly in BASE_PATH itself (see save_tournament_scrape below) —
     # a non-recursive glob would never match anything, making this dedup
@@ -46,6 +23,30 @@ def we_should_scrape_it(tournament_url: str) -> bool:
             scraped_ids.add(get_id_from_filepath(f))
         except ValueError:
             continue
+    return scraped_ids
+
+
+def get_max_id_scraped() -> int:
+    return max(get_scraped_ids(), default=0)
+
+
+def get_id_from_filepath(filepath: Path) -> int:
+    return int(filepath.stem.split("_")[0])
+
+
+def get_tournament_url(tournament_id: int) -> str:
+    return f"https://mtgtop8.com/event?e={tournament_id}"
+
+
+def we_should_scrape_it(tournament_url: str, scraped_ids: set[int]) -> bool:
+    # scraped_ids is walked once per scrape_mtgtop8() run (get_scraped_ids)
+    # and reused across every candidate id here, instead of this function
+    # re-walking the whole archive tree on every single call — that made a
+    # multi-thousand-id backfill effectively O(n^2) in archive size.
+    tournament_query = tournament_url.split("e=")[1]
+    if "&" in tournament_query:
+        tournament_query = tournament_query.split("&")[0]
+    tournament_id = int(tournament_query)
     return tournament_id not in scraped_ids
 
 
