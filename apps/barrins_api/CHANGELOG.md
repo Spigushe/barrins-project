@@ -88,6 +88,21 @@ section of the docs site for details.
   inherits its creating personal deck's `game`, and cascades to that
   meta deck's own opponent entries, so a non-Magic personal deck doesn't
   silently produce `NULL`-game meta decks (2026-08-03 follow-up to S10).
+- Live MTGJSON import progress: `GET /mtgjson/import/status` (admin-gated)
+  returns the most recent `POST /mtgjson/import` run's status
+  (`running`/`succeeded`/`failed`), counts so far, and `error_message` on
+  failure. A new `mj_import_runs` table is written independently of the
+  main import transaction (`_ImportRunTracker`, its own short-lived
+  session committed at the same granularity as the existing upsert
+  chunking), since the importer only commits `mj_sets`/`mj_cards` once at
+  the end and Postgres's default isolation would otherwise hide all
+  progress from any poll until the whole import finished. A leftover
+  `running` row from a hard crash (e.g. the 2026-08-09 OOM incident) is
+  self-healed to `failed` the next time an import starts, rather than
+  staying stuck forever. The existing `sets`/`cards` tables are also
+  renamed to `mj_sets`/`mj_cards` in the same migration, matching this
+  codebase's `bs_*`/`ts_*` domain-prefix convention (DB-internal only —
+  API paths and ORM class names are unaffected).
 
 ### Changed
 

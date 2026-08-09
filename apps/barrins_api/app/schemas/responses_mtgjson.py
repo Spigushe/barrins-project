@@ -49,3 +49,13 @@ class ResponseImportStatus(BaseResponse):
     last_imported_at: datetime | None
     total_sets: int
     total_cards: int
+
+
+class ResponseImportRun(BaseResponse):
+    id: uuid.UUID
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    sets_upserted: int
+    cards_upserted: int
+    error_message: str | None

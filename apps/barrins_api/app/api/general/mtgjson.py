@@ -18,10 +18,16 @@ from sqlalchemy import func, or_, select, union
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser
-from app.models.mtgjson import CASTABLE_BOTH_FACES_LAYOUTS, Card, MTGSet
+from app.models.mtgjson import (
+    CASTABLE_BOTH_FACES_LAYOUTS,
+    Card,
+    MTGJSONImportRun,
+    MTGSet,
+)
 from app.schemas.responses_mtgjson import (
     ResponseCard,
     ResponseImportResult,
+    ResponseImportRun,
     ResponseImportStatus,
     ResponseSet,
 )
@@ -69,6 +75,34 @@ async def mtgjson_status(session: DatabaseSession) -> ResponseImportStatus:
         total_sets=total_sets,
         total_cards=total_cards,
     )
+
+
+@router.get("/mtgjson/import/status", response_model=ResponseImportRun)
+async def mtgjson_import_status(
+    session: DatabaseSession, _admin: AdminUser
+) -> ResponseImportRun:
+    """Admin: progress of the most recent import run.
+
+    Distinct from `GET /mtgjson/status` above: that one reads final,
+    committed `mj_sets`/`mj_cards` counts (public, stable regardless of
+    whether an import is running); this one reads `mj_import_runs`, a
+    separately-committed progress log that updates *during* a run --
+    `status` is `"running"` | `"succeeded"` | `"failed"`, `error_message`
+    is only set on failure. Admin-gated because a failure's
+    `error_message` can include internal exception text.
+    """
+    run = (
+        await session.execute(
+            select(MTGJSONImportRun)
+            .order_by(MTGJSONImportRun.started_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No import has run yet."
+        )
+    return ResponseImportRun.model_validate(run)
 
 
 @router.get("/sets/", response_model=list[ResponseSet])

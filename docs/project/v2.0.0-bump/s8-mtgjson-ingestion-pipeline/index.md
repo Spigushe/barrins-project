@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
 | **Initial date** | 2026-08-05 | / |
-| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts | / |
+| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only) | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
 | **Dependency** | D1 (playbook shape for the scheduled refresh — still open) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
@@ -93,6 +93,34 @@ the end — the idempotent all-or-nothing contract is unchanged, only how
 memory is bounded while getting there. Real full-file run against
 staging still needs to be re-attempted post-fix (see UAT).
 
+**2026-08-09 live progress**: `import_all_printings` only commits its
+`mj_sets`/`mj_cards` writes once at the end (see the memory fix above), so
+Postgres's default isolation hid all progress from any other session —
+including a status poll — until the whole import finished. Decided (same
+session, informal — no dependency added, so no §4.7/§22 escalation
+needed): a separate progress row, over an in-process counter (lost on the
+single-worker deployment's restart) or per-chunk commits on the main
+transaction (would have reopened the atomicity guarantee the memory fix
+was built to protect). Added `mj_import_runs` (new migration, same pass
+that renamed `sets`/`cards` to `mj_sets`/`mj_cards` — see below) and
+`_ImportRunTracker` (`app/services/mtgjson/importer.py`): writes through
+its own session (`AsyncSessionLocal`, independent of the main import's
+`session`), committed immediately at the same granularity as
+`_UPSERT_CHUNK_SIZE`. `GET /mtgjson/import/status` (admin-gated — a
+failed run's `error_message` can include internal exception text) returns
+the latest run's `status` (`running`/`succeeded`/`failed`), counts so far,
+and `error_message`. A leftover `running` row from a hard crash (e.g. the
+OOM incident above) self-heals to `failed` the next time an import
+starts, since only one admin-triggered import runs at a time.
+
+**2026-08-09 table rename**: `sets`/`cards` renamed to `mj_sets`/`mj_cards`
+in the same migration as `mj_import_runs` above, matching this codebase's
+`bs_*`/`ts_*` domain-prefix convention (never applied here when S8 first
+shipped these two tables). DB-internal only: API paths (`/sets/*`,
+`/cards/*`) and ORM class names (`MTGSet`, `Card`) are unchanged. Safe
+because neither table has shipped in a release or held real data yet
+(confirmed empty on the dev DB before the migration ran).
+
 ## Done statement
 
 - `Card` and `MTGSet` ORM models exist under `app/models/mtgjson.py`,
@@ -124,6 +152,11 @@ staging still needs to be re-attempted post-fix (see UAT).
   route). **Still open** — not built in this pass; needs its own T8-style
   playbook following D1's template, and MTGJSON's own release cadence
   hasn't been researched yet.
+- Live import progress: `GET /mtgjson/import/status` (admin-gated) exists,
+  backed by `mj_import_runs`. **Done** (2026-08-09) — see the live-progress
+  note above; `tests/test_mtgjson_import_status.py` covers the gate,
+  success/failure outcomes, multi-call progress updates, and the
+  stale-`running`-row self-heal.
 
 ## Tasks
 
@@ -175,6 +208,18 @@ staging still needs to be re-attempted post-fix (see UAT).
   on the import route (403 for non-admin), and (2026-08-07) an import
   forced across multiple upsert chunks (`_UPSERT_CHUNK_SIZE` monkeypatched
   down) to prove no rows are dropped or duplicated at a chunk boundary.
+- New `tests/test_mtgjson_import_status.py` (2026-08-09): admin-gating on
+  `GET /mtgjson/import/status` (401/403/404), a successful run's final
+  status/counts, a mid-stream failure marking the run `failed` with
+  `error_message` set while leaving `mj_sets`/`mj_cards` untouched, the
+  same tracked row updating across multiple `_ImportRunTracker.progress()`
+  calls (not just once at the end), and the stale-`running`-row self-heal
+  on the next run's `start()`. Relies on a new `mtgjson_tracker_uses_test_db`
+  fixture (`tests/conftest.py`) that redirects the tracker's independent
+  session factory onto the test's own transactional connection — without
+  it, the tracker's writes would hit the real per-environment database
+  instead of the isolated test one (`AsyncSessionLocal` is a module-level
+  binding, invisible to FastAPI's `Depends(get_db)` override).
 - A test asserting a known multi-face fixture card's per-face type data
   round-trips correctly — this is the data S4's "face A Land" rule
   depends on, so it needs its own explicit regression coverage.

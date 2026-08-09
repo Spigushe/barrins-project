@@ -1,4 +1,4 @@
-"""Upserts MTGJSON's `AllPrintings.json` into the `sets`/`cards` tables.
+"""Upserts MTGJSON's `AllPrintings.json` into the `mj_sets`/`mj_cards` tables.
 
 Chunked `INSERT ... ON CONFLICT DO UPDATE` (multi-row VALUES per
 statement), in FK order (all sets before any card) -- the same
@@ -17,19 +17,30 @@ row into `set_rows`/`card_rows` lists upfront (2026-08-09 fix): building
 those lists for the whole file, on top of the parsed JSON tree itself,
 OOM-killed the worker before a single row was written. Peak memory is now
 bounded by `_UPSERT_CHUNK_SIZE`, not file size -- see `_ImportBuffer`.
+
+Progress is tracked live in `mj_import_runs` (2026-08-09 addition, same
+day as the memory fix above): `import_all_printings` only commits its
+`mj_sets`/`mj_cards` writes once at the end, so any other session --
+including a status poll -- can't see them mid-run. `_ImportRunTracker`
+writes to `mj_import_runs` through its own session, committed immediately
+at the same granularity as `_UPSERT_CHUNK_SIZE`, so `GET
+/mtgjson/import/status` can show real progress instead of nothing until
+the import finishes.
 """
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.log_config import get_logger
-from app.models.mtgjson import Card, MTGSet
+from app.database.connection import AsyncSessionLocal
+from app.models.mtgjson import Card, MTGJSONImportRun, MTGSet
 from app.services.mtgjson.base import MTGJSONClient
 
 logger = get_logger(__name__)
@@ -108,6 +119,16 @@ async def _upsert_cards(session: AsyncSession, rows: list[dict[str, Any]]) -> No
         await session.execute(stmt)
 
 
+#: Called with (sets_upserted, cards_upserted) after a flush actually
+#: writes something, so a caller can track progress at the same
+#: granularity as the upsert chunking -- see `_ImportRunTracker`.
+_ProgressCallback = Callable[[int, int], Awaitable[None]]
+
+
+async def _no_op_progress(sets_upserted: int, cards_upserted: int) -> None:
+    pass
+
+
 @dataclass
 class _ImportBuffer:
     """Accumulates rows from the streamed sets and flushes in
@@ -121,6 +142,7 @@ class _ImportBuffer:
     """
 
     session: AsyncSession
+    on_progress: _ProgressCallback = _no_op_progress
     sets_upserted: int = 0
     cards_upserted: int = 0
     _pending_sets: list[dict[str, Any]] = field(default_factory=list)
@@ -133,15 +155,21 @@ class _ImportBuffer:
             self._pending_cards.append(_card_values(set_code, card_data))
             self.cards_upserted += 1
 
+        flushed = False
         if len(self._pending_sets) >= _UPSERT_CHUNK_SIZE:
             await self._flush_sets()
+            flushed = True
         if len(self._pending_cards) >= _UPSERT_CHUNK_SIZE:
             await self._flush_sets()
             await self._flush_cards()
+            flushed = True
+        if flushed:
+            await self.on_progress(self.sets_upserted, self.cards_upserted)
 
     async def flush(self) -> None:
         await self._flush_sets()
         await self._flush_cards()
+        await self.on_progress(self.sets_upserted, self.cards_upserted)
 
     async def _flush_sets(self) -> None:
         if self._pending_sets:
@@ -156,6 +184,69 @@ class _ImportBuffer:
             self._pending_cards = []
 
 
+class _ImportRunTracker:
+    """Records import progress in `mj_import_runs`, independent of the main
+    import transaction: `import_all_printings` only commits its sets/cards
+    writes once at the end (see module docstring), so a status poll needs
+    a separately and immediately committed row to see progress mid-run
+    rather than nothing until the whole import finishes.
+
+    Each method opens its own short-lived session via `AsyncSessionLocal`
+    and commits before returning.
+    """
+
+    def __init__(self) -> None:
+        self._run_id: uuid.UUID | None = None
+
+    async def start(self) -> None:
+        async with AsyncSessionLocal() as session:
+            # Only one admin-triggered import runs at a time, so a row
+            # still "running" here was orphaned by a crash (e.g. the
+            # 2026-08-09 OOM kill) rather than a concurrent run -- self-heal
+            # it instead of leaving it stuck forever.
+            stale_runs = (
+                await session.execute(
+                    select(MTGJSONImportRun).where(MTGJSONImportRun.status == "running")
+                )
+            ).scalars()
+            for stale_run in stale_runs:
+                stale_run.status = "failed"
+                stale_run.finished_at = datetime.now(UTC)
+                stale_run.error_message = "Interrupted by a new import run."
+
+            run = MTGJSONImportRun(status="running")
+            session.add(run)
+            await session.commit()
+            self._run_id = run.id
+
+    async def progress(self, sets_upserted: int, cards_upserted: int) -> None:
+        async with AsyncSessionLocal() as session:
+            run = await session.get(MTGJSONImportRun, self._run_id)
+            assert run is not None
+            run.sets_upserted = sets_upserted
+            run.cards_upserted = cards_upserted
+            await session.commit()
+
+    async def finish(self, sets_upserted: int, cards_upserted: int) -> None:
+        async with AsyncSessionLocal() as session:
+            run = await session.get(MTGJSONImportRun, self._run_id)
+            assert run is not None
+            run.status = "succeeded"
+            run.finished_at = datetime.now(UTC)
+            run.sets_upserted = sets_upserted
+            run.cards_upserted = cards_upserted
+            await session.commit()
+
+    async def fail(self, error: BaseException) -> None:
+        async with AsyncSessionLocal() as session:
+            run = await session.get(MTGJSONImportRun, self._run_id)
+            assert run is not None
+            run.status = "failed"
+            run.finished_at = datetime.now(UTC)
+            run.error_message = str(error)[:2000]
+            await session.commit()
+
+
 async def import_all_printings(
     session: AsyncSession, client: MTGJSONClient
 ) -> ImportResult:
@@ -168,14 +259,27 @@ async def import_all_printings(
 
     Consumes `client.stream_sets()` set-by-set via `_ImportBuffer`,
     interleaving set/card upserts as chunks fill rather than collecting
-    every row into memory first -- see the module docstring.
+    every row into memory first -- see the module docstring. Progress is
+    tracked separately, in `mj_import_runs` via `_ImportRunTracker` -- see
+    its docstring for why that can't just be another read against
+    `session`.
     """
-    buffer = _ImportBuffer(session)
-    async for set_code, set_data in client.stream_sets():
-        await buffer.add_set(set_code, set_data)
-    await buffer.flush()
+    tracker = _ImportRunTracker()
+    await tracker.start()
 
-    await session.commit()
+    buffer = _ImportBuffer(session, on_progress=tracker.progress)
+    try:
+        async for set_code, set_data in client.stream_sets():
+            await buffer.add_set(set_code, set_data)
+        await buffer.flush()
+        await session.commit()
+    except Exception as exc:
+        await tracker.fail(exc)
+        raise
+
+    await tracker.finish(
+        sets_upserted=buffer.sets_upserted, cards_upserted=buffer.cards_upserted
+    )
     return ImportResult(
         sets_upserted=buffer.sets_upserted, cards_upserted=buffer.cards_upserted
     )

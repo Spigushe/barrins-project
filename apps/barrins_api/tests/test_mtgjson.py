@@ -27,6 +27,11 @@ _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _FIXTURE_PATH = _FIXTURES_DIR / "mtgjson_sample.json"
 _BASE = "/api/v1"
 
+# Every test here calls `import_all_printings`, which now also writes
+# import-progress rows through `_ImportRunTracker` -- see
+# `mtgjson_tracker_uses_test_db`'s docstring in conftest.py.
+pytestmark = pytest.mark.usefixtures("mtgjson_tracker_uses_test_db")
+
 
 def _load_fixture() -> dict[str, Any]:
     return json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))

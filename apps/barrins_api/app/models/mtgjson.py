@@ -1,15 +1,23 @@
-"""ORM models for MTGJSON reference data (S8): sets and cards.
+"""ORM models for MTGJSON reference data (S8): sets, cards, import runs.
 
 Populated from MTGJSON's `AllPrintings.json` (`app/services/mtgjson/`).
-Unlike `bs_*`/`ts_*`, primary keys are the upstream data's own natural
-identifiers rather than a generated surrogate:
+Tables are `mj_`-prefixed, matching this codebase's `bs_*`/`ts_*`
+domain-prefix convention (2026-08-09 rename -- originally shipped
+unprefixed as `sets`/`cards`, fixed before either table held real data,
+see the rename migration).
+
+Unlike `bs_*`/`ts_*`, `mj_sets`/`mj_cards` primary keys are the upstream
+data's own natural identifiers rather than a generated surrogate:
 
 - `Set.code` (e.g. "ZNR") is MTGJSON's own stable set code.
 - `Card.id` is MTGJSON's own per-printing-per-face `uuid` -- already a
   permanent, globally unique identifier for exactly the row we store one
   of, unlike e.g. a scraped tournament URL (`bs_tournaments.url`), which
   is why those tables *do* use a generated UUID plus a natural-key unique
-  constraint instead.
+  constraint instead. `MTGJSONImportRun` (`mj_import_runs`) is the odd one
+  out: it's an operational log of import attempts, not reference data, so
+  it gets a generated UUID like `bs_*`/`ts_*` -- there's no natural key
+  for "one run of the importer".
 
 A multi-face card (MDFC, transform, ...) is one row per face in MTGJSON's
 own data already -- `face_name`/`side` distinguish faces of the same
@@ -51,12 +59,12 @@ from app.database import Base
 
 
 class MTGSet(Base):
-    """A Magic set (`sets` table, `Set` in MTGJSON's own data model).
+    """A Magic set (`mj_sets` table, `Set` in MTGJSON's own data model).
 
     Named `MTGSet`, not `Set`, to avoid shadowing the builtin.
     """
 
-    __tablename__ = "sets"
+    __tablename__ = "mj_sets"
 
     code: Mapped[str] = mapped_column(String(8), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -103,18 +111,18 @@ CASTABLE_BOTH_FACES_LAYOUTS: frozenset[str] = frozenset(
 
 
 class Card(Base):
-    """One printing+face of a card (`cards` table).
+    """One printing+face of a card (`mj_cards` table).
 
     `id` is MTGJSON's own `uuid` (see module docstring) -- set explicitly
     on insert, never generated here.
     """
 
-    __tablename__ = "cards"
+    __tablename__ = "mj_cards"
 
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     set_code: Mapped[str] = mapped_column(
         String(8),
-        ForeignKey("sets.code", ondelete="CASCADE"),
+        ForeignKey("mj_sets.code", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -162,3 +170,35 @@ class Card(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class MTGJSONImportRun(Base):
+    """One `import_all_printings` attempt (`mj_import_runs` table).
+
+    Written through its own short-lived session, independent of the main
+    import transaction (`app/services/mtgjson/importer.py`'s
+    `_ImportRunTracker`) -- `import_all_printings` only commits its
+    sets/cards writes once at the end, so a status poll needs a separately
+    and immediately committed row to see progress mid-run rather than
+    nothing until the whole import finishes.
+    """
+
+    __tablename__ = "mj_import_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    sets_upserted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cards_upserted: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

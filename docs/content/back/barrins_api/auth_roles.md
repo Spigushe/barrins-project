@@ -57,6 +57,7 @@ authentication dependency at all.
 | `GET` | `/cards/{uuid}/prices` | anonymous | ⏳ **Not built** — needs MTGJSON's separate `AllPrices.json`, deliberately out of S8's 2026-08-05 pass (see `docs/project/v2.0.0-bump/s8-mtgjson-ingestion-pipeline/`); this row describes a future item, not current behavior |
 | `GET` | `/mtgjson/status` | anonymous | Public — built 2026-08-05 (S8) |
 | `POST` | `/mtgjson/import` | **admin** | Replaces `X-Admin-Key` — built 2026-08-05 (S8) |
+| `GET` | `/mtgjson/import/status` | **admin** | Progress of the most recent import run (running/succeeded/failed) — built 2026-08-09 (S8 live-progress addition); admin-gated because a failed run's `error_message` can include internal exception text, unlike the public counts-only `/mtgjson/status` above |
 | `POST` | `/auth/token` | anonymous | Login — returns `access_token` + `refresh_token` |
 | `POST` | `/auth/refresh` | anonymous | Exchanges a refresh token for a new pair |
 | `POST` | `/auth/logout` | **user** | Instantly revokes all of the caller's tokens |
