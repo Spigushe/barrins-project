@@ -65,6 +65,14 @@ section of the docs site for details.
   constraint on its natural key so replaying the scrape archive through a
   future ingestion route is an idempotent upsert. Not yet wired to any
   route.
+- `GET /internal/scripture/db-metrics`: on-disk size
+  (`pg_total_relation_size` — heap + indexes + TOAST) of every `bs_*`
+  table (`app/services/scripture/db_metrics.py`). Callable by either the
+  same `X-Scripture-Token` service credential as `/ingest` or an admin
+  user's JWT (`verify_scripture_or_admin`,
+  `app/dependencies/service_auth.py`) — the first combined
+  service-secret-or-admin gate in the codebase, scoped to `bs_*` only so
+  the service credential never sees other apps' table sizes.
 - Admin usage/metrics dashboard (`app/api/tamiyo_scroll/admin.py`, gated
   by `AdminUser`): flat totals (accounts, personal decks, matches
   recorded) via `app/services/metrics/`, plus day (last 30)/week (last

@@ -11,6 +11,12 @@ sweep tick that gets a 5xx here just fails that tick; the next tick
 retries the same (idempotent) file, so this route needs no
 maintenance-flag special-casing.
 
+Also home to `GET /internal/scripture/db-metrics`: on-disk size of every
+`bs_*` table. Callable by the same service secret as `/ingest`, or by an
+admin user's JWT (`verify_scripture_or_admin`) — an ops/admin caller
+doesn't hold the service secret, so the JWT fallback is required, not
+just convenient.
+
 Gated by a static shared secret (`X-Scripture-Token`,
 `app/dependencies/service_auth.py`), not a user JWT — the caller is
 another Barrin's-ecosystem service, not a logged-in user. Not registered
@@ -21,11 +27,13 @@ never intended for a browser client.
 from fastapi import APIRouter
 
 from app.database.session import DatabaseSession
-from app.dependencies.service_auth import ScriptureToken
+from app.dependencies.service_auth import ScriptureOrAdmin, ScriptureToken
 from app.schemas.scripture_ingest import (
     ResponseScriptureIngest,
     ScriptureIngestRequest,
 )
+from app.schemas.scripture_metrics import ResponseScriptureDbMetrics, ResponseTableSize
+from app.services.scripture.db_metrics import compute_scripture_db_metrics
 from app.services.scripture.ingester import ingest_scrape
 
 router = APIRouter()
@@ -52,4 +60,19 @@ async def ingest(
         round_matches_upserted=result.round_matches_upserted,
         standings_upserted=result.standings_upserted,
         skipped_card_names=result.skipped_card_names,
+    )
+
+
+@router.get("/db-metrics", response_model=ResponseScriptureDbMetrics)
+async def db_metrics(
+    session: DatabaseSession,
+    _auth: ScriptureOrAdmin,
+) -> ResponseScriptureDbMetrics:
+    """On-disk size (heap + indexes + TOAST) of every `bs_*` table."""
+    sizes = await compute_scripture_db_metrics(session)
+    return ResponseScriptureDbMetrics(
+        tables=[
+            ResponseTableSize(table_name=size.table_name, size_bytes=size.size_bytes)
+            for size in sizes
+        ]
     )
