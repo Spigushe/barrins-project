@@ -1,9 +1,9 @@
 [Unit]
-Description=Barrin's Scripture — sweep JSON archive into barrins_api
+Description=Barrin's Scripture ({{ scripture_scraper_config.app_name }}) — sweep JSON archive into barrins_api
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 User={{ username }}
-ExecStart=/usr/local/bin/barrins_scripture_sweep.sh
+ExecStart={{ scripture_scraper_config.sweep_script_path }}

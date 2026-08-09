@@ -11,18 +11,24 @@
     username: spigushe
     scripture_scraper_repo: Spigushe/barrins-project
     scripture_scraper_repo_subdir: apps/barrins_scripture
-    scripture_scraper_app_name: barrins_scripture
     # Defaults to staging until T1's rewrite is proven equivalent to
     # mtg_scraper (see that item's own done statement) — pass
-    # -e scripture_scraper_git_branch=main once it's ready to cut over.
-    scripture_scraper_git_branch: "{{ deploy_branch | default('staging') }}"
-    # Which barrins_api the sweep posts to — independent of
-    # scripture_scraper_git_branch, so e.g. main-branch code can still be
-    # validated against the staging API as an intermediate step. Defaults
-    # to staging so the sweep is never pointed at production by accident;
-    # cutting over means passing both -e deploy_branch=main -e
-    # deploy_env=production together.
+    # -e deploy_env=production once it's ready to cut over. Mirrors
+    # barrins_api.yml: deploy_env alone drives the git branch, the
+    # checkout/work dir, the systemd unit names (via app_name) and which
+    # .env is loaded, so staging and production run as fully independent,
+    # side-by-side scraper instances instead of sharing one install.
+    #   ansible-playbook barrins_scripture.yml -e deploy_env=production
+    # To validate a feature branch against the staging API before cutting
+    # over, override the branch directly (extra-vars win over deploy_env's
+    # derived default):
+    #   ansible-playbook barrins_scripture.yml \
+    #     -e scripture_scraper_git_branch=my-feature
     deploy_env: staging
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    scripture_scraper_app_name: "barrins_scripture{{ env_suffix }}"
+    scripture_scraper_git_branch: "{{ env_branch }}"
     # Local, git-ignored .env — deployed to {{ scripture_scraper_config.work_dir
     # }}/.env on every run if present on this machine, skipped otherwise
     # (same pattern as barrins_api.yml's backend_env_file). Holds
@@ -73,9 +79,10 @@
     - name: Reminder — the sweep timer runs independently of the scrape timer
       ansible.builtin.debug:
         msg:
-          - "barrins_scripture_sweep.timer fires every 6 hours (T3/T8),"
-          - "separate from barrins_scripture.timer's daily scrape. It"
-          - "needs {{ scripture_scraper_config.work_dir }}/.env"
+          - "{{ scripture_scraper_config.sweep_service_name }}.timer fires"
+          - "every 6 hours (T3/T8), separate from"
+          - "{{ scripture_scraper_config.service_name }}.timer's daily"
+          - "scrape. It needs {{ scripture_scraper_config.work_dir }}/.env"
           - "(BARRINS_API_URL) to reach barrins_api — that file is"
           - "git-ignored (Constitution ss34) and only deployed if"
           - "{{ scripture_scraper_env_file }} exists on this machine."
@@ -83,12 +90,30 @@
           - "secrets/README.md and secrets/barrins_scripture/{{ deploy_env }}.env.example."
       tags: [scripture, deploy]
 
+    - name: Reminder — staging and production are now separate side-by-side instances
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env={{ deploy_env }} deploys app_name"
+          - "{{ scripture_scraper_config.app_name }}: its own work_dir"
+          - "({{ scripture_scraper_config.work_dir }}) and its own systemd"
+          - "units ({{ scripture_scraper_config.service_name }}.timer /"
+          - "{{ scripture_scraper_config.sweep_service_name }}.timer),"
+          - "independent of the other deploy_env's instance. If this is"
+          - "the first run after this side-by-side split, the old shared"
+          - "barrins_scripture.timer/barrins_scripture_sweep.timer (and"
+          - "~/projects/barrins_scripture) may still exist from before —"
+          - "stop/disable/remove them by hand once both environments have"
+          - "been redeployed under their own app_name, this playbook does"
+          - "not clean those up automatically."
+      tags: [scripture, deploy]
+
     - name: Reminder — which barrins_api this sweep is currently targeting
       ansible.builtin.debug:
         msg:
           - "deploy_env={{ deploy_env }}: the sweep posts to whatever"
-          - "BARRINS_API_URL is in {{ scripture_scraper_env_file }}."
+          - "BARRINS_API_URL is in {{ scripture_scraper_env_file }}, and"
+          - "the scraper runs {{ scripture_scraper_config.git_branch }}."
           - "Validate against staging (the default) before cutting over"
-          - "with -e deploy_branch=main -e deploy_env=production — see"
+          - "with -e deploy_env=production — see"
           - "docs/project/v2.0.0-bump/t8-scripture-karn-playbooks/index.md."
       tags: [scripture, deploy]

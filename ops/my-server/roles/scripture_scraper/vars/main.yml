@@ -5,6 +5,14 @@ scripture_scraper_config:
   git_branch: "{{ scripture_scraper_git_branch | default('main') }}"
   app_name: "{{ scripture_scraper_app_name }}"
   app_root: "/home/{{ username }}/projects/{{ scripture_scraper_app_name }}"
+  # Systemd unit base names and script paths are derived from app_name so
+  # that side-by-side staging/production deploys (distinct app_name per
+  # barrins_scripture.yml's env_suffix) get their own units instead of
+  # fighting over one shared timer/service.
+  service_name: "{{ scripture_scraper_app_name }}"
+  sweep_service_name: "{{ scripture_scraper_app_name }}_sweep"
+  scrape_script_path: "/usr/local/bin/{{ scripture_scraper_app_name }}_scrape.sh"
+  sweep_script_path: "/usr/local/bin/{{ scripture_scraper_app_name }}_sweep.sh"
   work_dir: >-
     {{ '/home/' + username + '/projects/' + scripture_scraper_app_name
     + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') }}

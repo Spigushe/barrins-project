@@ -32,30 +32,37 @@ than inventing a new one.
    commit/push from, not a plain directory (T1, 2026-08-08). Sets a local
    `user.name`/`user.email` on that clone (`archive_commit_name`/
    `archive_commit_email`) so the sweep's own commits have an identity.
-4. Templates `/usr/local/bin/barrins_scripture_scrape.sh`: runs
+4. Templates `scripture_scraper_config.scrape_script_path` (default
+   `/usr/local/bin/<app_name>_scrape.sh`): runs
    `uv run scrape --source mtgo --output-dir ...` and
    `--source mtgtop8`, then — only on Sundays (UTC), alternating by ISO
    week parity — either
    `python -m barrins_scripture.scripts.top8_check_gaps` or
    `python -m barrins_scripture.scripts.mtgo_empty_decks`.
-5. Templates a oneshot systemd service (`barrins_scripture.service`) and
-   a daily timer (`barrins_scripture.timer`, default 22:00 UTC ±30 min
-   `RandomizedDelaySec`, `Persistent=true`).
+5. Templates a oneshot systemd service and a daily timer, both named
+   `scripture_scraper_config.service_name` (default `<app_name>`, i.e.
+   `<app_name>.service`/`.timer` — default 22:00 UTC ±30 min
+   `RandomizedDelaySec`, `Persistent=true`). Basing the unit name on
+   `app_name` (rather than a fixed `barrins_scripture`) is what lets
+   `barrins_scripture.yml` run staging and production as fully
+   independent, side-by-side instances instead of one shared install —
+   see that playbook's `deploy_env`/`env_suffix` vars.
 6. Deploys the local `.env` (`scripture_scraper_env_file`, if present —
    same "use it if available" pattern as `fastapi_backend_env_file`) to
    `{{ work_dir }}/.env`, mode `0600`. `SCRIPTURE_INGEST_TOKEN` is then
    injected into that same file by the playbook's own `post_tasks` (the
    `scripture_ingest_token` role), not carried in this local `.env` —
    see `barrins_scripture.yml`. Templates
-   `/usr/local/bin/barrins_scripture_sweep.sh`: commits and pushes any
+   `scripture_scraper_config.sweep_script_path` (default
+   `/usr/local/bin/<app_name>_sweep.sh`): commits and pushes any
    pending archive changes at `output_dir` (git add/commit/push, only if
    there's something to commit) *before* sourcing `.env`
    (`BARRINS_API_URL`/`SCRIPTURE_INGEST_TOKEN`) and running
    `uv run sweep --mode recent --days <sweep_days> --archive-dir ...`.
-   Templates a oneshot systemd service (`barrins_scripture_sweep.service`)
-   and a timer (`barrins_scripture_sweep.timer`, every 6 hours,
-   `RandomizedDelaySec=900`, `Persistent=true`) — independent of the
-   scrape timer above.
+   Templates a oneshot systemd service and timer, both named
+   `scripture_scraper_config.sweep_service_name` (default
+   `<app_name>_sweep`, every 6 hours, `RandomizedDelaySec=900`,
+   `Persistent=true`) — independent of the scrape timer above.
 
 ## Variables
 
@@ -63,7 +70,7 @@ than inventing a new one.
 | --- | --- | --- | --- |
 | `scripture_scraper_repo` | yes | / | `owner/repo` to clone (this monorepo). |
 | `scripture_scraper_repo_subdir` | no | `''` | Subdirectory `apps/barrins_scripture` lives at within the repo. |
-| `scripture_scraper_app_name` | yes | / | Used to name the checkout directory under `~/projects/`. |
+| `scripture_scraper_app_name` | yes | / | Used to name the checkout directory under `~/projects/`, and (derived config keys below) the systemd unit names and script paths. `barrins_scripture.yml` sets this to `barrins_scripture{{ env_suffix }}` so staging/production get distinct values. |
 | `scripture_scraper_git_branch` | no | `main` | Branch to deploy from. |
 | `scripture_scraper_output_dir` | no | `<work_dir>/scraped` | Where the JSON archive is written — see the note below. |
 | `scripture_scraper_daily_hour` | no | `22` | Hour (0-23, UTC) the daily scrape timer fires. |
@@ -74,6 +81,15 @@ than inventing a new one.
 | `scripture_scraper_archive_git_branch` | no | `main` | Branch the archive clone tracks and the sweep pushes to. |
 | `scripture_scraper_archive_commit_name` | no | `Barrin's Scripture` | Git `user.name` set locally on the archive clone, used by the sweep's commits. |
 | `scripture_scraper_archive_commit_email` | no | `scripture@barrins-codex.org` | Git `user.email` set locally on the archive clone, used by the sweep's commits. |
+
+Derived (not settable directly — computed from `scripture_scraper_app_name` in `vars/main.yml`, exposed as `scripture_scraper_config.*`):
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `service_name` | `<app_name>` | Base name for the scrape service/timer (`<service_name>.service`/`.timer`). |
+| `sweep_service_name` | `<app_name>_sweep` | Base name for the sweep service/timer. |
+| `scrape_script_path` | `/usr/local/bin/<app_name>_scrape.sh` | Where the scrape wrapper script is deployed. |
+| `sweep_script_path` | `/usr/local/bin/<app_name>_sweep.sh` | Where the sweep wrapper script is deployed. |
 
 ## Requirements
 
@@ -103,10 +119,12 @@ Per [`new-service-checklist.md`](../../../../docs/content/ops/deployment/new-ser
 Step 0.3 — this service has no HTTP surface, so there is no `GET /health`
 to poll:
 
-- **Signal**: `systemctl status barrins_scripture.service` (last exit
-  code) / `journalctl -u barrins_scripture.service -n 50` (a timer-driven
-  job's equivalent of a health check). Currently manual — see "Not
-  automated yet" below.
+- **Signal**: `systemctl status <service_name>.service` (last exit
+  code) / `journalctl -u <service_name>.service -n 50` (a timer-driven
+  job's equivalent of a health check) — `<service_name>` is
+  `barrins_scripture` for production, `barrins_scripture-staging` for
+  staging (see the derived-keys table above). Currently manual — see
+  "Not automated yet" below.
 - **Idempotency**: each scrape writes to a filename derived
   deterministically from the tournament URL/date
   (`save_tournament_scrape` in `barrins_scripture/utils/{mtgo,mtgtop8}.py`)
@@ -116,9 +134,10 @@ to poll:
 
 The sweep (T3/T8) has its own service/timer pair, checked the same way:
 
-- **Signal**: `systemctl status barrins_scripture_sweep.service` /
-  `journalctl -u barrins_scripture_sweep.service -n 50`. Same "manual for
-  now" caveat as above.
+- **Signal**: `systemctl status <sweep_service_name>.service` /
+  `journalctl -u <sweep_service_name>.service -n 50` (`barrins_scripture_sweep`
+  for production, `barrins_scripture-staging_sweep` for staging). Same
+  "manual for now" caveat as above.
 - **Idempotency**: `barrins_api`'s ingestion route upserts on each table's
   natural key (T2), so a sweep tick re-posting an already-ingested file is
   a no-op, not a duplicate row — confirmed by

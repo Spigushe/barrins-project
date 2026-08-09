@@ -1,9 +1,9 @@
 [Unit]
-Description=Barrin's Scripture — scrape MTGO/MTGTop8 tournaments
+Description=Barrin's Scripture ({{ scripture_scraper_config.app_name }}) — scrape MTGO/MTGTop8 tournaments
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 User={{ username }}
-ExecStart=/usr/local/bin/barrins_scripture_scrape.sh
+ExecStart={{ scripture_scraper_config.scrape_script_path }}

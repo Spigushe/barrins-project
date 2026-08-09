@@ -106,7 +106,7 @@
 - name: Deploy the scrape wrapper script
   ansible.builtin.template:
     src: barrins_scripture_scrape.sh.j2
-    dest: /usr/local/bin/barrins_scripture_scrape.sh
+    dest: "{{ scripture_scraper_config.scrape_script_path }}"
     owner: root
     group: root
     mode: "0755"
@@ -114,20 +114,20 @@
 - name: Deploy the systemd service
   ansible.builtin.template:
     src: barrins_scripture.service.j2
-    dest: /etc/systemd/system/barrins_scripture.service
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.service_name }}.service"
     mode: "0644"
 
 - name: Deploy the systemd timer
   ansible.builtin.template:
     src: barrins_scripture.timer.j2
-    dest: /etc/systemd/system/barrins_scripture.timer
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.service_name }}.timer"
     mode: "0644"
 
 - name: Enable the timer
   tags:
     - deploy
   ansible.builtin.systemd:
-    name: barrins_scripture.timer
+    name: "{{ scripture_scraper_config.service_name }}.timer"
     daemon_reload: true
     enabled: true
     state: started
@@ -135,7 +135,7 @@
 - name: Deploy the sweep wrapper script
   ansible.builtin.template:
     src: barrins_scripture_sweep.sh.j2
-    dest: /usr/local/bin/barrins_scripture_sweep.sh
+    dest: "{{ scripture_scraper_config.sweep_script_path }}"
     owner: root
     group: root
     mode: "0755"
@@ -143,20 +143,20 @@
 - name: Deploy the sweep systemd service
   ansible.builtin.template:
     src: barrins_scripture_sweep.service.j2
-    dest: /etc/systemd/system/barrins_scripture_sweep.service
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.sweep_service_name }}.service"
     mode: "0644"
 
 - name: Deploy the sweep systemd timer
   ansible.builtin.template:
     src: barrins_scripture_sweep.timer.j2
-    dest: /etc/systemd/system/barrins_scripture_sweep.timer
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.sweep_service_name }}.timer"
     mode: "0644"
 
 - name: Enable the sweep timer
   tags:
     - deploy
   ansible.builtin.systemd:
-    name: barrins_scripture_sweep.timer
+    name: "{{ scripture_scraper_config.sweep_service_name }}.timer"
     daemon_reload: true
     enabled: true
     state: started
