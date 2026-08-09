@@ -46,6 +46,13 @@ nav:
                       - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
           - Tolaria News:
                 - Home: front/tolaria_news/index.md
+    - Service:
+          - Home: service/index.md
+          - Barrin's Scripture:
+                - Home: service/barrins_scripture/index.md
+                - Incidents:
+                      - Home: service/barrins_scripture/incidents/index.md
+                      - MTGTop8 backfill OOM: service/barrins_scripture/incidents/2026-08-09-mtgtop8-oom.md
     - Ops:
           - Home: ops/index.md
           - Architecture:
@@ -60,6 +67,7 @@ nav:
                 - Docs Site: ops/deployment/docs_site.md
                 - Backup & Restore: ops/deployment/backup.md
                 - Rollback: ops/deployment/rollback.md
+                - New Service Checklist: ops/deployment/new-service-checklist.md
           - Roles:
                 - Home: ops/roles/index.md
                 - Backend Website: ops/roles/backend_website/index.md
@@ -71,6 +79,8 @@ nav:
                 - Postgres Backup: ops/roles/postgres_backup/index.md
                 - React Frontend: ops/roles/react_frontend/index.md
                 - Register SSL: ops/roles/register_ssl/index.md
+                - Scripture Ingest Token: ops/roles/scripture_ingest_token/index.md
+                - Scripture Scraper: ops/roles/scripture_scraper/index.md
                 - Setup Base User: ops/roles/setup_base_user/index.md
                 - Setup Packages: ops/roles/setup_packages/index.md
           - Security:
