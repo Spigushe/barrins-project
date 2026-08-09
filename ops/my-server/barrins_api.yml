@@ -100,6 +100,20 @@
         owner: "{{ username }}"
         mode: "0600"
       when: backend_deployed_env_stat.stat.exists
+      register: backend_scripture_token_injected
+      tags: [backend, deploy]
+
+    - name: Restart the backend so it picks up the injected SCRIPTURE_INGEST_TOKEN
+      # fastapi_backend's own restart (roles/fastapi_backend/tasks/main.yml)
+      # runs BEFORE this post_task, so a token written/changed here is never
+      # seen by the process it just restarted without a second restart here
+      # (2026-08-09 incident: verify_scripture_token() 503'd every ingest
+      # POST — settings.base.scripture_ingest_token was still None in the
+      # already-running process even though the token was correctly on disk).
+      ansible.builtin.systemd:
+        name: "api{{ env_suffix }}"
+        state: restarted
+      when: backend_scripture_token_injected is changed
       tags: [backend, deploy]
 
     - name: Reminder — pending steps this playbook does not automate
