@@ -28,6 +28,12 @@
     # }}/apps/barrins_api/.env on every run if present on this machine,
     # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
+    # Mirrors fastapi_backend's work_dir (app_root + repo_subdir), computed
+    # from play-level vars instead of the role's fastapi_backend_config —
+    # that var's work_dir is a lazily-templated string referencing
+    # fastapi_backend_server_name, a role-call parameter that falls out of
+    # scope once the role finishes, so post_tasks below can't reference it.
+    backend_work_dir: "/home/{{ username }}/projects/{{ backend_domain }}/apps/barrins_api"
 
   pre_tasks:
     - name: Install WeasyPrint's native dependencies (S5 — Pango/cairo/GDK-Pixbuf)
@@ -81,14 +87,14 @@
   post_tasks:
     - name: Check whether a .env was actually deployed to inject the token into
       ansible.builtin.stat:
-        path: "{{ fastapi_backend_config.work_dir }}/.env"
+        path: "{{ backend_work_dir }}/.env"
       register: backend_deployed_env_stat
       tags: [backend, deploy]
 
     - name: Inject the shared SCRIPTURE_INGEST_TOKEN into the deployed .env
       no_log: true
       ansible.builtin.lineinfile:
-        path: "{{ fastapi_backend_config.work_dir }}/.env"
+        path: "{{ backend_work_dir }}/.env"
         regexp: "^SCRIPTURE_INGEST_TOKEN="
         line: "SCRIPTURE_INGEST_TOKEN={{ scripture_ingest_token }}"
         owner: "{{ username }}"
