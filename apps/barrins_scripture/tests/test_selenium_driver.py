@@ -14,6 +14,14 @@ class TestInitDriver:
         _, kwargs = mock_chrome.call_args
         assert "--headless=new" in kwargs["options"].arguments
 
+    def test_sets_a_page_load_timeout(self) -> None:
+        with patch.object(selenium_driver.webdriver, "Chrome"):
+            driver = selenium_driver.init_driver()
+
+        driver.set_page_load_timeout.assert_called_once_with(
+            selenium_driver.PAGE_LOAD_TIMEOUT
+        )
+
 
 class TestGetMtgoTournaments:
     def test_returns_absolute_and_already_absolute_links(self) -> None:
@@ -46,6 +54,17 @@ class TestGetMtgoTournaments:
         with patch.object(selenium_driver, "WebDriverWait") as mock_wait:
             mock_wait.return_value.until.side_effect = TimeoutException()
             links = selenium_driver.get_mtgo_tournaments(driver, 2026, 6, timeout=1)
+
+        assert links == []
+        assert driver.get.call_count == selenium_driver.MAX_RETRIES + 1
+
+    def test_retries_when_driver_get_itself_times_out(self) -> None:
+        # driver.get() raises TimeoutException when set_page_load_timeout is
+        # exceeded (a hung navigation), distinct from WebDriverWait timing out
+        # on a page that loaded but never rendered the expected element.
+        driver = Mock()
+        driver.get.side_effect = TimeoutException()
+        links = selenium_driver.get_mtgo_tournaments(driver, 2026, 6, timeout=1)
 
         assert links == []
         assert driver.get.call_count == selenium_driver.MAX_RETRIES + 1

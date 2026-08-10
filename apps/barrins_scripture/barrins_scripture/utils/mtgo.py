@@ -49,9 +49,8 @@ def sanitize_filename(name: str) -> str:
 def scrape_tournament(
     driver: WebDriver, url: str, timeout: int = DEFAULT_RENDER_TIMEOUT
 ) -> MTGScrape | None:
-    driver.get(url)
-
     try:
+        driver.get(url)
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "p.decklist-posted-on"))
         )

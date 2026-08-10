@@ -59,6 +59,15 @@ class TestScrapeTournament:
         assert result is None
         driver.get.assert_called_once_with("https://example.test")
 
+    def test_returns_none_when_driver_get_itself_times_out(self) -> None:
+        # driver.get() raises TimeoutException when set_page_load_timeout is
+        # exceeded (a hung navigation), distinct from WebDriverWait timing out
+        # on a page that loaded but never rendered the expected element.
+        driver = Mock()
+        driver.get.side_effect = TimeoutException()
+        result = mtgo.scrape_tournament(driver, "https://example.test", timeout=1)
+        assert result is None
+
     def test_returns_none_when_tournament_unparseable(self) -> None:
         driver = Mock()
         driver.page_source = "<html><h1 class='decklist-title'>No Date</h1></html>"

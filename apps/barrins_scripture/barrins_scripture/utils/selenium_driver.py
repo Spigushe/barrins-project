@@ -16,6 +16,13 @@ TOURNAMENT_LINKS_SELECTOR = (
     "> ul > li > a"
 )
 
+# Hard ceiling on driver.get() itself, distinct from the WebDriverWait render
+# timeout below. Without this, a hung navigation (dead network, chromedriver
+# wedged) blocks on the client's raw socket read timeout (~120s) and raises
+# urllib3.exceptions.ReadTimeoutError instead of a catchable Selenium
+# TimeoutException, killing the calling thread outright.
+PAGE_LOAD_TIMEOUT = 30
+
 
 def init_driver() -> webdriver.Chrome:
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # silence TensorFlow logs, if present
@@ -41,7 +48,9 @@ def init_driver() -> webdriver.Chrome:
         log_output=os.devnull,
     )
 
-    return webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+    return driver
 
 
 def get_mtgo_tournaments(
@@ -53,9 +62,8 @@ def get_mtgo_tournaments(
     tournaments: list[str] = []
 
     for _ in range(MAX_RETRIES + 1):
-        driver.get(BASE_URL + f"{year}/{month:02}")
-
         try:
+            driver.get(BASE_URL + f"{year}/{month:02}")
             WebDriverWait(driver, timeout).until(
                 EC.presence_of_element_located(
                     (By.CSS_SELECTOR, TOURNAMENT_LINKS_SELECTOR)
