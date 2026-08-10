@@ -61,13 +61,13 @@ def scrape_mtgtop8(
     for t in consumer_threads:
         t.start()
 
-    for i in range(span // 10):
+    for i in range(span // num_threads):
         threads = [
             Thread(
                 target=producer,
-                args=(first_id + 10 * i + j, task_queue, scraped_ids),
+                args=(first_id + num_threads * i + j, task_queue, scraped_ids),
             )
-            for j in range(10)
+            for j in range(num_threads)
         ]
         for thread in threads:
             thread.start()
