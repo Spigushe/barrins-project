@@ -5,6 +5,7 @@ from queue import Queue
 from threading import Event, Lock, Thread
 from unittest.mock import Mock, patch
 
+import requests
 from bs4 import BeautifulSoup
 
 # Same package-shadowing situation as test_services_mtgo.py — see that
@@ -57,6 +58,19 @@ class TestProducer:
             ),
             patch.object(
                 service.mtgtop8_utils, "we_should_scrape_it", return_value=False
+            ),
+            patch.object(service.time, "sleep"),
+        ):
+            service.producer(1, queue, set())
+        assert queue.empty()
+
+    def test_skips_a_tournament_on_network_error(self) -> None:
+        queue: Queue[tuple[str, BeautifulSoup]] = Queue()
+        with (
+            patch.object(
+                service.mtgtop8_utils,
+                "get_tournament_soup",
+                side_effect=requests.exceptions.ConnectionError("No route to host"),
             ),
             patch.object(service.time, "sleep"),
         ):

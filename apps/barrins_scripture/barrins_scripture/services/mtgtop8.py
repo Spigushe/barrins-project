@@ -5,6 +5,7 @@ from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 
+import requests
 from bs4 import BeautifulSoup
 
 from barrins_scripture.parsers import mtgtop8 as parser
@@ -87,7 +88,16 @@ def scrape_mtgtop8(
 def producer(id_to_scrape: int, queue: Top8Queue, scraped_ids: set[int]) -> None:
     try:
         tournament_url = mtgtop8_utils.get_tournament_url(id_to_scrape)
-        tournament_soup = mtgtop8_utils.get_tournament_soup(tournament_url)
+        try:
+            tournament_soup = mtgtop8_utils.get_tournament_soup(tournament_url)
+        except requests.exceptions.RequestException:
+            # mtgtop8.com being down/unreachable/slow shouldn't crash this
+            # thread (an uncaught exception here used to blow up every
+            # producer thread with a traceback, one per candidate id, on
+            # 2026-08-10). Skip this id for this run — it's still unscraped
+            # in the archive, so the next scheduled run picks it up again.
+            logger.warning("network error fetching %s, skipping", tournament_url)
+            return
 
         if "No event could be found." in tournament_soup.text:
             return
