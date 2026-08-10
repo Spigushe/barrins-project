@@ -18,6 +18,17 @@ BASE_PATH = Path(__file__).resolve().parent.parent.parent / "scraped" / "mtgo.co
 MAX_RETRIES = 3
 DEFAULT_RENDER_TIMEOUT = 15  # seconds to wait for the decklist page to render
 
+# Hard ceiling on driver.get() itself, distinct from the WebDriverWait render
+# timeout above. Without this, a hung navigation (dead network, chromedriver
+# wedged) blocks on the client's raw socket read timeout (~120s) and raises
+# urllib3.exceptions.ReadTimeoutError instead of a catchable Selenium
+# TimeoutException, killing the calling thread outright. Grown alongside the
+# render-wait timeout on each retry in get_mtgo_tournaments()/
+# scrape_tournament() — a fixed ceiling that never scales leaves later
+# retries no better off than the first if the VPS's link to mtgo.com is
+# just slow that day, not hung.
+PAGE_LOAD_TIMEOUT = 45
+
 _URL_PREFIX_LEN = len("https://www.mtgo.com/decklist/")
 
 
@@ -47,9 +58,13 @@ def sanitize_filename(name: str) -> str:
 
 
 def scrape_tournament(
-    driver: WebDriver, url: str, timeout: int = DEFAULT_RENDER_TIMEOUT
+    driver: WebDriver,
+    url: str,
+    timeout: int = DEFAULT_RENDER_TIMEOUT,
+    page_load_timeout: int = PAGE_LOAD_TIMEOUT,
 ) -> MTGScrape | None:
     try:
+        driver.set_page_load_timeout(page_load_timeout)
         driver.get(url)
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "p.decklist-posted-on"))

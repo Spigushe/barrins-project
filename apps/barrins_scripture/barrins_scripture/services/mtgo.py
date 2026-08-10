@@ -90,6 +90,7 @@ def consumer(
                 driver=driver,
                 url=url_task,
                 timeout=mtgo_utils.DEFAULT_RENDER_TIMEOUT + 10 * retries[url_task],
+                page_load_timeout=mtgo_utils.PAGE_LOAD_TIMEOUT + 10 * retries[url_task],
             )
             if scrape:
                 mtgo_utils.save_tournament_scrape(scrape)

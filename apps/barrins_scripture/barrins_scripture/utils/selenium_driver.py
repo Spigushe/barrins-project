@@ -9,19 +9,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from barrins_scripture.utils.mtgo import BASE_URL, MAX_RETRIES
+from barrins_scripture.utils.mtgo import BASE_URL, MAX_RETRIES, PAGE_LOAD_TIMEOUT
 
 TOURNAMENT_LINKS_SELECTOR = (
     "#decklists > div.site-content > div.container-page-fluid.decklists-page "
     "> ul > li > a"
 )
-
-# Hard ceiling on driver.get() itself, distinct from the WebDriverWait render
-# timeout below. Without this, a hung navigation (dead network, chromedriver
-# wedged) blocks on the client's raw socket read timeout (~120s) and raises
-# urllib3.exceptions.ReadTimeoutError instead of a catchable Selenium
-# TimeoutException, killing the calling thread outright.
-PAGE_LOAD_TIMEOUT = 30
 
 
 def init_driver() -> webdriver.Chrome:
@@ -60,9 +53,11 @@ def get_mtgo_tournaments(
     timeout: int = 15,
 ) -> list[str]:
     tournaments: list[str] = []
+    page_load_timeout = PAGE_LOAD_TIMEOUT
 
     for _ in range(MAX_RETRIES + 1):
         try:
+            driver.set_page_load_timeout(page_load_timeout)
             driver.get(BASE_URL + f"{year}/{month:02}")
             WebDriverWait(driver, timeout).until(
                 EC.presence_of_element_located(
@@ -71,6 +66,7 @@ def get_mtgo_tournaments(
             )
         except TimeoutException:
             timeout += 10
+            page_load_timeout += 10
             continue
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
@@ -84,5 +80,6 @@ def get_mtgo_tournaments(
             break
 
         timeout += 10
+        page_load_timeout += 10
 
     return tournaments
