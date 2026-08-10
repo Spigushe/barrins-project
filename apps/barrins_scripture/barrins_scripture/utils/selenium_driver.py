@@ -25,6 +25,15 @@ def init_driver() -> webdriver.Chrome:
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--log-level=3")
+    # "normal" (the default) blocks driver.get() until the browser's `load`
+    # event fires, i.e. every subresource (ads, trackers, analytics beacons)
+    # has finished — one stuck subresource on a heavy page (e.g. mtgo.com's
+    # decklists pages) means `load` never fires and every call times out
+    # regardless of how large page_load_timeout is. "eager" returns once the
+    # DOM is parsed; the WebDriverWait calls in get_mtgo_tournaments()/
+    # scrape_tournament() already wait for the specific selector they need,
+    # so this doesn't weaken what we actually check for.
+    options.page_load_strategy = "eager"
 
     # CHROME_BINARY_PATH/CHROMEDRIVER_PATH point at the apt-installed
     # chromium/chromium-driver on the VPS (see

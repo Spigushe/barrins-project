@@ -22,6 +22,19 @@ class TestInitDriver:
             selenium_driver.PAGE_LOAD_TIMEOUT
         )
 
+    def test_uses_eager_page_load_strategy(self) -> None:
+        # "normal" (Selenium's default) blocks driver.get() until the
+        # browser's load event fires, i.e. every subresource has finished -
+        # a page with one stuck ad/tracker/beacon then never returns,
+        # regardless of page_load_timeout. "eager" returns once the DOM is
+        # parsed; the WebDriverWait calls elsewhere wait for the specific
+        # selector actually needed.
+        with patch.object(selenium_driver.webdriver, "Chrome") as mock_chrome:
+            selenium_driver.init_driver()
+
+        _, kwargs = mock_chrome.call_args
+        assert kwargs["options"].page_load_strategy == "eager"
+
 
 class TestGetMtgoTournaments:
     def test_returns_absolute_and_already_absolute_links(self) -> None:
