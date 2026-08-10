@@ -5,6 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# Debian's DefaultTimeoutStartSec (90s) bounds the full ExecStart duration
+# for Type=oneshot, not just process spawn — a scrape (especially a
+# backfill run manually with a wide --date-from/--date-to) can take far
+# longer than that, so without this override systemd kills it mid-run.
+TimeoutStartSec=infinity
 User={{ username }}
 Environment=CHROME_BINARY_PATH={{ scripture_scraper_config.chrome_binary_path }}
 Environment=CHROMEDRIVER_PATH={{ scripture_scraper_config.chromedriver_path }}

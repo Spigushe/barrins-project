@@ -5,5 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# See barrins_scripture.service.j2 — same DefaultTimeoutStartSec (90s)
+# hazard for Type=oneshot; a sweep pushing/ingesting a large backlog can
+# run past it too.
+TimeoutStartSec=infinity
 User={{ username }}
 ExecStart={{ scripture_scraper_config.sweep_script_path }}
