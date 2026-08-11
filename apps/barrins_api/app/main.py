@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.general.router import router as general_router
 from app.api.tamiyo_scroll.router import router as tamiyo_scroll_router
+from app.api.tolaria_news.router import router as tolaria_news_router
 from app.config import settings
 from app.core.error_handlers import register_exception_handlers
 from app.core.log_config import get_logger
@@ -96,3 +97,4 @@ app.add_middleware(
 # Register the routes
 app.include_router(general_router)
 app.include_router(tamiyo_scroll_router)
+app.include_router(tolaria_news_router)

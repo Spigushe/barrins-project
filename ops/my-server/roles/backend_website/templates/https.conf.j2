@@ -26,6 +26,13 @@ server {
   charset utf-8;
   client_max_body_size 10M;
 
+{% for p in backend_website_config.rate_limited_paths %}
+  location {{ p.path }} {
+    limit_req zone={{ p.zone }} burst={{ p.burst }} nodelay;
+    limit_req_status 429;
+    try_files $uri @backend;
+  }
+{% endfor %}
   location / { try_files $uri @backend; }
   location @backend {
     proxy_set_header X-Real-IP $remote_addr;
