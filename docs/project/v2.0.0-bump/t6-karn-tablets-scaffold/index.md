@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/karn_tablets` (new, real basic ML/aggregation component) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — §1.4 resolved 2026-07-26, real scope confirmed | / |
+| **Status** | 🔲 Not started — §1.4 resolved 2026-07-26, real scope confirmed. Consumption surface, windowing, format scope, and data-flow shape resolved 2026-08-11 (ADR-13) | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.4 | / |
 | **Dependency** | I4 (resolved), T2, T3 (real scraped-tournament data to cluster) | Blocks T8 (its playbook) |
 
@@ -38,10 +38,17 @@ pipeline to have actually populated it before clustering can run against
 anything real (fixture/synthetic data can unblock early development, but
 not the UAT step below).
 
-## Two open sub-decisions, not yet narrowed (flagged, not guessed)
+## Sub-decisions, resolved 2026-08-11 (ADR-13)
 
-1. **Windowing strategy.** The user named two candidate approaches
-   without picking a single default:
+Both items below were previously open, flagged as needing the user's
+confirmation before implementation. Resolved together while planning the
+full Tolaria News BFF (`docs/project/v2.0.0-bump/t4-tolaria-news-bff/`
+iteration 2) — see
+[ADR-13](../../../content/ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)
+for the full alternatives/trade-offs writeup.
+
+1. **Windowing strategy — both, selectable.** v1 implements both
+   candidates, not a single default:
    - Rolling 30-day window (always the most recent 30 days as of the
      run date).
    - Banlist-period window: non-overlapping periods from the **last
@@ -49,13 +56,33 @@ not the UAT step below).
      following odd-numbered month** (e.g. last Tuesday of March → last
      Monday of May), aligned to Magic's Banned & Restricted announcement
      rhythm.
-   Whether v2.0.0 ships one (and which) or both needs confirming before
-   implementation.
-2. **Consumption surface.** Where the deck-type aggregation is actually
-   shown (a new admin-only view, folded into S6's metrics dashboard, a
-   Tolaria News page, or an internal-only report) is not specified by
-   the request. Not guessed here — needs confirmation before the
-   frontend/exposure side of this item is designed.
+2. **Consumption surface — Tolaria News + S6, both.** Previously
+   defaulted to the S6 admin dashboard only; amended so the public
+   Tolaria News BFF (`/metagame`, `/archetypes`, `/trends`) and S6's
+   existing admin view both read the same computed output — no drift
+   between the two, since both read the same `barrins_api`-owned tables
+   (see item 3 below).
+
+Two further decisions made the same day, not previously flagged as open
+questions on this page but discovered while planning the exposure side:
+
+1. **Data flow — push-based, not a live API.** Karn Tablets
+   self-schedules its own retraining internally (a systemd timer, like
+   `scripture_scraper` — see T8's page), then **pushes** its results to a
+   new `POST /internal/karn/ingest` route on `barrins_api` after each run,
+   the same pattern already proven for Barrin's Scripture
+   (`POST /internal/scripture/ingest`). `barrins_api` owns and stores the
+   pushed results; Tolaria News and S6 both read those tables directly —
+   Karn Tablets is never called live on the public read path, and needs no
+   inbound network exposure at all (only outbound, to Postgres and to
+   `barrins_api`).
+2. **Format scope — Duel Commander only, for v1.** `apps/tolaria_news`
+   is named a "Duel Commander tournament aggregator"
+   (`apps/tolaria_news/README.md`); Karn Tablets' v1 clustering input is
+   `bs_decks` joined through `bs_tournaments.format == "Duel Commander"`
+   only, matching the same check `services/tolaria_news/decks.py` already
+   uses for commander derivation. No format dimension is exposed yet —
+   there is exactly one consumer and it only wants one format.
 
 ## Done statement
 

@@ -44,6 +44,35 @@ consumer — not something to silently fold into this item's "done
 statement." T4 v1 itself ships tournaments/decks/standings/decklist
 detail only (see route map below).
 
+**T4 iteration 2 — planned (2026-08-11), not yet built.** See
+[ADR-13](../../../content/ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)
+for the full alternatives/trade-offs record. Scope: `/tournaments/{id}/bracket`
+(`bs_rounds`/`bs_round_matches`, independent of Karn Tablets, no new
+dependency), plus `/metagame`, `/archetypes`, `/trends` (Karn-Tablets-tied,
+Duel-Commander-only, push-based — Karn Tablets pushes computed results into
+new `barrins_api`-owned `kt_*` tables via `POST /internal/karn/ingest`; this
+BFF reads those tables directly, same DB-only pattern as v1, no live call to
+Karn Tablets on the read path). Tournament `location`, `/forecasts`, full
+`/search`, and a card oracle/image proxy stay explicitly out of scope — no
+design exists for them yet.
+
+**Optional enhancement (2026-08-11) — Manatraders "rent this deck" link.**
+For a deck displayed on Tolaria News, add a link to rent it on Manatraders
+(MTGO card rental) — see
+[T5's "Optional enhancement" section](../t5-tolaria-news-frontend/index.md#optional-enhancement-manatraders-rent-this-deck-link)
+for the full cost/gain investigation. Manatraders' single-card and
+whole-deck rental links are **public,
+unauthenticated deep-links** — `https://www.manatraders.com/load-deck?
+c=<qty> <name>||...` — no API key, no server-to-server call, no secret to
+hold. `DeckDetail` (`GET /bff/tolaria-news/decks/{id}`) already computes
+everything the link needs (`mainboard`, `commanders`). **Backend provides
+the finished URL** in that response (a plain string field, computed
+inline — Constitution §4.1: the frontend renders a link, it doesn't build
+one), not left to T5 to assemble client-side. **Optional, not scheduled**
+— no dependency on Karn Tablets or T4 iteration 2's other routes; can land
+independently, in v1's own follow-up or alongside iteration 2, whichever
+the user picks when prioritizing.
+
 ## Done statement (once T2 lands)
 
 - A new router package `app/api/tolaria_news/`, following the same

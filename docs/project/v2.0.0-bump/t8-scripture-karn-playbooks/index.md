@@ -4,7 +4,7 @@
 
 | | | Comment |
 | --- | --- | --- |
-| **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
+| **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), `ops/my-server/karn_tablets.yml` (shape resolved 2026-08-11, ADR-13 — scheduled job, same as `scripture_scraper`) | / |
 | **Initial date** | / | Not started |
 | **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
@@ -42,6 +42,17 @@ that, this item likely needs a third service shape alongside Barrin's
 Scripture's scheduled-job pattern — a scheduled job that also exposes a
 narrow read API, if the consumption-surface decision lands there.
 
+**Resolved (2026-08-11), no third shape needed.** [ADR-13](../../../content/ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)
+settled the consumption-surface question (Tolaria News + S6, both) and,
+with it, the data-flow shape: Karn Tablets self-schedules its own
+retraining internally and **pushes** results to `barrins_api` after each
+run (mirrors `scripture_ingest`'s pattern) rather than exposing a read
+API of its own. It therefore needs **no inbound network exposure at
+all** — only outbound access, to Postgres and to `barrins_api`'s
+ingestion route. Karn Tablets' playbook is a plain scheduled job, the
+same `scripture_scraper` systemd-timer shape Barrin's Scripture already
+uses, not a new hybrid role.
+
 ## Done statement
 
 - `ops/my-server/barrins_scripture.yml` exists, following D1's template,
@@ -56,10 +67,12 @@ narrow read API, if the consumption-surface decision lands there.
   instead of an HTTP health check). **Done** — extended to cover the
   sweep's own `.service`/`.timer` pair (2026-08-08), same pattern as the
   scrape's.
-- A Karn Tablets playbook exists once T6's consumption-surface decision
-  lands, following the same scheduled-job pattern (plus a minimal API
-  role if T6 needs one) — no longer explicitly out of scope, but not
-  written until T6 unblocks it. **Still open.**
+- A Karn Tablets playbook (`karn_tablets.yml`), following the same
+  scheduled-job pattern as Barrin's Scripture — no separate API role
+  needed (ADR-13: push-based data flow, no inbound exposure). **Shape
+  resolved 2026-08-11; playbook itself not yet written**, tracked as its
+  own implementation phase alongside Karn Tablets' application code
+  (T6).
 
 ## Tasks
 
@@ -139,11 +152,11 @@ narrow read API, if the consumption-surface decision lands there.
       existing production one. Cutting over to production means passing
       both `-e deploy_branch=main -e deploy_env=production` together —
       the default never posts to production by accident.
-- [ ] Once T6 resolves its consumption-surface question, write Karn
-      Tablets' playbook: a scheduled job for the clustering run, plus a
-      minimal API role only if T6 needs one exposed. **Out of
-      Barrin's-Scripture scope** — Karn Tablets is a different
-      application; not touched without the user's go-ahead.
+- [ ] Write Karn Tablets' playbook (`karn_tablets.yml`): a scheduled job
+      for the clustering run, same shape as `scripture_scraper` — no API
+      role (resolved 2026-08-11, ADR-13: push-based, no inbound
+      exposure). **Out of Barrin's-Scripture scope** — Karn Tablets is a
+      different application; not touched without the user's go-ahead.
 
 ## UAT (manual)
 

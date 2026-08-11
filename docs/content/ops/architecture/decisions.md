@@ -969,3 +969,98 @@ the var unset," not "resurrect the role from git history."
   would need revisiting — nothing here rules that out, it's just not
   what the evidence in the 2026-08-10 incident shows.
 - This resolves the 2026-08-10 incident.
+
+## ADR-13: Karn Tablets output — data flow, scope, and consumption surface
+
+**Context.** T4 v1 shipped Tolaria News' tournament/deck/standings routes
+without the archetype-shaped ones (`/metagame`, `/archetypes`, `/trends`)
+— those depend on Karn Tablets (T6), which ADR-6 scoped but which hadn't
+started (`apps/karn_tablets` didn't exist) and left two sub-decisions open
+(windowing default, consumption surface). T6's own plan additionally
+defaulted the consumption surface to the S6 admin dashboard only, not
+Tolaria News — the opposite of what a "full Tolaria News BFF" needs.
+Planning this iteration (2026-08-11) required resolving all of this
+together, since they're interdependent: the consumption surface decides
+who needs the data, which decides how it should reach them.
+
+**Alternatives considered — data flow.**
+
+1. **Live synchronous API.** Karn Tablets self-schedules its own
+   retraining internally and exposes a small read API; `barrins_api`'s
+   Tolaria News BFF and the S6 dashboard call it live, per request.
+2. **Push-based.** Karn Tablets self-schedules retraining the same way,
+   but pushes its results to a new `barrins_api`-owned internal route
+   after each run (mirrors `POST /internal/scripture/ingest`, ADR-5's
+   "one schema owner" pattern); `barrins_api` stores them in its own
+   tables, and every consumer reads Postgres directly.
+
+**Trade-offs.** Option 1 keeps Karn Tablets fully decoupled from
+`barrins_api`'s schema, but makes the public Tolaria News BFF's read path
+depend on Karn Tablets' uptime and latency at request time — a dependency
+none of v1's routes have today (they're Postgres-only). Since clustering
+is inherently periodic, not real-time, that live coupling buys nothing.
+Option 2 costs `barrins_api` a small amount of schema it doesn't compute
+itself (the same trade ADR-5 already accepted for Barrin's Scripture,
+for the same reason: one schema owner, zero new runtime dependency on the
+public read path) but keeps Tolaria News exactly as available as it is
+today regardless of Karn Tablets' own uptime, and lets Karn Tablets itself
+collapse to a plain scheduled job (no inbound API to serve, so no
+persistent process, no internal scheduler library) rather than the
+"scheduled job plus narrow API" hybrid service shape ADR-6 anticipated as
+a possible third `ops/my-server` shape.
+
+**Decision.** Option 2 (push-based), per the user, 2026-08-11.
+
+**Alternatives considered — scope and windowing.**
+
+- **Consumption surface**: T6's plan defaulted to S6 (admin dashboard)
+  only. **Amended to Tolaria News + S6, both** — the whole point of this
+  iteration is exposing the data publicly; S6 keeps showing the same
+  numbers for admin oversight, reading the same tables (Phase 5 of the
+  implementation plan), so there's no drift between the two views.
+- **Windowing**: T6 left rolling-30-day vs. banlist-period undecided.
+  **Both, selectable** — v1 of Karn Tablets implements both modes rather
+  than picking a single default.
+- **Format scope**: `bs_tournaments.format` covers every format
+  `barrins_scripture` scrapes (MTGO and MTGTop8 both cover multiple
+  formats), but `apps/tolaria_news/README.md` names the app a "Duel
+  Commander tournament aggregator." Karn Tablets' v1 clustering input is
+  therefore filtered to `format == "Duel Commander"` only, matching the
+  same string check `services/tolaria_news/decks.py` already uses for
+  commander derivation. No `format` query parameter is added to the new
+  BFF routes for v1 — there is exactly one consumer and it only ever
+  wants one format; adding the parameter now would be an unused
+  abstraction (Constitution §48).
+
+**Consequences.**
+
+- T6's page is amended: consumption surface (Tolaria News + S6), both
+  windowing modes, Duel-Commander-only input, push-based (not live-API)
+  output.
+- T8's page is amended: Karn Tablets' deployment shape is a scheduled job
+  (systemd timer, matching `scripture_scraper`'s `.service`/`.timer`
+  pattern), not a new hybrid role — it reuses the existing scheduled-job
+  precedent directly. It needs no inbound network exposure at all (only
+  outbound, to Postgres and to `barrins_api`'s ingestion route), which
+  also resolves what would otherwise have been an open Agent-3
+  network-exposure question under the live-API alternative.
+- `barrins_api` gains a new owned schema (`kt_*` tables, mirroring the
+  `bs_*` naming convention already used for Barrin's Scripture's tables)
+  and a new internal ingestion route (`POST /internal/karn/ingest`),
+  authenticated by a static shared secret (`KARN_INGEST_TOKEN`) the same
+  way `SCRIPTURE_INGEST_TOKEN` gates `POST /internal/scripture/ingest`.
+- A later expansion — feeding Tamiyo Scroll's own results (`ts_*`) into
+  Karn Tablets alongside scraped tournament data — is anticipated but not
+  built now (Constitution §39): Karn Tablets' data-access layer should
+  keep its "read decks to cluster" step behind a per-source boundary
+  (today: one reader, Duel-Commander-only `bs_*`) rather than hardcoding
+  a single-source assumption, and its archetype labels should be chosen
+  without colliding with Tamiyo Scroll's existing `ArchetypeCategory`
+  enum (S11's personal-deck macrotype) later.
+- The clustering algorithm/library itself is still not chosen — that
+  still requires its own §4.7/§22 approval record before implementation
+  starts on Karn Tablets' pipeline.
+- See `docs/project/v2.0.0-bump/t4-tolaria-news-bff/index.md`,
+  `t6-karn-tablets-scaffold/index.md`, and
+  `t8-scripture-karn-playbooks/index.md` for the full implementation
+  breakdown.
