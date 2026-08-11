@@ -152,8 +152,8 @@ a new shape.
   domain/SSL/reverse-proxy role, a systemd timer instead of a
   long-running `uvicorn` process. Built during T1, ahead of this
   template being written — read its
-  [`README.md`](../../../../ops/my-server/roles/scripture_scraper/README.md)
-  as a worked example of Step 0's questions already answered one way,
+  `ops/my-server/roles/scripture_scraper/README.md` as a worked example
+  of Step 0's questions already answered one way,
   including two items it explicitly leaves open ("Not automated yet"):
   the JSON archive isn't a git submodule yet, and there's no
   failure-notification wiring (Validation today is manual

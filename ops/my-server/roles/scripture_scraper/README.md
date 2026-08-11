@@ -149,7 +149,7 @@ Derived (not settable directly — computed from `scripture_scraper_app_name` in
 
 ## Validation
 
-Per [`new-service-checklist.md`](../../../../docs/content/ops/deployment/new-service-checklist.md)
+Per [`new-service-checklist.md`](../../deployment/new-service-checklist.md)
 Step 0.3 — this service has no HTTP surface, so there is no `GET /health`
 to poll:
 
@@ -191,7 +191,7 @@ Per Step 0.4/0.6:
 - **Code**: this service isn't release-tagged (Step 0.6) — redeploy by
   re-running the playbook with an older `scripture_scraper_git_branch`/
   commit, same as any other role here (see
-  [`rollback.md`](../../../../docs/content/ops/deployment/rollback.md)).
+  [`rollback.md`](../../deployment/rollback.md)).
   `scripture_scraper_git_branch` currently defaults to `staging` until
   this rewrite is proven equivalent to `mtg_scraper` (T1's own done
   statement).
@@ -213,7 +213,7 @@ Per Step 0.4/0.6:
 
 Per Step 0.5 — this service holds no database (§1.2: Barrin's Scripture
 never gets its own `DATABASE_URL`), so
-[`database.md`](../../../../docs/content/ops/deployment/database.md)'s
+[`database.md`](../../deployment/database.md)'s
 Postgres backup story doesn't apply. `scripture_scraper_output_dir` is a
 real clone of `scripture_scraper_config.archive_repo`
 (`Spigushe/mtg_decklist_cache` by default) — every sweep tick pushes any

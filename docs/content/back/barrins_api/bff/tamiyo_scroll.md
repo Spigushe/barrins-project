@@ -57,7 +57,8 @@ namespace `/api/v1/tamiyo-scroll/` (constitution §12), everything needed to:
 
 > **Naming convention**: `ts_` prefix (Tamiyo Scroll), distinct from the
 > `bs_` prefix (Barrin's Scripture) used by the scraped-tournament domain
-> — see [T2's schema doc](../../../../project/v2.0.0-bump/t2-scraped-tournament-schema/index.md).
+> — see T2's schema doc, `docs/project/v2.0.0-bump/t2-scraped-tournament-schema/`
+> (internal release tracking, not part of the docs site).
 > This domain is **deliberately distinct** from `bs_*`: data owned by the
 > user, editable, versioned — not public scraped data indexed by
 > `anchor_uri`.

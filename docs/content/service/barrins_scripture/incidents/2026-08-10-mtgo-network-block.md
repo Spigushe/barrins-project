@@ -1,4 +1,4 @@
-# Incident: VPS's outbound connection to mtgo.com appears blocked at the network level
+# Incident: VPS outbound connection to mtgo.com blocked at network level
 
 ## Status tracking
 
