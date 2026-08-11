@@ -110,6 +110,30 @@ class TestTournamentDecksAndStandings:
         assert [row["rank"] for row in data] == [1, 2, 3]
 
 
+class TestTournamentBracket:
+    async def test_returns_rounds_in_scrape_order_with_nested_matches(
+        self, client: AsyncClient, duel_commander_tournament: BSTournament, bracket
+    ) -> None:
+        resp = await client.get(
+            f"{BASE}/tournaments/{duel_commander_tournament.id}/bracket"
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert [r["round_name"] for r in data] == ["Semifinals", "Finals"]
+        assert data[0]["matches"] == [
+            {"player_1": "A. Nakamura", "player_2": "B. Costa", "result": "2-1"}
+        ]
+
+    async def test_swiss_only_tournament_returns_empty_list(
+        self, client: AsyncClient, duel_commander_tournament: BSTournament
+    ) -> None:
+        resp = await client.get(
+            f"{BASE}/tournaments/{duel_commander_tournament.id}/bracket"
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"] == []
+
+
 class TestNoAuthRequired:
     """Mirrors T4's own UAT concern: a copy-paste from Tamiyo Scroll's
     router could silently add a CurrentUser dependency here -- every
@@ -121,6 +145,7 @@ class TestNoAuthRequired:
         duel_commander_tournament: BSTournament,
         duel_commander_deck,
         standings,
+        bracket,
     ) -> None:
         tid = duel_commander_tournament.id
         for path in (
@@ -128,6 +153,7 @@ class TestNoAuthRequired:
             f"/tournaments/{tid}",
             f"/tournaments/{tid}/decks",
             f"/tournaments/{tid}/standings",
+            f"/tournaments/{tid}/bracket",
             f"/decks/{duel_commander_deck.id}",
         ):
             resp = await client.get(f"{BASE}{path}")

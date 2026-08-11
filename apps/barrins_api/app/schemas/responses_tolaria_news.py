@@ -88,3 +88,14 @@ class StandingRow(BaseResponse):
     omwp: float
     gwp: float
     ogwp: float
+
+
+class RoundMatchOut(BaseResponse):
+    player_1: str
+    player_2: str
+    result: str
+
+
+class RoundOut(BaseResponse):
+    round_name: str
+    matches: list[RoundMatchOut]

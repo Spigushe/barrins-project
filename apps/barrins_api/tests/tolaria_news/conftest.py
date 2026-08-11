@@ -10,6 +10,8 @@ from app.models.scripture import (
     BSDeck,
     BSDeckBoard,
     BSDeckCard,
+    BSRound,
+    BSRoundMatch,
     BSSource,
     BSStanding,
     BSTournament,
@@ -112,6 +114,39 @@ async def duel_commander_deck(
     await db_session.commit()
     await db_session.refresh(deck)
     return deck
+
+
+@pytest.fixture()
+async def bracket(db_session, duel_commander_tournament: BSTournament) -> None:
+    semis = BSRound(
+        tournament_id=duel_commander_tournament.id,
+        round_name="Semifinals",
+        sequence=0,
+    )
+    finals = BSRound(
+        tournament_id=duel_commander_tournament.id,
+        round_name="Finals",
+        sequence=1,
+    )
+    db_session.add_all([semis, finals])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            BSRoundMatch(
+                round_id=semis.id,
+                player_1="A. Nakamura",
+                player_2="B. Costa",
+                result="2-1",
+            ),
+            BSRoundMatch(
+                round_id=finals.id,
+                player_1="A. Nakamura",
+                player_2="C. Dubois",
+                result="2-0",
+            ),
+        ]
+    )
+    await db_session.commit()
 
 
 @pytest.fixture()

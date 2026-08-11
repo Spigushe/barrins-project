@@ -7,10 +7,19 @@ from datetime import datetime
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.scripture import BSDeck, BSSource, BSStanding, BSTournament
+from app.models.scripture import (
+    BSDeck,
+    BSRound,
+    BSRoundMatch,
+    BSSource,
+    BSStanding,
+    BSTournament,
+)
 from app.schemas.responses_tolaria_news import (
     DeckSummary,
     Page,
+    RoundMatchOut,
+    RoundOut,
     StandingRow,
     TournamentDetail,
     TournamentSummary,
@@ -127,6 +136,56 @@ async def list_decks(
         [DeckSummary.model_validate(d) for d in rows],
         Page(next_cursor=next_cursor, limit=limit),
     )
+
+
+async def get_bracket(
+    session: AsyncSession, tournament_id: uuid.UUID
+) -> list[RoundOut]:
+    """Every round of a tournament's elimination bracket, in scrape order.
+
+    Ordered by `BSRound.sequence` (the scrape/bracket order T3's
+    ingestion recorded) -- `created_at` can't do this (transaction-scoped
+    `now()` ties every round of one ingest) and `round_name` is free text,
+    not reliably sortable. Swiss-only tournaments (no elimination bracket
+    scraped) return an empty list, not a 404 -- the tournament exists, it
+    just has no bracket.
+    """
+    rounds = (
+        (
+            await session.execute(
+                select(BSRound)
+                .where(BSRound.tournament_id == tournament_id)
+                .order_by(BSRound.sequence.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rounds:
+        return []
+
+    matches_by_round: dict[uuid.UUID, list[BSRoundMatch]] = {r.id: [] for r in rounds}
+    all_matches = (
+        (
+            await session.execute(
+                select(BSRoundMatch)
+                .where(BSRoundMatch.round_id.in_(matches_by_round.keys()))
+                .order_by(BSRoundMatch.player_1.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for match in all_matches:
+        matches_by_round[match.round_id].append(match)
+
+    return [
+        RoundOut(
+            round_name=r.round_name,
+            matches=[RoundMatchOut.model_validate(m) for m in matches_by_round[r.id]],
+        )
+        for r in rounds
+    ]
 
 
 async def list_standings(
