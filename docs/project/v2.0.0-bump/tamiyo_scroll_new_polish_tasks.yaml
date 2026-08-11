@@ -1,0 +1,20 @@
+personal-deck:
+  - edit popup:
+    - can edit game and archetype
+    - add game svg logo in a square disabled input before name input in the same line
+  - selector option:
+    - add game svg logo before deck name
+
+teams:
+  - remove teams from the settings popup
+
+new bo3:
+  - OTP [switch button] OTD
+
+demo:
+  - personal deck creation
+  - session creation
+
+onboarding:
+  - personal deck creation
+  - BO3 logging
