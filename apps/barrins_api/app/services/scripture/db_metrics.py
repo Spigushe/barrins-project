@@ -44,6 +44,20 @@ class TableSize:
     row_count: int
 
 
+async def _count_rows(session: AsyncSession, table_name: str) -> int:
+    """`count(*)` for `table_name`.
+
+    table_name is sourced from each model's __tablename__ (_BS_TABLE_NAMES),
+    never request input, so building the FROM clause this way carries no
+    injection risk despite not being parametrized — a bind parameter can't
+    stand in for an identifier here.
+    """
+    return (
+        await session.scalar(text(f"SELECT count(*) FROM {table_name}"))  # noqa: S608 # nosec B608
+        or 0
+    )
+
+
 async def compute_scripture_db_metrics(session: AsyncSession) -> list[TableSize]:
     """Size + row count per `bs_*` table, in `_BS_TABLE_NAMES` order."""
     sizes = []
@@ -52,18 +66,12 @@ async def compute_scripture_db_metrics(session: AsyncSession) -> list[TableSize]
             text("SELECT pg_total_relation_size(CAST(:table_name AS regclass))"),
             {"table_name": table_name},
         )
-        # table_name is sourced from each model's __tablename__ (_BS_TABLE_NAMES
-        # above), never request input, so building the FROM clause this way
-        # carries no injection risk despite not being parametrized — a bind
-        # parameter can't stand in for an identifier here.
-        row_count = await session.scalar(
-            text(f"SELECT count(*) FROM {table_name}")  # noqa: S608
-        )
+        row_count = await _count_rows(session, table_name)
         sizes.append(
             TableSize(
                 table_name=table_name,
                 size_bytes=size or 0,
-                row_count=row_count or 0,
+                row_count=row_count,
             )
         )
     return sizes
