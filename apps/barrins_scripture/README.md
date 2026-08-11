@@ -51,5 +51,9 @@ actually manages that clone.
 - No database access, no ingestion logic — this app only produces the
   JSON archive. Ingesting archived data into `barrins_api` is a separate
   concern (see T3, `docs/project/v2.0.0-bump/t3-scripture-ingestion-pipeline/`).
-- Scheduling runs on the VPS (`ops/my-server/barrins_scripture.yml`), not
-  via GitHub Actions cron.
+- Scheduling runs on GitHub Actions (`.github/workflows/scripture-scrape.yml`,
+  daily `schedule` trigger), not the VPS — mtgo.com blocks the VPS's static
+  outbound IP, GitHub Actions' rotating runner IPs are unaffected (ADR-12,
+  `docs/content/ops/architecture/decisions.md`). `ops/my-server/roles/
+  scripture_scraper/` still exists but is dormant, kept only as a rollback
+  path (its systemd timer pair is never installed by the VPS playbook).

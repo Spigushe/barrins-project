@@ -53,6 +53,7 @@ nav:
                 - Incidents:
                       - Home: service/barrins_scripture/incidents/index.md
                       - MTGTop8 backfill OOM: service/barrins_scripture/incidents/2026-08-09-mtgtop8-oom.md
+                      - MTGO network block: service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md
     - Ops:
           - Home: ops/index.md
           - Architecture:
