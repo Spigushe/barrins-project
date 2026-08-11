@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` | New domain, `bs_`-prefixed (Barrin's Scripture) — decided 2026-07-26 |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 In progress — `bs_*` models + Alembic migration + model tests written and passing (2026-07-30), not yet applied to any real database; the `docs/decklist_integration/` doc decision is the only open task | / |
+| **Status** | 🟡 In progress — `bs_*` models + Alembic migration + model tests written and passing (2026-07-30), not yet applied to any real database. The `docs/decklist_integration/` doc decision (F7) is resolved — redirect, 2026-08-11: no content ever existed to recreate, so citing docs/comments were repointed at the real `bs_*` schema instead | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §0, §1.2 | / |
 | **Dependency** | I3 (§1.2) | Blocks T3, T4 |
 
@@ -103,9 +103,13 @@ existing convention, not something this item does itself.
       Design above.
 - [x] Write the Alembic migration
       (`49c50188ee55_add_barrins_scripture_bs_tables.py`).
-- [ ] Write the fictitious `docs/decklist_integration/00_plan_general.md`
+- [x] Write the fictitious `docs/decklist_integration/00_plan_general.md`
       referenced by existing docs, or update those references — ties
-      into F7's decision (recreate vs. redirect). Not started.
+      into F7's decision (recreate vs. redirect). **Done, 2026-08-11**:
+      redirect — no real content ever existed under that path, so
+      `bff/tamiyo_scroll.md` and `signup_email_verification.md` were
+      repointed at the real `bs_*` schema (this doc) instead of the dead
+      path.
 - [x] Model/migration tests in `apps/barrins_api/tests/scripture/`
       (`test_models.py`): round-trips, nullable/range `result`, unique
       constraints (one per table's natural key), and cascade deletes for

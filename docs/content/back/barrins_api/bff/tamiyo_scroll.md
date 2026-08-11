@@ -43,9 +43,9 @@ namespace `/api/v1/tamiyo-scroll/` (constitution §12), everything needed to:
   a **future** BFF extension, explicitly mentioned as "in progress" in
   the design handoff — to be handled in a separate plan.
 - Auto-population of the expected metagame from tournament data already
-  present in `dl_decks`/`dl_tournaments`: the roster (`ts_meta_decks`) is
-  entered manually by the user in v1, even though a future link with the
-  `decklist_integration` pipeline is conceivable (see §12 of this
+  present in `bs_decks`/`bs_tournaments` (the scraped-tournament domain,
+  see T2): the roster (`ts_meta_decks`) is entered manually by the user
+  in v1, even though a future link is conceivable (see §12 of this
   document, "Future compatibility").
 - Resolving tested card names to `cards.uuid` (autocomplete, MTGJSON
   validation) — `card_name` remains a free-form string in v1, as in the
@@ -55,11 +55,12 @@ namespace `/api/v1/tamiyo-scroll/` (constitution §12), everything needed to:
 
 ## Domain model
 
-> **Naming convention**: `ts_` prefix (Tamiyo Scroll), mirroring the `dl_`
-> prefix used by `docs/decklist_integration/` for the scraped tournament
-> domain. This new domain is **deliberately distinct** from `dl_*`: data
-> owned by the user, editable, versioned — not public scraped data
-> indexed by `anchor_uri`.
+> **Naming convention**: `ts_` prefix (Tamiyo Scroll), distinct from the
+> `bs_` prefix (Barrin's Scripture) used by the scraped-tournament domain
+> — see [T2's schema doc](../../../../project/v2.0.0-bump/t2-scraped-tournament-schema/index.md).
+> This domain is **deliberately distinct** from `bs_*`: data owned by the
+> user, editable, versioned — not public scraped data indexed by
+> `anchor_uri`.
 
 | Table | Role | Key fields |
 | ----- | ---- | ----------- |
@@ -72,8 +73,8 @@ namespace `/api/v1/tamiyo-scroll/` (constitution §12), everything needed to:
 
 All `ts_*` tables (except `ts_user_settings`) carry `owner_id FK ->
 users.id ON DELETE CASCADE` — deleting **an account** purges its
-tracker data, consistent with `dl_decks` which already cascades from
-`dl_tournaments`. However, deleting **a deck** (personal or roster) from
+tracker data, consistent with `bs_decks` which already cascades from
+`bs_tournaments` (see T2). However, deleting **a deck** (personal or roster) from
 the UI is **never** an SQL `DELETE` — see Option G below — so
 `ts_matches.personal_deck_id` and
 `ts_matches.opponent_deck_id`/`ts_card_tests.opponent_deck_id` remain
@@ -325,10 +326,10 @@ existence of another person's ID).
 The handoff README explicitly mentions a future BFF extension
 automating metagame import and Moxfield scraping. The current
 `ts_meta_decks` model has no column linking it to
-`dl_decks`/`dl_tournaments` — this is deliberate (YAGNI, constitution
-§39/§48) but flagged here so Agent 0 can confirm that nothing in the
-chosen schema will prevent a future reconciliation (e.g. later adding
-a nullable `linked_dl_deck_id` column).
+`bs_decks`/`bs_tournaments` (see T2) — this is deliberate (YAGNI,
+constitution §39/§48) but flagged here so Agent 0 can confirm that
+nothing in the chosen schema will prevent a future reconciliation
+(e.g. later adding a nullable `linked_bs_deck_id` column).
 
 ---
 

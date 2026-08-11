@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/ops/security/secrets.md`, `ops/my-server/secrets/README.md` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Half done, as a byproduct of T8 (2026-08-08)** — while scheduling the T3 sweep, T8 documented `SCRIPTURE_INGEST_TOKEN` in `ops/my-server/secrets/README.md` and added `secrets/barrins_api/{production,staging}.env.example` / `secrets/barrins_scripture/{production,staging}.env.example`. This item's own remaining scope narrows to the `docs/content/ops/security/secrets.md` write-up — see Context | / |
+| **Status** | ✅ **Done, 2026-08-11** — the `docs/content/ops/security/secrets.md` narrative section ("Service-to-service credentials: `SCRIPTURE_INGEST_TOKEN`") is written, mirroring the existing "Why `github_token` is different" section's shape. The `.env.example`/`ops/my-server/secrets/README.md` half was already done as a byproduct of T8 (2026-08-08) — see Context | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1.2 | / |
 | **Dependency** | I3 (§1.2) | / |
 
@@ -49,8 +49,7 @@ names — which T8 had no reason to touch.
 - [x] Generate/document the credential's `.env.example` entry for
       whichever app(s) need it (`barrins_api`, and Barrin's Scripture
       once T1 lands). **Done, via T8 (2026-08-08)**: see Context.
-- [ ] Write the `security/secrets.md` section. **Still open** — the only
-      remaining task on this item.
+- [x] Write the `security/secrets.md` section. **Done, 2026-08-11.**
 
 ## UAT (manual)
 
