@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | New: `apps/barrins_scripture` (monorepo, rewrite per §1.1 Option 3) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 In progress — schemas/parsers/utils/services/CLI, CI job (`.github/workflows/CI.yml`), and the `ops/my-server/barrins_scripture.yml` + `roles/scripture_scraper/` deploy playbook all written and test-driven (118 tests, 95%+ coverage — see Tasks below, corrected 2026-08-02: CI/ops were previously listed as open here but are done, per PR #41); durable-location transfer, pointing at the archive's new home, and archiving `mtg_scraper` still open | / |
+| **Status** | 🟡 In progress — schemas/parsers/utils/services/CLI, CI job (`.github/workflows/CI.yml`), and the `ops/my-server/barrins_scripture.yml` + `roles/scripture_scraper/` deploy playbook all written and test-driven (130 tests, 95%+ coverage — see Tasks below, corrected 2026-08-02: CI/ops were previously listed as open here but are done, per PR #41); **2026-08-07**: `mtg_scraper`/old `mtg_decklist_cache` both transferred + archived to `barrins-archive`, and `Spigushe/mtg_decklist_cache` created fresh (not a history transfer — see Context). **2026-08-08**: the git submodule wiring is done — `scripture_scraper` clones/pushes the archive, the sweep wrapper commits+pushes each tick (see Tasks). Still open: confirming the shared `github_token` PAT actually has push access to `Spigushe/mtg_decklist_cache` (untested against real infra), and backfilling the new archive's history (MTGTop8 `--id-from` now supports this; MTGO's `--date-from`/`--date-to` already did) | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.1 | / |
 | **Dependency** | None (this is the first domino) | Blocks T2, T3 |
 
@@ -50,6 +50,24 @@ confidence to do so.
   release is cut (not a vague "sometime post-release" step). Until that
   cut, `apps/barrins_scripture` doesn't assume a submodule at all — see
   the next point.
+- **Superseded (2026-08-07): fresh repo, not a history-preserving
+  transfer.** The plan above assumed moving the *existing*
+  `mtg_decklist_cache` (full history via `git clone --mirror`). Decided
+  instead: `Spigushe/mtg_decklist_cache` is a **new, empty** repository —
+  the old archive's data isn't guaranteed to match the new
+  implementation's schema (confirmed while investigating: `Deck.result`
+  changed `int | None` → `str | None` to stop truncating MTGTop8 tie
+  brackets like `"5-8"` to `5`, so old untied-result files are
+  differently-typed and old tied-result files have already lost the
+  bracket data — see fixtures under `apps/barrins_scripture/tests/
+  fixtures/`). The old `mtg_scraper`/`mtg_decklist_cache` pair still
+  follows its own retirement path (archived once parity is confirmed,
+  per the Done statement below) — this only changes what
+  `Spigushe/mtg_decklist_cache` itself contains. **Repo created
+  2026-08-07**, public, README-only:
+  <https://github.com/Spigushe/mtg_decklist_cache>.
+  `scripture_scraper` owns it operationally per T8's 2026-08-07 decision
+  (clone via the shared `github_token`, commits pushed by T3's sweep).
 - **`--output-dir` instead of assuming a submodule immediately**: rather
   than wiring a git submodule into `apps/barrins_scripture/scraped/` now
   (pointing at a location that's still going to move per the point
@@ -64,16 +82,24 @@ confidence to do so.
 
 - Barrin's Scripture's new code lives at `apps/barrins_scripture` in
   this monorepo.
-- `mtg_scraper` and `mtg_decklist_cache` are both transferred, full
-  history intact, to a durable location outside `barrins-project`.
+- `mtg_scraper` and the old `mtg_decklist_cache` are both transferred,
+  full history intact, to a durable location outside `barrins-project`.
+  **Done (2026-08-07)** — both now live archived under `barrins-archive`.
 - CI adapted to this monorepo's `.github/workflows/CI.yml`
   `changes`/path-filter pattern (a new `scripture` filter + job,
   mirroring `back`/`front`).
 - `mtg_scraper` is archived (pointing at its new, non-`barrins-project`
-  location) once parity is confirmed: MTGO + MTGTop8 scraping, the same
-  daily/biweekly-gap-check scheduling, same JSON-archive output (§1.3).
-- No gap in scrape coverage throughout — the old scraper keeps running
-  on its existing schedule until the new one is proven equivalent.
+  location). **Done (2026-08-07)** — ahead of the original "once parity
+  is confirmed" gate: per the 2026-08-07 decision above, the old
+  archive's data doesn't carry forward as-is (schema change), so
+  retiring `mtg_scraper` isn't blocked on the new implementation
+  matching its exact output first.
+- ~~No gap in scrape coverage throughout — the old scraper keeps running
+  on its existing schedule until the new one is proven equivalent.~~
+  **Superseded (2026-08-07)**: moot, since a from-scratch backfill of
+  `Spigushe/mtg_decklist_cache` is the plan regardless of the old
+  schedule's continuity — see the id-range/date-range backfill task
+  above.
 
 ## Tasks
 
@@ -84,7 +110,27 @@ confidence to do so.
       itself yet — that's still timed per the decisions above (right
       before the v2.0.0 cut for the archive, once v2.0.0 ships for
       `mtg_scraper`).
-- [ ] Transfer both repos there (full history intact).
+- [x] `Spigushe/mtg_decklist_cache` created (2026-08-07) — **not** a
+      history-preserving transfer, see the 2026-08-07 decision above: a
+      fresh, empty, public repo, README-only so far. Backfilling it (MTGO
+      via `--date-from`/`--date-to`, already supported; MTGTop8 via the
+      new `--id-from`/`--span` id-range option) is a separate, not-yet-run
+      task.
+- [x] Both `mtg_scraper` and the old `mtg_decklist_cache` transferred
+      (2026-08-07, user action) via GitHub's repo-transfer feature (full
+      history intact by construction) to `barrins-archive/mtg_scraper`
+      and `barrins-archive/mtg_decklist_cache`, and archived there
+      (verified via `gh repo view`, `isArchived: true` on both) — ahead
+      of the "once v2.0.0 ships" timing this item originally planned, and
+      resolving the old `mtg_decklist_cache`'s previously-undecided fate
+      the same way. No scrape-coverage-gap mitigation needed for this:
+      per the 2026-08-07 decision above, the old archive's data doesn't
+      carry forward as-is regardless (schema change), so `mtg_scraper`'s
+      retirement isn't gated on the new implementation reaching parity
+      first — a full backfill of `Spigushe/mtg_decklist_cache` from
+      scratch is the planned path either way (see the `--id-from`/
+      `--date-from` backfill task above), not a continuation of the old
+      schedule.
 - [x] Write `apps/barrins_scripture` from scratch (rewrite, per §1.1
       Option 3 — not a `git subtree`/history-preserving merge): MTGO +
       MTGTop8 scraping. `schemas`, `parsers`, `utils`, `services`, and
@@ -107,11 +153,26 @@ confidence to do so.
       failures, no warnings. **Still not deployed to the real VPS** —
       lint-clean confirms syntax/structure, not that a live run actually
       schedules and executes a scrape end-to-end; that's still open.
-- [ ] Point the new implementation at `mtg_decklist_cache`'s new,
+- [x] Point the new implementation at `mtg_decklist_cache`'s new,
       durable location as the dump sub-repo per §1.3 (wire up the actual
       git submodule at `apps/barrins_scripture/scraped/` — until then,
       `--output-dir` is the interim way to point a real run at wherever
-      the archive is actually managed).
+      the archive is actually managed). **Decided (2026-08-07), wired
+      2026-08-08**: `scripture_scraper` owns this submodule
+      operationally — the role now clones `output_dir` as a real working
+      copy of `Spigushe/mtg_decklist_cache` (reusing the shared
+      `github_token`, same auth pattern every other app-deploying role
+      here already uses) and sets a local commit identity on it. The
+      sweep wrapper script (`barrins_scripture_sweep.sh.j2`) commits +
+      pushes any pending archive changes at the start of every tick,
+      ahead of running the sweep itself — a failed push aborts the tick
+      (`set -e`) exactly like a failed sweep, retried next tick, no
+      special-casing, rather than left as a manually-synced, unbacked-up
+      directory. Repo location itself is unchanged:
+      `Spigushe/mtg_decklist_cache`. **Not yet exercised against the
+      real VPS/repo** — the shared `github_token` PAT needs confirmed
+      push (not just read) access to `Spigushe/mtg_decklist_cache`; see
+      this item's own UAT.
 - [ ] Once feature parity is confirmed, archive `mtg_scraper` (at its
       new, non-`barrins-project` location), redirecting its README to
       `apps/barrins_scripture`, so contributors don't keep opening PRs
@@ -123,6 +184,17 @@ confidence to do so.
 - [ ] A scheduled scrape run (daily or manual dispatch) completes
       successfully from `apps/barrins_scripture`, writing to the same
       (relocated) `mtg_decklist_cache` archive.
+- [ ] Confirm the shared `github_token` PAT has push access to
+      `Spigushe/mtg_decklist_cache`, not just read (`git -C <output_dir>
+      push --dry-run` on the VPS, or trigger a real sweep tick and check
+      `journalctl -u barrins_scripture_sweep.service`) — this is the
+      first role in `ops/my-server` to push with that token rather than
+      only clone.
+- [ ] Run a sweep tick against real archive changes on staging; confirm
+      the commit lands on `Spigushe/mtg_decklist_cache`'s `main` branch
+      with the configured `archive_commit_name`/`archive_commit_email`
+      identity, and that a tick with nothing new to archive makes no
+      commit.
 
 ## Non-regression tests
 

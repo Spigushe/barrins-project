@@ -16,10 +16,20 @@
 
 v1.0.0's B6 depended on B1 (`postgres_backup`) for exactly this reason:
 don't apply a first production migration/deploy without the operational
-safety net already in place. The same principle applies here: Tolaria
-News' first production deploy, and Barrin's Scripture's if it's ever
-deployed rather than left on GitHub Actions, shouldn't happen before
-their playbooks (T8) and monitoring (D2) exist.
+safety net already in place. The same principle applies here for Tolaria
+News' first production deploy — it needs its playbook (T8) and monitoring
+(D2) before that happens.
+
+**Barrin's Scripture is a different case as of ADR-12** (2026-08-10,
+`docs/content/ops/architecture/decisions.md`): its scrape+sweep scheduling
+runs on GitHub Actions (`.github/workflows/scripture-scrape.yml`), not the
+VPS — mtgo.com blocks the VPS's static outbound IP. There is no VPS
+playbook-gated "first deploy" for it to wait on; `ops/my-server/roles/
+scripture_scraper/` stays dormant, kept only as a rollback path. R4's
+"Deploy/enable Barrin's Scripture" task below is satisfied by confirming
+the GitHub Actions workflow's repository secrets are set for production
+(`SCRIPTURE_INGEST_TOKEN`, `ARCHIVE_PUSH_TOKEN`), not by running any
+playbook.
 
 ## Done statement
 
@@ -35,7 +45,9 @@ their playbooks (T8) and monitoring (D2) exist.
 - [ ] Deploy `tamiyo_scroll` from the tag.
 - [ ] Deploy Tolaria News frontend (first-ever real deploy, if T5
       shipped this release) via the already-existing `tolaria_news.yml`.
-- [ ] Deploy/enable Barrin's Scripture per whatever T8 designed.
+- [ ] Confirm Barrin's Scripture's GitHub Actions repository secrets
+      (`SCRIPTURE_INGEST_TOKEN`, `ARCHIVE_PUSH_TOKEN`) are set for
+      production — no playbook to run, see Context (ADR-12).
 - [ ] Immediately backport this item's "done" confirmation to `staging`
       once written on `main` (§3.1) — same reasoning as R2/R3's
       equivalent tasks.

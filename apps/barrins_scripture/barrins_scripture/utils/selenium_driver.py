@@ -9,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from barrins_scripture.utils.mtgo import BASE_URL, MAX_RETRIES
+from barrins_scripture.utils.mtgo import BASE_URL, MAX_RETRIES, PAGE_LOAD_TIMEOUT
 
 TOURNAMENT_LINKS_SELECTOR = (
     "#decklists > div.site-content > div.container-page-fluid.decklists-page "
@@ -25,13 +25,34 @@ def init_driver() -> webdriver.Chrome:
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--log-level=3")
+    # "normal" (the default) blocks driver.get() until the browser's `load`
+    # event fires, i.e. every subresource (ads, trackers, analytics beacons)
+    # has finished — one stuck subresource on a heavy page (e.g. mtgo.com's
+    # decklists pages) means `load` never fires and every call times out
+    # regardless of how large page_load_timeout is. "eager" returns once the
+    # DOM is parsed; the WebDriverWait calls in get_mtgo_tournaments()/
+    # scrape_tournament() already wait for the specific selector they need,
+    # so this doesn't weaken what we actually check for.
+    options.page_load_strategy = "eager"
 
-    # Selenium Manager (bundled since Selenium 4.6) resolves and downloads the
-    # matching Chrome driver directly from Google's official distribution
-    # points — no separate driver-management dependency needed.
-    service = Service(log_output=os.devnull)
+    # CHROME_BINARY_PATH/CHROMEDRIVER_PATH point at the apt-installed
+    # chromium/chromium-driver on the VPS (see
+    # ops/my-server/roles/scripture_scraper), so headless Chrome starts from
+    # a version-matched local pair with no outbound network call. Left unset
+    # for local development: Selenium Manager (bundled since Selenium 4.6)
+    # then resolves and downloads a matching Chrome + driver itself.
+    chrome_binary_path = os.environ.get("CHROME_BINARY_PATH")
+    if chrome_binary_path:
+        options.binary_location = chrome_binary_path
 
-    return webdriver.Chrome(service=service, options=options)
+    service = Service(
+        executable_path=os.environ.get("CHROMEDRIVER_PATH"),
+        log_output=os.devnull,
+    )
+
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+    return driver
 
 
 def get_mtgo_tournaments(
@@ -41,11 +62,12 @@ def get_mtgo_tournaments(
     timeout: int = 15,
 ) -> list[str]:
     tournaments: list[str] = []
+    page_load_timeout = PAGE_LOAD_TIMEOUT
 
     for _ in range(MAX_RETRIES + 1):
-        driver.get(BASE_URL + f"{year}/{month:02}")
-
         try:
+            driver.set_page_load_timeout(page_load_timeout)
+            driver.get(BASE_URL + f"{year}/{month:02}")
             WebDriverWait(driver, timeout).until(
                 EC.presence_of_element_located(
                     (By.CSS_SELECTOR, TOURNAMENT_LINKS_SELECTOR)
@@ -53,6 +75,7 @@ def get_mtgo_tournaments(
             )
         except TimeoutException:
             timeout += 10
+            page_load_timeout += 10
             continue
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
@@ -66,5 +89,6 @@ def get_mtgo_tournaments(
             break
 
         timeout += 10
+        page_load_timeout += 10
 
     return tournaments

@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily Barrin's Scripture scrape
+Description=Daily Barrin's Scripture scrape ({{ scripture_scraper_config.app_name }})
 
 [Timer]
 OnCalendar=*-*-* {{ '%02d' | format(scripture_scraper_config.daily_hour) }}:00:00

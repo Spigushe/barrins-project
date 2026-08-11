@@ -61,3 +61,8 @@ section of the docs site for details.
   typed `(url, soup)`, which would crash the next dequeue.
 - `scrape_mtgtop8`'s id-range loop was off by one, silently skipping the
   very next unscraped tournament id on every run.
+- `mtgtop8_utils.we_should_scrape_it` re-walked the entire archive tree
+  (`rglob`) on every call — O(n^2) in archive size, since it's called once
+  per candidate tournament id. `get_scraped_ids()` now walks the archive
+  once per `scrape_mtgtop8()` run and the resulting set is reused across
+  every producer's dedup check.

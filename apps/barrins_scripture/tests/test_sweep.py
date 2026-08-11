@@ -1,0 +1,304 @@
+"""Tests for `barrins_scripture.sweep` (T3): archive selection + posting.
+
+Mirrors `test_main.py`'s style (`patch.object`/`patch("sys.argv", ...)`)
+rather than a live HTTP server — `sweep()`'s only external dependency is
+`requests.post`, mocked here the same way `mtgtop8_utils.requests.get` is
+mocked in `test_parsers_units.py`.
+"""
+
+import json
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+import requests
+
+from barrins_scripture import sweep
+
+
+def _write(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+@pytest.fixture()
+def archive(tmp_path: Path) -> Path:
+    """Two source dirs, each with one file inside and one outside a 7-day
+    window measured from `now=2026-08-10` (cutoff `2026-08-03`)."""
+    _write(
+        tmp_path / "mtgo.com" / "2026" / "08" / "01" / "old.json",
+        {"tournament": {"name": "old mtgo"}},
+    )
+    _write(
+        tmp_path / "mtgo.com" / "2026" / "08" / "05" / "recent.json",
+        {"tournament": {"name": "recent mtgo"}},
+    )
+    _write(
+        tmp_path / "mtgtop8.com" / "2026" / "07" / "15" / "old_top8.json",
+        {"tournament": {"name": "old top8"}},
+    )
+    _write(
+        tmp_path / "mtgtop8.com" / "2026" / "08" / "09" / "recent_top8.json",
+        {"tournament": {"name": "recent top8"}},
+    )
+    return tmp_path
+
+
+_NOW = datetime(2026, 8, 10)
+
+
+class TestIterArchiveFiles:
+    def test_full_mode_lists_every_file(self, archive: Path) -> None:
+        found = list(sweep.iter_archive_files(archive, mode="full", days=7, now=_NOW))
+        assert len(found) == 4
+
+    def test_recent_mode_filters_by_directory_encoded_date(self, archive: Path) -> None:
+        found = sorted(
+            (path.name, source)
+            for path, source in sweep.iter_archive_files(
+                archive, mode="recent", days=7, now=_NOW
+            )
+        )
+        assert found == [
+            ("recent.json", "mtgo"),
+            ("recent_top8.json", "mtgtop8"),
+        ]
+
+    def test_source_is_derived_from_directory(self, archive: Path) -> None:
+        by_name = {
+            path.name: source
+            for path, source in sweep.iter_archive_files(
+                archive, mode="full", days=7, now=_NOW
+            )
+        }
+        assert by_name["old.json"] == "mtgo"
+        assert by_name["old_top8.json"] == "mtgtop8"
+
+    def test_missing_source_dir_is_skipped(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "05" / "only.json",
+            {"tournament": {"name": "only"}},
+        )
+        # mtgtop8.com never created — must not raise.
+        found = list(sweep.iter_archive_files(tmp_path, mode="full", days=7, now=_NOW))
+        assert len(found) == 1
+
+
+class TestSweep:
+    def test_posts_every_selected_file_with_source_and_token(
+        self, archive: Path
+    ) -> None:
+        mock_response = Mock()
+        with patch.object(sweep.requests, "post", return_value=mock_response) as post:
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+
+        assert (succeeded, failed) == (4, 0)
+        assert post.call_count == 4
+        for call in post.call_args_list:
+            assert call.args[0] == "https://api.example.com/internal/scripture/ingest"
+            assert call.kwargs["headers"] == {"X-Scripture-Token": "secret-token"}
+            assert "source" in call.kwargs["json"]
+            assert call.kwargs["json"]["source"] in ("mtgo", "mtgtop8")
+
+    def test_recent_mode_only_posts_recent_files(self, archive: Path) -> None:
+        mock_response = Mock()
+        with patch.object(sweep.requests, "post", return_value=mock_response) as post:
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        assert (succeeded, failed) == (2, 0)
+        assert post.call_count == 2
+
+    def test_continues_after_a_failed_post(self, archive: Path) -> None:
+        with patch.object(
+            sweep.requests,
+            "post",
+            side_effect=[requests.ConnectionError("down"), Mock()],
+        ) as post:
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        assert (succeeded, failed) == (1, 1)
+        assert post.call_count == 2
+
+    def test_raise_for_status_failure_counts_as_failed(self, archive: Path) -> None:
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError("503")
+        with patch.object(sweep.requests, "post", return_value=mock_response):
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        assert (succeeded, failed) == (0, 2)
+
+    def test_skips_malformed_json_without_posting(self, tmp_path: Path) -> None:
+        bad_path = tmp_path / "mtgo.com" / "2026" / "08" / "05" / "broken.json"
+        bad_path.parent.mkdir(parents=True, exist_ok=True)
+        bad_path.write_text("{not valid json", encoding="utf-8")
+
+        with patch.object(sweep.requests, "post") as post:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        assert (succeeded, failed) == (0, 1)
+        post.assert_not_called()
+
+    def test_skips_valid_json_that_is_not_an_object_without_crashing(
+        self, tmp_path: Path
+    ) -> None:
+        """A syntactically valid JSON array/scalar can't take payload["source"]
+        = source; that must be a per-file skip, not a run-aborting crash."""
+        bad_path = tmp_path / "mtgo.com" / "2026" / "08" / "05" / "not_an_object.json"
+        bad_path.parent.mkdir(parents=True, exist_ok=True)
+        bad_path.write_text("[]", encoding="utf-8")
+        good_path = tmp_path / "mtgo.com" / "2026" / "08" / "06" / "good.json"
+        good_path.parent.mkdir(parents=True, exist_ok=True)
+        good_path.write_text(
+            json.dumps({"tournament": {"name": "good"}}), encoding="utf-8"
+        )
+
+        mock_response = Mock()
+        with patch.object(sweep.requests, "post", return_value=mock_response) as post:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        # The bad file is skipped (counted as failed); the good file is
+        # still posted -- the run must not abort partway through.
+        assert (succeeded, failed) == (1, 1)
+        assert post.call_count == 1
+
+    def test_endpoint_trailing_slash_is_normalized(self, archive: Path) -> None:
+        mock_response = Mock()
+        with patch.object(sweep.requests, "post", return_value=mock_response) as post:
+            sweep.sweep(
+                archive,
+                api_url="https://api.example.com/",
+                token="secret-token",  # noqa: S106
+                mode="recent",
+                days=7,
+                now=_NOW,
+            )
+        assert (
+            post.call_args.args[0]
+            == "https://api.example.com/internal/scripture/ingest"
+        )
+
+
+class TestBuildParser:
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("BARRINS_API_URL", raising=False)
+        monkeypatch.delenv("SCRIPTURE_INGEST_TOKEN", raising=False)
+        args = sweep.build_parser().parse_args([])
+        assert args.mode == "recent"
+        assert args.days == sweep.DEFAULT_RECENT_DAYS
+        assert args.api_url is None
+        assert args.token is None
+
+    def test_rejects_unknown_mode(self) -> None:
+        with pytest.raises(SystemExit):
+            sweep.build_parser().parse_args(["--mode", "partial"])
+
+    def test_reads_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("BARRINS_API_URL", "https://api.example.com")
+        monkeypatch.setenv("SCRIPTURE_INGEST_TOKEN", "env-token")
+        args = sweep.build_parser().parse_args([])
+        assert args.api_url == "https://api.example.com"
+        assert args.token == "env-token"  # noqa: S105
+
+    def test_reads_archive_dir_env_var(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("BARRINS_SCRIPTURE_ARCHIVE_DIR", str(tmp_path / "archive"))
+        args = sweep.build_parser().parse_args([])
+        assert args.archive_dir == tmp_path / "archive"
+
+
+class TestMain:
+    def test_missing_api_url_and_token_exits_with_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("BARRINS_API_URL", raising=False)
+        monkeypatch.delenv("SCRIPTURE_INGEST_TOKEN", raising=False)
+        with (
+            patch("sys.argv", ["sweep"]),
+            patch.object(sweep, "sweep") as mock_sweep,
+            pytest.raises(SystemExit),
+        ):
+            sweep.main()
+        mock_sweep.assert_not_called()
+
+    def test_forwards_args_and_exits_zero_on_full_success(self, tmp_path: Path) -> None:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "sweep",
+                    "--mode",
+                    "full",
+                    "--days",
+                    "3",
+                    "--archive-dir",
+                    str(tmp_path),
+                    "--api-url",
+                    "https://api.example.com",
+                    "--token",
+                    "tok",
+                ],
+            ),
+            patch.object(sweep, "sweep", return_value=(2, 0)) as mock_sweep,
+        ):
+            sweep.main()  # must not raise
+        mock_sweep.assert_called_once_with(
+            tmp_path, "https://api.example.com", "tok", "full", 3
+        )
+
+    def test_exits_nonzero_when_any_file_failed(self, tmp_path: Path) -> None:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "sweep",
+                    "--archive-dir",
+                    str(tmp_path),
+                    "--api-url",
+                    "https://api.example.com",
+                    "--token",
+                    "tok",
+                ],
+            ),
+            patch.object(sweep, "sweep", return_value=(1, 1)),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            sweep.main()
+        assert exc_info.value.code == 1

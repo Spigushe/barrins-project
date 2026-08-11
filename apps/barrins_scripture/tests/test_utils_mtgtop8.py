@@ -48,29 +48,47 @@ class TestGetMaxIdScraped:
         assert mtgtop8.get_max_id_scraped() == 0
 
 
-class TestWeShouldScrapeIt:
-    def test_true_when_never_scraped(self, tmp_path: Path, monkeypatch) -> None:
+class TestGetScrapedIds:
+    def test_empty_when_nothing_scraped(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setattr(mtgtop8, "BASE_PATH", tmp_path)
-        assert mtgtop8.we_should_scrape_it("https://mtgtop8.com/event?e=88803") is True
+        assert mtgtop8.get_scraped_ids() == set()
 
-    def test_false_when_already_scraped_nested(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_collects_ids_across_nested_dirs(self, tmp_path: Path, monkeypatch) -> None:
         # Regression test for the glob-vs-rglob bug: archived files always
         # live nested (BASE_PATH/YYYY/MM/DD/), never directly in BASE_PATH.
         monkeypatch.setattr(mtgtop8, "BASE_PATH", tmp_path)
         d = tmp_path / "2026" / "07" / "26"
         d.mkdir(parents=True)
-        (d / "88803_duel-commander_x.json").write_text("{}", encoding="utf-8")
-        assert mtgtop8.we_should_scrape_it("https://mtgtop8.com/event?e=88803") is False
+        (d / "100_duel-commander_a.json").write_text("{}", encoding="utf-8")
+        (d / "88803_duel-commander_b.json").write_text("{}", encoding="utf-8")
+        assert mtgtop8.get_scraped_ids() == {100, 88803}
 
-    def test_strips_extra_query_params(self, tmp_path: Path, monkeypatch) -> None:
+    def test_ignores_files_with_a_non_numeric_prefix(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         monkeypatch.setattr(mtgtop8, "BASE_PATH", tmp_path)
         d = tmp_path / "2026" / "07" / "26"
         d.mkdir(parents=True)
-        (d / "88803_duel-commander_x.json").write_text("{}", encoding="utf-8")
+        (d / "not-an-id.json").write_text("{}", encoding="utf-8")
+        assert mtgtop8.get_scraped_ids() == set()
+
+
+class TestWeShouldScrapeIt:
+    def test_true_when_never_scraped(self) -> None:
+        assert (
+            mtgtop8.we_should_scrape_it("https://mtgtop8.com/event?e=88803", set())
+            is True
+        )
+
+    def test_false_when_already_scraped(self) -> None:
+        assert (
+            mtgtop8.we_should_scrape_it("https://mtgtop8.com/event?e=88803", {88803})
+            is False
+        )
+
+    def test_strips_extra_query_params(self) -> None:
         url = "https://mtgtop8.com/event?e=88803&d=874003&f=EDH"
-        assert mtgtop8.we_should_scrape_it(url) is False
+        assert mtgtop8.we_should_scrape_it(url, {88803}) is False
 
 
 class TestScrapeTournament:

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `proj/v2.0.0-bump` → `staging` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 In progress — PR #46 (`proj/v2.0.0-bump` → `staging`) hit a real, structurally-recurring conflict (`recharts`/`uv.lock`, see Proposal 7); closed and replaced by #49 (`release/v2.0.0-alpha` → `staging`), built with `staging` as a real ancestor per Proposal 7's workaround | / |
+| **Status** | ✅ **Done (2026-08-03)** — PR #46 (`proj/v2.0.0-bump` → `staging`) hit a real, structurally-recurring conflict (`recharts`/`uv.lock`, see Proposal 7); closed and replaced by #49 (`release/v2.0.0-alpha` → `staging`), built with `staging` as a real ancestor per Proposal 7's workaround. Merged (`49a85e4`); CI green on `staging` post-merge | / |
 | **Source** | Mirrors R1/v1.0.0's B3, scoped to the alpha cut (§1.11) | / |
 | **Dependency** | RA1 | Blocks RA3 |
 
@@ -53,14 +53,15 @@ actual merge PR.
 
 ## Tasks
 
-- [ ] Confirm RA1 is fully merged and CI is green on `proj/v2.0.0-bump`.
-- [ ] Merge `proj/v2.0.0-bump` → `staging`.
-- [ ] Confirm CI is green on `staging` post-merge.
+- [x] Confirm RA1 is fully merged and CI is green on `proj/v2.0.0-bump`.
+- [x] Merge `proj/v2.0.0-bump` → `staging` (via #49, see above — not #46).
+- [x] Confirm CI is green on `staging` post-merge.
 
 ## UAT (manual)
 
-- [ ] Full test suite green on `staging` post-merge (backend, frontend,
-      ops lint, docs build).
+- [x] Full test suite green on `staging` post-merge (backend, frontend,
+      ops lint, docs build) — confirmed via `ci` run on `staging`
+      (`30810848762`), all jobs passing.
 
 ## Non-regression tests
 

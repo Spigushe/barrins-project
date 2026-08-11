@@ -5,6 +5,13 @@ Version: 1.0
 
 ---
 
+## 0. Active Skills
+
+- **graphify** (`.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+  When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+---
+
 ## 1. Purpose of this document
 
 This document defines the permanent development rules for Claude Code when

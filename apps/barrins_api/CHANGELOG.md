@@ -65,6 +65,14 @@ section of the docs site for details.
   constraint on its natural key so replaying the scrape archive through a
   future ingestion route is an idempotent upsert. Not yet wired to any
   route.
+- `GET /internal/scripture/db-metrics`: on-disk size
+  (`pg_total_relation_size` — heap + indexes + TOAST) and live row count
+  of every `bs_*` table (`app/services/scripture/db_metrics.py`). Callable
+  by either the same `X-Scripture-Token` service credential as `/ingest`
+  or an admin user's JWT (`verify_scripture_or_admin`,
+  `app/dependencies/service_auth.py`) — the first combined
+  service-secret-or-admin gate in the codebase, scoped to `bs_*` only so
+  the service credential never sees other apps' table sizes.
 - Admin usage/metrics dashboard (`app/api/tamiyo_scroll/admin.py`, gated
   by `AdminUser`): flat totals (accounts, personal decks, matches
   recorded) via `app/services/metrics/`, plus day (last 30)/week (last
@@ -88,6 +96,21 @@ section of the docs site for details.
   inherits its creating personal deck's `game`, and cascades to that
   meta deck's own opponent entries, so a non-Magic personal deck doesn't
   silently produce `NULL`-game meta decks (2026-08-03 follow-up to S10).
+- Live MTGJSON import progress: `GET /mtgjson/import/status` (admin-gated)
+  returns the most recent `POST /mtgjson/import` run's status
+  (`running`/`succeeded`/`failed`), counts so far, and `error_message` on
+  failure. A new `mj_import_runs` table is written independently of the
+  main import transaction (`_ImportRunTracker`, its own short-lived
+  session committed at the same granularity as the existing upsert
+  chunking), since the importer only commits `mj_sets`/`mj_cards` once at
+  the end and Postgres's default isolation would otherwise hide all
+  progress from any poll until the whole import finished. A leftover
+  `running` row from a hard crash (e.g. the 2026-08-09 OOM incident) is
+  self-healed to `failed` the next time an import starts, rather than
+  staying stuck forever. The existing `sets`/`cards` tables are also
+  renamed to `mj_sets`/`mj_cards` in the same migration, matching this
+  codebase's `bs_*`/`ts_*` domain-prefix convention (DB-internal only —
+  API paths and ORM class names are unaffected).
 
 ### Changed
 
@@ -127,6 +150,23 @@ section of the docs site for details.
   `game` to `TSPersonalDeck`/meta decks, so `ResponseMetaDeck.
   model_validate()` failed Pydantic validation on the merged roster,
   breaking the whole list rather than just the new decks.
+- `POST /mtgjson/import` no longer OOM-kills the backend worker on a real,
+  full `AllPrintings.json` run: `HttpxMTGJSONClient` buffered the whole
+  response body and parsed JSON tree, and `import_all_printings` built
+  full `set_rows`/`card_rows` lists on top of that, all before writing a
+  single row (2026-08-09 incident: ~5.5GB RSS, worker killed mid-import,
+  zero rows committed). Both now stream via `ijson` (new dependency,
+  `stream_sets()` + `_ImportBuffer`), bounding peak memory to
+  `_UPSERT_CHUNK_SIZE` rows instead of file size; still one commit at the
+  end, same idempotent-upsert contract.
+- `GET /mtgjson/status`'s `last_imported_at` no longer freezes at each
+  row's original insert time: the chunked upsert's raw
+  `INSERT ... ON CONFLICT DO UPDATE` bypassed the ORM unit-of-work path,
+  so `MTGSet`/`Card`'s `onupdate=func.now()` never fired on a re-import's
+  conflict branch. Found while UAT-ing the streaming fix above against
+  the real full file on staging (2026-08-09): two successful runs,
+  `last_imported_at` still showed the first run's timestamp. `updated_at`
+  is now set explicitly in `_upsert_sets`/`_upsert_cards`'s `update_cols`.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

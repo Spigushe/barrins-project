@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/ops/security/secrets.md`, `ops/my-server/secrets/README.md` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — unblocked, §1.2/I3 decided 2026-07-25 (Option 2: private ingestion route, needs a service credential) | / |
+| **Status** | ✅ **Done, 2026-08-11** — the `docs/content/ops/security/secrets.md` narrative section ("Service-to-service credentials: `SCRIPTURE_INGEST_TOKEN`") is written, mirroring the existing "Why `github_token` is different" section's shape. The `.env.example`/`ops/my-server/secrets/README.md` half was already done as a byproduct of T8 (2026-08-08) — see Context | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1.2 | / |
 | **Dependency** | I3 (§1.2) | / |
 
@@ -23,6 +23,18 @@ only, never reaching a browser. `security/secrets.md` needs updating to
 describe it, the same way ADR-1 already documents the reasoning for
 every other secret's handling.
 
+**Overlap found 2026-08-08**: T8, while wiring the T3 sweep onto its own
+systemd timer, already needed to document `SCRIPTURE_INGEST_TOKEN`
+operationally (`ops/my-server/secrets/README.md`, plus
+`secrets/barrins_api/*.env.example` and the new
+`secrets/barrins_scripture/*.env.example`) so the sweep's deploy
+(`deploy_env`-gated staging validation before production) made sense on
+its own. That covers this item's `.env.example`/`ops/my-server/secrets/
+README.md` half. What's still genuinely this item's own scope is the
+narrative write-up in `docs/content/ops/security/secrets.md` — the
+`security/secrets.md` file this page's Target/Done statement actually
+names — which T8 had no reason to touch.
+
 ## Done statement
 
 - The new credential follows the existing "never in git" pattern
@@ -34,10 +46,10 @@ every other secret's handling.
 
 ## Tasks
 
-- [ ] Generate/document the credential's `.env.example` entry for
+- [x] Generate/document the credential's `.env.example` entry for
       whichever app(s) need it (`barrins_api`, and Barrin's Scripture
-      once T1 lands).
-- [ ] Write the `security/secrets.md` section.
+      once T1 lands). **Done, via T8 (2026-08-08)**: see Context.
+- [x] Write the `security/secrets.md` section. **Done, 2026-08-11.**
 
 ## UAT (manual)
 
