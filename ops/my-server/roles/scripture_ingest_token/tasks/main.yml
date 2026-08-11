@@ -1,0 +1,46 @@
+---
+# Shared by every playbook that needs the Barrin's Scripture ingestion
+# secret (barrins_api.yml, barrins_scripture.yml) — reads it once from a
+# single local file instead of requiring the same value hand-copied into
+# both apps' secrets/<app>/*.env, mirroring the github_token role's
+# pattern (see roles/github_token/tasks/main.yml).
+
+- name: Resolve the shared scripture ingest token file path
+  # Keyed by deploy_env (both barrins_api.yml and barrins_scripture.yml
+  # already define it) so staging and production keep separate token
+  # values, the same isolation secrets/<app>/{staging,production}.env
+  # already has — only the per-app duplication goes away, not the
+  # per-environment split.
+  ansible.builtin.set_fact:
+    scripture_ingest_token_file: >-
+      {{ scripture_ingest_token_file | default(playbook_dir + '/secrets/scripture/'
+      + deploy_env + '_ingest_token.txt') }}
+
+- name: Check the local scripture ingest token file exists
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ scripture_ingest_token_file }}"
+  register: scripture_ingest_token_stat
+
+- name: Fail fast if it's missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ scripture_ingest_token_file }} does not exist. Create it with:
+      openssl rand -hex 32 | tr -d '\n' > {{ scripture_ingest_token_file }} &&
+      chmod 600 {{ scripture_ingest_token_file }} — see secrets/README.md.
+      Use a DIFFERENT value for staging_ingest_token.txt vs.
+      production_ingest_token.txt, the same isolation SECRET_KEY already
+      requires.
+  when: not scripture_ingest_token_stat.stat.exists
+
+- name: Read the local scripture ingest token  # noqa: var-naming[no-role-prefix]
+  # Deliberately unprefixed: this is the whole point of the role — a
+  # shared, playbook-level `scripture_ingest_token` fact that
+  # barrins_api.yml/barrins_scripture.yml both inject into their
+  # respective deployed .env files. Prefixing it would break that
+  # contract for either playbook.
+  become: false
+  no_log: true
+  ansible.builtin.set_fact:
+    scripture_ingest_token: "{{ lookup('ansible.builtin.file', scripture_ingest_token_file) }}"

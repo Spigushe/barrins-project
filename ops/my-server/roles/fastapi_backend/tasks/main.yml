@@ -52,6 +52,7 @@
     dest: "{{ fastapi_backend_config.app_root }}"
     version: "{{ fastapi_backend_deploy_ref }}"
     update: true
+    force: true
 
 - name: Ensure uv is installed
   become: false

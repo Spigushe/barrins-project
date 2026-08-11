@@ -11,6 +11,8 @@ Technical documentation for the `barrins-project` monorepo.
 - **front end**
   - _`tamiyo_scroll`_: ReactJS / Test result tracker
   - _`tolaria_news`_: ReactJS / Duel Commander data display & exploration !WIP!
+- **service** — Standalone background services (no HTTP API of their own)
+  - _`barrins_scripture`_: MTG tournament scraper (MTGO / MTGTop8)
 - **ops** — Deployment, infrastructure (Ansible / myserver)
 
 > This page and its associated `nav:` (in `mkdocs.yml`) are

@@ -869,3 +869,103 @@ an unfamiliar drawing/flowable API.
 [cve-2026-49452]: https://advisories.gitlab.com/pkg/pypi/weasyprint/CVE-2025-68616/
 [cve-2023-33733]: https://arcticwolf.com/resources/blog/cve-2023-33733-rce-vulnerability-in-reportlab-pdf-toolkit/
 [reportlab-cves]: https://www.cvedetails.com/vulnerability-list/vendor_id-22377/product_id-76137/Reportlab-Reportlab.html
+
+## ADR-12: Barrin's Scripture scheduling moves from VPS systemd back to GitHub Actions
+
+**Context.** `docs/content/service/barrins_scripture/incidents/
+2026-08-10-mtgo-network-block.md` documents a confirmed, IP-specific
+network block: mtgo.com silently drops every connection from the VPS's
+static outbound IP (`146.59.146.57`) — a `curl -4` straight to mtgo.com's
+own IP hangs ~130s and returns nothing, while control domains
+(`example.com`, `github.com`) over the same path succeed instantly, and
+`mtr` shows 100% packet loss only on hops at/after mtgo.com's own
+network. The same unmodified scraper code, run from a personal laptop and
+from GitHub Actions runner IPs, reaches mtgo.com fine — ruling out a
+blanket datacenter-IP policy and pointing at this one VPS IP specifically
+(plausibly its own prior scraping volume/pattern). This is not fixable in
+application code: no amount of timeout tuning or retry logic can complete
+a TCP connection the destination silently drops.
+
+This also revisits ADR-5/T1's 2026-07-29 decision, which had moved
+scheduling *off* `mtg_scraper`'s GitHub Actions cron onto VPS systemd
+(`ops/my-server/roles/scripture_scraper/`), for consistency with the
+`postgres_backup` `.service`/`.timer` pattern — a decision this ADR
+partially reverses, for a different, now-confirmed reason.
+
+**Alternatives considered.**
+
+1. **Request a new IP from the VPS provider (OVH).** Smallest change —
+   architecture stays exactly as-is. Risk: if the block really is
+   volume/pattern-triggered (the working theory), a new static IP can
+   accumulate the same history and get flagged again later — this
+   doesn't remove the failure mode, only resets its clock, and each
+   recurrence costs a fresh round of network-level investigation to
+   re-diagnose.
+2. **Move only the MTGO leg to GitHub Actions**, keep MTGTop8 + the
+   sweep/ingestion tick on the VPS. Exploits the confirmed evidence
+   directly. Rejected: for one logical scraper, running two scheduling
+   mechanisms (VPS systemd + GitHub Actions) is more operationally
+   expensive than one — duplicated secrets, two places to monitor — for
+   no benefit once MTGTop8 isn't the thing that's blocked.
+3. **Move the whole scraper (MTGO + MTGTop8 + sweep) to GitHub Actions.**
+   Same proven-safe path as option 2, applied to the whole pipeline
+   instead of splitting it. Reverts more of T1's scheduling decision, but
+   is the cheaper shape operationally — one scheduling mechanism, one set
+   of secrets, one place to look when something fails.
+4. **Route MTGO traffic through a proxy**, keep VPS scheduling unchanged.
+   A new external dependency (§22 approval process), ongoing
+   cost/maintenance, and doesn't remove the single-point-of-failure
+   concern the IP-specific block already demonstrated.
+
+**Trade-offs.**
+
+- GitHub Actions runner IPs are drawn from a large, rotating pool —
+  structurally resistant to the "one IP accumulates enough history to get
+  individually flagged" failure mode a static VPS IP is exposed to,
+  regardless of how that IP was obtained.
+- The repo is public, so GitHub Actions minutes are free — no cost
+  difference between options 2/3.
+- Losing `Persistent=true`'s missed-run catch-up: GitHub Actions
+  `schedule` triggers are best-effort, with no equivalent guarantee. In
+  practice this is close to moot here — `scrape`'s MTGO default window
+  is "5 days ago to today" and the sweep's default lookback is 7 days,
+  so a single missed scheduled run is picked up whole by the next one.
+- Gaining back email-on-failure notification: the VPS migration
+  (T1/T8) explicitly dropped `mtg_scraper`'s
+  `dawidd6/action-send-mail` step as a known, accepted trade-off, pending
+  a generic scheduled-job notification mechanism (D2/F1). GitHub already
+  emails the repo owner by default when a scheduled workflow run fails,
+  so moving back to Actions recovers equivalent behavior without
+  reintroducing that dependency.
+- Secrets duplication: `ARCHIVE_PUSH_TOKEN` and `SCRIPTURE_INGEST_TOKEN`
+  now also need to exist as GitHub Actions repository secrets, alongside
+  their existing local, git-ignored `ops/my-server/secrets/` copies —
+  one more place a rotated value needs updating.
+
+**Decision.** Option 3 — move MTGO + MTGTop8 scraping and the sweep/
+ingestion tick to a single new workflow,
+`.github/workflows/scripture-scrape.yml`, scheduled daily at the same
+22:00 UTC the VPS timer used, plus `workflow_dispatch` for manual/backfill
+runs. `ops/my-server/roles/scripture_scraper/` is not deleted: its
+`.service`/`.timer` units, wrapper scripts, and the (now-redundant) local
+archive clone and app checkout are torn down on the VPS via a new
+`scripture_scraper_teardown` role var, but the role's deploy logic stays
+in the repo unchanged behind that same var — a rollback is "redeploy with
+the var unset," not "resurrect the role from git history."
+
+**Consequences.**
+
+- `barrins_api`'s ingestion endpoint (`POST /internal/scripture/ingest`,
+  ADR-5) and its idempotent-upsert contract are unaffected — the sweep
+  still calls the same route, just from a different runner.
+- The JSON archive (`Spigushe/mtg_decklist_cache`) is now committed to
+  directly from GitHub Actions instead of via the VPS's local clone +
+  sweep-timer push — same repository, same commit identity
+  (`Barrin's Scripture` / `scripture@barrins-codex.org`), same
+  idempotent "only commit if `git status --porcelain` is non-empty"
+  guard.
+- If mtgo.com ever also blocks GitHub Actions' IP ranges (a broader,
+  differently-shaped block than what's confirmed today), this decision
+  would need revisiting — nothing here rules that out, it's just not
+  what the evidence in the 2026-08-10 incident shows.
+- This resolves the 2026-08-10 incident.

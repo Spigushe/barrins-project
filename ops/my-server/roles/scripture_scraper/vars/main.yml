@@ -5,11 +5,36 @@ scripture_scraper_config:
   git_branch: "{{ scripture_scraper_git_branch | default('main') }}"
   app_name: "{{ scripture_scraper_app_name }}"
   app_root: "/home/{{ username }}/projects/{{ scripture_scraper_app_name }}"
+  # Systemd unit base names and script paths are derived from app_name so
+  # that side-by-side staging/production deploys (distinct app_name per
+  # barrins_scripture.yml's env_suffix) get their own units instead of
+  # fighting over one shared timer/service.
+  service_name: "{{ scripture_scraper_app_name }}"
+  sweep_service_name: "{{ scripture_scraper_app_name }}_sweep"
+  scrape_script_path: "/usr/local/bin/{{ scripture_scraper_app_name }}_scrape.sh"
+  sweep_script_path: "/usr/local/bin/{{ scripture_scraper_app_name }}_sweep.sh"
   work_dir: >-
     {{ '/home/' + username + '/projects/' + scripture_scraper_app_name
     + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') }}
+  # Deliberately NOT nested under app_root/work_dir (2026-08-09 incident):
+  # the app-repo clone task above runs force:true, which wiped this
+  # directory's own nested archive clone — including everything backfilled
+  # since the last sweep push — the first time a redeploy ran after data
+  # had been scraped. Living under a path the app-repo checkout never
+  # touches makes that structurally impossible, not just discouraged.
   output_dir: >-
-    {{ scripture_scraper_output_dir | default('/home/' + username + '/projects/' + scripture_scraper_app_name
-    + ('/' + scripture_scraper_repo_subdir if (scripture_scraper_repo_subdir | default('')) | length > 0 else '') + '/scraped') }}
+    {{ scripture_scraper_output_dir | default('/home/' + username + '/archives/' + scripture_scraper_app_name) }}
   daily_hour: "{{ scripture_scraper_daily_hour | default(22) }}"
   github_token: "{{ scripture_scraper_github_token | default(github_token) }}"
+  env_file: "{{ scripture_scraper_env_file | default('') }}"
+  sweep_days: "{{ scripture_scraper_sweep_days | default(7) }}"
+  archive_repo: "{{ scripture_scraper_archive_repo | default('Spigushe/mtg_decklist_cache') }}"
+  archive_git_branch: "{{ scripture_scraper_archive_git_branch | default('main') }}"
+  archive_commit_name: "{{ scripture_scraper_archive_commit_name | default(\"Barrin's Scripture\") }}"
+  archive_commit_email: "{{ scripture_scraper_archive_commit_email | default('scripture@barrins-codex.org') }}"
+  # Debian's chromium/chromium-driver packages (installed by this role) at
+  # their standard paths — passed to the MTGO scrape service as
+  # CHROME_BINARY_PATH/CHROMEDRIVER_PATH so Selenium starts a version-matched
+  # local pair instead of downloading one over the network on every run.
+  chrome_binary_path: "{{ scripture_scraper_chrome_binary_path | default('/usr/bin/chromium') }}"
+  chromedriver_path: "{{ scripture_scraper_chromedriver_path | default('/usr/bin/chromedriver') }}"

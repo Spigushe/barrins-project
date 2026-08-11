@@ -1,9 +1,16 @@
 [Unit]
-Description=Barrin's Scripture — scrape MTGO/MTGTop8 tournaments
+Description=Barrin's Scripture ({{ scripture_scraper_config.app_name }}) — scrape MTGO/MTGTop8 tournaments
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
+# Debian's DefaultTimeoutStartSec (90s) bounds the full ExecStart duration
+# for Type=oneshot, not just process spawn — a scrape (especially a
+# backfill run manually with a wide --date-from/--date-to) can take far
+# longer than that, so without this override systemd kills it mid-run.
+TimeoutStartSec=infinity
 User={{ username }}
-ExecStart=/usr/local/bin/barrins_scripture_scrape.sh
+Environment=CHROME_BINARY_PATH={{ scripture_scraper_config.chrome_binary_path }}
+Environment=CHROMEDRIVER_PATH={{ scripture_scraper_config.chromedriver_path }}
+ExecStart={{ scripture_scraper_config.scrape_script_path }}

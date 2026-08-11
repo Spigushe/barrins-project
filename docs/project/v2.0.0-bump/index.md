@@ -82,7 +82,85 @@ git merge-base between two long-lived branches, so a conflict between
 resurfaces immediately in the other) — recorded as
 [`consitution-amendment.md`](consitution-amendment.md) **Proposal 7**,
 not yet reviewed, ahead of Group R's own `proj/v2.0.0-bump` → `staging`
-promotion hitting the same thing later this release.
+promotion hitting the same thing later this release. **RA2 and RA3 both
+completed the same day** using Proposal 7's workaround — RA3 hit it at
+much larger scale (`main`/`staging` share no real ancestry since this
+repo's first commit), confirming the mechanism generalizes beyond the
+one pair of branches it was first found on. `v2.0.0-alpha` is now on
+`main`; RA4 (tag) and RA5 (deploy) remain.
+**Later still the same day**: preparing the Group T/D deployment chain
+(D1 → S8 → {S4, T3} → T6 → {T7, T8} → D2) surfaced that **T7 and D2 each
+depend on an item outside that chain** (T7 needs T4/T5; D2 needs F1) —
+the user chose to fold F1/T4/T5 into the same tracked chain rather than
+leave them dangling. **D1 completed the same session**: the checklist
+lives at `docs/content/ops/deployment/new-service-checklist.md`. Starting
+it surfaced that T1 had already built a concrete scheduled-job precedent
+(`scripture_scraper`/`barrins_scripture.yml`) ahead of D1 existing — T8's
+page and this table's T8 row are corrected accordingly (Barrin's
+Scripture half partially done, not "not started"). Next up in the chain:
+S8 (now unblocked on D1) and F1 (always unblocked, feeds D2) can both
+start; T3 stays blocked on S8; T4 stays blocked on T2 (done).
+**Updated again 2026-08-08**: a third documentation-sync pass — this
+table had fallen behind its own subfolder pages again, this time by
+several days of real progress (2026-08-05 through 2026-08-08) rather
+than a wording gap. Corrected here to match. **S8's core pipeline
+shipped 2026-08-05** (`Card`/`MTGSet` models, admin-gated
+`POST /mtgjson/import`, public `GET /sets/*`/`GET /cards/*` reads),
+immediately unblocking T3; a chunked-upsert performance fix followed
+2026-08-07 (a 45-minute import cut to low minutes). Only S8's scheduled-
+refresh mechanism remains open; S4 still hasn't started. **T3 landed
+complete 2026-08-07**: `POST /internal/scripture/ingest`, the card-name
+resolver validating against S8's data, and the standalone
+`barrins-scripture-sweep` entry point are all built and test-driven —
+superseding the originally-planned push + maintenance-gate + backoff
+design with a periodic idempotent sweep (the archive stays the sole
+handoff point, so a failed tick just gets picked up next tick; no
+scraper-side retry logic needed). Not yet exercised against staging with
+real data — see T3's own UAT. **T1's transfer work completed 2026-08-07**:
+`mtg_scraper` and the old `mtg_decklist_cache` are both archived under
+`barrins-archive`, and a fresh (not history-preserving — the old data's
+schema doesn't carry forward, see T1's page) `Spigushe/mtg_decklist_cache`
+now exists. Remaining: wiring the actual git submodule into
+`scripture_scraper` and backfilling the new archive. **T8 closed its
+remaining D1-checklist gaps and scheduled the sweep 2026-08-08**: the
+sweep now runs on its own timer (independent of the daily scrape),
+`SCRIPTURE_INGEST_TOKEN` is documented across `ops/my-server/secrets/`,
+and a `deploy_env` var lets the sweep be validated against staging before
+a production cutover. This also closes half of **D3**'s scope ahead of
+D3 itself starting — D3's own page is corrected to reflect that only its
+`docs/content/ops/security/secrets.md` write-up is still open, not the
+`.env.example`/`ops/my-server/secrets/README.md` documentation. **T6 is
+now startable**: its last two dependencies (T2, T3) are both done, on top
+of I4 already being resolved — alongside F1, which remains untouched.
+**Later still, same day**: T1's remaining "wire up the git submodule"
+task landed — `scripture_scraper` now clones `output_dir` as a real
+working copy of `Spigushe/mtg_decklist_cache` (not a plain directory),
+and the sweep wrapper commits + pushes any pending archive changes at
+the start of every tick, ahead of ingestion. Prompted by this: T8's
+`SCRIPTURE_INGEST_TOKEN` documentation task (above) is **also revised**
+— the "duplicate the value across both apps' secrets files, no automated
+sync" decision is superseded by a new `scripture_ingest_token` role
+(mirrors `github_token`), so the value now lives in exactly one place
+per environment (`secrets/scripture/{staging,production}_ingest_token.txt`)
+instead of two hand-synced copies. Both changes are code-complete but
+**not yet exercised against real infra** — see T1's own UAT, in
+particular confirming the shared `github_token` PAT actually has push
+(not just read) access to `Spigushe/mtg_decklist_cache`.
+**2026-08-10, ADR-12**: mtgo.com started blocking the VPS's static
+outbound IP specifically (see
+`docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md`).
+Two same-day MTGO scraper fixes (eager page-load strategy, page-load
+timeout scaled across retries) did not resolve it — the network block is
+IP-specific, not a client-side timing issue. Fix: scrape+sweep scheduling
+moved off the VPS's `scripture_scraper` systemd timers entirely, onto
+`.github/workflows/scripture-scrape.yml` (GitHub Actions' rotating
+runner IPs, confirmed unaffected). T1's and T8's rows are corrected
+accordingly; the VPS role stays in the repo, dormant, as a rollback path
+only. **2026-08-11**: a local `--mode full` sweep against a dev
+`barrins_api` populated `bs_rounds`/`bs_standings` for the first time,
+the MTGO-only fields T3's page flagged as unverified — not yet the
+staging exercise T3's UAT calls for, but the first confirmation the
+ingestion path works end to end for MTGO data at all.
 
 ---
 
@@ -1093,14 +1171,14 @@ R5 turning each into a real ADR.
 
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
-| T1 | Migrate/create `apps/barrins_scripture` per I2's outcome | I2 | 🟡 **In progress (PR #41 merged)** — rewrite (schemas/parsers/services/CLI), CI job, and the `ops/my-server` deploy playbook are done (118 tests, 95%+ coverage). Still open: transferring `mtg_scraper`/`mtg_decklist_cache` to their durable location, standing up the JSON archive's own dump sub-repo (§1.3), and archiving `mtg_scraper` once parity is confirmed. **Given, not urgent**: the `barrins-project` org hosting both repos will eventually be deleted by the user once no longer needed — no deadline | [t1-scripture-repo-migration/](t1-scripture-repo-migration/index.md) |
-| T2 | Design the scraped-tournament schema in `barrins_api` (the domain previously referenced as "`dl_*`" but never built — see §0, F7) | I3 | 🟡 **In progress (PR #43 merged)** — `bs_*` models, Alembic migration (`49c50188ee55`), and 13 model tests done (253 passing, 98.30% coverage). Prefix decided as `bs_` (Barrin's Scripture), not `dl_` — `dl_` was inherited from a dead reference doc (F7), never a real convention. Still open: the `docs/decklist_integration/` doc decision (F7), and applying the migration to a real database (blocked on T3 existing to use the tables) | [t2-scraped-tournament-schema/](t2-scraped-tournament-schema/index.md) |
-| T3 | Build the scrape → JSON-archive → ingest pipeline per I3's outcome | T1, T2, S8 | Keeps the existing `mtg_decklist_cache`-style JSON archive (§1.3); ingestion route must support a maintenance-mode gate (§1.2). **Blocked on S8 (added 2026-07-30, §1.10)**: scraped card names must validate against real MTG data before being stored — on hold until S8 is scoped | [t3-scripture-ingestion-pipeline/](t3-scripture-ingestion-pipeline/index.md) |
+| T1 | Migrate/create `apps/barrins_scripture` per I2's outcome | I2 | 🟡 **In progress — transfer done 2026-08-07, submodule wiring done 2026-08-08.** Rewrite (schemas/parsers/services/CLI), CI job, and the `ops/my-server` deploy playbook are done (130 tests, 95%+ coverage). `mtg_scraper` and the old `mtg_decklist_cache` are both archived under `barrins-archive`; a fresh `Spigushe/mtg_decklist_cache` exists (not a history transfer — old data's schema doesn't carry forward, see page). `scripture_scraper` now clones/pushes it as a real archive repo (the sweep commits+pushes each tick), not yet exercised against real infra (push-access UAT open). **2026-08-10**: mtgo.com started blocking the VPS's static outbound IP (see the service incident page and ADR-12) — scrape+sweep scheduling moved from the VPS's systemd timers to GitHub Actions' rotating runner IPs, confirmed unaffected. Still open: backfilling the new archive's history (MTGTop8 `--id-from` now supports this; MTGO's `--date-from`/`--date-to` already did) | [t1-scripture-repo-migration/](t1-scripture-repo-migration/index.md) |
+| T2 | Design the scraped-tournament schema in `barrins_api` (the domain previously referenced as "`dl_*`" but never built — see §0, F7) | I3 | 🟡 **In progress (PR #43 merged)** — `bs_*` models, Alembic migration (`49c50188ee55`), and 13 model tests done (253 passing, 98.30% coverage). Prefix decided as `bs_` (Barrin's Scripture), not `dl_` — `dl_` was inherited from a dead reference doc (F7), never a real convention. Code-complete enough that T3 treats this dependency as satisfied. The `docs/decklist_integration/` doc decision (F7) is resolved (redirect, 2026-08-11). Still open: applying the migration to a real (staging/production) database, now that T3 exists to use the tables | [t2-scraped-tournament-schema/](t2-scraped-tournament-schema/index.md) |
+| T3 | Build the scrape → JSON-archive → ingest pipeline per I3's outcome | T1, T2, S8 (core done) | 🟢 **Both tasks implemented (2026-08-07)** — `POST /internal/scripture/ingest` (route, service credential, upsert/delete-reinsert logic, card-name resolver validating against S8) and the standalone `barrins-scripture-sweep` entry point (recent/full modes). **Design superseded 2026-08-07**: a periodic idempotent sweep replaces the originally-planned push + maintenance-gate + backoff — the JSON archive stays the sole handoff point, so a failed tick is just caught by the next one. **2026-08-11**: a local `--mode full` sweep against a dev `barrins_api` confirmed `bs_rounds`/`bs_standings` (MTGO-only fields) now populate correctly — first end-to-end confirmation of MTGO ingestion. Not yet exercised against staging with real data — see page's UAT | [t3-scripture-ingestion-pipeline/](t3-scripture-ingestion-pipeline/index.md) |
 | T4 | Tolaria News BFF routes (`/api/v1/tolaria-news/...`), publicly readable (no per-user `CurrentUser` requirement), access-restricted by rate-limiting per I7 (resolved) — already anticipated by a comment in `bff/tamiyo_scroll.md` ("unlike the Tolaria News BFF which is publicly readable") | T2 | Follows the same router/service-package pattern as the Tamiyo Scroll BFF. **I7 resolved (Option 4, §1.9)**: no `CurrentUser`-style dependency added; instead needs an inbound rate limiter (policy — key/threshold/window/`429`/scope — still undefined, see D1/`consitution-amendment.md` Proposal 6) | [t4-tolaria-news-bff/](t4-tolaria-news-bff/index.md) |
 | T5 | `apps/tolaria_news` real frontend (React/Vite), calling `barrins_api`'s BFF only — no direct DB/calculation client-side, per §4.1/§4.2 | T4, I1 | `ops/my-server/tolaria_news.yml` already exists and is ready to deploy real code once this lands. **I7 resolved as Option 4** — T5's calling pattern is unaffected (no same-origin proxy flip; that was option 3, not chosen) | [t5-tolaria-news-frontend/](t5-tolaria-news-frontend/index.md) |
-| T6 | `apps/karn_tablets`: metagame clustering + deck-type aggregation per I4's decided scope (real service, not a placeholder) | I4, T2, T3 | Basic clustering/aggregation only for v2.0.0 (§1.4); windowing strategy (rolling 30-day vs. banlist-period) and prediction targets still need narrowing; any new ML dependency follows §4.7/§22 | [t6-karn-tablets-scaffold/](t6-karn-tablets-scaffold/index.md) |
+| T6 | `apps/karn_tablets`: metagame clustering + deck-type aggregation per I4's decided scope (real service, not a placeholder) | I4, T2, T3 | 🔲 **Not started, but now unblocked** — T2 and T3 (this item's last two dependencies) are both code-complete as of 2026-08-07. Basic clustering/aggregation only for v2.0.0 (§1.4); windowing strategy (rolling 30-day vs. banlist-period) and prediction targets still need narrowing; any new ML dependency follows §4.7/§22 | [t6-karn-tablets-scaffold/](t6-karn-tablets-scaffold/index.md) |
 | T7 | Docs: `docs/content/back/barrins_scripture/`, `docs/content/back/karn_tablets/` (now real content, not a stub), real content for `docs/content/front/tolaria_news/_links.md` | T1, T4–T6 | Follow the existing per-app docs pattern (`_links.md` + synced README) | [t7-new-apps-docs/](t7-new-apps-docs/index.md) |
-| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1, T6, D1 | See Group D — these don't fit the existing `fastapi_backend`/`react_frontend` role shapes; Karn Tablets' playbook is no longer deferrable now that I4 confirmed real scope | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
+| T8 | Deployment playbooks for Barrin's Scripture (scheduled job, not a web service) and Karn Tablets (real ML service per I4, shape TBD by T6) | T1 (done), T6, D1 (done) | 🟡 **Barrin's Scripture half done (2026-08-08), scheduling mechanism changed 2026-08-10** — `scripture_scraper` (shipped during T1) walked against D1's checklist (2026-08-05); the T3 sweep now runs on its own timer (independent of the daily scrape). `SCRIPTURE_INGEST_TOKEN` is now shared via the new `scripture_ingest_token` role (one value per environment, `secrets/scripture/`) rather than duplicated per app — supersedes this page's original per-app-file decision, same day. **ADR-12 (2026-08-10)**: after mtgo.com started blocking the VPS's static outbound IP, scrape+sweep scheduling moved off the VPS's systemd timers entirely, onto `.github/workflows/scripture-scrape.yml` (GitHub Actions' rotating runner IPs are unaffected) — the VPS's `scripture_scraper` role stays in the repo, dormant, as a rollback path only. Remaining: failure-notification (deliberately deferred to D2/F1, 2026-08-07 decision) — partially covered already, since a scheduled GitHub Actions workflow's failure emails the repo owner by default. Karn Tablets half still blocked on T6 | [t8-scripture-karn-playbooks/](t8-scripture-karn-playbooks/index.md) |
 
 ### Group S — Tamiyo Scroll changes (request item 2)
 
@@ -1113,7 +1191,7 @@ R5 turning each into a real ADR.
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | ✅ **Done (2026-07-31)**. Backend-generated (Constitution §4.1: no client-side composition of computed stats), WeasyPrint (**I8 resolved 2026-07-27**, see S5 page). Session-scoped report **and** an added session-less deck-level report (last 30 days, S1 shared-data merge included) share one calculation path (`PeriodStats`) and one renderer. **Blocks S2** — team members' PDF-report access is part of S2's Done statement | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | ✅ **Done**. Flat-count tiles plus the 2026-08-02 time-bucketed (day/week/month) comparison, charted via `recharts` (new dependency, §4.7/§22). v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
-| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | Built from scratch, not "wired up" — `auth_roles.md` describes this as already existing, verified false (F8). Blocks S4 (card sorting/images) and, **added 2026-07-30 (§1.10), T3** (scraped card-name validation at ingestion — transitively blocks T6). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
+| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | 🟢 **Core pipeline done (2026-08-05)** — `Card`/`MTGSet` models, admin-gated `POST /mtgjson/import`, public `GET /sets/*`/`GET /cards/*` reads, all built from scratch (`auth_roles.md` described this as already existing, verified false, F8). Chunked-upsert performance fix 2026-08-07 (a 45-minute import cut to low minutes). **Unblocked T3 same day (2026-08-05)**, which has since landed (2026-08-07). Still open: the scheduled-refresh mechanism. **Still blocks S4** (not started). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | ✅ **Done**. Dedicated Sessions tab (manage/create/close/reopen/archive, comparison summary, relocated `ExpectedMetagameSection` for tournament-typed sessions), full stack tested. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | ✅ **Done**. `CardGame` enum (`magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana`), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. 2026-08-03 follow-up: `game` cascades to opponent/meta decks | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
@@ -1154,7 +1232,7 @@ repo on 2026-07-25, not previously written down anywhere):
 | # | Item | Evidence | Page |
 | --- | --- | --- | --- |
 | F6 | `docs/content/ops/deployment/backend.md`'s "Validation" section states "no dedicated `/health` route in `barrins_api` today" — this is stale. `GET /health` is implemented (`app/api/general/health.py`, mounted in `main.py`) and `docs/content/ops/operations/index.md`'s own "Open items summary" table correctly lists it as implemented. The two docs contradict each other. | Direct code read: `apps/barrins_api/app/api/general/router.py`, `health.py` | [f6-health-doc-fix/](f6-health-doc-fix/index.md) |
-| F7 | Several files reference planning documents that do not exist anywhere in the repository: `docs/decklist_integration/`, `docs/tolaria_news/00_plan_general.md`, `docs/tamiyo_scroll_tracker/00_plan_general.md`, `docs/signup_email_verification/00_plan_general.md`, and (found while scoping S6/§1.7) `docs/auth_roles/10_deploiement.md` — cited from `docs/content/back/barrins_api/bff/tamiyo_scroll.md`, `docs/content/back/barrins_api/signup_email_verification.md`, `docs/content/front/tamiyo_scroll/bootstrap.md`, `apps/barrins_api/scripts/create_admin.py`, and from code comments in `app/services/tamiyo_scroll/*.py`, `app/models/tamiyo_scroll.py`, `app/core/security.py`, `app/services/email/*.py`. Either these were real, unpublished planning docs that were never migrated into `docs/content/` during the docs restructuring, or the paths were always aspirational. Worth a deliberate decision: recreate them under `docs/content/` (if the design decisions they're cited for still need a home) or update every citing file to stop pointing at a dead path. | Full-repo search, zero matches for any of the five paths as an existing file | [f7-broken-doc-references/](f7-broken-doc-references/index.md) |
+| F7 | Several files reference planning documents that do not exist anywhere in the repository: `docs/decklist_integration/`, `docs/tolaria_news/00_plan_general.md`, `docs/tamiyo_scroll_tracker/00_plan_general.md`, `docs/signup_email_verification/00_plan_general.md`, and (found while scoping S6/§1.7) `docs/auth_roles/10_deploiement.md` — cited from `docs/content/back/barrins_api/bff/tamiyo_scroll.md`, `docs/content/back/barrins_api/signup_email_verification.md`, `docs/content/front/tamiyo_scroll/bootstrap.md`, `apps/barrins_api/scripts/create_admin.py`, and from code comments in `app/services/tamiyo_scroll/*.py`, `app/models/tamiyo_scroll.py`, `app/core/security.py`, `app/services/email/*.py`. Either these were real, unpublished planning docs that were never migrated into `docs/content/` during the docs restructuring, or the paths were always aspirational. Worth a deliberate decision: recreate them under `docs/content/` (if the design decisions they're cited for still need a home) or update every citing file to stop pointing at a dead path. 🟡 **`docs/decklist_integration/` resolved (redirect, 2026-08-11, via T2)** — four paths remain | Full-repo search, zero matches for any of the five paths as an existing file | [f7-broken-doc-references/](f7-broken-doc-references/index.md) |
 | F8 | Same category of gap as F7, found 2026-07-26 while scoping S4: `docs/content/back/barrins_api/auth_roles.md` describes a `POST /mtgjson/import` route, an `admin`-gated MTGJSON import capability, and implies `sets`/`cards` read routes exist (`GET /sets/`, `GET /cards/{uuid}`, etc.) as part of the **already-implemented** role/security matrix. **None of it exists in code.** Zero Python files anywhere in the repository reference `mtgjson`; no `Card`/`Set` ORM model exists. This is purely aspirational documentation, not a resurrected or hidden feature — S4 and S2's deck-validation gate were both originally scoped assuming this pipeline already existed; both now depend on **S8** instead. | Full-repo search (`grep -ri mtgjson`), zero Python matches; `auth_roles.md`'s security matrix and role table are the only places this is described | [f8-mtgjson-docs-gap/](f8-mtgjson-docs-gap/index.md) |
 | F9 | ✅ **Done** (PR #23) — branch protection & CI coverage gap for `proj/*` branches, decided 2026-07-26 (§3): `.github/workflows/CI.yml` only triggered on `pull_request`/`push` to `[staging, main]` — verified directly in the workflow file — so every `proj/*` PR (including this release's own `proj/v2.0.0-bump` and its sub-branches) ran **no CI at all**. No GitHub branch-protection ruleset covered `proj/*` either, so PRs into it weren't actually mandatory, only conventional. Both gaps closed: `proj/*` added to `CI.yml`'s triggers, and a new `proj-release-branch-protection` ruleset added; UAT confirmed (test PR ran CI, direct push rejected) | `.github/workflows/CI.yml` (direct read); carried-over open item from v1.0.0, now decided | [f9-proj-branch-protection/](f9-proj-branch-protection/index.md) |
 
@@ -1162,9 +1240,9 @@ repo on 2026-07-25, not previously written down anywhere):
 
 | # | Item | Depends on | Notes | Page |
 | --- | --- | --- | --- | --- |
-| D1 | A documented **playbook template/checklist** generalizing Constitution §37/§26.1 for service *shapes* that don't exist yet in `ops/my-server/roles/` — today there's only `fastapi_backend` (web API) and `react_frontend` (static SPA). Barrin's Scripture is a **scheduled job**, not a long-running web service; Karn Tablets (real scope confirmed by I4, §1.4) is likely a third shape again — a periodic clustering job, possibly with a small results-serving API. | I2, I4 | This is the concrete deliverable behind "new applications and services will need a playbook for deployment" — a template, not a finished playbook for a service that isn't designed yet | [d1-playbook-template/](d1-playbook-template/index.md) |
-| D2 | Extend monitoring (HetrixTools or its successor per F1) to cover the new service(s) | F1, D1 | | [d2-monitoring-extension/](d2-monitoring-extension/index.md) |
-| D3 | Update `security/secrets.md` / `ops/my-server/secrets/README.md` for whatever new credential(s) I3 introduces (e.g. a Barrin's-Scripture-to-`barrins_api` service token) | I3 | Same "never in git" pattern as ADR-1, just documenting the new secret | [d3-secrets-docs-update/](d3-secrets-docs-update/index.md) |
+| D1 | A documented **playbook template/checklist** generalizing Constitution §37/§26.1 for service *shapes* that don't exist yet in `ops/my-server/roles/` — today there's only `fastapi_backend` (web API) and `react_frontend` (static SPA). Barrin's Scripture is a **scheduled job**, not a long-running web service; Karn Tablets (real scope confirmed by I4, §1.4) is likely a third shape again — a periodic clustering job, possibly with a small results-serving API. | I2, I4 | ✅ **Done (2026-08-03)** — [`new-service-checklist.md`](../../content/ops/deployment/new-service-checklist.md). Found while starting this item: T1 already built a concrete scheduled-job instance (`scripture_scraper`) ahead of this template — used as a precedent instead of duplicated, see T8 | [d1-playbook-template/](d1-playbook-template/index.md) |
+| D2 | Extend monitoring (HetrixTools or its successor per F1) to cover the new service(s) | F1, D1 | 🔲 Unblocked on D1 (done); still needs F1 | [d2-monitoring-extension/](d2-monitoring-extension/index.md) |
+| D3 | Update `security/secrets.md` / `ops/my-server/secrets/README.md` for whatever new credential(s) I3 introduces (e.g. a Barrin's-Scripture-to-`barrins_api` service token) | I3 | ✅ **Done, 2026-08-11** — `SCRIPTURE_INGEST_TOKEN` documented in `ops/my-server/secrets/README.md` and per-app `*.env.example` files (byproduct of T8, 2026-08-08), plus the `docs/content/ops/security/secrets.md` narrative section ("Service-to-service credentials: `SCRIPTURE_INGEST_TOKEN`"). Same "never in git" pattern as ADR-1 | [d3-secrets-docs-update/](d3-secrets-docs-update/index.md) |
 
 ### Group R — Release wrap (mirrors v1.0.0's B1–B7)
 

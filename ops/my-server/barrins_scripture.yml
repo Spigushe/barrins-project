@@ -3,6 +3,14 @@
 # has no HTTP-facing component (see apps/barrins_scripture/README.md) —
 # it's a scheduled job, not a deployed web service — so no domain/SSL/
 # reverse-proxy roles are involved here, unlike barrins_api.yml/docs.yml.
+#
+# ADR-12 (docs/content/ops/architecture/decisions.md): the scrape+sweep
+# schedule itself has moved to .github/workflows/scripture-scrape.yml —
+# this playbook now runs the scripture_scraper role's teardown path
+# (scripture_scraper_teardown: true, below) to remove the VPS-side
+# units/scripts/clones that role used to deploy, rather than deploying
+# them. The role's deploy path is unchanged and still available as a
+# rollback (see its README).
 - name: Deploy/schedule the Barrin's Scripture scraper
   hosts: spigushe
   become: true
@@ -11,26 +19,231 @@
     username: spigushe
     scripture_scraper_repo: Spigushe/barrins-project
     scripture_scraper_repo_subdir: apps/barrins_scripture
-    scripture_scraper_app_name: barrins_scripture
     # Defaults to staging until T1's rewrite is proven equivalent to
     # mtg_scraper (see that item's own done statement) — pass
-    # -e scripture_scraper_git_branch=main once it's ready to cut over.
-    scripture_scraper_git_branch: "{{ deploy_branch | default('staging') }}"
+    # -e deploy_env=production once it's ready to cut over. Mirrors
+    # barrins_api.yml: deploy_env alone drives the git branch, the
+    # checkout/work dir, the systemd unit names (via app_name) and which
+    # .env is loaded, so staging and production run as fully independent,
+    # side-by-side scraper instances instead of sharing one install.
+    #   ansible-playbook barrins_scripture.yml -e deploy_env=production
+    # To validate a feature branch against the staging API before cutting
+    # over, override the branch directly (extra-vars win over deploy_env's
+    # derived default):
+    #   ansible-playbook barrins_scripture.yml \
+    #     -e scripture_scraper_git_branch=my-feature
+    deploy_env: staging
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    scripture_scraper_app_name: "barrins_scripture{{ env_suffix }}"
+    scripture_scraper_git_branch: "{{ env_branch }}"
+    # Local, git-ignored .env — deployed to {{ scripture_scraper_config.work_dir
+    # }}/.env on every run if present on this machine, skipped otherwise
+    # (same pattern as barrins_api.yml's backend_env_file). Holds
+    # BARRINS_API_URL for the sweep timer — see secrets/README.md to
+    # create it. SCRIPTURE_INGEST_TOKEN is no longer part of this file
+    # (superseded 2026-08-08 — see the scripture_ingest_token role below):
+    # it's injected into the deployed .env from a single shared secret,
+    # not hand-copied here and into secrets/barrins_api/*.env.
+    scripture_scraper_env_file: "{{ playbook_dir }}/secrets/barrins_scripture/{{ deploy_env }}.env"
+    # ADR-12 (docs/content/ops/architecture/decisions.md): scheduling
+    # moved to .github/workflows/scripture-scrape.yml (mtgo.com blocks
+    # this VPS's static outbound IP — see
+    # docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md).
+    # This runs the role's teardown path (tasks/teardown.yml) instead of
+    # its deploy path — see that file's header comment. Flip back to
+    # false (or remove this line) to redeploy the VPS-scheduled stack
+    # from scratch if GitHub Actions ever needs to be rolled back from.
+    scripture_scraper_teardown: true
 
   roles:
     - role: github_token
+
+    - role: scripture_ingest_token
 
     - role: scripture_scraper
       tags: [scripture, deploy]
 
   post_tasks:
-    - name: Reminder — the JSON archive isn't a git submodule yet
+    - name: Check whether a .env was actually deployed to inject the token into
+      ansible.builtin.stat:
+        path: "{{ scripture_scraper_config.work_dir }}/.env"
+      register: scripture_deployed_env_stat
+      tags: [scripture, deploy]
+
+    - name: Inject the shared SCRIPTURE_INGEST_TOKEN into the deployed .env
+      no_log: true
+      ansible.builtin.lineinfile:
+        path: "{{ scripture_scraper_config.work_dir }}/.env"
+        regexp: "^SCRIPTURE_INGEST_TOKEN="
+        line: "SCRIPTURE_INGEST_TOKEN={{ scripture_ingest_token }}"
+        owner: "{{ username }}"
+        mode: "0600"
+      when: scripture_deployed_env_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Check whether the staging scrape timer exists (to stop it on production cutover)
+      ansible.builtin.stat:
+        path: /etc/systemd/system/barrins_scripture-staging.timer
+      register: staging_scrape_timer_stat
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Check whether the staging sweep timer exists (to stop it on production cutover)
+      ansible.builtin.stat:
+        path: /etc/systemd/system/barrins_scripture-staging_sweep.timer
+      register: staging_sweep_timer_stat
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Stop and disable the staging scrape timer/service to save resources on production cutover
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - barrins_scripture-staging.timer
+        - barrins_scripture-staging.service
+      when: deploy_env == 'production' and staging_scrape_timer_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Stop and disable the staging sweep timer/service to save resources on production cutover
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - barrins_scripture-staging_sweep.timer
+        - barrins_scripture-staging_sweep.service
+      when: deploy_env == 'production' and staging_sweep_timer_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Check whether a staging archive clone exists (to finalize and remove it on production cutover)
+      ansible.builtin.stat:
+        path: "/home/{{ username }}/archives/barrins_scripture-staging"
+      register: staging_archive_dir_stat
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Commit and push any pending staging archive changes before deleting it
+      # Mirrors barrins_scripture_sweep.sh.j2's own commit/push step exactly,
+      # then always pushes (even with nothing new to commit) to also catch a
+      # prior tick that committed but failed to push. become: false to match
+      # the sweep service's own user (see barrins_scripture_sweep.service.j2)
+      # and keep the resulting commit/push under the right git identity. No
+      # force involved and the task fails (set -e) rather than deleting on a
+      # failed push — this play has become: true, so a task failure here
+      # halts the run before the delete task below can run, refusing to
+      # discard archive data the same way the 2026-08-09 incident (see
+      # scripture_scraper/vars/main.yml) taught this role to avoid.
+      become: false
+      no_log: true
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "/home/{{ username }}/archives/barrins_scripture-staging"
+        if [ -n "$(git status --porcelain)" ]; then
+          git add -A
+          git commit -m "Archive update $(date -u +%Y-%m-%dT%H:%M:%SZ) (staging cutover)"
+        fi
+        git push origin "{{ scripture_scraper_config.archive_git_branch }}"
+      args:
+        executable: /bin/bash
+      when: deploy_env == 'production' and staging_archive_dir_stat.stat.exists
+      changed_when: true
+      tags: [scripture, deploy]
+
+    - name: Delete the staging archive's local clone now that it's fully pushed
+      ansible.builtin.file:
+        path: "/home/{{ username }}/archives/barrins_scripture-staging"
+        state: absent
+      when: deploy_env == 'production' and staging_archive_dir_stat.stat.exists
+      tags: [scripture, deploy]
+
+    - name: Immediately fire the scrape service on production deploys
+      ansible.builtin.systemd:
+        name: "{{ scripture_scraper_config.service_name }}.service"
+        state: started
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Immediately fire the sweep service on production deploys
+      ansible.builtin.systemd:
+        name: "{{ scripture_scraper_config.sweep_service_name }}.service"
+        state: started
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Reminder — production deploys stop staging, delete its archive clone, and fire the scrape/sweep immediately
       ansible.builtin.debug:
         msg:
-          - "{{ scripture_scraper_config.output_dir }} is a plain"
-          - "directory on this host, not (yet) a git submodule pointing"
-          - "at mtg_decklist_cache — see T1's remaining tasks"
-          - "(docs/project/v2.0.0-bump/t1-scripture-repo-migration/)."
-          - "Nothing here commits or pushes the archive anywhere; wiring"
-          - "that up is still open."
+          - "deploy_env=production stops+disables barrins_scripture-staging's"
+          - "timer/service pair (both scrape and sweep, if they exist on this"
+          - "host) to avoid running both instances' scrapes/sweeps side by"
+          - "side indefinitely. It then commits+pushes any pending changes in"
+          - "the staging archive clone and deletes"
+          - "/home/{{ username }}/archives/barrins_scripture-staging (skipped,"
+          - "playbook halts, if that push fails — see the task above). It"
+          - "then fires {{ scripture_scraper_config.service_name }}.service,"
+          - "then (once it's done)"
+          - "{{ scripture_scraper_config.sweep_service_name }}.service,"
+          - "right here — blocking, so this playbook run doubles as the"
+          - "deploy validation instead of waiting for the daily/6h timer."
+          - "Re-running with -e deploy_env=staging re-enables and re-starts"
+          - "the staging pair and re-clones its archive dir from scratch (the"
+          - "scripture_scraper role always enables both timers"
+          - "unconditionally), so this is reversible, not destructive."
+      when: deploy_env == 'production'
+      tags: [scripture, deploy]
+
+    - name: Reminder — the archive is pushed by the sweep, not this playbook
+      ansible.builtin.debug:
+        msg:
+          - "{{ scripture_scraper_config.output_dir }} is now a real clone"
+          - "of {{ scripture_scraper_config.archive_repo }} (T1, 2026-08-08)."
+          - "This playbook only clones/updates it — committing and pushing"
+          - "newly-scraped files happens inside barrins_scripture_sweep.sh"
+          - "on every sweep tick, not here. Backfilling the archive's"
+          - "history is still a separate, not-yet-run T1 task."
+      tags: [scripture, deploy]
+
+    - name: Reminder — the sweep timer runs independently of the scrape timer
+      ansible.builtin.debug:
+        msg:
+          - "{{ scripture_scraper_config.sweep_service_name }}.timer fires"
+          - "every 6 hours (T3/T8), separate from"
+          - "{{ scripture_scraper_config.service_name }}.timer's daily"
+          - "scrape. It needs {{ scripture_scraper_config.work_dir }}/.env"
+          - "(BARRINS_API_URL) to reach barrins_api — that file is"
+          - "git-ignored (Constitution ss34) and only deployed if"
+          - "{{ scripture_scraper_env_file }} exists on this machine."
+          - "SCRIPTURE_INGEST_TOKEN is injected separately, above. See"
+          - "secrets/README.md and secrets/barrins_scripture/{{ deploy_env }}.env.example."
+      tags: [scripture, deploy]
+
+    - name: Reminder — staging and production are now separate side-by-side instances
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env={{ deploy_env }} deploys app_name"
+          - "{{ scripture_scraper_config.app_name }}: its own work_dir"
+          - "({{ scripture_scraper_config.work_dir }}) and its own systemd"
+          - "units ({{ scripture_scraper_config.service_name }}.timer /"
+          - "{{ scripture_scraper_config.sweep_service_name }}.timer),"
+          - "independent of the other deploy_env's instance. If this is"
+          - "the first run after this side-by-side split, the old shared"
+          - "barrins_scripture.timer/barrins_scripture_sweep.timer (and"
+          - "~/projects/barrins_scripture) may still exist from before —"
+          - "stop/disable/remove them by hand once both environments have"
+          - "been redeployed under their own app_name, this playbook does"
+          - "not clean those up automatically."
+      tags: [scripture, deploy]
+
+    - name: Reminder — which barrins_api this sweep is currently targeting
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env={{ deploy_env }}: the sweep posts to whatever"
+          - "BARRINS_API_URL is in {{ scripture_scraper_env_file }}, and"
+          - "the scraper runs {{ scripture_scraper_config.git_branch }}."
+          - "Validate against staging (the default) before cutting over"
+          - "with -e deploy_env=production — see"
+          - "docs/project/v2.0.0-bump/t8-scripture-karn-playbooks/index.md."
       tags: [scripture, deploy]

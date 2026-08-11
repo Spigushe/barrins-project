@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | Multiple files — see list below | / |
 | **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — found during v2.0.0 planning | / |
+| **Status** | 🟡 In progress — `docs/decklist_integration/` resolved (redirect, 2026-08-11, via T2); four paths remain | / |
 | **Source** | `v2.0.0-bump/index.md` §0, F7 | / |
 | **Dependency** | None | / |
 
@@ -43,13 +43,21 @@ One of two outcomes, decided deliberately rather than left ambiguous:
 
 ## Tasks
 
-- [ ] Decide recreate vs. redirect (likely per-path, not all-or-nothing
-      — e.g. `bff/tamiyo_scroll.md` may already contain everything
-      `docs/tamiyo_scroll_tracker/00_plan_general.md` was meant to hold).
-- [ ] Update each citing file/comment accordingly.
-- [ ] Re-run the full-repo search from this planning process
-      (`grep -rn` for each of the five paths) to confirm zero remaining
-      dangling references.
+- [x] `docs/decklist_integration/` — **redirect, done 2026-08-11** (see
+      T2): no real content ever existed under that path (T2 confirmed
+      the `bs_*` domain is genuinely new work, not a resurrection), so
+      `bff/tamiyo_scroll.md` and `signup_email_verification.md` were
+      repointed at the real `bs_*` schema doc instead of the dead path.
+- [ ] `docs/tolaria_news/00_plan_general.md` — decide recreate vs.
+      redirect.
+- [ ] `docs/tamiyo_scroll_tracker/00_plan_general.md` — decide recreate
+      vs. redirect (may already be fully covered by `bff/tamiyo_scroll.md`).
+- [ ] `docs/signup_email_verification/00_plan_general.md` — decide
+      recreate vs. redirect.
+- [ ] `docs/auth_roles/10_deploiement.md` — decide recreate vs. redirect.
+- [ ] Once all four remaining paths are decided: re-run the full-repo
+      search from this planning process (`grep -rn` for each) to confirm
+      zero remaining dangling references.
 
 ## UAT (manual)
 

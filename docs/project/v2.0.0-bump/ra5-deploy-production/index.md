@@ -29,8 +29,13 @@ so this is a matter of **which playbooks get run**, not a code change.
   cadence) — its Alembic migration chain now includes T2's `bs_*` tables
   (additive, no existing data touched) and every Group S migration.
 - `tamiyo_scroll` redeployed from the same tag.
-- `ops/my-server/barrins_scripture.yml` **is not run** — Barrin's
-  Scripture stays undeployed, its systemd service/timer never installed.
+- `ops/my-server/barrins_scripture.yml` **is not run** — the VPS role
+  (`scripture_scraper`) stays dormant, its systemd service/timer never
+  installed. This is unrelated to whether Barrin's Scripture is actually
+  running: per ADR-12 (2026-08-10, `docs/content/ops/architecture/
+  decisions.md`), its scrape+sweep already runs on GitHub Actions
+  independent of any VPS playbook or release tag — this bullet is only
+  about the VPS host specifically staying clean.
 - `ops/my-server/tolaria_news.yml` **is not run** — unchanged from
   today (still README-only, §0).
 
@@ -55,9 +60,13 @@ so this is a matter of **which playbooks get run**, not a code change.
       route at `/demo`).
 - [ ] Confirm HetrixTools (or successor) still shows exactly the same
       trackers `up` as before this deploy — no new tracker should appear
-      (Barrin's Scripture isn't running).
+      (Barrin's Scripture has no VPS-hosted process to track; its GitHub
+      Actions scheduling is unaffected by this deploy either way, see
+      Done statement).
 - [ ] Confirm no `bs_*`-scoped route or Barrin's Scripture process is
-      reachable/running on the production host.
+      reachable/running on the production **VPS host** specifically (its
+      GitHub Actions ingestion traffic against the API is expected and
+      out of scope for this check).
 
 ## Non-regression tests
 

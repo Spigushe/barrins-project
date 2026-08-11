@@ -1,0 +1,4 @@
+# Dev tooling requirement for the /graphify skill (.claude/skills/graphify/SKILL.md).
+# Not an app dependency — install into the project's root .venv:
+#   uv pip install --python .venv/Scripts/python.exe -r .claude/skills/graphify/requirements.txt
+graphifyy>=0.9.33

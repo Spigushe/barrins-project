@@ -1,0 +1,181 @@
+---
+- name: Install Chromium and its matching driver for the MTGO Selenium scraper
+  ansible.builtin.apt:
+    state: present
+    update_cache: true
+    cache_valid_time: "3600"
+    name:
+      - chromium
+      - chromium-driver
+
+- name: Ensure app root folder is present
+  ansible.builtin.file:
+    state: directory
+    path: "{{ scripture_scraper_config.app_root }}"
+    owner: "{{ username }}"
+    mode: "0755"
+
+- name: Clone/update application repository
+  become: false
+  no_log: true
+  tags:
+    - deploy
+  ansible.builtin.git:
+    repo: "https://{{ scripture_scraper_config.github_token }}@github.com/{{ scripture_scraper_config.repo }}.git"
+    dest: "{{ scripture_scraper_config.app_root }}"
+    version: "{{ scripture_scraper_config.git_branch }}"
+    update: true
+    force: true
+
+- name: Ensure uv is installed
+  become: false
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    executable: /bin/bash
+    creates: "/home/{{ username }}/.local/bin/uv"
+  changed_when: true
+
+- name: Ensure Python 3.14 is installed via uv
+  become: false
+  tags:
+    - deploy
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv python install 3.14"
+  register: scripture_scraper_uv_python_install
+  changed_when: "'Already' not in scripture_scraper_uv_python_install.stdout"
+
+- name: Install dependencies with uv
+  become: false
+  tags:
+    - deploy
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv sync --all-extras --dev"
+  args:
+    chdir: "{{ scripture_scraper_config.work_dir }}"
+  changed_when: true
+
+- name: Check whether a local .env file is available for this deploy
+  when: scripture_scraper_config.env_file | length > 0
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ scripture_scraper_config.env_file }}"
+  register: scripture_scraper_env_file_stat
+
+- name: Deploy the local .env file, if available
+  tags:
+    - deploy
+  ansible.builtin.copy:
+    src: "{{ scripture_scraper_config.env_file }}"
+    dest: "{{ scripture_scraper_config.work_dir }}/.env"
+    owner: "{{ username }}"
+    mode: "0600"
+  when: scripture_scraper_config.env_file | length > 0 and scripture_scraper_env_file_stat.stat.exists
+
+- name: Note — no local .env found, server's existing one (if any) left untouched
+  tags:
+    - deploy
+  ansible.builtin.debug:
+    msg: >-
+      {{ scripture_scraper_config.env_file }} not found locally, skipping — this file is
+      git-ignored on purpose (see secrets/README.md) and only ever lives on
+      operators' machines. {{ scripture_scraper_config.work_dir }}/.env on the server is left
+      as-is. The sweep timer will fail its tick until this is deployed.
+  when: scripture_scraper_config.env_file | length > 0 and not scripture_scraper_env_file_stat.stat.exists
+
+- name: Ensure the archive parent folder is present
+  # output_dir defaults to a subdirectory of ~/archives (see vars/main.yml
+  # for why this lives outside app_root) — the git module below creates
+  # output_dir itself as part of cloning, but not this parent.
+  ansible.builtin.file:
+    state: directory
+    path: "/home/{{ username }}/archives"
+    owner: "{{ username }}"
+    mode: "0755"
+
+- name: Clone/update the JSON archive repository
+  # Deliberately no force:true (unlike the app repo clone above): the
+  # sweep may have written or committed-but-not-yet-pushed archive files
+  # since the last deploy, and force:true would discard/clean those. If
+  # this task ever fails on "local modifications exist", that's the
+  # signal to let the next sweep tick push first, not to add force:true.
+  become: false
+  no_log: true
+  tags:
+    - deploy
+  ansible.builtin.git:
+    repo: "https://{{ scripture_scraper_config.github_token }}@github.com/{{ scripture_scraper_config.archive_repo }}.git"
+    dest: "{{ scripture_scraper_config.output_dir }}"
+    version: "{{ scripture_scraper_config.archive_git_branch }}"
+    update: true
+
+- name: Set the archive commit identity (needed for the sweep's own commits)
+  become: false
+  community.general.git_config:
+    repo: "{{ scripture_scraper_config.output_dir }}"
+    scope: local
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+  loop:
+    - name: user.name
+      value: "{{ scripture_scraper_config.archive_commit_name }}"
+    - name: user.email
+      value: "{{ scripture_scraper_config.archive_commit_email }}"
+
+- name: Deploy the scrape wrapper script
+  ansible.builtin.template:
+    src: barrins_scripture_scrape.sh.j2
+    dest: "{{ scripture_scraper_config.scrape_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the systemd service
+  ansible.builtin.template:
+    src: barrins_scripture.service.j2
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.service_name }}.service"
+    mode: "0644"
+
+- name: Deploy the systemd timer
+  ansible.builtin.template:
+    src: barrins_scripture.timer.j2
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.service_name }}.timer"
+    mode: "0644"
+
+- name: Enable the timer
+  tags:
+    - deploy
+  ansible.builtin.systemd:
+    name: "{{ scripture_scraper_config.service_name }}.timer"
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Deploy the sweep wrapper script
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.sh.j2
+    dest: "{{ scripture_scraper_config.sweep_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the sweep systemd service
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.service.j2
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.sweep_service_name }}.service"
+    mode: "0644"
+
+- name: Deploy the sweep systemd timer
+  ansible.builtin.template:
+    src: barrins_scripture_sweep.timer.j2
+    dest: "/etc/systemd/system/{{ scripture_scraper_config.sweep_service_name }}.timer"
+    mode: "0644"
+
+- name: Enable the sweep timer
+  tags:
+    - deploy
+  ansible.builtin.systemd:
+    name: "{{ scripture_scraper_config.sweep_service_name }}.timer"
+    daemon_reload: true
+    enabled: true
+    state: started

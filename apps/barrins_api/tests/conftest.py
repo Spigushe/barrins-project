@@ -141,3 +141,28 @@ async def client(db_connection: AsyncConnection) -> AsyncGenerator[AsyncClient]:
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# MTGJSON import-progress tracker — redirected onto the test connection
+# ---------------------------------------------------------------------------
+@pytest.fixture()
+def mtgjson_tracker_uses_test_db(
+    monkeypatch: pytest.MonkeyPatch, db_connection: AsyncConnection
+) -> None:
+    """Points `_ImportRunTracker` at this test's connection, not the real DB.
+
+    `app/services/mtgjson/importer.py`'s `_ImportRunTracker` deliberately
+    writes through its own session, independent of the `db_session`/
+    `client` request session, via `app.database.connection.AsyncSessionLocal`
+    -- that's bound to the real per-environment database (e.g. dev), not
+    `_TEST_DB_URL`. Without this, any test that imports MTGJSON data would
+    silently write real, uncommitted-forever rows to the live dev database
+    instead of the isolated, rolled-back test one. Used by every test
+    module that calls `import_all_printings` (`test_mtgjson.py`,
+    `test_mtgjson_import_status.py`), via `pytestmark`.
+    """
+    monkeypatch.setattr(
+        "app.services.mtgjson.importer.AsyncSessionLocal",
+        async_sessionmaker(bind=db_connection, expire_on_commit=False),
+    )

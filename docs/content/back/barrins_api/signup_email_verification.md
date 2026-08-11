@@ -88,7 +88,7 @@ Consequences to document (deployment — Agent 3):
 | Option | Mechanism | Advantages | Drawbacks |
 | ------ | --------- | --------- | ------------- |
 | A | Columns on `users` (`verification_code_hash`, `verification_expires_at`, …) | No new table | Pollutes the `User` model with transient state; no history |
-| **B (selected)** | Dedicated `auth_email_verifications` table (1 active row per user, upsert on resend) | Isolates transient state from the central identity model; consistent with the earlier `decklist_imported_files` (dedicated tracking table, see `docs/decklist_integration/`) | One more table |
+| **B (selected)** | Dedicated `auth_email_verifications` table (1 active row per user, upsert on resend) | Isolates transient state from the central identity model | One more table |
 
 **Choice: option B**, with a `UNIQUE(user_id)` constraint — resending a code
 **replaces** the existing row (no multi-code history to manage).
