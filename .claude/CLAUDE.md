@@ -606,10 +606,20 @@ class UserResponse(UserDatabaseModel):
 
 Create a dedicated Backend For Frontend layer for Tamiyo Scroll.
 
-Namespace:
+Namespace convention (corrected 2026-08-11 — this section previously
+read `/api/v1/<app-name>/`, which never matched the real, shipped
+router; the code has used `/bff/...` since Tamiyo Scroll first
+shipped, so the doc is amended to follow the code):
 
 ```text
-/api/v1/tamiyo-scroll/
+/bff/<app-name>/
+```
+
+Example:
+
+```text
+/bff/tamiyo-scroll/
+/bff/tolaria-news/
 ```
 
 ### BFF responsibilities
@@ -634,7 +644,7 @@ Allowed:
 ```text
 Tamiyo Scroll
 
-GET /api/v1/tamiyo-scroll/dashboard
+GET /bff/tamiyo-scroll/dashboard
  |
  v
 BFF
@@ -666,7 +676,7 @@ Every endpoint requires:
 Example documentation:
 
 ```text
-GET /api/v1/tamiyo-scroll/reports/current
+GET /bff/tamiyo-scroll/reports/current
 
 Purpose:
 Return report data for currently selected deck.
@@ -1179,7 +1189,7 @@ Example:
 
 POST
 
-/api/v1/tamiyo-scroll/auth/register
+/api/v1/auth/register
 
 
 Purpose:
@@ -1931,7 +1941,7 @@ Frontend:
 User enters commander name
 ↓
 BFF:
-/api/v1/tamiyo-scroll/commanders/search
+/bff/tamiyo-scroll/commanders/search
 ↓
 Backend:
 Commander domain service
