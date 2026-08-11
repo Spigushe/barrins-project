@@ -20,12 +20,20 @@ an unhandled Python exception).
 `apps/barrins_scripture/barrins_scripture/services/mtgtop8.py` ran producers
 and consumers as two fully sequential phases instead of a pipeline:
 
-1. Every producer batch (10 threads at a time) ran to completion first. Each
-   producer that found a scrapable, unscraped tournament id pushed the full
-   parsed `BeautifulSoup` DOM tree — not just the URL or raw HTML — onto an
+1. Every producer batch (10 threads at a time — hardcoded then; see
+   2026-08-10 note below) ran to completion first. Each producer that
+   found a scrapable, unscraped tournament id pushed the full parsed
+   `BeautifulSoup` DOM tree — not just the URL or raw HTML — onto an
    **unbounded** `Queue`.
 2. Only after all `span // 10` batches had finished did consumer threads
    start draining that queue.
+
+**2026-08-10 note**: a separate, unrelated fix
+(`b2ace13`) replaced both hardcoded `10`s above with `num_threads` — batch
+size and thread count per batch now scale with `--num-threads` instead of
+being fixed. Doesn't change this incident's root cause or fix, just means
+"10 threads at a time"/`span // 10` above describe the code as it was on
+2026-08-09, not current behavior.
 
 A parsed `BeautifulSoup` tree carries far more memory overhead than the
 source HTML (every tag/string is a Python object with parent/sibling/
@@ -78,7 +86,9 @@ only the concurrency model:
 The fix removes the unbounded-memory failure mode, but a very large
 `--span` on a small VPS still means a long-running job. Prefer the default
 `num_threads=4` rather than increasing it, since memory now scales with
-`num_threads * 10` in-flight documents rather than with `span` itself. This
+`num_threads * 10` in-flight documents rather than with `span` itself.
+Per the 2026-08-10 note above, this is now doubly true — `num_threads`
+also sizes each producer batch, not just the queue. This
 fix needs to be released and deployed (per this repo's release-based
 deployment policy) before it's live on staging/production — it currently
 only exists on `feat/barrins-scripture`.
