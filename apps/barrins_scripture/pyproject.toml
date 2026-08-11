@@ -27,6 +27,7 @@ dependencies = [
     "pydantic",
     "pandas",
     "lxml",
+    "python-dotenv", # loads apps/barrins_scripture/.env for local dev (CI sets real env vars)
 ]
 
 [project.scripts]

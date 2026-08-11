@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,10 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    # Local dev only -- CI (GitHub Actions) sets these as real env vars and
+    # has no .env file, so this is a no-op there. Must run before
+    # build_parser(), which reads os.environ.get(...) as argparse defaults.
+    load_dotenv()
 
     parser = build_parser()
     args = parser.parse_args()

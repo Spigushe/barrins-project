@@ -3,6 +3,8 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from barrins_scripture import services
 
 
@@ -70,6 +72,10 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    # Local dev only -- CI (GitHub Actions) has no .env file, so this is a
+    # no-op there. Picks up CHROME_BINARY_PATH/CHROMEDRIVER_PATH for
+    # utils/selenium_driver.py.
+    load_dotenv()
 
     parser = build_parser()
     args = parser.parse_args()
