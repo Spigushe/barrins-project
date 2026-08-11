@@ -78,6 +78,7 @@ free ground.
 | `GET` | `/bff/tolaria-news/tournaments/{id}` | Detail: tournament fields + `deck_count`/`standing_count` |
 | `GET` | `/bff/tolaria-news/tournaments/{id}/decks` | Decks entered (`bs_decks`), `cursor`/`limit` |
 | `GET` | `/bff/tolaria-news/tournaments/{id}/standings` | Standings (`bs_standings`, ordered by `rank`), `cursor`/`limit` |
+| `GET` | `/bff/tolaria-news/tournaments/{id}/bracket` | Elimination bracket (`bs_rounds`/`bs_round_matches`), rounds + nested matches in scrape order. No pagination (small dataset); empty list for Swiss-only tournaments |
 | `GET` | `/bff/tolaria-news/decks/{id}` | Deck detail: full decklist + derived commander(s) |
 
 No route accepts or requires `CurrentUser` — covered by an explicit
@@ -86,9 +87,10 @@ guarding against a copy-paste of Tamiyo Scroll's router silently
 reintroducing auth.
 
 Deliberately **not** in v1 (see "Deferred scope" below):
-`bs_rounds`/`bs_round_matches` (bracket data), `/metagame`,
-`/archetypes`, `/trends`, `/forecasts`, `/search`, a card oracle-text/
-image proxy, and tournament `location`.
+`/metagame`, `/archetypes`, `/trends`, `/forecasts`, `/search`, a card
+oracle-text/image proxy, and tournament `location`. Bracket data
+(`bs_rounds`/`bs_round_matches`) **is** in v1 (`/tournaments/{id}/bracket`,
+added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)).
 
 ### Commander + card data (`/decks/{id}`)
 

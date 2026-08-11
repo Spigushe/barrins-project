@@ -12,6 +12,7 @@ from app.schemas.responses_tolaria_news import (
     DeckSummary,
     Envelope,
     Meta,
+    RoundOut,
     StandingRow,
     TournamentDetail,
     TournamentSummary,
@@ -93,6 +94,17 @@ async def list_tournament_decks(
         session, tournament_id, cursor=cursor, limit=limit
     )
     return Envelope(data=data, meta=await _meta(session), page=page)
+
+
+@router.get(
+    "/tournaments/{tournament_id}/bracket",
+    response_model=Envelope[list[RoundOut]],
+)
+async def get_tournament_bracket(
+    tournament_id: uuid.UUID, session: DatabaseSession
+) -> Envelope[list[RoundOut]]:
+    data = await service.get_bracket(session, tournament_id)
+    return Envelope(data=data, meta=await _meta(session))
 
 
 @router.get(
