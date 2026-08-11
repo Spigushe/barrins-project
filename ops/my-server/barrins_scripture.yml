@@ -3,6 +3,14 @@
 # has no HTTP-facing component (see apps/barrins_scripture/README.md) —
 # it's a scheduled job, not a deployed web service — so no domain/SSL/
 # reverse-proxy roles are involved here, unlike barrins_api.yml/docs.yml.
+#
+# ADR-12 (docs/content/ops/architecture/decisions.md): the scrape+sweep
+# schedule itself has moved to .github/workflows/scripture-scrape.yml —
+# this playbook now runs the scripture_scraper role's teardown path
+# (scripture_scraper_teardown: true, below) to remove the VPS-side
+# units/scripts/clones that role used to deploy, rather than deploying
+# them. The role's deploy path is unchanged and still available as a
+# rollback (see its README).
 - name: Deploy/schedule the Barrin's Scripture scraper
   hosts: spigushe
   become: true
@@ -38,6 +46,15 @@
     # it's injected into the deployed .env from a single shared secret,
     # not hand-copied here and into secrets/barrins_api/*.env.
     scripture_scraper_env_file: "{{ playbook_dir }}/secrets/barrins_scripture/{{ deploy_env }}.env"
+    # ADR-12 (docs/content/ops/architecture/decisions.md): scheduling
+    # moved to .github/workflows/scripture-scrape.yml (mtgo.com blocks
+    # this VPS's static outbound IP — see
+    # docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md).
+    # This runs the role's teardown path (tasks/teardown.yml) instead of
+    # its deploy path — see that file's header comment. Flip back to
+    # false (or remove this line) to redeploy the VPS-scheduled stack
+    # from scratch if GitHub Actions ever needs to be rolled back from.
+    scripture_scraper_teardown: true
 
   roles:
     - role: github_token

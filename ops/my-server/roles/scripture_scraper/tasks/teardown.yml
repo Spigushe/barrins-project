@@ -1,0 +1,93 @@
+---
+# Tears down what deploy.yml deploys: the scrape+sweep systemd units,
+# their wrapper scripts, the local archive clone, and the app checkout —
+# selected instead of deploy.yml via scripture_scraper_teardown (see
+# main.yml). deploy.yml itself is untouched: ADR-12
+# (docs/content/ops/architecture/decisions.md) moved scheduling to
+# GitHub Actions, but the VPS-deploy path stays available as a rollback —
+# re-run with scripture_scraper_teardown: false (or omitted) to redeploy
+# the full stack unchanged.
+
+- name: Stop and disable the scrape timer/service
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - "{{ scripture_scraper_config.service_name }}.timer"
+    - "{{ scripture_scraper_config.service_name }}.service"
+
+- name: Stop and disable the sweep timer/service
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - "{{ scripture_scraper_config.sweep_service_name }}.timer"
+    - "{{ scripture_scraper_config.sweep_service_name }}.service"
+
+- name: Remove the scrape and sweep systemd unit files
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - "{{ scripture_scraper_config.service_name }}.service"
+    - "{{ scripture_scraper_config.service_name }}.timer"
+    - "{{ scripture_scraper_config.sweep_service_name }}.service"
+    - "{{ scripture_scraper_config.sweep_service_name }}.timer"
+
+- name: Reload systemd after removing the unit files
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Remove the scrape and sweep wrapper scripts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ scripture_scraper_config.scrape_script_path }}"
+    - "{{ scripture_scraper_config.sweep_script_path }}"
+
+- name: Check whether a local archive clone exists to push+remove
+  ansible.builtin.stat:
+    path: "{{ scripture_scraper_config.output_dir }}"
+  register: scripture_scraper_teardown_archive_stat
+
+- name: Commit and push any pending archive changes before removing the local clone
+  # Mirrors barrins_scripture.yml's own "staging cutover" push-then-delete
+  # pattern: refuses to discard archive data the same way the 2026-08-09
+  # incident (see vars/main.yml) taught this role to avoid. become: false
+  # to match the archive clone's own git identity (see deploy.yml).
+  become: false
+  no_log: true
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ scripture_scraper_config.output_dir }}"
+    if [ -n "$(git status --porcelain)" ]; then
+      git add -A
+      git commit -m "Archive update $(date -u +%Y-%m-%dT%H:%M:%SZ) (VPS teardown, ADR-12)"
+    fi
+    git push origin "{{ scripture_scraper_config.archive_git_branch }}"
+  args:
+    executable: /bin/bash
+  when: scripture_scraper_teardown_archive_stat.stat.exists
+  changed_when: true
+
+- name: Remove the local archive clone now that it's fully pushed
+  ansible.builtin.file:
+    path: "{{ scripture_scraper_config.output_dir }}"
+    state: absent
+
+- name: Remove the app checkout
+  ansible.builtin.file:
+    path: "{{ scripture_scraper_config.app_root }}"
+    state: absent
+
+- name: Reminder — shared apt packages are left installed
+  ansible.builtin.debug:
+    msg:
+      - "This teardown removes {{ scripture_scraper_config.app_name }}'s own"
+      - "systemd units, wrapper scripts, archive clone, and app checkout —"
+      - "it does not remove the chromium/chromium-driver apt packages"
+      - "(shared system packages, not scoped to this app). See ADR-12 and"
+      - "docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md."

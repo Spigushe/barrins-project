@@ -1,0 +1,121 @@
+name: scripture-scrape
+
+# Daily MTGO + MTGTop8 scrape, plus (Sundays only) the biweekly gap-check,
+# alternating by ISO week parity — mirrors
+# ops/my-server/roles/scripture_scraper/templates/barrins_scripture_scrape.sh.j2
+# and barrins_scripture_sweep.sh.j2, now run here instead of the VPS
+# systemd timer pair they replace. See ADR-12
+# (docs/content/ops/architecture/decisions.md): mtgo.com blocks the VPS's
+# static outbound IP specifically; GitHub Actions' rotating runner IPs are
+# confirmed unaffected (see
+# docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md).
+#
+# No Persistent=true-style catch-up for a missed scheduled run (GitHub
+# Actions `schedule` triggers are best-effort) — accepted, since scrape's
+# MTGO default window (5 days back) and the sweep's default lookback (7
+# days) both self-heal a single missed run on the next one.
+#
+# No failure-email step (mtg_scraper's old dawidd6/action-send-mail): a
+# scheduled workflow's failure already emails the repo owner by default,
+# recovering that behavior without a new dependency (Constitution §22) —
+# check your notification settings at
+# https://github.com/settings/notifications if you don't see these.
+#
+# Required repository secrets:
+#   ARCHIVE_PUSH_TOKEN     - GitHub PAT with push access to
+#                            Spigushe/mtg_decklist_cache (same PAT already
+#                            used by the VPS's github_token role, which
+#                            needs the same push access — see
+#                            ops/my-server/secrets/github/token.txt)
+#   SCRIPTURE_INGEST_TOKEN - shared ingestion secret barrins_api checks on
+#                            POST /internal/scripture/ingest (see
+#                            ops/my-server/secrets/scripture/staging_ingest_token.txt)
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scripture-scrape
+  cancel-in-progress: false
+
+env:
+  # The one real target — see ADR-12 ("consider it as running prod"),
+  # matches ops/my-server/secrets/barrins_scripture/staging.env.example's
+  # BARRINS_API_URL, which is what's actually live today.
+  BARRINS_API_URL: https://api-staging.barrins-codex.org
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout barrins-project
+        uses: actions/checkout@v7
+        with:
+          path: barrins-project
+
+      - name: Checkout the JSON archive (Spigushe/mtg_decklist_cache)
+        uses: actions/checkout@v7
+        with:
+          repository: Spigushe/mtg_decklist_cache
+          token: ${{ secrets.ARCHIVE_PUSH_TOKEN }}
+          path: archive
+
+      - name: Set the archive commit identity
+        working-directory: archive
+        run: |
+          git config user.name "Barrin's Scripture"
+          git config user.email "scripture@barrins-codex.org"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        working-directory: barrins-project/apps/barrins_scripture
+        run: uv sync --all-extras --dev
+
+      - name: Scrape MTGO
+        working-directory: barrins-project/apps/barrins_scripture
+        run: uv run scrape --source mtgo --output-dir "$GITHUB_WORKSPACE/archive"
+
+      - name: Scrape MTGTop8
+        working-directory: barrins-project/apps/barrins_scripture
+        run: uv run scrape --source mtgtop8 --output-dir "$GITHUB_WORKSPACE/archive"
+
+      - name: Sunday gap-check (alternates by ISO week parity)
+        working-directory: barrins-project/apps/barrins_scripture
+        run: |
+          set -euo pipefail
+          if [ "$(date -u +%u)" = "7" ]; then
+            WEEK="$(date -u +%V)"
+            # 10#$WEEK forces base-10: weeks 08/09 would otherwise be
+            # parsed as invalid octal literals by bash's arithmetic
+            # evaluator.
+            if [ $(( 10#$WEEK % 2 )) -eq 0 ]; then
+              uv run python -m barrins_scripture.scripts.top8_check_gaps
+            else
+              uv run python -m barrins_scripture.scripts.mtgo_empty_decks
+            fi
+          fi
+
+      - name: Commit and push archive changes
+        working-directory: archive
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Archive update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin main
+          fi
+
+      - name: Sweep (ingest recent archive changes into barrins_api)
+        working-directory: barrins-project/apps/barrins_scripture
+        env:
+          SCRIPTURE_INGEST_TOKEN: ${{ secrets.SCRIPTURE_INGEST_TOKEN }}
+        run: uv run sweep --mode recent --days 7 --archive-dir "$GITHUB_WORKSPACE/archive"

@@ -19,6 +19,28 @@ VPS per that item's own scheduling decision, using the same
 `.service`/`.timer` pattern `postgres_backup` already established rather
 than inventing a new one.
 
+## Dormant since ADR-12 (2026-08-10)
+
+Full circle: mtgo.com's edge/WAF started silently blackholing the VPS's
+static outbound IP (confirmed IP-specific, not a datacenter-range policy
+— see
+`docs/content/service/barrins_scripture/incidents/2026-08-10-mtgo-network-block.md`),
+so scraping+sweep scheduling moved back to GitHub Actions
+(`.github/workflows/scripture-scrape.yml`), this time for a concrete,
+confirmed reason rather than being replaced on principle. See ADR-12 in
+`docs/content/ops/architecture/decisions.md` for the full alternatives/
+trade-offs writeup.
+
+This role's deploy logic (`tasks/deploy.yml`) is unchanged and still the
+default — only `barrins_scripture.yml` now also sets
+`scripture_scraper_teardown: true`, which runs `tasks/teardown.yml`
+instead: stops+disables both timers/services, removes the four unit
+files, the two wrapper scripts, the local archive clone (pushing any
+pending changes first), and the app checkout. Nothing here was deleted —
+re-running with `scripture_scraper_teardown: false` (or omitted)
+redeploys the full VPS-scheduled stack from scratch, unchanged, if
+GitHub Actions ever needs to be rolled back from.
+
 ## What it does
 
 0. Installs `chromium` and `chromium-driver` from Debian's own apt repos —
