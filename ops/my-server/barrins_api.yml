@@ -83,6 +83,17 @@
         - backend
       backend_website_server_name: "{{ backend_domain }}"
       backend_website_port: "{{ backend_port }}"
+      # Tolaria News BFF (T4): public, no per-user auth (I7, Option 4) --
+      # rate-limiting is the actual anti-abuse control, not caller
+      # identity. Scoped to this path only; Tamiyo Scroll's JWT-gated
+      # routes are unaffected. Deliberately generous starting default
+      # (public data, no per-request cost) -- retune once real per-page
+      # request volume from apps/tolaria_news (T5) is measurable.
+      backend_website_rate_limited_paths:
+        - path: /bff/tolaria-news
+          zone: tolaria_news
+          rate: 20r/s
+          burst: 80
 
   post_tasks:
     - name: Check whether a .env was actually deployed to inject the token into

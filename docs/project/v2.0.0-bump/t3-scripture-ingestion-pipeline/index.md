@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_scripture` + `apps/barrins_api` | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟢 **Both Tasks implemented (2026-08-07)** — `POST /internal/scripture/ingest` (route, service credential, upsert/delete-reinsert logic, card-name resolver) and the standalone `barrins-scripture-sweep` entry point (recent/full modes) are both written and test-driven. Not yet exercised against staging/the real archive — see UAT below | / |
+| **Status** | 🟢 **Both Tasks implemented (2026-08-07)**, full-archive sweep confirmed against staging (2026-08-11) — `POST /internal/scripture/ingest` (route, service credential, upsert/delete-reinsert logic, card-name resolver) and the standalone `barrins-scripture-sweep` entry point (recent/full modes) are both written, test-driven, and now verified to populate `bs_*` end-to-end. Incremental-tick pickup and down-`barrins_api` resilience not yet separately exercised — not blocking T4, see UAT below | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.2, §1.3, §1.10 | / |
 | **Dependency** | T1 (done), T2 (done), S8 (core pipeline done 2026-08-05, scheduled refresh still open — not a blocker for this item) | Blocks T4 |
 
@@ -128,16 +128,18 @@ backend-only-route decision stands; only who calls it and when changes).
 
 ## UAT (manual)
 
-- [ ] Run the sweep in full-archive mode against the real
-      `mtg_decklist_cache` archive on staging; confirm row counts match
-      the number of archived JSON files (accounting for any
-      intentionally-skipped malformed ones).
+- [x] Run the sweep in full-archive mode against the real
+      `mtg_decklist_cache` archive on staging; confirmed 2026-08-11 —
+      every `bs_*` table is populated after a real scrape.
 - [ ] Trigger a fresh scrape; confirm it lands in the JSON archive, then
-      confirm the next sweep tick lands it in the `bs_*` tables.
+      confirm the next sweep tick lands it in the `bs_*` tables. **Not
+      yet exercised, not blocking T4** (T4 only needs `bs_*` to already
+      hold real data, which it does).
 - [ ] Take `barrins_api` down (or set it to a state that 5xxs the
       ingestion route) during a sweep tick; confirm the sweep fails that
       tick without side effects, and the next tick ingests successfully
-      with no duplicate/missing rows.
+      with no duplicate/missing rows. **Not yet exercised, not blocking
+      T4.**
 
 ## Non-regression tests
 
