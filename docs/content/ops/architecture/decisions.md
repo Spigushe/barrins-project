@@ -1148,3 +1148,112 @@ preference, not a Barrin-wide concept.
   route map (already flagged in its own 2026-08-02 gap note as
   out of date past v1) and `responses_base.py` should reflect
   `Paginated[T]` alongside `BaseResponse`.
+
+## ADR-15: Karn Tablets observability — job health and Jupyter Lab
+
+**Context.** ADR-13 settled Karn Tablets as a push-based scheduled job
+(systemd timer mirroring `scripture_scraper`, no inbound API, no
+persistent process). That leaves two related but unresolved day-2
+operability questions, neither part of the pipeline's core scope
+(ADR-6): how anyone knows whether a given clustering run succeeded, and
+how anyone explores the underlying data/clustering output interactively,
+beyond the fixed views the Tolaria News BFF and S6 admin dashboard
+surface (ADR-13).
+
+**Alternatives considered — run-health monitoring.**
+
+1. Add a HetrixTools tracker for Karn Tablets, matching the uptime
+   monitoring already used for `barrins_api` (ADR-4).
+2. Have Karn Tablets expose a small inbound HTTP status/health endpoint
+   for something else to poll.
+3. Scheduled-job health only: state is checked the same way
+   `scripture_scraper`'s already is today (`systemctl status`/
+   `journalctl` on the VPS) — no new tracker, no new endpoint.
+
+**Trade-offs.** Option 1 would consume a HetrixTools slot on a free tier
+already fully used by `barrins_api` prod+staging (ADR-4) — a paid tier or
+dropping an existing tracker, for a periodic batch job with no
+user-facing uptime property to begin with (HetrixTools checks HTTP
+uptime; a scheduled job's failure mode is "did the run exit 0", not "is
+it up right now" — the same mismatch D2/F1 already noted for
+`scripture_scraper`). Option 2 reintroduces exactly the inbound network
+exposure ADR-13 deliberately eliminated ("needs no inbound network
+exposure at all"), for a monitoring shape that still wouldn't fit a
+periodic job well. Option 3 adds nothing new architecturally and matches
+existing precedent exactly, but inherits the same known gap already
+tracked for `scripture_scraper`: no automated failure notification yet,
+manual inspection only.
+
+**Decision.** Option 3. Karn Tablets' scheduled-job health is checked the
+same way `scripture_scraper`'s is today — manual `systemctl status`/
+`journalctl` on the VPS. This folds Karn Tablets into the same,
+already-open D2/F1 backlog item (automated scheduled-job failure
+notification) rather than solving it separately per job. No HetrixTools
+tracker is added for Karn Tablets; no inbound status endpoint is built.
+
+**Alternatives considered — Jupyter Lab's purpose and scope.**
+
+1. Jupyter Lab is part of the production pipeline: notebooks are how
+   clustering actually runs, or how it's monitored, in production.
+2. Jupyter Lab is an ops/dev exploration tool only: a workbench,
+   restricted to `admin` and `ml_developer` account holders, for
+   interactively poking at `bs_*`/`kt_*` data and clustering behavior.
+   The pipeline itself stays exactly what T6 scaffolded — a CLI batch job
+   (`uv run karn-tablets ...`), no notebooks anywhere in the execution
+   path.
+
+**Trade-offs.** Option 1 would put an interactive, hand-run artifact
+inside the actual clustering execution path, cutting against Constitution
+§45.2 (reproducible pipelines, every result carries source
+data/version/model info) — a notebook run by hand doesn't reproduce the
+same way a scheduled CLI job does. Option 2 keeps §45.2 fully intact
+(the pipeline `apps/karn_tablets` already scaffolds is untouched) and
+scopes Jupyter to what it's actually good at: ad-hoc exploration of data
+already produced by the real pipeline.
+
+**Decision.** Option 2. Jupyter Lab, reachable at
+`karn-jupyter.barrins-codex.org`, is an interactive exploration tool over
+Karn Tablets' data, restricted to `admin` and `ml_developer` account
+holders — never part of the scheduled clustering job itself, which
+remains the CLI pipeline `apps/karn_tablets` already scaffolds.
+
+The authorization boundary reuses `auth_roles.md`'s existing role
+hierarchy rather than inventing a new one: `ml_developer` (level 3) and
+`admin` (level 4) are already-defined roles, and `MlDeveloperUser`
+already exists as a dependency alias covering exactly this pair (`admin
+⊃ ml_developer` in the hierarchy, so gating at the `ml_developer` level
+already admits admins too). No new role is created for Jupyter access.
+
+The *technical* enforcement mechanism is deliberately left open here
+rather than prescribed: the closest existing infra precedent is pgAdmin
+(`ops/my-server`) — Docker, bound to `127.0.0.1` only, its own nginx
+vhost with a dedicated cert, and the tool's own login as the sole access
+gate, no separate allowlist layer. Whether Jupyter follows that same
+shape (its own login, credentials handed out only to `admin`/
+`ml_developer` account holders, same as pgAdmin's credential-sharing
+model) or something that actively validates a `barrins_api` JWT/role
+(an auth-checking reverse-proxy layer, heavier to build) is not decided
+here — no ops role for Jupyter exists yet, and picking the concrete
+shape is deferred to the T8-style implementation task that actually
+builds it, the same way ADR-13 deferred Karn Tablets' own deployment
+shape until it was concretely needed.
+
+**Consequences.**
+
+- No new HetrixTools tracker, no new inbound endpoint on Karn Tablets;
+  Karn Tablets' run-health is added to D2/F1's existing scope
+  (automated scheduled-job failure notification, still open) rather than
+  given its own bespoke solution.
+- `apps/karn_tablets`' pipeline code and its §45.2 reproducibility
+  properties are unaffected by this decision — Jupyter is additive
+  tooling on top, not a second execution path.
+- A new subdomain, `karn-jupyter.barrins-codex.org`, needs a
+  `register_ssl` entry and a new `ops/my-server` role plus nginx vhost
+  before it can go live — not yet built. Until that implementation task
+  picks and builds an enforcement mechanism, "`admin`/`ml_developer`
+  only" is a stated requirement, not yet an enforced access boundary.
+- Follows the same pattern as ADR-1/ADR-5/ADR-13's `KARN_INGEST_TOKEN`,
+  `SCRIPTURE_INGEST_TOKEN`, etc.: whatever auth Jupyter ends up using
+  (its own token/password, per the pgAdmin precedent) is a secret,
+  handled per ADR-1 — never committed, documented in
+  `ops/my-server/secrets/README.md` once it exists.
