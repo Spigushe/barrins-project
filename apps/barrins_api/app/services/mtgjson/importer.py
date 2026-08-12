@@ -45,8 +45,8 @@ from app.services.mtgjson.base import MTGJSONClient
 
 logger = get_logger(__name__)
 
-#: Rows per multi-row upsert statement. Cards have 19 columns, so
-#: 500 * 19 = 9,500 bind parameters per statement -- comfortably under
+#: Rows per multi-row upsert statement. Cards have 24 columns, so
+#: 500 * 24 = 12,000 bind parameters per statement -- comfortably under
 #: Postgres's 65,535 parameter limit even as columns are added later.
 _UPSERT_CHUNK_SIZE = 500
 
@@ -95,6 +95,11 @@ def _card_values(set_code: str, card_data: dict[str, Any]) -> dict[str, Any]:
         "number": card_data["number"],
         "scryfall_id": identifiers.get("scryfallId"),
         "scryfall_oracle_id": identifiers.get("scryfallOracleId"),
+        "text": card_data.get("text"),
+        "keywords": card_data.get("keywords", []),
+        "power": card_data.get("power"),
+        "toughness": card_data.get("toughness"),
+        "loyalty": card_data.get("loyalty"),
     }
 
 

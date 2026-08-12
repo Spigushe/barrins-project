@@ -159,6 +159,18 @@ class Card(Base):
     number: Mapped[str] = mapped_column(String(16), nullable=False)
     scryfall_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     scryfall_oracle_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    #: Oracle text, keywords, power/toughness/loyalty -- present in MTGJSON's
+    #: source data since the beginning but never mapped in until Karn Tablets'
+    #: feature engineering needed them (docs/project/v2.0.0-bump/
+    #: t6-karn-tablets-scaffold/, ADR-13). Nullable: backfilled by re-running
+    #: the existing, idempotent POST /mtgjson/import, not a new pipeline.
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    keywords: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list
+    )
+    power: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    toughness: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    loyalty: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

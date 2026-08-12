@@ -38,6 +38,11 @@ class ResponseCard(BaseResponse):
     number: str
     scryfall_id: str | None
     scryfall_oracle_id: str | None
+    text: str | None
+    keywords: list[str]
+    power: str | None
+    toughness: str | None
+    loyalty: str | None
 
 
 class ResponseImportResult(BaseResponse):
