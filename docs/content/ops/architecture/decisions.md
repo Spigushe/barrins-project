@@ -1064,3 +1064,87 @@ a possible third `ops/my-server` shape.
   `t6-karn-tablets-scaffold/index.md`, and
   `t8-scripture-karn-playbooks/index.md` for the full implementation
   breakdown.
+
+## ADR-14: Tamiyo Scroll pagination — dedicated `Paginated[T]`, not `Envelope`
+
+**Context.** The user wants pagination on Tamiyo Scroll's two largest
+list endpoints — `GET /matches` (the "Journal") and `GET /card-tests`
+— with a page size the user selects from {10, 25, 50}. Tolaria News
+already has a pagination-shaped response wrapper, `Envelope[T]` /
+`Meta` / `Page` (`{data, meta, page?}`, `responses_tolaria_news.py`),
+raising the question of whether Tamiyo Scroll should adopt the same
+wrapper for consistency (Constitution §4.3) rather than invent a
+second pattern.
+
+**Alternatives considered.**
+
+1. **Adopt Tolaria News' `Envelope[T]`** wholesale, wrapping `Paginated`
+   Tamiyo Scroll responses the same way.
+2. **New dedicated `Paginated[T]`** (`items`, `total`, `page`,
+   `per_page`), added to the shared `responses_base.py`, applied only
+   to the two affected endpoints.
+
+**Trade-offs.** `Envelope`'s `Page` is cursor pagination
+(`next_cursor`, `limit`) — built for infinite-scroll over Tolaria
+News' public, staleness-sensitive tournament data. A page-size
+selector (10/25/50) is page-number pagination: the user expects a
+total count and the ability to jump between pages, neither of which a
+cursor token supports. `Envelope`'s `Meta` (`generated_at`,
+`source_synced_at`) also has no Tamiyo Scroll equivalent — matches and
+card tests are the user's own live-written data, not scraped data with
+a sync lag; forcing it in would mean dummy fields with no meaning.
+Beyond the shape mismatch, treating `Envelope` as *the* Tamiyo Scroll
+convention would, for consistency, eventually pull in all of Tamiyo
+Scroll's ~117 route handlers and every test asserting on a bare
+response body — a large, unscoped migration in service of two
+endpoints whose pagination need doesn't fit the wrapper being adopted.
+Separately, `GET /matches` builds its result via
+`services/tamiyo_scroll/sharing_merge.py`'s `build_merged_view`, which
+merges the owner's own rows with name-matched shared rows **in
+Python**, not SQL — there is no query to attach `LIMIT`/`OFFSET` to.
+This affects the implementation (pagination is a slice of the
+already-sorted merged list, acceptable at personal-tracker scale) but
+not the choice between the two wrapper shapes above.
+
+**Decision.** Option 2, per the user. `Paginated[T]` is added to
+`app/schemas/responses_base.py` and used only by `GET /matches` and
+`GET /card-tests`. `Envelope` remains Tolaria-News-specific, per its
+original divergence rationale already documented in
+`responses_tolaria_news.py`'s module docstring — this ADR reaffirms
+rather than revisits that boundary.
+
+Page size is **not** a per-request query parameter or a
+`localStorage`-only client preference: it is persisted server-side as
+a `ts_user_settings` field, one independent setting per list ("Journal
+page size" and "Card Tests page size" are separate, per the user —
+changing one never affects the other), editable only from the Account
+Settings popup (`AccountSettingsDialog.tsx`), the same place
+`data_shared` / `receive_shared_data` / `active_personal_deck_id`
+already live. This is consistent with Option D of
+`docs/content/back/barrins_api/bff/tamiyo_scroll.md` ("dedicated
+`ts_user_settings` table for the BFF domain, `users` stays a pure
+identity model") — page size is exactly this kind of Tamiyo-Scroll-only
+preference, not a Barrin-wide concept.
+
+**Consequences.**
+
+- `ts_user_settings` gains two new columns (working names:
+  `journal_page_size`, `card_tests_page_size`), each constrained to
+  {10, 25, 50}, with a default — needs a migration.
+- `ResponseUserSettings` / `UserSettingsUpdate`
+  (`schemas/responses_tamiyo_scroll.py` / `schemas/tamiyo_scroll.py`)
+  and `PATCH /me/settings` (`api/tamiyo_scroll/settings.py`) gain the
+  two fields, validated against the allowed set the same way
+  `receive_shared_data` is validated against `data_shared`.
+- `GET /matches` and `GET /card-tests` gain a `page` (page number)
+  query param only — `per_page` is read server-side from the caller's
+  stored setting, never accepted as a request override, since the
+  settings popup is the only place page size changes.
+- `AccountSettingsDialog.tsx` gains two page-size selectors (one per
+  list) alongside the existing sharing toggles and display-preference
+  switches.
+- Not yet implemented — this ADR precedes the implementation. Once
+  shipped, `docs/content/back/barrins_api/bff/tamiyo_scroll.md`'s
+  route map (already flagged in its own 2026-08-02 gap note as
+  out of date past v1) and `responses_base.py` should reflect
+  `Paginated[T]` alongside `BaseResponse`.
