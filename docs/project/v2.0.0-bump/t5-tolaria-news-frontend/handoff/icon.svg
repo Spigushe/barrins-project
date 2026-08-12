@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#142036"></stop>
+      <stop offset="100%" stop-color="#0B1220"></stop>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7BE0D6" stop-opacity="0.55"></stop>
+      <stop offset="60%" stop-color="#7BE0D6" stop-opacity="0.10"></stop>
+      <stop offset="100%" stop-color="#7BE0D6" stop-opacity="0"></stop>
+    </radialGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"></stop>
+      <stop offset="40%" stop-color="#7BE0D6" stop-opacity="1"></stop>
+      <stop offset="100%" stop-color="#7BE0D6" stop-opacity="0.4"></stop>
+    </radialGradient>
+  </defs>
+
+  
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#bg)"></rect>
+
+  
+  <circle cx="128" cy="128" r="90" fill="url(#glow)"></circle>
+
+  
+  <circle cx="128" cy="128" r="96" fill="none" stroke="#F0EAD6" stroke-opacity="0.35" stroke-width="1"></circle>
+
+  
+  <g stroke="#F0EAD6" stroke-opacity="0.4" stroke-width="1">
+    <line x1="128" y1="24" x2="128" y2="34"></line>
+    <line x1="128" y1="232" x2="128" y2="222"></line>
+    <line x1="24" y1="128" x2="34" y2="128"></line>
+    <line x1="232" y1="128" x2="222" y2="128"></line>
+    <line x1="55" y1="55" x2="62" y2="62"></line>
+    <line x1="201" y1="55" x2="194" y2="62"></line>
+    <line x1="55" y1="201" x2="62" y2="194"></line>
+    <line x1="201" y1="201" x2="194" y2="194"></line>
+  </g>
+
+  
+  <circle cx="128" cy="128" r="60" fill="none" stroke="#F0EAD6" stroke-opacity="0.55" stroke-width="1"></circle>
+
+  
+  <path d="M128 40 L216 128 L128 216 L40 128 Z" fill="none" stroke="#7BE0D6" stroke-width="2.5" stroke-linejoin="miter"></path>
+
+  
+  <path d="M128 40 L216 128 L128 216 L40 128 Z" fill="none" stroke="#7BE0D6" stroke-opacity="0.25" stroke-width="6" stroke-linejoin="miter"></path>
+
+  
+  <circle cx="128" cy="128" r="22" fill="url(#core)"></circle>
+  <circle cx="128" cy="128" r="9" fill="#F0EAD6"></circle>
+  <circle cx="128" cy="128" r="3.5" fill="#0B1220"></circle>
+</svg>

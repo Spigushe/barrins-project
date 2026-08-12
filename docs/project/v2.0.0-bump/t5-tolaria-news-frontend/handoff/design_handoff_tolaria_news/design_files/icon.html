@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Barrin's Project — Icon & Favicon</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;1,400&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#0B1220;color:#F0EAD6;font-family:'Geist',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  ::selection{background:#7BE0D6;color:#0B1220}
+  .wrap{max-width:1200px;margin:0 auto;padding:64px 56px 96px;position:relative}
+  .eyebrow{display:inline-flex;align-items:center;gap:10px;padding:6px 11px 6px 9px;border:.5px solid rgba(240,234,214,.10);border-radius:999px;background:rgba(255,255,255,.03);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;color:rgba(240,234,214,.62)}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:#7BE0D6;box-shadow:0 0 8px #7BE0D6}
+  h1{font-family:'EB Garamond',serif;font-weight:400;font-size:52px;line-height:1.15;letter-spacing:-.02em;margin:24px 0 18px;max-width:900px}
+  h1 em{color:#7BE0D6;font-style:italic}
+  p.sub{font-size:15.5px;line-height:1.55;color:rgba(240,234,214,.62);max-width:640px;margin:0 0 56px}
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-bottom:56px}
+  .card{padding:28px 24px;border:.5px solid rgba(240,234,214,.10);border-radius:14px;background:rgba(255,255,255,.015);display:flex;flex-direction:column;align-items:center;gap:18px}
+  .card .label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:rgba(240,234,214,.62);text-transform:uppercase;letter-spacing:.12em}
+  .card .meta{font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:rgba(240,234,214,.85);text-align:center}
+  .chk{width:140px;height:140px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:repeating-conic-gradient(rgba(255,255,255,.04) 0% 25%,transparent 0% 50%) 50% / 16px 16px}
+  .chk.dark{background:#0B1220}
+  .chk.light{background:#F0EAD6}
+  .chk.parch{background:#F2EBD8}
+  h3{font-family:'EB Garamond',serif;font-weight:400;font-size:24px;letter-spacing:-.01em;margin:0 0 18px}
+  .browser{border:.5px solid rgba(240,234,214,.10);border-radius:12px;overflow:hidden;background:#0E1830}
+  .tabbar{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.02);border-bottom:.5px solid rgba(240,234,214,.10)}
+  .traffic{display:flex;gap:6px}
+  .traffic i{width:10px;height:10px;border-radius:50%;display:block}
+  .traffic .r{background:#E08A6A}.traffic .y{background:#C7A455}.traffic .g{background:#7BB57A}
+  .tabs{display:flex;gap:8px;margin-left:18px}
+  .tab{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;font-family:'Geist',sans-serif;font-size:12.5px;color:rgba(240,234,214,.62);background:rgba(255,255,255,.02);border:.5px solid rgba(240,234,214,.10);border-radius:7px 7px 0 0;border-bottom:0;margin-bottom:-.5px}
+  .tab.active{color:#F0EAD6;background:#0B1220}
+  .tab img{width:14px;height:14px;display:block}
+  .addrbar{flex:1;display:flex;align-items:center;gap:10px;padding:6px 12px;background:rgba(255,255,255,.025);border:.5px solid rgba(240,234,214,.08);border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:rgba(240,234,214,.62);margin-left:18px;max-width:520px}
+  .addrbar img{width:13px;height:13px}
+  .addrbar .url{color:#F0EAD6}
+  .browser-body{padding:32px;color:rgba(240,234,214,.4);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(240,234,214,.62);letter-spacing:.04em}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:18px}
+  .gridline{position:absolute;left:0;right:0;top:80px;height:.5px;background:rgba(240,234,214,.08)}
+  .bg-radial{position:absolute;inset:0;pointer-events:none;background:radial-gradient(900px 600px at 18% 35%,rgba(123,224,214,.12),transparent 70%),radial-gradient(700px 500px at 85% 70%,#0E1830,transparent 65%);z-index:-1}
+  .install{margin-top:48px;padding:24px 26px;border:.5px solid rgba(240,234,214,.10);border-radius:12px}
+  .install pre{margin:12px 0 0;padding:14px 16px;background:#06090F;border:.5px solid rgba(240,234,214,.08);border-radius:8px;color:#F0EAD6;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.65;overflow-x:auto;white-space:pre}
+  .install pre .kw{color:#7BE0D6}
+  .install pre .at{color:#C7A455}
+  .install pre .str{color:#F0EAD6}
+  .install pre .com{color:rgba(240,234,214,.4)}
+</style>
+</head>
+<body>
+<div class="bg-radial"></div>
+<div class="gridline"></div>
+
+<div class="wrap">
+  <span class="eyebrow"><span class="dot"></span>Brand · icon &amp; favicon</span>
+  <h1>One mark, every <em>surface.</em></h1>
+  <p class="sub">The Barrin's Project sigil — concentric rings, diamond cardinals, glowing core — adapted for app icon, favicon, and browser-tab use. Same design language as the landing banner.</p>
+
+  <h3>Icon</h3>
+  <div class="row">
+    <div class="card">
+      <div class="chk dark"><img src="icon.svg" alt="icon dark" width="100" height="100" /></div>
+      <span class="label">256 · on midnight</span>
+      <span class="meta">Default surface</span>
+    </div>
+    <div class="card">
+      <div class="chk light"><img src="icon.svg" alt="icon light" width="100" height="100" /></div>
+      <span class="label">256 · on ink</span>
+      <span class="meta">Letterhead, light UI</span>
+    </div>
+    <div class="card">
+      <div class="chk parch"><img src="icon.svg" alt="icon parchment" width="100" height="100" /></div>
+      <span class="label">256 · on parchment</span>
+      <span class="meta">Print, archive</span>
+    </div>
+    <div class="card">
+      <div class="chk"><img src="icon.svg" alt="icon checker" width="100" height="100" /></div>
+      <span class="label">256 · transparency</span>
+      <span class="meta">Composited overlay</span>
+    </div>
+  </div>
+
+  <h3>Favicon</h3>
+  <div class="row">
+    <div class="card">
+      <div class="chk dark" style="height:80px;width:80px"><img src="favicon.svg" alt="favicon 16" width="16" height="16" /></div>
+      <span class="label">16 px</span>
+      <span class="meta">Browser tab</span>
+    </div>
+    <div class="card">
+      <div class="chk dark" style="height:80px;width:80px"><img src="favicon.svg" alt="favicon 32" width="32" height="32" /></div>
+      <span class="label">32 px</span>
+      <span class="meta">Retina tab, bookmarks</span>
+    </div>
+    <div class="card">
+      <div class="chk dark" style="height:80px;width:80px"><img src="favicon.svg" alt="favicon 48" width="48" height="48" /></div>
+      <span class="label">48 px</span>
+      <span class="meta">Windows shortcut</span>
+    </div>
+    <div class="card">
+      <div class="chk dark" style="height:80px;width:80px"><img src="favicon.svg" alt="favicon 64" width="64" height="64" /></div>
+      <span class="label">64 px</span>
+      <span class="meta">macOS dock fallback</span>
+    </div>
+  </div>
+
+  <h3>In context</h3>
+  <div class="grid-2">
+    <div class="browser">
+      <div class="tabbar">
+        <span class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <div class="tabs">
+          <span class="tab active"><img src="favicon.svg" alt="" />Barrin's Project — Duel Commander</span>
+          <span class="tab">Tournament Hub</span>
+        </div>
+      </div>
+      <div class="browser-body">browser tab favicon · 16px</div>
+    </div>
+
+    <div class="browser">
+      <div class="tabbar">
+        <span class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <div class="addrbar"><img src="favicon.svg" alt="" /><span class="url">barrins-project.io</span><span style="opacity:.5">/metagame</span></div>
+      </div>
+      <div class="browser-body">address-bar favicon · 13px</div>
+    </div>
+  </div>
+
+  <div class="install">
+    <span class="label mono">USAGE</span>
+    <pre><span class="com">&lt;!-- in app.html &lt;head&gt; --&gt;</span>
+<span class="kw">&lt;link</span> <span class="at">rel</span>=<span class="str">"icon"</span> <span class="at">type</span>=<span class="str">"image/svg+xml"</span> <span class="at">href</span>=<span class="str">"/favicon.svg"</span> <span class="kw">/&gt;</span>
+<span class="kw">&lt;link</span> <span class="at">rel</span>=<span class="str">"apple-touch-icon"</span> <span class="at">href</span>=<span class="str">"/icon.svg"</span> <span class="kw">/&gt;</span>
+<span class="kw">&lt;meta</span> <span class="at">name</span>=<span class="str">"theme-color"</span> <span class="at">content</span>=<span class="str">"#0B1220"</span> <span class="kw">/&gt;</span></pre>
+  </div>
+</div>
+</body>
+</html>
