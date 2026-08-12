@@ -262,7 +262,11 @@ class TestPublicRoutesReachability:
         await import_all_printings(db_session, FakeMTGJSONClient())
         resp = await client.get(f"{_BASE}/sets/P30A/cards")
         assert resp.status_code == 200
-        assert [c["name"] for c in resp.json()] == ["Serra Angel"]
+        body = resp.json()
+        assert [c["name"] for c in body["items"]] == ["Serra Angel"]
+        assert body["total"] == 1
+        assert body["page"] == 1
+        assert body["per_page"] == 25
 
     async def test_get_card_by_id_reachable_without_auth(
         self, client: AsyncClient, db_session
@@ -284,6 +288,182 @@ class TestPublicRoutesReachability:
 
     async def test_get_card_unknown_id_404s(self, client: AsyncClient):
         resp = await client.get(f"{_BASE}/cards/00000000-0000-0000-0000-000000000000")
+        assert resp.status_code == 404
+
+
+def _mtgjson_payload_for_many_cards(set_code: str, count: int) -> dict[str, Any]:
+    """A single set with `count` single-faced cards, numbered "1".."count"."""
+    return {
+        "meta": {"date": "2026-08-07", "version": "test"},
+        "data": {
+            set_code: {
+                "name": f"{set_code} Test Set",
+                "releaseDate": "2026-01-01",
+                "type": "expansion",
+                "baseSetSize": count,
+                "totalSetSize": count,
+                "keyruneCode": set_code,
+                "cards": [
+                    {
+                        "uuid": str(
+                            uuid.uuid5(uuid.NAMESPACE_URL, f"{set_code}/card-{n}")
+                        ),
+                        "name": f"Test Card {n:02d}",
+                        "type": "Instant",
+                        "rarity": "common",
+                        "number": str(n),
+                        "layout": "normal",
+                    }
+                    for n in range(1, count + 1)
+                ],
+            }
+        },
+    }
+
+
+def _mtgjson_payload_with_numbers(set_code: str, numbers: list[str]) -> dict[str, Any]:
+    """A single set with one card per given (free-text) collector number."""
+    return {
+        "meta": {"date": "2026-08-07", "version": "test"},
+        "data": {
+            set_code: {
+                "name": f"{set_code} Test Set",
+                "releaseDate": "2026-01-01",
+                "type": "expansion",
+                "baseSetSize": len(numbers),
+                "totalSetSize": len(numbers),
+                "keyruneCode": set_code,
+                "cards": [
+                    {
+                        "uuid": str(
+                            uuid.uuid5(uuid.NAMESPACE_URL, f"{set_code}/num-{number}")
+                        ),
+                        "name": f"Card #{number}",
+                        "type": "Instant",
+                        "rarity": "common",
+                        "number": number,
+                        "layout": "normal",
+                    }
+                    for number in numbers
+                ],
+            }
+        },
+    }
+
+
+class TestSetCardsNumberOrdering:
+    """`Card.number` is free text ("111", "111★", "14a"), not an integer
+    column -- a naive `ORDER BY number` sorts lexicographically and puts
+    "10" before "2". Regression coverage for the natural-sort fix.
+    """
+
+    async def test_numeric_prefix_sorts_numerically_not_lexicographically(
+        self, client: AsyncClient, db_session
+    ):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_with_numbers("ORD", ["2", "10", "1"])
+            ),
+        )
+        resp = await client.get(f"{_BASE}/sets/ORD/cards")
+        assert resp.status_code == 200
+        assert [c["number"] for c in resp.json()["items"]] == ["1", "2", "10"]
+
+    async def test_foil_star_suffix_sorts_right_after_base_number(
+        self, client: AsyncClient, db_session
+    ):
+        """Matches the real "Twiddle" (Eighth Edition) case: normal sn=111,
+        foil sn=111★ -- the foil variant must land immediately after its
+        base printing, not scattered by plain string order.
+        """
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_with_numbers("ORD", ["15", "14★", "14"])
+            ),
+        )
+        resp = await client.get(f"{_BASE}/sets/ORD/cards")
+        assert resp.status_code == 200
+        assert [c["number"] for c in resp.json()["items"]] == ["14", "14★", "15"]
+
+
+class TestSetCardsPagination:
+    """GET /sets/{code}/cards -- page-number pagination, per ADR-14's
+    `Paginated[T]` shape (`items`, `total`, `page`, `per_page`). Unlike
+    Tamiyo Scroll's per-user-setting page size, this is a public, unauthenticated
+    route, so `per_page` is a plain query param, defaulting to 25 and capped
+    at 50.
+    """
+
+    async def test_defaults_to_25_per_page(self, client: AsyncClient, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(_mtgjson_payload_for_many_cards("BIG", 30)),
+        )
+        resp = await client.get(f"{_BASE}/sets/BIG/cards")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 30
+        assert body["page"] == 1
+        assert body["per_page"] == 25
+        assert len(body["items"]) == 25
+        assert [c["name"] for c in body["items"]] == [
+            f"Test Card {n:02d}" for n in range(1, 26)
+        ]
+
+    async def test_second_page_returns_remainder(self, client: AsyncClient, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(_mtgjson_payload_for_many_cards("BIG", 30)),
+        )
+        resp = await client.get(f"{_BASE}/sets/BIG/cards", params={"page": 2})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["page"] == 2
+        assert len(body["items"]) == 5
+        assert [c["name"] for c in body["items"]] == [
+            f"Test Card {n:02d}" for n in range(26, 31)
+        ]
+
+    async def test_custom_per_page(self, client: AsyncClient, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(_mtgjson_payload_for_many_cards("BIG", 30)),
+        )
+        resp = await client.get(
+            f"{_BASE}/sets/BIG/cards", params={"page": 1, "per_page": 10}
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["per_page"] == 10
+        assert len(body["items"]) == 10
+
+    async def test_per_page_over_max_rejected(self, client: AsyncClient, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(_mtgjson_payload_for_many_cards("BIG", 30)),
+        )
+        resp = await client.get(f"{_BASE}/sets/BIG/cards", params={"per_page": 51})
+        assert resp.status_code == 422
+
+    async def test_page_past_last_page_returns_empty_items(
+        self, client: AsyncClient, db_session
+    ):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(_mtgjson_payload_for_many_cards("BIG", 30)),
+        )
+        resp = await client.get(f"{_BASE}/sets/BIG/cards", params={"page": 5})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 30
+        assert body["items"] == []
+
+    async def test_unknown_set_code_still_404s_with_pagination_params(
+        self, client: AsyncClient
+    ):
+        resp = await client.get(f"{_BASE}/sets/ZZZZ/cards", params={"page": 2})
         assert resp.status_code == 404
 
 

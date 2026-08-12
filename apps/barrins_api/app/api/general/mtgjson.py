@@ -13,8 +13,9 @@ by any future app, not a Tamiyo-Scroll-specific workflow.
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import func, or_, select, union
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import Integer, cast, func, or_, select, union
+from sqlalchemy.sql.elements import UnaryExpression
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser
@@ -24,6 +25,7 @@ from app.models.mtgjson import (
     MTGJSONImportRun,
     MTGSet,
 )
+from app.schemas.responses_base import Paginated
 from app.schemas.responses_mtgjson import (
     ResponseCard,
     ResponseImportResult,
@@ -35,6 +37,23 @@ from app.services.mtgjson import MTGJSONClientDep, import_all_printings
 from app.services.scripture.card_resolver import invalidate_name_cache
 
 router = APIRouter()
+
+_DEFAULT_CARDS_PER_PAGE = 25
+_MAX_CARDS_PER_PAGE = 50
+
+
+def _card_number_sort_terms() -> tuple[UnaryExpression, UnaryExpression]:
+    """Natural sort for `Card.number` -- free text ("111", "111★", "14a",
+    "T1"), not an integer column, so a plain `ORDER BY number` sorts
+    lexicographically and puts "10" before "2". Sorts by the leading
+    digit run as an integer first (numeric collector-number order),
+    falling back to the full string as a tiebreaker so a foil/suffixed
+    variant ("111★") lands right after its base printing ("111") instead
+    of scattering alphabetically. Numbers with no leading digits (e.g.
+    token/promo-only codes like "T1") sort last.
+    """
+    digits = func.nullif(func.regexp_replace(Card.number, r"\D.*$", ""), "")
+    return cast(digits, Integer).asc().nulls_last(), Card.number.asc()
 
 
 @router.post("/mtgjson/import", response_model=ResponseImportResult)
@@ -121,17 +140,37 @@ async def get_set(code: str, session: DatabaseSession) -> ResponseSet:
     return ResponseSet.model_validate(mtg_set)
 
 
-@router.get("/sets/{code}/cards", response_model=list[ResponseCard])
-async def get_set_cards(code: str, session: DatabaseSession) -> list[ResponseCard]:
+@router.get("/sets/{code}/cards", response_model=Paginated[ResponseCard])
+async def get_set_cards(
+    code: str,
+    session: DatabaseSession,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(_DEFAULT_CARDS_PER_PAGE, ge=1, le=_MAX_CARDS_PER_PAGE),
+) -> Paginated[ResponseCard]:
     mtg_set = await session.get(MTGSet, code.upper())
     if mtg_set is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Set not found."
         )
+    set_code = code.upper()
+    total = (
+        await session.execute(
+            select(func.count()).select_from(Card).where(Card.set_code == set_code)
+        )
+    ).scalar_one()
     result = await session.execute(
-        select(Card).where(Card.set_code == code.upper()).order_by(Card.number)
+        select(Card)
+        .where(Card.set_code == set_code)
+        .order_by(*_card_number_sort_terms())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
-    return [ResponseCard.model_validate(c) for c in result.scalars().all()]
+    return Paginated(
+        items=[ResponseCard.model_validate(c) for c in result.scalars().all()],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.get("/cards/by-name/{name:path}", response_model=ResponseCard)
