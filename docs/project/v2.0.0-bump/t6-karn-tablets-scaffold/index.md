@@ -84,6 +84,40 @@ questions on this page but discovered while planning the exposure side:
    uses for commander derivation. No format dimension is exposed yet —
    there is exactly one consumer and it only wants one format.
 
+## Future direction — mtgtop8 notes as a validation signal (paused)
+
+Discussed 2026-08-13, prompted by a broader question: could `bs_decks.notes`
+(mtgtop8's per-deck "explain" text, scraped by `barrins_scripture` — see
+`apps/barrins_scripture/barrins_scripture/parsers/mtgtop8.py`'s
+`get_notes()`) be used to train a Barrin's-owned LLM to generate notes for
+MTGO decks and aggregated decks.
+
+That broader idea was paused, not pursued, once it surfaced that mtgtop8's
+"notes" are themselves ChatGPT-generated (the scraper strips a disclaimer
+to that effect — `_AI_DISCLAIMER` in the same parser), not human
+pilot/sideboard-guide commentary. Training or fine-tuning a model on
+another AI's generated output — of unverified accuracy, per mtgtop8's own
+disclaimer — was judged too weak a foundation to build a generation
+feature on, separately from the mtgtop8 ToS/attribution questions that use
+would also raise.
+
+A narrower, related idea survived the discussion and is recorded here as a
+**v3+ candidate, not committed, not scoped**: use `bs_decks.notes` as an
+independent **validation signal for Karn Tablets' own unsupervised
+clustering**, not as generation/training material. The idea — not designed
+in any detail — is that a note's language sometimes names or implies an
+archetype, which could be cross-checked against the archetype a deck was
+actually assigned to by clustering, as a rough sanity check rather than
+labeled ground truth (the notes are AI-generated and unverified, so they
+would inform confidence, not define correctness). This is consistent with
+Constitution §45.2's documented-dataset requirement — any future version of
+this must record what it measures and against what data, same as the
+clustering pipeline itself already must.
+
+Not a task on this page's list below; recorded here purely so the idea
+isn't lost (§48 — avoid premature implementation, but don't discard a
+considered idea either).
+
 ## Done statement
 
 - `apps/karn_tablets` exists with a real pipeline (shape — scheduled job
