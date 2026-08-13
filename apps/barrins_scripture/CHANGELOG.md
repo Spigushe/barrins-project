@@ -43,6 +43,21 @@ section of the docs site for details.
   decision. `ansible-lint` clean (via WSL); not yet deployed to the
   real VPS.
 
+### Changed
+
+- `services.mtgo.scrape_mtgo`: reworked from "detect every month in the
+  date span, then scrape everything found" to detect-then-scrape one
+  month at a time (`detect_month` / `scrape_links`, replacing the old
+  `producer`/`consumer`-thread split for the detection side). A large
+  backfill now starts saving tournaments after the first month is
+  detected instead of only after the whole span has been crawled, and
+  one month's retries never mix with another month's queue. Selenium
+  drivers are now reused across every month's batch instead of being
+  re-launched per run — `consumer()` no longer quits its own driver
+  (driver lifecycle moved to the caller: `scrape_mtgo` and
+  `scripts.mtgo_empty_decks.scrape_tournaments_without_decks`, the two
+  places that create drivers for it).
+
 ### Fixed
 
 (Bugs inherited from `mtg_scraper`, found and fixed during this rewrite

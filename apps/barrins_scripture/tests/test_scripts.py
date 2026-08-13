@@ -96,9 +96,10 @@ class TestFindAndClearEmptyDecks:
 
 class TestScrapeTournamentsWithoutDecks:
     def test_wires_producer_and_consumer_threads(self) -> None:
+        drivers = [Mock(), Mock()]
         with (
             patch.object(
-                mtgo_empty_decks.driver_utils, "init_driver", return_value=Mock()
+                mtgo_empty_decks.driver_utils, "init_driver", side_effect=drivers
             ) as mock_init,
             patch.object(
                 mtgo_empty_decks, "find_and_clear_empty_decks"
@@ -110,3 +111,6 @@ class TestScrapeTournamentsWithoutDecks:
         assert mock_init.call_count == 2
         mock_producer.assert_called_once()
         assert mock_consumer.call_count == 2
+        # consumer() no longer quits its own driver -- this caller must.
+        for driver in drivers:
+            driver.quit.assert_called_once()
