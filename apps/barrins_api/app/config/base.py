@@ -154,6 +154,22 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- MTGJSON scheduled import (S8) ---
+    mtgjson_import_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Shared static token the daily MTGJSON-refresh systemd timer "
+            "(ops/my-server/roles/mtgjson_import_scheduler) sends as the "
+            "X-MTGJSON-Import-Token header on POST /mtgjson/import, "
+            "compared with hmac.compare_digest like scripture_ingest_token "
+            "above. Unlike that token, a human admin can still call the "
+            "same route via a normal JWT regardless of whether this is "
+            "set -- see verify_mtgjson_or_admin. Empty -> only admin JWTs "
+            "can trigger an import, matching the route's original "
+            "admin-only behavior."
+        ),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url_sync(self) -> str:
