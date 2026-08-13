@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily MTGJSON reference-data refresh timer ({{ mtgjson_import_scheduler_config.app_name }})
+
+[Timer]
+# Explicit UTC suffix (systemd.time(7)) rather than a bare local-time spec
+# like postgres_backup/scripture_scraper use -- correct regardless of
+# whether this host's system clock is itself set to UTC.
+OnCalendar=*-*-* {{ '%02d' | format(mtgjson_import_scheduler_config.hour) }}:00:00 UTC
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

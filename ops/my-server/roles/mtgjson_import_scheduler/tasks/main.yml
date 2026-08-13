@@ -1,0 +1,41 @@
+---
+# Companion timer for barrins_api's own POST /mtgjson/import route — no
+# git clone, no dependency install of its own: it only templates a
+# systemd .service/.timer pair that curls the backend fastapi_backend
+# already deployed. Must run after fastapi_backend in the play (needs
+# mtgjson_import_scheduler_env_file to already exist on the server).
+
+- name: Check MTGJSON_IMPORT_TOKEN is present in the backend's deployed .env
+  ansible.builtin.command: "grep -qE '^MTGJSON_IMPORT_TOKEN=.+' {{ mtgjson_import_scheduler_config.env_file }}"
+  register: mtgjson_import_scheduler_token_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail fast if MTGJSON_IMPORT_TOKEN is missing — this timer would otherwise silently 401 forever
+  ansible.builtin.fail:
+    msg: >-
+      MTGJSON_IMPORT_TOKEN is not set in
+      {{ mtgjson_import_scheduler_config.env_file }}. Generate one with
+      openssl rand -hex 32, add it to
+      secrets/barrins_api/production.env, and re-run this playbook —
+      see roles/mtgjson_import_scheduler/README.md.
+  when: mtgjson_import_scheduler_token_check.rc != 0
+
+- name: Template the MTGJSON scheduled-import oneshot service
+  ansible.builtin.template:
+    src: mtgjson_import.service.j2
+    dest: "/etc/systemd/system/{{ mtgjson_import_scheduler_config.app_name }}.service"
+    mode: "0644"
+
+- name: Template the daily MTGJSON scheduled-import timer
+  ansible.builtin.template:
+    src: mtgjson_import.timer.j2
+    dest: "/etc/systemd/system/{{ mtgjson_import_scheduler_config.app_name }}.timer"
+    mode: "0644"
+
+- name: Enable and start the MTGJSON scheduled-import timer
+  ansible.builtin.systemd:
+    name: "{{ mtgjson_import_scheduler_config.app_name }}.timer"
+    daemon_reload: true
+    enabled: true
+    state: started
