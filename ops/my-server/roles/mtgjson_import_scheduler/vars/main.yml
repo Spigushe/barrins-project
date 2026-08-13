@@ -1,0 +1,7 @@
+---
+mtgjson_import_scheduler_config:
+  app_name: "{{ mtgjson_import_scheduler_app_name }}"
+  backend_service_name: "{{ mtgjson_import_scheduler_backend_service_name }}"
+  backend_port: "{{ mtgjson_import_scheduler_backend_port }}"
+  env_file: "{{ mtgjson_import_scheduler_env_file }}"
+  hour: "{{ mtgjson_import_scheduler_hour | default(4) }}"
