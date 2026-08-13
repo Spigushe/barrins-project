@@ -24,52 +24,72 @@ def scrape_mtgo(
     num_threads: int = 4,
     output_dir: Path | None = None,
 ) -> None:
+    """Scrapes month by month: detect a month's tournaments, scrape exactly
+    those, then move on to the next month's detection.
+
+    Kept sequential across months (rather than detecting the whole span
+    upfront the way the old producer/consumer split did) so a large
+    backfill starts saving tournaments almost immediately instead of only
+    after every month has been detected, and so a month's retries never mix
+    with another month's queue.
+    """
     if output_dir is not None:
         # Overrides the module-level default (apps/barrins_scripture/scraped/
         # mtgo.com) — lets a deployment point at wherever it manages the JSON
         # archive itself, without requiring a git submodule at a fixed path.
         mtgo_utils.BASE_PATH = Path(output_dir) / "mtgo.com"
 
-    task_queue: MTGOQueue = Queue()
     lock = Lock()
     drivers = [driver_utils.init_driver() for _ in range(num_threads)]
     retries: dict[str, int] = defaultdict(int)
 
-    producer_thread = Thread(
-        target=producer,
-        args=(task_queue, date_from, date_to, drivers[0], lock, force),
-    )
+    try:
+        for year, month in get_month_range(date_from, date_to):
+            links = detect_month(drivers[0], year, month, force)
+            if links:
+                scrape_links(links, drivers, lock, retries)
+    finally:
+        for driver in drivers:
+            driver.quit()
+
+
+def detect_month(
+    driver: WebDriver,
+    year: int,
+    month: int,
+    force: bool = False,
+) -> list[str]:
+    """Detects one month's tournaments and returns the subset to scrape."""
+    tournament_links = driver_utils.get_mtgo_tournaments(driver, year, month)
+    to_scrape = [
+        link
+        for link in tournament_links
+        if force or mtgo_utils.we_should_scrape_it(link)
+    ]
+    logger.info("%s-%02d: found %d tournaments to scrape", year, month, len(to_scrape))
+    return to_scrape
+
+
+def scrape_links(
+    links: list[str],
+    drivers: list[WebDriver],
+    lock: Lock,
+    retries: defaultdict[str, int],
+) -> None:
+    """Drains `links` through one consumer thread per driver, then returns
+    once the batch is fully scraped (drivers are left open for reuse)."""
+    task_queue: MTGOQueue = Queue()
+    for link in links:
+        task_queue.put(link)
 
     consumer_threads = [
-        Thread(target=consumer, args=(drivers[i], task_queue, lock, i + 1, retries))
-        for i in range(num_threads)
+        Thread(target=consumer, args=(driver, task_queue, lock, i + 1, retries))
+        for i, driver in enumerate(drivers)
     ]
-
-    producer_thread.start()
-    producer_thread.join()
     for t in consumer_threads:
         t.start()
     for t in consumer_threads:
         t.join()
-
-
-def producer(
-    queue: MTGOQueue,
-    date_from: date,
-    date_to: date,
-    driver: WebDriver,
-    lock: Lock,
-    force: bool = False,
-) -> None:
-    for year, month in get_month_range(date_from, date_to):
-        tournament_links = driver_utils.get_mtgo_tournaments(driver, year, month)
-        to_scrape = 0
-        for link in tournament_links:
-            if force or mtgo_utils.we_should_scrape_it(link):
-                to_scrape += 1
-                with lock:
-                    queue.put(link)
-        logger.info("%s-%02d: found %d tournaments to scrape", year, month, to_scrape)
 
 
 def consumer(
@@ -113,4 +133,6 @@ def consumer(
         finally:
             time.sleep(0.5)  # throttle: avoid hammering mtgo.com
 
-    driver.quit()
+    # Driver lifecycle belongs to the caller, not to consumer() -- scrape_mtgo
+    # reuses the same drivers across every month's batch, so quitting here
+    # would kill them after the first month.
