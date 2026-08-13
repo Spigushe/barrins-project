@@ -15,9 +15,8 @@ from unittest.mock import Mock, patch
 service = importlib.import_module("barrins_scripture.services.mtgo")
 
 
-class TestProducer:
-    def test_queues_links_that_should_be_scraped(self) -> None:
-        queue: Queue[str] = Queue()
+class TestDetectMonth:
+    def test_returns_links_that_should_be_scraped(self) -> None:
         driver = Mock()
         with (
             patch.object(
@@ -29,13 +28,11 @@ class TestProducer:
                 service.mtgo_utils, "we_should_scrape_it", side_effect=[True, False]
             ),
         ):
-            service.producer(queue, date(2026, 6, 1), date(2026, 6, 30), driver, Lock())
+            links = service.detect_month(driver, 2026, 6)
 
-        assert queue.qsize() == 1
-        assert queue.get() == "https://example.test/a"
+        assert links == ["https://example.test/a"]
 
-    def test_force_queues_everything_regardless_of_we_should_scrape_it(self) -> None:
-        queue: Queue[str] = Queue()
+    def test_force_returns_everything_regardless_of_we_should_scrape_it(self) -> None:
         driver = Mock()
         with (
             patch.object(
@@ -45,11 +42,22 @@ class TestProducer:
             ),
             patch.object(service.mtgo_utils, "we_should_scrape_it", return_value=False),
         ):
-            service.producer(
-                queue, date(2026, 6, 1), date(2026, 6, 1), driver, Lock(), force=True
-            )
+            links = service.detect_month(driver, 2026, 6, force=True)
 
-        assert queue.qsize() == 1
+        assert links == ["https://example.test/a"]
+
+
+class TestScrapeLinks:
+    def test_wires_one_consumer_thread_per_driver(self) -> None:
+        drivers = [Mock(), Mock()]
+        retries: defaultdict[str, int] = defaultdict(int)
+
+        with patch.object(service, "consumer") as mock_consumer:
+            service.scrape_links(["https://example.test/a"], drivers, Lock(), retries)
+
+        assert mock_consumer.call_count == 2
+        called_drivers = [c.args[0] for c in mock_consumer.call_args_list]
+        assert called_drivers == drivers
 
 
 class TestConsumer:
@@ -70,7 +78,7 @@ class TestConsumer:
 
         mock_scrape.assert_called_once()
         mock_save.assert_called_once_with(scrape)
-        driver.quit.assert_called_once()
+        driver.quit.assert_not_called()  # driver lifecycle belongs to the caller
 
     def test_retries_then_gives_up_after_max_retries(self) -> None:
         queue: Queue[str] = Queue()
@@ -88,7 +96,6 @@ class TestConsumer:
         # Requeued twice (retries 1 and 2 are both < MAX_RETRIES=2... only
         # retry 1 is < 2, so it's requeued once, then given up on retry 2.
         assert retries["https://example.test/a"] == 2
-        driver.quit.assert_called_once()
 
     def test_an_unexpected_exception_marks_the_task_done_and_continues(self) -> None:
         queue: Queue[str] = Queue()
@@ -106,29 +113,66 @@ class TestConsumer:
             service.consumer(driver, queue, Lock(), 1, defaultdict(int))
 
         assert queue.empty()
-        driver.quit.assert_called_once()
 
 
 class TestScrapeMtgo:
-    def test_wires_producer_and_consumer_threads(self) -> None:
-        with (
-            patch.object(
-                service.driver_utils, "init_driver", return_value=Mock()
-            ) as mock_init,
-            patch.object(service, "producer") as mock_producer,
-            patch.object(service, "consumer") as mock_consumer,
-        ):
-            service.scrape_mtgo(date(2026, 6, 1), date(2026, 6, 1), num_threads=2)
+    def test_detects_and_scrapes_each_month_in_turn(self) -> None:
+        drivers = [Mock()]
+        calls: list[str] = []
 
-        assert mock_init.call_count == 2
-        mock_producer.assert_called_once()
-        assert mock_consumer.call_count == 2
+        def fake_detect(driver, year, month, force=False):
+            calls.append(f"detect-{year}-{month:02}")
+            return [f"https://example.test/{year}-{month:02}"]
+
+        def fake_scrape_links(links, drivers, lock, retries):
+            calls.append(f"scrape-{links[0]}")
+
+        with (
+            patch.object(service.driver_utils, "init_driver", side_effect=drivers),
+            patch.object(service, "detect_month", side_effect=fake_detect),
+            patch.object(service, "scrape_links", side_effect=fake_scrape_links),
+        ):
+            service.scrape_mtgo(date(2026, 5, 1), date(2026, 6, 30), num_threads=1)
+
+        assert calls == [
+            "detect-2026-05",
+            "scrape-https://example.test/2026-05",
+            "detect-2026-06",
+            "scrape-https://example.test/2026-06",
+        ]
+        drivers[0].quit.assert_called_once()
+
+    def test_skips_scrape_links_when_a_month_has_nothing_to_scrape(self) -> None:
+        with (
+            patch.object(service.driver_utils, "init_driver", return_value=Mock()),
+            patch.object(service, "detect_month", return_value=[]),
+            patch.object(service, "scrape_links") as mock_scrape_links,
+        ):
+            service.scrape_mtgo(date(2026, 6, 1), date(2026, 6, 30), num_threads=1)
+
+        mock_scrape_links.assert_not_called()
+
+    def test_quits_drivers_even_if_scraping_raises(self) -> None:
+        driver = Mock()
+        with (
+            patch.object(service.driver_utils, "init_driver", return_value=driver),
+            patch.object(
+                service, "detect_month", return_value=["https://example.test/a"]
+            ),
+            patch.object(service, "scrape_links", side_effect=RuntimeError("boom")),
+        ):
+            try:
+                service.scrape_mtgo(date(2026, 6, 1), date(2026, 6, 30), num_threads=1)
+            except RuntimeError:
+                pass
+
+        driver.quit.assert_called_once()
 
     def test_output_dir_overrides_the_default_base_path(self, tmp_path: Path) -> None:
         with (
             patch.object(service.driver_utils, "init_driver", return_value=Mock()),
-            patch.object(service, "producer"),
-            patch.object(service, "consumer"),
+            patch.object(service, "detect_month", return_value=[]),
+            patch.object(service, "scrape_links"),
         ):
             service.scrape_mtgo(
                 date(2026, 6, 1), date(2026, 6, 1), num_threads=1, output_dir=tmp_path

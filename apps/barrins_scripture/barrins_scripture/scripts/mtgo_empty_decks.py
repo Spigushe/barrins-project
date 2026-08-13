@@ -52,6 +52,11 @@ def scrape_tournaments_without_decks(num_threads: int = 4) -> None:
     for t in consumer_threads:
         t.join()
 
+    # consumer() no longer quits its own driver (barrins_scripture.services.mtgo
+    # reuses drivers across scrape batches), so ownership is here instead.
+    for driver in drivers:
+        driver.quit()
+
 
 if __name__ == "__main__":
     scrape_tournaments_without_decks()
