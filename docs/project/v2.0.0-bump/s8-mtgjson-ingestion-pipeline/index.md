@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
 | **Initial date** | 2026-08-05 | / |
-| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only). **2026-08-09 UAT**: re-triggered `POST /mtgjson/import` against the real, full file on staging — two consecutive runs, ~3.5 minutes each, 868 sets/112,809 cards, no OOM, confirming both the performance and memory fixes at full scale; also found and fixed a follow-on bug where the raw upsert never bumped `updated_at` on conflict, freezing `GET /mtgjson/status`'s `last_imported_at` (see UAT below) | / |
+| **Status** | ✅ **Done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin **or** service-token gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored) and `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only). **2026-08-09 UAT**: re-triggered `POST /mtgjson/import` against the real, full file on staging — two consecutive runs, ~3.5 minutes each, 868 sets/112,809 cards, no OOM, confirming both the performance and memory fixes at full scale; also found and fixed a follow-on bug where the raw upsert never bumped `updated_at` on conflict, freezing `GET /mtgjson/status`'s `last_imported_at` (see UAT below). **2026-08-13**: built the scheduled refresh (last open item) — see "Scheduled refresh" below | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
-| **Dependency** | D1 (playbook shape for the scheduled refresh — still open) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
+| **Dependency** | D1 (playbook shape for the scheduled refresh) — **satisfied 2026-08-13**, see below | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
 ---
 
@@ -121,6 +121,48 @@ shipped these two tables). DB-internal only: API paths (`/sets/*`,
 because neither table has shipped in a release or held real data yet
 (confirmed empty on the dev DB before the migration ran).
 
+**2026-08-13 scheduled refresh — trigger mechanism (escalated per
+Constitution §16.2, an authentication-strategy choice)**: three options
+were presented — (A) a systemd timer calling the existing
+`POST /mtgjson/import` route over HTTP, authenticated by a new static
+service token; (B) an in-process scheduler library (e.g. APScheduler)
+running the import as a background task inside the live `uvicorn`
+process; (C) a standalone script invoked directly by a systemd timer,
+writing to the database without going through HTTP at all. Decided: **A**.
+The deciding factor was a real correctness constraint, not just
+consistency — `import_mtgjson()` calls
+`invalidate_name_cache()` (`app/services/scripture/card_resolver.py`)
+after every import to clear T3's process-local card-name cache; that
+invalidation only has any effect if it runs inside the same process
+serving requests. Option C would import data into the database correctly
+but silently leave the live server's in-memory cache stale until a manual
+restart, reintroducing the exact bug that cache-invalidation call exists
+to prevent. Option B avoids that gap too, but needs a new external
+dependency (§22) and departs from the systemd-timer pattern already
+proven for scheduled jobs in this codebase (`postgres_backup`,
+`scripture_scraper`), with no `systemctl`/`journalctl` visibility. Option
+A needed no new dependency and reuses the exact machine-auth pattern
+`SCRIPTURE_INGEST_TOKEN`/`verify_scripture_or_admin` already established
+for `POST /internal/scripture/ingest`: a new `MTGJSON_IMPORT_TOKEN`
+(`app/config/base.py`) and `verify_mtgjson_or_admin`
+(`app/dependencies/service_auth.py`) let `POST /mtgjson/import` accept
+either an admin JWT (unchanged for a human operator) or the
+`X-MTGJSON-Import-Token` header (the new systemd timer), gated behind the
+`MTGJSONImportOrAdmin` dependency. Environment scope: **production
+only** — staging is a side-by-side preview instance for pre-release code,
+not something that needs its own independent daily refresh; running it
+there too would double the load on MTGJSON's servers for no benefit.
+Infrastructure: new `ops/my-server/roles/mtgjson_import_scheduler/` role
+(systemd `.service`/`.timer` pair, `OnCalendar=*-*-* 04:00:00 UTC`,
+following D1's new-service-checklist template), invoked from
+`barrins_api.yml` only when `deploy_env == 'production'`. The timer's
+`curl` call reads `MTGJSON_IMPORT_TOKEN` from barrins_api's own already-
+deployed `.env` via `EnvironmentFile=`, rather than a second,
+separately-injected secret file — unlike `SCRIPTURE_INGEST_TOKEN`, only
+one playbook (`barrins_api.yml`) ever needs this value, so
+`scripture_ingest_token`'s cross-playbook-sharing role would have been an
+unneeded abstraction (§39) here.
+
 ## Done statement
 
 - `Card` and `MTGSet` ORM models exist under `app/models/mtgjson.py`,
@@ -149,9 +191,12 @@ because neither table has shipped in a release or held real data yet
   Shattered Skyclave`, ZNR) — see `TestMultiFaceRoundTrip` in
   `tests/test_mtgjson.py`.
 - A **scheduled refresh** exists (not just the admin-triggered manual
-  route). **Still open** — not built in this pass; needs its own T8-style
-  playbook following D1's template, and MTGJSON's own release cadence
-  hasn't been researched yet.
+  route). **Done** (2026-08-13) — a systemd timer
+  (`ops/my-server/roles/mtgjson_import_scheduler/`) calls the existing
+  `POST /mtgjson/import` route daily at 04:00 UTC, production only. See
+  the 2026-08-13 decision note above for the trigger-mechanism escalation
+  and `tests/test_mtgjson.py::TestImportServiceToken` for the new
+  auth-gate coverage.
 - Live import progress: `GET /mtgjson/import/status` (admin-gated) exists,
   backed by `mj_import_runs`. **Done** (2026-08-09) — see the live-progress
   note above; `tests/test_mtgjson_import_status.py` covers the gate,
@@ -173,9 +218,9 @@ because neither table has shipped in a release or held real data yet
 - [x] Implement `GET /sets/*`, `GET /cards/*` public read routes — done.
 - [x] Decide the card-image source — escalated and decided 2026-08-05
       (decision 1 above): store identifiers only, defer URL/hosting to S4.
-- [ ] Design and build the scheduled-refresh mechanism, coordinating
-      with D1's playbook template. **Still open** — next concrete step
-      for this item.
+- [x] Design and build the scheduled-refresh mechanism, coordinating
+      with D1's playbook template — done 2026-08-13, see the decision note
+      above.
 - [x] Update `auth_roles.md` — done narrowly (the security-matrix rows
       this item's routes touch); F8's broader doc-accuracy pass across
       the rest of that file is unchanged, still F8's own scope.
@@ -212,8 +257,13 @@ because neither table has shipped in a release or held real data yet
       retrievable independently — done against a real MDFC in
       `tests/test_mtgjson.py` (see Done statement above).
 - [ ] Confirm the scheduled refresh runs without manual intervention and
-      updates existing records (not just inserting new ones). **Blocked
-      on the scheduled-refresh task above.**
+      updates existing records (not just inserting new ones). **Still
+      open** — the mechanism is built and unit-tested
+      (`TestImportServiceToken`), but this UAT item needs a real
+      `ansible-playbook barrins_api.yml` production deploy plus observing
+      one actual `04:00 UTC` timer firing
+      (`systemctl status api-mtgjson-import.timer`/`journalctl -u
+      api-mtgjson-import.service`) before it can be checked off.
 
 ## Non-regression tests
 
@@ -222,6 +272,11 @@ because neither table has shipped in a release or held real data yet
   on the import route (403 for non-admin), and (2026-08-07) an import
   forced across multiple upsert chunks (`_UPSERT_CHUNK_SIZE` monkeypatched
   down) to prove no rows are dropped or duplicated at a chunk boundary.
+  (2026-08-13) `TestImportServiceToken`: a valid `X-MTGJSON-Import-Token`
+  header allows the import with no JWT at all, a wrong token with no
+  bearer still 401s, and an admin JWT keeps working unchanged once the
+  token is configured — the regression this last case guards against is
+  the service-token branch accidentally short-circuiting the admin path.
   (2026-08-09) `TestImportBumpsUpdatedAt`: seeds a stale `updated_at`
   sentinel onto already-imported rows, re-imports, and confirms it moves
   off that sentinel — doesn't compare timestamps across the two imports
