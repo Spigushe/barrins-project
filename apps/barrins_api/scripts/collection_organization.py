@@ -15,6 +15,10 @@ script -- only adding a new `BinderScheme` entry.
   further split by color identity).
 - `gold3`: Binder 1 White/Blue/Black, Binder 2 Red/Green/Gold
   (multicolor), Binder 3 Colorless/Lands/Tokens.
+- `gold4`: Binder 1 White/Blue, Binder 2 Black/Red/Green, Binder 3
+  Colorless/Gold/Token, Binder 4 Lands only -- ordered Fetch, Bicolor
+  (per guild pair), 3+/Any-color, Colorless, then mono-color pages with
+  Basic and Snow Basic each getting one dedicated page.
 
 Data source: a Moxfield "Haves" CSV export, read by default from the most
 recent `moxfield_haves_*.csv` file in `scripts/input/` (see
@@ -40,10 +44,11 @@ import asyncio
 import csv
 import itertools
 import json
+import re
 import sys
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -113,6 +118,23 @@ BINDER3_TRIPLES: tuple[str, ...] = tuple(
 BINDER3_MANY_COLORS = "4+ Colors"
 BINDER_TOKEN_PAGES = 2
 
+# Fetch lands search a library for a land card by name/type rather than
+# producing mana directly. Two common wordings need matching: "Search your
+# library for a basic land card" (Evolving Wilds, Fabled Passage) and
+# "Search your library for a[n] Island or Swamp card" (the Onslaught/
+# Zendikar-style true fetches, which name basic land types instead of
+# saying "land"). Both always end in "..., then shuffle" after putting the
+# card onto the battlefield/into hand, which is distinctive enough to match
+# without a maintained card-name list. "Any color" lands (e.g. Command
+# Tower) print no colored mana symbols of their own, so MTGJSON gives them
+# an empty `color_identity` -- indistinguishable from a Colorless land
+# without this text check.
+FETCH_LAND_PATTERN = re.compile(
+    r"search your library for an?\s.*?card.*?(?:battlefield|hand).*?shuffle",
+    re.IGNORECASE | re.DOTALL,
+)
+ANY_COLOR_PATTERN = re.compile(r"\bany color\b", re.IGNORECASE)
+
 
 @dataclass(frozen=True)
 class CollectionRow:
@@ -143,6 +165,9 @@ class MatchedCard:
     mana_value: float | None
     color_identity: tuple[str, ...]
     match_method: str
+    #: Oracle text, only needed by the `gold4` scheme's land classifier
+    #: (fetch-land / any-color detection) -- every other scheme ignores it.
+    text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +200,13 @@ class Subgroup:
     label: str
     weight: int = 1
     fixed_pages: int | None = None
+    #: When True, all entries sharing the same card name are merged into a
+    #: single physical pocket (their counts stacked together) instead of
+    #: `copies_needed()`'s usual one-slot-per-copy/pair rule -- for a block
+    #: like Basic/Snow Basic lands, where a personal binder holds an
+    #: arbitrary number of duplicates per pocket and only "which land is
+    #: this" matters, not the exact count owned.
+    stack_by_name: bool = False
 
 
 @dataclass(frozen=True)
@@ -290,6 +322,7 @@ def _to_matched_card(card: Card, match_method: str) -> MatchedCard:
         mana_value=card.mana_value,
         color_identity=tuple(card.color_identity),
         match_method=match_method,
+        text=card.text,
     )
 
 
@@ -380,6 +413,32 @@ def copies_needed(row: CollectionRow, card: MatchedCard) -> int:
     if is_basic(card):
         return row.count
     return (row.count + 1) // 2  # ceil(count / 2)
+
+
+def _stack_entries_by_name(
+    entries: list[tuple[CollectionRow, MatchedCard]],
+) -> list[tuple[CollectionRow, MatchedCard]]:
+    """Collapses same-name entries into one representative (row, card) per
+    name, summing `count`/`tradelist_count` -- used by a `Subgroup` with
+    `stack_by_name=True`, where quantity owned shouldn't drive how many
+    slots are used (see `Subgroup.stack_by_name`).
+    """
+    by_name: dict[str, list[tuple[CollectionRow, MatchedCard]]] = defaultdict(list)
+    for row, card in entries:
+        by_name[card.name].append((row, card))
+
+    stacked: list[tuple[CollectionRow, MatchedCard]] = []
+    for name in by_name:
+        group = by_name[name]
+        first_row, card = group[0]
+        merged_row = replace(
+            first_row,
+            count=sum(row.count for row, _ in group),
+            tradelist_count=sum(row.tradelist_count for row, _ in group),
+            foil=any(row.foil for row, _ in group),
+        )
+        stacked.append((merged_row, card))
+    return stacked
 
 
 # --- classic4 scheme -------------------------------------------------------
@@ -597,9 +656,142 @@ GOLD3_SCHEME = BinderScheme(
 )
 
 
+# --- gold4 scheme ------------------------------------------------------
+#
+# Binder 1/2 split like classic4 (W/U, then B/R/G). Binder 3 collapses all
+# multicolor into a single "Gold" block (no per-pair/per-triple split) next
+# to Colorless spells and Token. Binder 4 is Lands-only, ordered by land
+# function/color-count rather than plain color identity: Fetch first (they
+# hold no colors of their own), then Bicolor split per guild pair (matching
+# classic4's granularity), then 3-or-more-color lands together with
+# any-color lands (e.g. Command Tower, which MTGJSON gives an empty
+# `color_identity` -- see `ANY_COLOR_PATTERN`), then Colorless, then
+# mono-color lands (5 pages, non-basic) with Basic and Snow Basic each
+# getting one dedicated fixed page.
+
+
+def _classify_binder1_gold4(card: MatchedCard) -> str:
+    return "W" if "W" in card.color_identity else "U"
+
+
+def _classify_binder2_gold4(card: MatchedCard) -> str:
+    colors = set(card.color_identity)
+    for color in ("B", "R", "G"):
+        if color in colors:
+            return color
+    raise AssertionError(f"gold4 Binder 2 card with no B/R/G color: {card.name!r}")
+
+
+def _classify_binder3_gold4(card: MatchedCard) -> str:
+    if "Token" in card.types:
+        return "Token"
+    return "Gold" if len(card.color_identity) >= 2 else "Colorless"
+
+
+def _assign_binder_gold4(card: MatchedCard) -> int:
+    """Binder 4 for Land (overrides color); Token/Gold/Colorless spells to
+    Binder 3; else mono-colored cards split between Binder 1 (W/U) and
+    Binder 2 (B/R/G), same as classic4.
+    """
+    if "Land" in card.types:
+        return 4
+    if "Token" in card.types:
+        return 3
+
+    color_set = set(card.color_identity)
+    if len(color_set) >= 2 or not color_set:
+        return 3  # Gold or colorless spell
+    if color_set <= {"W", "U"}:
+        return 1
+    if color_set <= {"B", "R", "G"}:
+        return 2
+    return 3
+
+
+def _is_fetch_land(card: MatchedCard) -> bool:
+    return bool(card.text) and FETCH_LAND_PATTERN.search(card.text) is not None
+
+
+def _produces_any_color(card: MatchedCard) -> bool:
+    return bool(card.text) and ANY_COLOR_PATTERN.search(card.text) is not None
+
+
+BINDER4_MONO_LABEL: dict[str, str] = {color: f"Mono {color}" for color in FIVE_COLORS}
+
+
+def _classify_binder4_gold4(card: MatchedCard) -> str:
+    if _is_fetch_land(card):
+        return "Fetch"
+
+    colors = frozenset(card.color_identity)
+    if len(colors) >= 3 or _produces_any_color(card):
+        return BINDER3_MANY_COLORS
+    if len(colors) == 2:
+        return _color_label(colors)
+
+    if "Basic" in card.supertypes:
+        return "Snow Basic" if "Snow" in card.supertypes else "Basic"
+    if not colors:
+        return "Colorless"
+    return BINDER4_MONO_LABEL[next(iter(colors))]
+
+
+GOLD4_SCHEME = BinderScheme(
+    name="gold4",
+    description=(
+        "Binder 1 White/Blue, Binder 2 Black/Red/Green, Binder 3 "
+        "Colorless/Gold/Token, Binder 4 Lands (Fetch, Bicolor per pair, "
+        "3+/Any, Colorless, mono-color + Basic/Snow Basic)."
+    ),
+    assign_binder=_assign_binder_gold4,
+    binders=(
+        BinderDef(
+            1,
+            "White/Blue",
+            _classify_binder1_gold4,
+            (Subgroup("W"), Subgroup("U")),
+        ),
+        BinderDef(
+            2,
+            "Black/Red/Green",
+            _classify_binder2_gold4,
+            (Subgroup("B"), Subgroup("R"), Subgroup("G")),
+        ),
+        BinderDef(
+            3,
+            "Colorless/Gold/Token",
+            _classify_binder3_gold4,
+            (
+                Subgroup("Colorless", weight=3),
+                Subgroup("Gold", weight=10),
+                Subgroup("Token", fixed_pages=BINDER_TOKEN_PAGES),
+            ),
+        ),
+        BinderDef(
+            4,
+            "Lands",
+            _classify_binder4_gold4,
+            (
+                Subgroup("Fetch", weight=2),
+                *(Subgroup(label, weight=2) for label in BINDER3_PAIRS),
+                Subgroup(BINDER3_MANY_COLORS, weight=3),
+                Subgroup("Colorless", weight=3),
+                *(
+                    Subgroup(BINDER4_MONO_LABEL[color], weight=1)
+                    for color in FIVE_COLORS
+                ),
+                Subgroup("Basic", fixed_pages=1, stack_by_name=True),
+                Subgroup("Snow Basic", fixed_pages=1, stack_by_name=True),
+            ),
+        ),
+    ),
+)
+
+
 SCHEMES: dict[str, BinderScheme] = {
     CLASSIC4_SCHEME.name: CLASSIC4_SCHEME,
     GOLD3_SCHEME.name: GOLD3_SCHEME,
+    GOLD4_SCHEME.name: GOLD4_SCHEME,
 }
 
 
@@ -669,14 +861,19 @@ def _place_subgroup(
     start_page: int,
     allotted_pages: int,
     reserve_per_page: int,
+    stack_by_name: bool = False,
 ) -> tuple[list[BinderSlot], int]:
     """Returns the placed slots and how many pages this subgroup actually used.
 
     Before overflowing into the next subgroup's pages, this shrinks its
     own reserve (down to 0 if needed) to fit within `allotted_pages`.
     """
+    if stack_by_name:
+        entries = _stack_entries_by_name(entries)
+    units_needed = (lambda row, card: 1) if stack_by_name else copies_needed
+
     sorted_entries = sorted(entries, key=lambda pair: sort_key(*pair))
-    total_units = sum(copies_needed(row, card) for row, card in sorted_entries)
+    total_units = sum(units_needed(row, card) for row, card in sorted_entries)
 
     reserve = _fit_reserve(total_units, allotted_pages, reserve_per_page)
     usable_per_page = PAGE_SIZE - reserve
@@ -692,7 +889,7 @@ def _place_subgroup(
     slots: list[BinderSlot] = []
     cursor = 0
     for row, card in sorted_entries:
-        for _ in range(copies_needed(row, card)):
+        for _ in range(units_needed(row, card)):
             page_in_group, slot_in_page = divmod(cursor, usable_per_page)
             page = start_page + page_in_group
             slots.append(
@@ -756,6 +953,7 @@ def allocate_slots(
             next_start_page,
             allotted_pages,
             reserve_per_page,
+            subgroup.stack_by_name,
         )
         slots.extend(group_slots)
         next_start_page += max(pages_used, allotted_pages)
