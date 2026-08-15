@@ -12,7 +12,8 @@ process existed before this.
 | Playbook | `postgresql_pgadmin.yml` |
 | Backup location | `/var/backups/postgresql/` (host, `postgres`-owned, mode `0700`) |
 | Schedule | Daily, 03:00 ± 30 min, via `postgres_backup.timer` |
-| Retention | 14 days (deleted on each run) |
+| Databases | Explicit allowlist (`postgres_backup_databases`) — not every database on the instance, see incident note in `ops/my-server/roles/postgres_backup/README.md` |
+| Retention | 3 days (deleted on each run, independent of that run's dump success) |
 
 ## Preparation
 
@@ -96,7 +97,7 @@ the migration ran" step means in practice.
 | `postgres_backup.timer` not listed by `systemctl list-timers` | Role hasn't deployed yet, or the playbook was run with a `--tags` filter that excluded it. |
 | `postgres_backup.service` fails, `journalctl` shows a `psql`/`pg_dump` connection error | PostgreSQL isn't running (`systemctl status postgresql`), or `setup_packages` hasn't run on this host yet. |
 | `/var/backups/postgresql/` is empty after the timer's scheduled time | Check `journalctl -u postgres_backup.service` for the actual error; confirm the timer is `enabled` *and* `active`. |
-| Dumps keep growing past 14 days | The `find ... -delete` step only runs at the *end* of a successful backup run — if every run has been failing, cleanup never executes either. Fix the underlying failure first. |
+| Dumps keep growing past the retention window | Cleanup runs unconditionally at the end of every scheduled run, independent of whether any `pg_dump` in that run failed (fixed 2026-08-15 — see `ops/my-server/roles/postgres_backup/README.md`). If dumps are still accumulating, check `journalctl -u postgres_backup.service` for a `find`/permissions error, or confirm the timer is actually firing (`systemctl list-timers postgres_backup.timer`). |
 
 ## See also
 

@@ -1,5 +1,9 @@
 ---
 postgres_backup_config:
   dir: "{{ postgres_backup_dir | default('/var/backups/postgresql') }}"
-  retention_days: "{{ postgres_backup_retention_days | default(14) }}"
+  retention_days: "{{ postgres_backup_retention_days | default(3) }}"
   hour: "{{ postgres_backup_hour | default(3) }}"
+  # Explicit allowlist rather than "every non-template database" — the
+  # latter silently swept up throwaway/test databases and grew the backup
+  # set to 26G, filling the disk and taking Postgres down on 2026-08-15.
+  databases: "{{ postgres_backup_databases | default(['barrins_api', 'barrins_api_dev', 'postgres', 'tabriz_assembly']) }}"

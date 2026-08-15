@@ -2,28 +2,45 @@
 # Managed by Ansible (postgres_backup role) — do not edit on the server,
 # changes will be overwritten on the next deploy.
 #
-# Dumps every non-template database (custom format, pg_restore-compatible)
-# plus global roles/grants, into {{ postgres_backup_config.dir }}. Runs as
-# the `postgres` OS user (systemd unit's User=), so it connects via local
-# peer authentication — no password needed, nothing new to keep secret.
-set -euo pipefail
+# Dumps each database in DATABASES below (custom format, pg_restore-
+# compatible) plus global roles/grants, into {{ postgres_backup_config.dir }}.
+# Runs as the `postgres` OS user (systemd unit's User=), so it connects via
+# local peer authentication — no password needed, nothing new to keep secret.
+#
+# Deliberately no `set -e`: a single failed pg_dump must not skip the
+# retention cleanup below it. On 2026-08-15 a disk-full pg_dump failure
+# aborted the script before cleanup ran, which left old dumps in place and
+# kept the disk full — a compensating cleanup opportunity every subsequent
+# day missed until nothing had room to write anything, including the
+# lock file Postgres itself needed to restart. `failed` still makes the
+# script (and thus the systemd unit) report non-zero so a real dump
+# failure isn't silent.
+set -uo pipefail
 umask 077
 
 BACKUP_DIR="{{ postgres_backup_config.dir }}"
 RETENTION_DAYS="{{ postgres_backup_config.retention_days }}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+DATABASES=({{ postgres_backup_config.databases | map('quote') | join(' ') }})
 
 mkdir -p "$BACKUP_DIR"
 
-databases="$(psql --tuples-only --no-align \
-  --command "SELECT datname FROM pg_database WHERE NOT datistemplate;")"
+failed=0
 
-for db in $databases; do
-  pg_dump --format=custom "$db" > "${BACKUP_DIR}/${db}_${TIMESTAMP}.dump"
+for db in "${DATABASES[@]}"; do
+  if ! pg_dump --format=custom "$db" > "${BACKUP_DIR}/${db}_${TIMESTAMP}.dump"; then
+    echo "ERROR: pg_dump failed for database '${db}'" >&2
+    failed=1
+  fi
 done
 
 # Roles/grants aren't part of any single database dump — pg_dumpall is the
 # only tool that exports them, hence the separate plain-SQL file here.
-pg_dumpall --globals-only > "${BACKUP_DIR}/globals_${TIMESTAMP}.sql"
+if ! pg_dumpall --globals-only > "${BACKUP_DIR}/globals_${TIMESTAMP}.sql"; then
+  echo "ERROR: pg_dumpall --globals-only failed" >&2
+  failed=1
+fi
 
 find "$BACKUP_DIR" -type f -mtime "+${RETENTION_DAYS}" -delete
+
+exit "$failed"

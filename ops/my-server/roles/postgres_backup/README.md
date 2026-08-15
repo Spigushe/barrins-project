@@ -15,13 +15,16 @@ recorded as a tracked future improvement instead of built now.
 1. Creates `postgres_backup_dir` (default `/var/backups/postgresql`),
    owned by the `postgres` OS user, mode `0700` — only `postgres`/`root`
    can read the dumps (they can contain user data, e.g. password hashes).
-2. Templates `/usr/local/bin/postgres_backup.sh`: for every database that
-   isn't a template (`pg_database.datistemplate = false`), runs
-   `pg_dump --format=custom` into a timestamped file; separately runs
-   `pg_dumpall --globals-only` for roles/grants (not part of any single
-   database dump). `umask 077` so every created file is `0600` by
-   construction, not a follow-up `chmod`. Deletes anything older than
-   `postgres_backup_retention_days` (default 14) at the end of each run.
+2. Templates `/usr/local/bin/postgres_backup.sh`: for every database in
+   `postgres_backup_databases`, runs `pg_dump --format=custom` into a
+   timestamped file; separately runs `pg_dumpall --globals-only` for
+   roles/grants (not part of any single database dump). `umask 077` so
+   every created file is `0600` by construction, not a follow-up `chmod`.
+   Deletes anything older than `postgres_backup_retention_days` (default
+   3) at the end of each run — this step is not gated behind a successful
+   dump (no `set -e`): a single failed `pg_dump` still lets cleanup run,
+   so a bad day doesn't compound into a full disk (see the 2026-08-15
+   incident in `docs/content/ops/operations/index.md`).
 3. Templates a oneshot systemd service (`postgres_backup.service`,
    `User=postgres` — connects via local peer authentication, no password
    needed, nothing new to keep secret) and a daily timer
@@ -34,8 +37,23 @@ recorded as a tracked future improvement instead of built now.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `postgres_backup_dir` | no | `/var/backups/postgresql` | Where dumps are written. |
-| `postgres_backup_retention_days` | no | `14` | Dumps older than this are deleted on each run. |
+| `postgres_backup_databases` | no | `[barrins_api, barrins_api_dev, postgres, tabriz_assembly]` | Explicit allowlist of databases to dump — deliberately not "every database on the instance" (see incident note below). |
+| `postgres_backup_retention_days` | no | `3` | Dumps older than this are deleted on each run. |
 | `postgres_backup_hour` | no | `3` | Hour (0-23, host local time) the daily timer fires. |
+
+## 2026-08-15 incident
+
+The original version of this role dumped every non-template database
+unconditionally and kept 14 days of history. That silently included
+throwaway/test/dev databases alongside the real ones, and one of them
+(`barrins_db`, ~1.6-1.7GB/day) alone accounted for the majority of a 26G
+backup set that filled the host's disk, crashed PostgreSQL, and took
+down both `api` and `api-staging` (503s on both). The `set -e` in the
+backup script also meant that day's `pg_dump` failure (itself caused by
+the full disk) skipped the retention cleanup that would otherwise have
+reclaimed space — compounding the failure instead of self-healing.
+Fixed by switching to an explicit database allowlist, shortening default
+retention to 3 days, and removing `set -e` so cleanup always runs.
 
 ## Requirements
 

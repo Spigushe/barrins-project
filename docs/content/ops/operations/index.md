@@ -49,10 +49,13 @@ Constitution §36 requires database backups, backup verification, and a
 documented restoration procedure — and explicitly states "a backup that
 has never been tested is not considered reliable." The `postgres_backup`
 role (wired into `postgresql_pgadmin.yml`) now takes a daily `pg_dump`/
-`pg_dumpall` backup of every database, kept for 14 days — see
-[`../deployment/backup.md`](../deployment/backup.md) for the full
-procedure, including the restore drill that must actually be performed
-(not just documented) before this is considered reliable. No offsite
+`pg_dumpall` backup of an explicit allowlist of databases, kept for 3
+days — see [`../deployment/backup.md`](../deployment/backup.md) for the
+full procedure, including the restore drill that must actually be
+performed (not just documented) before this is considered reliable. A
+2026-08-15 incident (dumping every database unconditionally at 14-day
+retention filled the host's disk and took Postgres down) is what
+narrowed this — see the role's README for detail. No offsite
 copy yet — tracked as a future improvement, not silently skipped (see
 that page for why).
 

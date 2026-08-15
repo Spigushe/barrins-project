@@ -89,6 +89,9 @@ nav:
                 - Home: ops/security/index.md
                 - Secrets Management: ops/security/secrets.md
           - Operations: ops/operations/index.md
+          - Incidents:
+                - Home: ops/incidents/index.md
+                - PostgreSQL disk full: ops/incidents/2026-08-15-postgres-disk-full.md
           - Deployment Strategy: ops/deployment_strategy.md
           - Roadmap: ops/roadmap.md
     - Changelog:
