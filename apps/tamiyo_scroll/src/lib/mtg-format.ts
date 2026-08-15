@@ -1,6 +1,7 @@
 import type {
   ArchetypeCategory,
   CardGame,
+  DecklistCardCategory,
   DecklistLineStatus,
   DecklistVersionSource,
   ExpectedLevel,
@@ -193,6 +194,19 @@ export const DECKLIST_LINE_STATUS_BG_CLASS: Record<DecklistLineStatus, string> =
   rejected: 'bg-destructive',
   in_test: 'bg-warning',
   neutral: 'bg-foreground',
+}
+
+/** Section header labels for a decklist's type-grouped card list (e.g. "Creatures (14)" — the count is appended by the component, not here). */
+export const DECKLIST_CARD_CATEGORY_LABELS: Record<DecklistCardCategory, string> = {
+  planeswalker: 'Planeswalkers',
+  battle: 'Battles',
+  creature: 'Creatures',
+  instant: 'Instants',
+  sorcery: 'Sorceries',
+  artifact: 'Artifacts',
+  enchantment: 'Enchantments',
+  land: 'Lands',
+  other: 'Other',
 }
 
 export const DECKLIST_VERSION_SOURCE_LABELS: Record<DecklistVersionSource, string> = {

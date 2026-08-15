@@ -38,6 +38,7 @@ from app.schemas.responses_mtgjson import (
 )
 from app.services.mtgjson import MTGJSONClientDep, import_all_printings
 from app.services.scripture.card_resolver import invalidate_name_cache
+from app.services.scryfall.image_cache import clear_image_cache
 
 router = APIRouter()
 
@@ -75,6 +76,9 @@ async def import_mtgjson(
     # refreshed import must invalidate it or newly-added/renamed cards stay
     # unresolvable until the next restart.
     invalidate_name_cache()
+    # scryfall_id can shift/disappear on a refresh too -- wipe the cached
+    # images so a stale one is never served past this import.
+    clear_image_cache()
     return ResponseImportResult(
         sets_upserted=result.sets_upserted, cards_upserted=result.cards_upserted
     )

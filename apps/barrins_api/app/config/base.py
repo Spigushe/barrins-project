@@ -140,6 +140,21 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- Scryfall card-image proxy ---
+    scryfall_user_agent: str | None = Field(
+        default=None,
+        description=(
+            "Descriptive User-Agent sent on Scryfall image requests, per "
+            "Scryfall's API etiquette (no token/registration required, unlike "
+            "Moxfield). Empty in dev/test -> falls back to a placeholder-"
+            "image console client."
+        ),
+    )
+    card_image_cache_dir: str = Field(
+        default="var/cache/card_images",
+        description="Disk directory the card-image proxy caches Scryfall JPEGs in.",
+    )
+
     # --- Barrin's Scripture ingestion (T3) ---
     scripture_ingest_token: SecretStr | None = Field(
         default=None,

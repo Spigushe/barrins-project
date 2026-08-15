@@ -172,6 +172,20 @@ larger IA/BFF not built. `/metagame`/`/archetypes`/`/trends` are prepared
 ahead of T4 iteration 2 behind a new `VITE_FEATURE_KARN_TABLETS` flag
 (default off), mirroring the same not-yet-built-but-ready pattern already
 used elsewhere in this plan. See T5's own page for full detail.
+**Same day, S4 shipped** (previously blocked on S8, done since
+2026-08-05): a structured Commander/Library decklist view
+(`ResponseDecklistView`, superseding the old flat colored-line list),
+card-type sort/grouping shared between `tamiyo_scroll` and
+`tolaria_news` via a new `app/services/decklist_sort.py` module, and a
+disk-cached Scryfall image proxy (`GET /api/v1/cards/{scryfall_id}/image`,
+`app/services/scryfall/`) used by both apps' new hover-card image
+previews. Shipped against a written spec rather than a hifi mockup, and
+narrower than originally decided in two respects — sort is a fixed
+order, not the two-criteria user-selectable sort originally spec'd, and
+no dedicated face-A-Land rule was implemented for multi-face cards; see
+S4's own page for the full gap list. `barrins_api` now 500 tests
+passing, 97.20% coverage; `apps/tamiyo_scroll` 232 tests,
+`apps/tolaria_news` 14 tests, both frontends typecheck/build/lint clean.
 
 ---
 
@@ -1198,7 +1212,7 @@ R5 turning each into a real ADR.
 | S1 | Re-enable + extend global sharing (request 2.5) | — (I1 only for the new "toggle to receive" half) | ✅ **Done**, including the 2026-07-30 follow-up (share/receive coupling, account-settings popup separator). 277 backend / 71 frontend tests passing | [s1-global-sharing-reenable/](s1-global-sharing-reenable/index.md) |
 | S2 | Team sharing: read-only "Team Decks" selector + flag-to-share | I5, S1, S5 | ✅ **Done (2026-08-01)**. Implementation revised mid-build from per-deck to name-based sharing (see the page's "Implementation note"). Deck-validation gate stays deferred to v3.0.0 (2026-07-27). 135 frontend tests, full backend suite green | [s2-team-sharing/](s2-team-sharing/index.md) |
 | S3 | Auto-flag match result to a specific decklist version, editable after | — | ✅ **Done (2026-07-30)**. Schema change: nullable `decklist_version_id` FK on `ts_matches`, auto-stamped to the deck's latest version at creation, editable after. Moxfield staleness flag (brought into v2.0.0 scope 2026-07-30, constrained 2026-07-27 to opportunistic-only — no dedicated Moxfield call) also implemented: the full raw Moxfield response is stored per version (`moxfield_data` JSONB), and a re-import surfaces `moxfield_deck_changed_since_last_import` on the response | [s3-match-decklist-version/](s3-match-decklist-version/index.md) |
-| S4 | Better decklist display (request 2.3, "UI TBD"), now including card images + sort-by-{type, mana value, color identity, mana cost} | S8 | Needs a design pass (same "hifi design first" pattern `handoff.md` used for the original build) **and** S8's card/set data — decided default sort: Card Type → Mana Value, with the "face A Land" rule for multi-face cards (§S4 page) | [s4-decklist-display-redesign/](s4-decklist-display-redesign/index.md) |
+| S4 | Better decklist display (request 2.3, "UI TBD"), now including card images + sort-by-{type, mana value, color identity, mana cost} | S8 | ✅ **Done (2026-08-14)**. Structured Commander/Library view, card-type sort/grouping (fixed order, not the originally-decided two-criteria selectable sort), card images via a new Scryfall proxy, shared with `tolaria_news`. Shipped from a written spec, not a hifi mockup; face-A-Land rule not separately implemented — see §S4 page for the full as-shipped-vs-decided gap list | [s4-decklist-display-redesign/](s4-decklist-display-redesign/index.md) |
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | ✅ **Done (2026-07-31)**. Backend-generated (Constitution §4.1: no client-side composition of computed stats), WeasyPrint (**I8 resolved 2026-07-27**, see S5 page). Session-scoped report **and** an added session-less deck-level report (last 30 days, S1 shared-data merge included) share one calculation path (`PeriodStats`) and one renderer. **Blocks S2** — team members' PDF-report access is part of S2's Done statement | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | ✅ **Done**. Flat-count tiles plus the 2026-08-02 time-bucketed (day/week/month) comparison, charted via `recharts` (new dependency, §4.7/§22). v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |

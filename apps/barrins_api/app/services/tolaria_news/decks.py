@@ -21,7 +21,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.mtgjson import Card
 from app.models.scripture import BSDeck, BSDeckBoard, BSDeckCard, BSTournament
-from app.schemas.responses_tolaria_news import CommanderRef, DeckCardOut, DeckDetail
+from app.schemas.responses_tolaria_news import (
+    CommanderRef,
+    DeckCardOut,
+    DeckCardTypeGroup,
+    DeckDetail,
+)
+from app.services.decklist_sort import decklist_sort_key, group_by_category
 from app.services.scripture.card_resolver import resolve_card_name
 
 #: Mirrors `barrins_scripture.schemas.formats.Formats.DUEL_COMMANDER`
@@ -82,6 +88,9 @@ def _as_deck_card_out(card: BSDeckCard, resolved: Card | None) -> DeckCardOut:
         cmc=resolved.mana_value if resolved is not None else None,
         type_line=resolved.type_line if resolved is not None else None,
         scryfall_id=resolved.scryfall_id if resolved is not None else None,
+        mana_cost=resolved.mana_cost if resolved is not None else None,
+        text=resolved.text if resolved is not None else None,
+        keywords=resolved.keywords if resolved is not None else [],
     )
 
 
@@ -101,10 +110,19 @@ async def get_deck(session: AsyncSession, deck_id: uuid.UUID) -> DeckDetail | No
     )
     resolved = await _resolved_cards(session, card_rows)
 
+    sorted_mainboard = sorted(
+        (
+            _as_deck_card_out(c, resolved[c.id])
+            for c in card_rows
+            if c.board == BSDeckBoard.mainboard
+        ),
+        key=lambda c: decklist_sort_key(c.type_line, c.cmc, c.name),
+    )
     mainboard = [
-        _as_deck_card_out(c, resolved[c.id])
-        for c in card_rows
-        if c.board == BSDeckBoard.mainboard
+        DeckCardTypeGroup(category=category, count=len(group), cards=group)
+        for category, group in group_by_category(
+            sorted_mainboard, lambda c: c.type_line
+        )
     ]
 
     commanders: list[CommanderRef] = []
@@ -118,6 +136,9 @@ async def get_deck(session: AsyncSession, deck_id: uuid.UUID) -> DeckDetail | No
                     name=match.name if match is not None else c.card_name,
                     scryfall_id=match.scryfall_id if match is not None else None,
                     color_identity=match.color_identity if match is not None else [],
+                    mana_cost=match.mana_cost if match is not None else None,
+                    text=match.text if match is not None else None,
+                    keywords=match.keywords if match is not None else [],
                 )
             )
 

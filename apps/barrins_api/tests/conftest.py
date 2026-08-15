@@ -33,6 +33,7 @@ from app.config import settings
 from app.database import Base
 from app.database.session import get_db
 from app.main import app
+from app.services.scripture.card_resolver import invalidate_name_cache
 from tests.helpers import ensure_test_db_exists
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,20 @@ def _stable_test_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings.base, "require_email_verification", True)
     monkeypatch.setattr(settings.base, "smtp_host", None)
     monkeypatch.setattr(settings.base, "frontend_base_url", "http://localhost:5173")
+
+
+@pytest.fixture(autouse=True)
+def _reset_card_name_cache():
+    """Resets `card_resolver`'s process-local name cache before each test.
+
+    That cache (see its module docstring) is a plain module-level global,
+    not scoped to a request or a DB transaction — once any test builds it
+    against an empty/partial `cards` table, it silently stays "built" and
+    stale for every later test sharing this process, however unrelated
+    (a card added by a later test's own fixtures would never be found).
+    Rebuilding it fresh per test keeps tests order-independent.
+    """
+    invalidate_name_cache()
 
 
 # ---------------------------------------------------------------------------

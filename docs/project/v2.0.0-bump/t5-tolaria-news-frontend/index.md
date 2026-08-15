@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/tolaria_news` (React/Vite) | Currently a one-line README only |
 | **Initial date** | 2026-08-14 | / |
-| **Status** | 🟡 **In progress** (2026-08-14) — app scaffolded (routing, BFF client, all v1 screens, tests), lint/typecheck/build/test all clean; staging deploy UAT not yet exercised. A further Landing/Tournaments appearance-and-data study against the archive prototype is done, decisions pending — see [archive-comparison.md](archive-comparison.md) | / |
+| **Status** | 🟡 **In progress** (2026-08-14) — app scaffolded (routing, BFF client, all v1 screens, tests), lint/typecheck/build/test all clean; staging deploy UAT not yet exercised. `DeckDetailPage` also picked up S4's decklist redesign the same day (commander/type-grouped tables, card-image hover preview, oracle-text popover — see S4's page). A further Landing/Tournaments appearance-and-data study against the archive prototype is done, decisions pending — see [archive-comparison.md](archive-comparison.md) | / |
 | **Source** | Request item 1 | / |
 | **Dependency** | T4 (done), I1 (resolved — see Context) | Blocks nothing further downstream |
 
@@ -112,8 +112,9 @@ direction.
   test conventions (colocated `*.test.tsx`, hooks layer mocked rather
   than `fetch`): `TournamentListPage` (rows, pagination via cursor,
   empty state), `TournamentDetailPage` (tab switching, empty-bracket
-  state), `DeckDetailPage` (with/without resolved commanders),
-  `FeatureGate` and `AppShell` nav (both flag states). 12 tests, all
+  state), `DeckDetailPage` (with/without resolved commanders, updated
+  2026-08-14 for S4's type-grouped table layout),
+  `FeatureGate` and `AppShell` nav (both flag states). 14 tests, all
   passing; `npm run lint`/`format:check`/`build` also clean.
 
 ---

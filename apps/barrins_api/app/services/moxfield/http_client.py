@@ -51,11 +51,23 @@ def _extract_deck_id(deck_url: str) -> str:
     return parts[1]
 
 
-def _format_board(board: dict[str, object]) -> list[str]:
+def _format_board(board: dict[str, object], header: str | None = None) -> list[str]:
+    """Formats one Moxfield board as "<qty> <name>" lines.
+
+    When `header` is given and the board is non-empty, the lines are
+    preceded by a header line and followed by a blank line — the
+    convention `decklist_coloring.commander_section_indices` looks for to
+    recognize an imported deck's commander(s) without guessing. No
+    header (or an empty board) -> just the bare card lines, as before.
+    """
     lines: list[str] = []
+    if header is not None and board:
+        lines.append(header)
     for card_name, entry in board.items():
         quantity = entry.get("quantity", 1) if isinstance(entry, dict) else 1
         lines.append(f"{quantity} {card_name}")
+    if header is not None and board:
+        lines.append("")
     return lines
 
 
@@ -94,7 +106,7 @@ class HttpxMoxfieldClient:
 
         data = response.json()
         lines: list[str] = []
-        lines += _format_board(data.get("commanders", {}))
+        lines += _format_board(data.get("commanders", {}), header="Commander")
         lines += _format_board(data.get("companions", {}))
         lines += _format_board(data.get("mainboard", {}))
         return MoxfieldDeckFetch(content="\n".join(lines), raw_data=data)
