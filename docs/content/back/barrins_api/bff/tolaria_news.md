@@ -114,11 +114,36 @@ a partner pair. Commander has no traditional sideboard zone, so that's
 all that ever lands there. Non-Commander-format decks get an empty
 `commanders` list — the field only means something for this one format.
 
+`CommanderRef` carries `mana_cost`, `text`, and `keywords` alongside
+`name`/`scryfall_id`/`color_identity` (added for T5's decklist table —
+the frontend renders a Commander row with the same Qty/Name/Color
+pips/Popover columns as every other card group, which needs oracle
+text and mana cost). These reuse the same resolved `mj_cards` row
+`_as_deck_card_out` already builds for mainboard cards — no second
+resolution pass, just the fields that were previously discarded when
+building `CommanderRef`.
+
 When a resolved card name matches more than one `mj_cards` printing
 (different sets, same name), an arbitrary matching printing is used.
 `type_line`/`mana_value`/`color_identity` are the same across
 printings of a name; `scryfall_id` isn't — this picks *a* printing's
 image, not a "preferred" one. Acceptable for v1, not guaranteed art.
+
+**Updated 2026-08-14 (S4)**: `mainboard` is no longer a flat
+`DeckCardOut[]` — it's grouped into `DeckCardTypeGroup[]` (`category`,
+`count`, `cards`), same category order and sort (type, then mana
+value, then name) as Tamiyo Scroll's own decklist view, both built on
+the shared `app/services/decklist_sort.py` module rather than each app
+deriving its own order. `DeckCardOut`/`CommanderRef` both gained
+`mana_cost`/`text`/`keywords` (already documented above for
+`CommanderRef`) so the frontend's mana-pip rendering and oracle-text
+popover work identically for a commander row and a mainboard row. Card
+art itself is served by a new, general (not `/bff/tolaria-news`-
+scoped) route, `GET /api/v1/cards/{scryfall_id}/image` — a disk-cached
+Scryfall image proxy (`app/services/scryfall/`), reused as-is by both
+this BFF and Tamiyo Scroll's decklist view since card art isn't a
+Tolaria-News-specific concept. See `auth_roles.md`'s security matrix
+for the route's auth posture (anonymous, same as `/sets/*`/`/cards/*`).
 
 ---
 
@@ -194,8 +219,10 @@ Tolaria News. See T4's page for the full reconciliation against that
 design-handoff material, including what's rejected outright (a
 standalone Node BFF service — conflicts with the in-repo FastAPI
 pattern this page implements) and what's still genuinely unowned
-(`/forecasts`, full `/search`, a card oracle/image proxy, tournament
-`location`).
+(`/forecasts`, full `/search`, tournament `location`). The card image
+proxy named here as unowned **was** built, 2026-08-14, as part of S4 —
+see the "Commander + card data" section above and the phase breakdown
+below.
 
 ---
 
@@ -211,3 +238,10 @@ pattern this page implements) and what's still genuinely unowned
 
 Full `barrins_api` suite: 455 passing, 97.16% coverage. `ruff`/`ty`
 clean on all new/changed files.
+
+**S4 addendum (2026-08-14)**: `mainboard` type-grouping/sort and the
+`GET /cards/{scryfall_id}/image` proxy landed alongside Tamiyo Scroll's
+own decklist redesign (shared `app/services/decklist_sort.py` and
+`app/services/scryfall/`) — see the "Commander + card data" section
+above. Full `barrins_api` suite now 500 passing, 97.20% coverage;
+`ruff`/`ty` clean.

@@ -1,5 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useDeck } from '@/hooks/useDecks'
+import { CardFacesPreview } from '@/components/card-faces-preview'
+import { ManaPips } from '@/components/mana-pips'
 import { Card, CardTitle, CardDescription } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import {
@@ -11,7 +13,75 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { CommanderRef, DeckCardCategory, DeckCardOut } from '@/schemas/tolariaNews'
+
+/** Section header labels for the mainboard's type-grouped card list (e.g. "Creatures (14)" — the count is appended by the component, not here). */
+const DECK_CARD_CATEGORY_LABELS: Record<DeckCardCategory, string> = {
+  planeswalker: 'Planeswalkers',
+  battle: 'Battles',
+  creature: 'Creatures',
+  instant: 'Instants',
+  sorcery: 'Sorceries',
+  artifact: 'Artifacts',
+  enchantment: 'Enchantments',
+  land: 'Lands',
+  other: 'Other',
+}
+
+function CardNameCell({ card }: { card: Pick<DeckCardOut, 'name' | 'scryfall_id'> }) {
+  if (!card.scryfall_id) {
+    return <span>{card.name}</span>
+  }
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <span className="cursor-default underline decoration-dotted decoration-muted-foreground">
+          {card.name}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-auto">
+        <CardFacesPreview scryfallId={card.scryfall_id} name={card.name} />
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
+function CardInfoCell({
+  card,
+}: {
+  card: Pick<DeckCardOut, 'name' | 'text' | 'keywords'>
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`${card.name} info`}
+        >
+          ⓘ
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-3">
+        {card.keywords.length > 0 && (
+          <div className="my-2 flex flex-wrap gap-1">
+            {card.keywords.map((keyword) => (
+              <Badge key={keyword} variant="accent">
+                {keyword}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <p className="text-sm whitespace-pre-line">{card.text ?? 'No oracle text.'}</p>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 export function DeckDetailPage() {
   const { id = '' } = useParams<{ id: string }>()
@@ -65,28 +135,73 @@ export function DeckDetailPage() {
 
       {deck.notes && <Card>{deck.notes}</Card>}
 
-      <Card className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Qty</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>CMC</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {deck.mainboard.map((card, index) => (
-              <TableRow key={`${card.name}-${String(index)}`}>
-                <TableCell>{card.qty}</TableCell>
-                <TableCell>{card.name}</TableCell>
-                <TableCell>{card.type_line ?? '—'}</TableCell>
-                <TableCell>{card.cmc ?? '—'}</TableCell>
+      {deck.commanders.length > 0 && (
+        <Card className="p-0">
+          <p className="px-4 pt-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            Commander ({deck.commanders.length})
+          </p>
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">Qty</TableHead>
+                <TableHead className="w-64">Name</TableHead>
+                <TableHead className="w-16">Color pips</TableHead>
+                <TableHead className="w-16">Popover</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody>
+              {deck.commanders.map((commander: CommanderRef) => (
+                <TableRow key={commander.name}>
+                  <TableCell>1</TableCell>
+                  <TableCell>
+                    <CardNameCell card={commander} />
+                  </TableCell>
+                  <TableCell>
+                    <ManaPips manaCost={commander.mana_cost} />
+                  </TableCell>
+                  <TableCell>
+                    <CardInfoCell card={commander} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      {deck.mainboard.map((group) => (
+        <Card key={group.category} className="p-0">
+          <p className="px-4 pt-4 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            {DECK_CARD_CATEGORY_LABELS[group.category]} ({group.count})
+          </p>
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">Qty</TableHead>
+                <TableHead className="w-64">Name</TableHead>
+                <TableHead className="w-16">Color pips</TableHead>
+                <TableHead className="w-16">Popover</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.cards.map((card, index) => (
+                <TableRow key={`${card.name}-${String(index)}`}>
+                  <TableCell>{card.qty}</TableCell>
+                  <TableCell>
+                    <CardNameCell card={card} />
+                  </TableCell>
+                  <TableCell>
+                    <ManaPips manaCost={card.mana_cost} />
+                  </TableCell>
+                  <TableCell>
+                    <CardInfoCell card={card} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ))}
     </div>
   )
 }

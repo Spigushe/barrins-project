@@ -39,6 +39,9 @@ export const commanderRefSchema = z.object({
   name: z.string(),
   scryfall_id: z.string().nullable(),
   color_identity: z.array(z.string()),
+  mana_cost: z.string().nullable(),
+  text: z.string().nullable(),
+  keywords: z.array(z.string()),
 })
 export type CommanderRef = z.infer<typeof commanderRefSchema>
 
@@ -48,13 +51,36 @@ export const deckCardOutSchema = z.object({
   cmc: z.number().nullable(),
   type_line: z.string().nullable(),
   scryfall_id: z.string().nullable(),
+  mana_cost: z.string().nullable(),
+  text: z.string().nullable(),
+  keywords: z.array(z.string()),
 })
 export type DeckCardOut = z.infer<typeof deckCardOutSchema>
+
+export const deckCardCategorySchema = z.enum([
+  'planeswalker',
+  'battle',
+  'creature',
+  'instant',
+  'sorcery',
+  'artifact',
+  'enchantment',
+  'land',
+  'other',
+])
+export type DeckCardCategory = z.infer<typeof deckCardCategorySchema>
+
+export const deckCardTypeGroupSchema = z.object({
+  category: deckCardCategorySchema,
+  count: z.number().int(),
+  cards: z.array(deckCardOutSchema),
+})
+export type DeckCardTypeGroup = z.infer<typeof deckCardTypeGroupSchema>
 
 export const deckDetailSchema = deckSummarySchema.extend({
   notes: z.string().nullable(),
   commanders: z.array(commanderRefSchema),
-  mainboard: z.array(deckCardOutSchema),
+  mainboard: z.array(deckCardTypeGroupSchema),
 })
 export type DeckDetail = z.infer<typeof deckDetailSchema>
 

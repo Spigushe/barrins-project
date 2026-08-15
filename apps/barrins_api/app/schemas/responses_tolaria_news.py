@@ -13,6 +13,7 @@ from datetime import datetime
 
 from app.models.scripture import BSSource
 from app.schemas.responses_base import BaseResponse
+from app.services.decklist_sort import DecklistCardCategory
 
 
 class Meta(BaseResponse):
@@ -62,6 +63,9 @@ class CommanderRef(BaseResponse):
     name: str
     scryfall_id: str | None
     color_identity: list[str]
+    mana_cost: str | None
+    text: str | None
+    keywords: list[str]
 
 
 class DeckCardOut(BaseResponse):
@@ -70,12 +74,27 @@ class DeckCardOut(BaseResponse):
     cmc: float | None
     type_line: str | None
     scryfall_id: str | None
+    mana_cost: str | None
+    text: str | None
+    keywords: list[str]
+
+
+class DeckCardTypeGroup(BaseResponse):
+    """One type-ordered section of `mainboard` (e.g. "creature" with its
+    cards) -- Duel Commander display order (planeswalker, battle, creature,
+    instant, sorcery, artifact, enchantment, land, other), each sorted by
+    mana value then name. `category` is a stable machine-readable key, not
+    a display label -- pluralization/translation is the frontend's job."""
+
+    category: DecklistCardCategory
+    count: int
+    cards: list[DeckCardOut]
 
 
 class DeckDetail(DeckSummary):
     notes: str | None
     commanders: list[CommanderRef]
-    mainboard: list[DeckCardOut]
+    mainboard: list[DeckCardTypeGroup]
 
 
 class StandingRow(BaseResponse):

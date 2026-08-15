@@ -5,7 +5,7 @@ import { CurrentDecklistSection } from './CurrentDecklistSection'
 
 let activeDeckId: string | null = 'deck-mine'
 let versions: { version: number; created_at: string }[] = []
-let lines: { line: string; status: string }[] = []
+let view = { commander_cards: [], library_cards: [], unparsed_lines: [] }
 
 const downloadReportMutate = vi.fn()
 
@@ -15,7 +15,7 @@ vi.mock('@/contexts/active-deck-context', () => ({
 
 vi.mock('@/hooks/useDecklistVersions', () => ({
   useDecklistVersions: () => ({ data: versions }),
-  useDecklistView: () => ({ data: lines }),
+  useDecklistView: () => ({ data: view }),
 }))
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
@@ -29,12 +29,12 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
 beforeEach(() => {
   activeDeckId = 'deck-mine'
   versions = []
-  lines = []
+  view = { commander_cards: [], library_cards: [], unparsed_lines: [] }
   downloadReportMutate.mockReset()
 })
 
 describe('CurrentDecklistSection — deck-level report download', () => {
-  it('downloads the active deck\'s report', async () => {
+  it("downloads the active deck's report", async () => {
     const user = userEvent.setup()
     render(<CurrentDecklistSection />)
 

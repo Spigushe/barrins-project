@@ -3,7 +3,12 @@
 import uuid
 
 from app.models.tamiyo_scroll import TSCardTest
-from app.services.tamiyo_scroll.decklist_coloring import _line_status, color_decklist
+from app.services.tamiyo_scroll.decklist_coloring import (
+    _line_status,
+    color_decklist,
+    commander_section_indices,
+    parse_card_line,
+)
 
 
 def _card_test(card_name: str, rating: int) -> TSCardTest:
@@ -73,3 +78,39 @@ class TestColorDecklist:
 
     def test_empty_content_returns_empty_list(self):
         assert color_decklist("", []) == []
+
+
+class TestParseCardLine:
+    def test_matches_qty_and_name(self):
+        assert parse_card_line("4 Lightning Bolt") == (4, "Lightning Bolt")
+
+    def test_matches_x_suffix_on_quantity(self):
+        assert parse_card_line("4x Lightning Bolt") == (4, "Lightning Bolt")
+
+    def test_strips_surrounding_whitespace(self):
+        assert parse_card_line("  4 Lightning Bolt  ") == (4, "Lightning Bolt")
+
+    def test_blank_line_returns_none(self):
+        assert parse_card_line("   ") is None
+
+    def test_line_without_leading_quantity_returns_none(self):
+        assert parse_card_line("Commander") is None
+        assert parse_card_line("some free-text note") is None
+
+
+class TestCommanderSectionIndices:
+    def test_no_header_returns_empty_set(self):
+        lines = ["4 Lightning Bolt", "2 Duress"]
+        assert commander_section_indices(lines) == set()
+
+    def test_header_marks_following_lines_until_blank(self):
+        lines = ["Commander", "1 Atraxa, Praetors' Voice", "", "1 Sol Ring"]
+        assert commander_section_indices(lines) == {1}
+
+    def test_header_is_case_insensitive(self):
+        lines = ["commander", "1 Atraxa, Praetors' Voice"]
+        assert commander_section_indices(lines) == {1}
+
+    def test_header_runs_to_end_of_content_without_trailing_blank(self):
+        lines = ["Commander", "1 Atraxa, Praetors' Voice", "1 Sol Ring"]
+        assert commander_section_indices(lines) == {1, 2}

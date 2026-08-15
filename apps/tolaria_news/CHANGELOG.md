@@ -20,6 +20,14 @@ section of the docs site for details.
   speculative page set.
 - Deployable through the existing `ops/my-server/tolaria_news.yml`
   playbook with no playbook changes.
+- `DeckDetailPage` rebuilt around the backend's new grouped/sorted
+  `mainboard` (S4): a Commander table (when the deck has one) plus one
+  table per card-type section, each row showing qty, name, mana-cost
+  pips, and an info popover with oracle text/keywords. Hovering a card
+  name previews its front/back-face art via the backend's new Scryfall
+  image proxy — shares the `card-faces-preview`/`mana-pips`/
+  `mana-symbols`/`hover-card`/`popover` components with `tamiyo_scroll`'s
+  own decklist redesign rather than each app building its own.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

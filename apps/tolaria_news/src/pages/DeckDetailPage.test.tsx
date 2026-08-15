@@ -33,15 +33,31 @@ describe('DeckDetailPage', () => {
           anchor_uri: 'x',
           notes: null,
           commanders: [
-            { name: 'Krenko, Mob Boss', scryfall_id: null, color_identity: ['R'] },
+            {
+              name: 'Krenko, Mob Boss',
+              scryfall_id: null,
+              color_identity: ['R'],
+              mana_cost: '{2}{R}{R}',
+              text: null,
+              keywords: [],
+            },
           ],
           mainboard: [
             {
-              name: 'Sol Ring',
-              qty: 1,
-              cmc: 1,
-              type_line: 'Artifact',
-              scryfall_id: null,
+              category: 'artifact',
+              count: 1,
+              cards: [
+                {
+                  name: 'Sol Ring',
+                  qty: 1,
+                  cmc: 1,
+                  type_line: 'Artifact',
+                  scryfall_id: null,
+                  mana_cost: '{1}',
+                  text: null,
+                  keywords: [],
+                },
+              ],
             },
           ],
         },
@@ -55,8 +71,11 @@ describe('DeckDetailPage', () => {
 
     renderPage()
 
-    expect(screen.getByText('Krenko, Mob Boss')).toBeInTheDocument()
+    // Appears both as the top summary badge and as its own Commander table row.
+    expect(screen.getAllByText('Krenko, Mob Boss')).toHaveLength(2)
+    expect(screen.getByText('Commander (1)')).toBeInTheDocument()
     expect(screen.getByText('Sol Ring')).toBeInTheDocument()
+    expect(screen.getByText('Artifacts (1)')).toBeInTheDocument()
   })
 
   it('renders no commander badge for a non-Commander deck', () => {

@@ -131,6 +131,45 @@ export const decklistLineSchema = z.object({
 })
 export type DecklistLine = z.infer<typeof decklistLineSchema>
 
+export const decklistCardSchema = z.object({
+  qty: z.number().int(),
+  name: z.string(),
+  status: decklistLineStatusSchema,
+  mana_cost: z.string().nullable(),
+  type_line: z.string().nullable(),
+  text: z.string().nullable(),
+  keywords: z.array(z.string()),
+  scryfall_id: z.string().nullable(),
+})
+export type DecklistCard = z.infer<typeof decklistCardSchema>
+
+export const decklistCardCategorySchema = z.enum([
+  'planeswalker',
+  'battle',
+  'creature',
+  'instant',
+  'sorcery',
+  'artifact',
+  'enchantment',
+  'land',
+  'other',
+])
+export type DecklistCardCategory = z.infer<typeof decklistCardCategorySchema>
+
+export const decklistTypeGroupSchema = z.object({
+  category: decklistCardCategorySchema,
+  count: z.number().int(),
+  cards: z.array(decklistCardSchema),
+})
+export type DecklistTypeGroup = z.infer<typeof decklistTypeGroupSchema>
+
+export const decklistViewSchema = z.object({
+  commander_cards: z.array(decklistCardSchema),
+  library_cards: z.array(decklistTypeGroupSchema),
+  unparsed_lines: z.array(decklistLineSchema),
+})
+export type DecklistView = z.infer<typeof decklistViewSchema>
+
 export const deckWinrateSchema = z.object({
   id: z.uuid(),
   name: z.string(),
