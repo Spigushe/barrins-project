@@ -7,10 +7,12 @@
 # to via `<role>_github_token | default(github_token)`.
 
 - name: Resolve the shared GitHub token file path
+  tags: [always]
   ansible.builtin.set_fact:
     github_token_file: "{{ github_token_file | default(playbook_dir + '/secrets/github/token.txt') }}"
 
 - name: Check the local GitHub token file exists
+  tags: [always]
   delegate_to: localhost
   become: false
   ansible.builtin.stat:
@@ -18,6 +20,7 @@
   register: github_token_stat
 
 - name: Fail fast if it's missing
+  tags: [always]
   ansible.builtin.fail:
     msg: >-
       {{ github_token_file }} does not exist. Create it with:
@@ -31,6 +34,14 @@
   # react_frontend/docs_site fall back to via
   # `<role>_github_token | default(github_token)`. Prefixing it would
   # break that contract for every playbook using the shared token.
+  #
+  # Tagged `always`: this role has no tag of its own, so a tag-filtered
+  # run (e.g. `--tags deploy` for a code-only redeploy) would otherwise
+  # skip it entirely and leave `github_token` undefined right where
+  # fastapi_backend/react_frontend/docs_site's (tagged) clone task needs
+  # it — see the 2026-08-15 incident follow-up in
+  # docs/content/ops/incidents/.
+  tags: [always]
   become: false
   no_log: true
   ansible.builtin.set_fact:
