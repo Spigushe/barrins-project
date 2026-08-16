@@ -91,6 +91,36 @@ direction.
       referenced above) — study and per-page breakdown at
       [archive-comparison.md](archive-comparison.md). Not started; waiting
       on the two open calls recorded there.
+- [x] **`/decklists` and `/methodology` (2026-08-16)**: two more routes
+      from the design handoff's larger speculative page set, out of scope
+      for the original restyle-only decision but implemented as their own
+      item once the user asked for them directly. `/decklists` ships as a
+      real, working global cross-tournament decklist index — a new
+      `GET /bff/tolaria-news/decks` route (filters: pilot, source, date
+      range; cursor pagination; restricted server-side to Duel Commander
+      tournaments, same as the tournament list) plus a matching frontend
+      page and nav entry. `/methodology` ships as a real stub page
+      (placeholder copy, no data), linked from a new secondary CTA on the
+      landing page — no methodology write-up has ever existed, even in
+      the archive prototype, whose own "Read the methodology" button had
+      no destination.
+- [x] **`/decklists` commander + color-identity filters (2026-08-16)**:
+      a commander dropdown and a clickable, multi-select color-identity
+      pip filter (exact match), replacing the handoff's `commander:X
+      color:UW` text search bar with equivalent structured filters
+      instead. Initially deferred as "needs commander/color indexed as
+      queryable data, which doesn't exist anywhere" — that premise was
+      wrong: `app/services/scripture/ingester.py::_replace_deck_cards`
+      already canonicalizes every `bs_deck_cards.card_name` (mainboard
+      and sideboard) against `mj_cards` at ingest time, so both filters
+      are plain exact-match SQL (`GET /bff/tolaria-news/decks/commanders`
+      for the dropdown; `commander`/`colors` params on `GET
+      .../decks`) — no new indexed columns, no Python-side resolution at
+      query time. See the BFF doc's 2026-08-16 addenda for the full
+      writeup. The pilot/date/placement filter rail from the original gap
+      list was already covered by the existing pilot/date filters above;
+      no separate "placement" concept exists in T4's data model to filter
+      by.
 
 ## UAT (manual)
 

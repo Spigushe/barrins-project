@@ -29,7 +29,7 @@ export async function parseErrorMessage(response: Response): Promise<string> {
 // `/bff/tolaria-news/*` has no `CurrentUser` on any route (T4, enforced by
 // its own `TestNoAuthRequired` suite) — this client never sends an
 // `Authorization` header and has no session/refresh logic to manage.
-type QueryParams = Record<string, string | number | boolean | undefined>
+type QueryParams = Record<string, string | number | boolean | string[] | undefined>
 
 export interface RequestConfig {
   params?: QueryParams
@@ -38,7 +38,14 @@ export interface RequestConfig {
 function buildUrl(path: string, config: RequestConfig): URL {
   const url = new URL(`${API_BASE_URL}${path}`)
   for (const [key, value] of Object.entries(config.params ?? {})) {
-    if (value !== undefined) url.searchParams.set(key, String(value))
+    if (value === undefined) continue
+    // Array values serialize as repeated keys (`?colors=W&colors=U`),
+    // matching FastAPI's `Query(list[str])` list-param convention.
+    if (Array.isArray(value)) {
+      for (const item of value) url.searchParams.append(key, item)
+    } else {
+      url.searchParams.set(key, String(value))
+    }
   }
   return url
 }

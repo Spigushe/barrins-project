@@ -3,6 +3,24 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Added
+
+- `/decklists` — a global, cross-tournament decklist index (filters:
+  pilot, source, date range; cursor pagination), backed by a new
+  `GET /bff/tolaria-news/decks` BFF route. Each row links to its deck
+  detail and its tournament. Restricted server-side to Duel Commander
+  tournaments, same as the tournament list.
+- `/decklists` gained a commander dropdown and a clickable, multi-select
+  color-identity pip filter (exact match — a deck's combined commander
+  color identity must equal the selected set exactly). Backed by
+  `GET /bff/tolaria-news/decks/commanders` and new `commander`/`colors`
+  filters on `GET /bff/tolaria-news/decks`, both plain SQL against
+  already-canonicalized card names — no new indexed columns needed.
+- `/methodology` — a real stub page (placeholder copy, no data), linked
+  from a new secondary "Read the methodology" CTA on the landing page.
+
 ## [2.0.0-alpha] - 2026-08-14
 
 ### Added

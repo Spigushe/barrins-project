@@ -35,6 +35,12 @@ export const deckSummarySchema = z.object({
 })
 export type DeckSummary = z.infer<typeof deckSummarySchema>
 
+export const deckListItemSchema = deckSummarySchema.extend({
+  tournament_name: z.string(),
+  tournament_source: bsSourceSchema,
+})
+export type DeckListItem = z.infer<typeof deckListItemSchema>
+
 export const commanderRefSchema = z.object({
   name: z.string(),
   scryfall_id: z.string().nullable(),

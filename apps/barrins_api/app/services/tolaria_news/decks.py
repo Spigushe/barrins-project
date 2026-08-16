@@ -15,26 +15,34 @@ partner pair -- since Commander has no traditional sideboard zone.
 
 import uuid
 from collections.abc import Sequence
+from datetime import date as date_type
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, exists, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.mtgjson import Card
-from app.models.scripture import BSDeck, BSDeckBoard, BSDeckCard, BSTournament
+from app.models.scripture import BSDeck, BSDeckBoard, BSDeckCard, BSSource, BSTournament
 from app.schemas.responses_tolaria_news import (
     CommanderRef,
     DeckCardOut,
     DeckCardTypeGroup,
     DeckDetail,
+    DeckListItem,
+    Page,
 )
 from app.services.decklist_sort import decklist_sort_key, group_by_category
 from app.services.scripture.card_resolver import resolve_card_name
+from app.services.tolaria_news.pagination import decode_cursor, encode_cursor
 
 #: Mirrors `barrins_scripture.schemas.formats.Formats.DUEL_COMMANDER`
 #: (the exact string that source stores into `bs_tournaments.format`).
 #: Not imported cross-app on purpose -- `barrins_api` doesn't depend on
 #: `barrins_scripture`'s package, only on the string it writes.
 _DUEL_COMMANDER_FORMAT = "Duel Commander"
+
+_DEFAULT_LIMIT = 20
+_MAX_LIMIT = 50
 
 
 async def _resolved_cards(
@@ -153,3 +161,170 @@ async def get_deck(session: AsyncSession, deck_id: uuid.UUID) -> DeckDetail | No
         commanders=commanders,
         mainboard=mainboard,
     )
+
+
+def _sideboard_card_exists(*extra: ColumnElement[bool]) -> ColumnElement[bool]:
+    """`EXISTS` probe over the current deck's sideboard rows (the
+    commander slot for Duel Commander -- see the module docstring's
+    "Commander derivation" note), correlated against the outer `BSDeck`.
+    Shared shape for the `commander` and `colors` filters below."""
+    return exists(
+        select(BSDeckCard.id).where(
+            BSDeckCard.deck_id == BSDeck.id,
+            BSDeckCard.board == BSDeckBoard.sideboard,
+            *extra,
+        )
+    )
+
+
+def _sideboard_card_joined_to_mj_cards(
+    *extra: ColumnElement[bool],
+) -> ColumnElement[bool]:
+    """Same as `_sideboard_card_exists`, joined to `mj_cards` for a
+    `Card.color_identity` predicate. Safe as a plain equality join (no
+    `card_resolver` call needed here): `bs_deck_cards.card_name` is
+    already canonicalized against `mj_cards.name`/`face_name` at ingest
+    time (`app/services/scripture/ingester.py::_replace_deck_cards` runs
+    every card, mainboard and sideboard, through `resolve_card_name`
+    before storing it -- a name that doesn't resolve is skipped, never
+    stored). So a stored `card_name` is guaranteed to equal some
+    `Card.name`/`Card.face_name` exactly, unless `mj_cards` was
+    re-imported and renamed that exact card since -- an accepted, rare
+    edge case (that row just won't match, same "acceptable for v1"
+    posture as `get_deck`'s own resolution)."""
+    return exists(
+        select(BSDeckCard.id)
+        .join(
+            Card,
+            or_(
+                Card.name == BSDeckCard.card_name,
+                Card.face_name == BSDeckCard.card_name,
+            ),
+        )
+        .where(
+            BSDeckCard.deck_id == BSDeck.id,
+            BSDeckCard.board == BSDeckBoard.sideboard,
+            *extra,
+        )
+    )
+
+
+async def list_decks(
+    session: AsyncSession,
+    *,
+    player: str | None,
+    source: BSSource | None,
+    commander: str | None,
+    colors: frozenset[str] | None,
+    date_from: date_type | None,
+    date_to: date_type | None,
+    cursor: str | None,
+    limit: int,
+) -> tuple[list[DeckListItem], Page]:
+    """Global, cross-tournament decklist index (`GET /decks`).
+
+    Restricted to Duel Commander tournaments server-side -- this app's
+    sole scope (`apps/tolaria_news/README.md`), same reasoning as
+    `TournamentListPage` fixing `format` client-side rather than exposing
+    it as a filter.
+
+    `colors` (color identity) is matched exactly -- the union of every
+    sideboard card's `color_identity` must equal `colors` precisely, not
+    "contains" or "any of". Expressed as two conditions, both plain SQL
+    (see `_sideboard_card_joined_to_mj_cards`'s docstring for why no
+    Python-side resolution is needed):
+
+    - no sideboard card's identity has a color outside `colors` (this
+      alone guarantees the *union* has no extra color too, since a union
+      of subsets of `colors` is itself a subset of `colors`);
+    - every color in `colors` is covered by at least one sideboard card
+      (one `EXISTS` per selected color rather than an aggregate --
+      `colors` is at most 5 elements, and this correctly captures a
+      partner pair's *combined* identity without needing to aggregate
+      across their up-to-2 rows).
+    """
+    limit = min(limit, _MAX_LIMIT) if limit else _DEFAULT_LIMIT
+    stmt = (
+        select(BSDeck, BSTournament.name, BSTournament.source)
+        .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
+        .where(BSTournament.format == _DUEL_COMMANDER_FORMAT)
+        .order_by(BSDeck.date.desc(), BSDeck.id.desc())
+    )
+    if player is not None:
+        stmt = stmt.where(BSDeck.player.ilike(f"%{player}%"))
+    if source is not None:
+        stmt = stmt.where(BSTournament.source == source)
+    if commander is not None:
+        stmt = stmt.where(_sideboard_card_exists(BSDeckCard.card_name == commander))
+    if colors:
+        color_list = list(colors)
+        stmt = stmt.where(
+            ~_sideboard_card_joined_to_mj_cards(
+                ~Card.color_identity.contained_by(color_list)
+            ),
+            and_(
+                *(
+                    _sideboard_card_joined_to_mj_cards(
+                        Card.color_identity.contains([color])
+                    )
+                    for color in color_list
+                )
+            ),
+        )
+    if date_from is not None:
+        stmt = stmt.where(BSDeck.date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(BSDeck.date <= date_to)
+    if cursor is not None:
+        cursor_date, cursor_id = decode_cursor(cursor)
+        stmt = stmt.where(
+            tuple_(BSDeck.date, BSDeck.id)
+            < (date_type.fromisoformat(cursor_date), uuid.UUID(cursor_id))
+        )
+    rows = (await session.execute(stmt.limit(limit + 1))).all()
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = (
+        encode_cursor(rows[-1][0].date.isoformat(), str(rows[-1][0].id))
+        if has_more and rows
+        else None
+    )
+    return (
+        [
+            DeckListItem(
+                id=deck.id,
+                tournament_id=deck.tournament_id,
+                date=deck.date,
+                player=deck.player,
+                result=deck.result,
+                anchor_uri=deck.anchor_uri,
+                tournament_name=tournament_name,
+                tournament_source=tournament_source,
+            )
+            for deck, tournament_name, tournament_source in rows
+        ],
+        Page(next_cursor=next_cursor, limit=limit),
+    )
+
+
+async def list_commanders(session: AsyncSession) -> list[str]:
+    """Distinct commander names across all Duel Commander tournaments --
+    backs the `/decklists` commander dropdown. Already-canonical values
+    (see `_sideboard_card_joined_to_mj_cards`'s docstring): no
+    accent-variant near-duplicates, and every returned name is directly
+    usable as-is for `list_decks`'s `commander` filter. Small (bounded by
+    the legal commander pool, not deck count) and deliberately not
+    cursor-paginated -- a dropdown doesn't need it."""
+    stmt = (
+        select(BSDeckCard.card_name)
+        .distinct()
+        .join(BSDeck, BSDeckCard.deck_id == BSDeck.id)
+        .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
+        .where(
+            BSDeckCard.board == BSDeckBoard.sideboard,
+            BSTournament.format == _DUEL_COMMANDER_FORMAT,
+        )
+        .order_by(BSDeckCard.card_name.asc())
+    )
+    return list((await session.execute(stmt)).scalars().all())

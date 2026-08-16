@@ -42,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-6">
             <NavItem to="/tournaments" label="Tournaments" />
+            <NavItem to="/decklists" label="Decklists" />
             {karnTabletsEnabled && (
               <>
                 <NavItem to="/metagame" label="Metagame" />
