@@ -51,6 +51,11 @@ export const commanderRefSchema = z.object({
 })
 export type CommanderRef = z.infer<typeof commanderRefSchema>
 
+export const tournamentDeckSummarySchema = deckSummarySchema.extend({
+  commanders: z.array(commanderRefSchema),
+})
+export type TournamentDeckSummary = z.infer<typeof tournamentDeckSummarySchema>
+
 export const deckCardOutSchema = z.object({
   name: z.string(),
   qty: z.number(),
@@ -115,3 +120,34 @@ export const roundOutSchema = z.object({
   matches: z.array(roundMatchOutSchema),
 })
 export type RoundOut = z.infer<typeof roundOutSchema>
+
+export const trendWindowModeSchema = z.enum(['rolling_30d', 'banlist_period', 'all_time'])
+export type TrendWindowMode = z.infer<typeof trendWindowModeSchema>
+
+export const windowOutSchema = z.object({
+  kind: trendWindowModeSchema,
+  label: z.string(),
+  date_from: z.iso.date(),
+  date_to: z.iso.date(),
+})
+export type WindowOut = z.infer<typeof windowOutSchema>
+
+export const commanderTrendPointSchema = z.object({
+  date_from: z.iso.date(),
+  date_to: z.iso.date(),
+  deck_count: z.number().nullable(),
+})
+export type CommanderTrendPoint = z.infer<typeof commanderTrendPointSchema>
+
+export const commanderTrendSeriesSchema = z.object({
+  commanders: z.array(commanderRefSchema),
+  total_deck_count: z.number(),
+  points: z.array(commanderTrendPointSchema),
+})
+export type CommanderTrendSeries = z.infer<typeof commanderTrendSeriesSchema>
+
+export const commanderTrendsResponseSchema = z.object({
+  window: windowOutSchema,
+  series: z.array(commanderTrendSeriesSchema),
+})
+export type CommanderTrendsResponse = z.infer<typeof commanderTrendsResponseSchema>

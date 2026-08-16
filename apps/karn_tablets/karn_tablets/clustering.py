@@ -2,22 +2,22 @@
 
 Ported from the prior attempt at this
 (`barrins-archive/barrins_api/app/services/ml/clustering.py`), with
-`clusterize_by_window` adapted to take a resolved `windowing.Window`
+`clusterize_by_window` adapted to take a resolved `dc_calendar.windowing.Window`
 instead of re-deriving a rolling window inline -- date-range resolution
-now lives in one place (`windowing.py`), not duplicated here.
+lives in one shared place (`apps/dc_calendar`), not duplicated here.
 """
 
 from typing import Literal
 
 import numpy as np
 import pandas as pd
+from dc_calendar.windowing import Window
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 
 from karn_tablets import extract, features
 from karn_tablets.schemas import DeckCoordinates
-from karn_tablets.windowing import Window
 
 AlgorithmLiteral = Literal["kmeans", "dbscan", "gmm"]
 

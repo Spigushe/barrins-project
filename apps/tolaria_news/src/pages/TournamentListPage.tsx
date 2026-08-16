@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CommanderTrendChips } from '@/components/commanderTrends/CommanderTrendChips'
 
 const SOURCES = [
   { value: '', label: 'All sources' },
@@ -63,6 +64,8 @@ export function TournamentListPage() {
         <Eyebrow>Duel Commander · Tournaments</Eyebrow>
         <CardTitle>Where the format gets decided.</CardTitle>
       </div>
+
+      <CommanderTrendChips />
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">

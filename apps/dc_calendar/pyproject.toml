@@ -3,38 +3,24 @@ requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "karn_tablets"
+name = "dc_calendar"
 version = "0.1.0"
 authors = [
     { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
 ]
-description = "Metagame clustering & deck-type aggregation for Duel Commander tournament data, feeding Tolaria News and Tamiyo Scroll's admin dashboard."
+description = "Duel Commander banlist-period/rolling-window date math, shared by barrins_api and karn_tablets."
 readme = "README.md"
 license = { file = "LICENSE" }
-keywords = ["mtg", "Magic: the Gathering", "CCG", "clustering", "metagame"]
+keywords = ["mtg", "Magic: the Gathering", "CCG", "Duel Commander"]
 requires-python = ">=3.14"
 classifiers = [
     "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Natural Language :: English",
     "Operating System :: OS Independent",
 ]
-dependencies = [
-    "sqlalchemy>=2.0",
-    "psycopg2-binary", # sync driver -- this is a scheduled batch job, not a web server (no asyncpg needed)
-    "pandas",
-    "numpy",
-    "scipy",
-    "scikit-learn", # KMeans/DBSCAN/GaussianMixture, PCA, silhouette_score, TfidfTransformer
-    "pydantic",
-    "requests", # pushes results to barrins_api's POST /internal/karn/ingest
-    "python-dotenv", # loads apps/karn_tablets/.env for local dev (systemd sets real env vars)
-    "dc-calendar",
-]
-
-[project.scripts]
-karn-tablets = "karn_tablets.__main__:main"
+dependencies = []
 
 [dependency-groups]
 test = [
@@ -48,7 +34,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["karn_tablets*"]
+include = ["dc_calendar*"]
 
 [tool.setuptools_scm]
 
@@ -80,10 +66,6 @@ docstring-code-line-length = "dynamic"
 
 [tool.ty.environment]
 python-version = "3.14"
-# dc_calendar is a local editable dependency (uv's setuptools editable
-# install uses a MetaPathFinder .pth hook, which ty -- unlike Python's own
-# import machinery -- can't resolve statically without this hint).
-extra-paths = ["../dc_calendar"]
 
 [tool.ty.src]
 exclude = ["tests"]
@@ -105,12 +87,12 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "--cov=karn_tablets",
+    "--cov=dc_calendar",
     "--cov-report=html",
 ]
 
 [tool.coverage.run]
-source = ["karn_tablets"]
+source = ["dc_calendar"]
 branch = true
 parallel = true
 omit = [
@@ -143,6 +125,3 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "reports/pytest_html_report"
-
-[tool.uv.sources]
-dc-calendar = { path = "../dc_calendar", editable = true }

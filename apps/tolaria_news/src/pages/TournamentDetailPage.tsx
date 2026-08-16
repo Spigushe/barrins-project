@@ -17,6 +17,7 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { CommanderHoverBadge } from '@/components/commander-hover-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
 function DecksTab({ tournamentId }: { tournamentId: string }) {
@@ -30,6 +31,7 @@ function DecksTab({ tournamentId }: { tournamentId: string }) {
         <TableRow>
           <TableHead>Player</TableHead>
           <TableHead>Result</TableHead>
+          <TableHead>Commander(s)</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -44,11 +46,14 @@ function DecksTab({ tournamentId }: { tournamentId: string }) {
               </Link>
             </TableCell>
             <TableCell>{deck.result ?? '—'}</TableCell>
+            <TableCell>
+              <CommanderHoverBadge commanders={deck.commanders} />
+            </TableCell>
           </TableRow>
         ))}
         {data?.data.length === 0 && (
           <TableRow>
-            <TableCell colSpan={2} className="text-center text-muted-foreground">
+            <TableCell colSpan={3} className="text-center text-muted-foreground">
               No decks recorded for this tournament.
             </TableCell>
           </TableRow>

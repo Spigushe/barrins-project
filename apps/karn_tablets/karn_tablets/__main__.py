@@ -10,11 +10,11 @@ import argparse
 import datetime as dt
 import logging
 
+from dc_calendar.windowing import WindowKind, resolve_windows
 from dotenv import load_dotenv
 
 from karn_tablets import config, pipeline, push
 from karn_tablets.clustering import AlgorithmLiteral
-from karn_tablets.windowing import WindowKind, resolve_windows
 
 logger = logging.getLogger(__name__)
 

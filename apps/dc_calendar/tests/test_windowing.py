@@ -1,16 +1,18 @@
 """Tests for the banlist-period boundary math -- the highest-risk part of
-Karn Tablets' windowing (T6's own doc flags it explicitly: year rollover,
+this module (originally T6's own doc flagged it explicitly: year rollover,
 month-length edge cases). Expected values cross-checked against a real
 Python date computation, not hand-derived.
 """
 
 from datetime import date, timedelta
+from itertools import pairwise
 
 import pytest
 
-from karn_tablets.windowing import (
+from dc_calendar.windowing import (
     Window,
     WindowKind,
+    all_time_periods,
     banlist_period_containing,
     banlist_period_window,
     last_weekday_of_month,
@@ -181,3 +183,39 @@ class TestWindowLabel:
             date_to=date(2026, 5, 25),
         )
         assert rolling.label != banlist.label
+
+
+class TestAllTimePeriods:
+    def test_single_day_range_resolves_to_one_period(self):
+        periods = all_time_periods(date(2026, 4, 15), date(2026, 4, 15))
+        assert len(periods) == 1
+        assert periods[0] == banlist_period_window(date(2026, 4, 15))
+
+    def test_multi_period_range_is_oldest_first_and_contiguous(self):
+        # Jan 15 2026 -> Oct 1 2026 spans six periods: Nov(2025)->Jan,
+        # Jan->Mar, Mar->May, May->Jul, Jul->Sep, Sep->Nov.
+        periods = all_time_periods(date(2026, 1, 15), date(2026, 10, 1))
+        assert len(periods) == 6
+        assert periods == sorted(periods, key=lambda w: w.date_from)
+        for earlier, later in pairwise(periods):
+            assert later.date_from == earlier.date_to + timedelta(days=1)
+        assert periods[0].date_from <= date(2026, 1, 15) <= periods[0].date_to
+        assert periods[-1] == banlist_period_window(date(2026, 10, 1))
+
+    def test_earliest_exactly_on_a_period_start_is_included_once(self):
+        period_start = date(2026, 3, 31)  # exact start of the Mar->May period
+        periods = all_time_periods(period_start, date(2026, 4, 15))
+        assert len(periods) == 1
+        assert periods[0].date_from == period_start
+
+    def test_multi_year_span_crosses_year_rollover(self):
+        periods = all_time_periods(date(2025, 6, 1), date(2027, 2, 1))
+        assert len(periods) > 1
+        assert periods[0].date_from <= date(2025, 6, 1)
+        assert periods[-1].date_to >= date(2027, 2, 1)
+        for earlier, later in pairwise(periods):
+            assert later.date_from == earlier.date_to + timedelta(days=1)
+
+    def test_rejects_earliest_after_date_to(self):
+        with pytest.raises(ValueError, match="must not be after"):
+            all_time_periods(date(2026, 5, 1), date(2026, 1, 1))

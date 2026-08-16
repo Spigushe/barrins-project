@@ -10,6 +10,7 @@ data doesn't have. See docs/content/back/barrins_api/bff/tolaria_news.md.
 import uuid
 from datetime import date as date_type
 from datetime import datetime
+from typing import Literal
 
 from app.models.scripture import BSSource
 from app.schemas.responses_base import BaseResponse
@@ -78,6 +79,15 @@ class CommanderRef(BaseResponse):
     keywords: list[str]
 
 
+class TournamentDeckSummary(DeckSummary):
+    """One row of a single tournament's deck list (`GET
+    /tournaments/{id}/decks`) -- adds `commanders` on top of `DeckSummary`,
+    kept off that base class (and off `DeckListItem`) so the global `/decks`
+    index and single-deck detail responses stay unchanged."""
+
+    commanders: list[CommanderRef]
+
+
 class DeckCardOut(BaseResponse):
     name: str
     qty: int
@@ -128,3 +138,39 @@ class RoundMatchOut(BaseResponse):
 class RoundOut(BaseResponse):
     round_name: str
     matches: list[RoundMatchOut]
+
+
+#: Mirrors `dc_calendar.windowing.WindowKind` plus the "all_time" mode that
+#: package doesn't itself have a concept of (it only resolves *a* window,
+#: never "every window there's ever been") -- see
+#: `app/services/tolaria_news/decks.py::list_trending_commanders`.
+TrendWindowMode = Literal["rolling_30d", "banlist_period", "all_time"]
+
+
+class WindowOut(BaseResponse):
+    kind: TrendWindowMode
+    label: str
+    date_from: date_type
+    date_to: date_type
+
+
+class CommanderTrendPoint(BaseResponse):
+    date_from: date_type
+    date_to: date_type
+    #: `None` (not `0`) when no deck in this bucket ran the commander --
+    #: lets the frontend sparkline render a gap instead of dipping to zero.
+    deck_count: int | None
+
+
+class CommanderTrendSeries(BaseResponse):
+    #: 1 entry (solo commander) or 2 (a partner pair), always resolved via
+    #: the same `CommanderRef` shape `DeckDetail` uses.
+    commanders: list[CommanderRef]
+    total_deck_count: int
+    points: list[CommanderTrendPoint]
+
+
+class CommanderTrendsResponse(BaseResponse):
+    window: WindowOut
+    #: Up to 10 entries, ranked descending by `total_deck_count`.
+    series: list[CommanderTrendSeries]

@@ -2,10 +2,10 @@ from datetime import date
 
 import pytest
 import requests
+from dc_calendar.windowing import Window, WindowKind
 
 from karn_tablets import push
 from karn_tablets.pipeline import ArchetypeResult, ClusteringRunResult
-from karn_tablets.windowing import Window, WindowKind
 
 _RESULT = ClusteringRunResult(
     window=Window(

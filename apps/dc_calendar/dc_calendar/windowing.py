@@ -1,6 +1,12 @@
-"""Metagame window calculation: rolling 30-day and banlist-period modes.
+"""Duel Commander metagame window calculation: rolling 30-day and
+banlist-period modes.
 
-Two windowing strategies, both shipped (T6, ADR-13):
+Originally scaffolded inside `karn_tablets` (T6, ADR-13) and extracted
+into this standalone package once `barrins_api`'s Tolaria News BFF needed
+the same date math for its commander-trend endpoint (T4 iteration 2) --
+one owner for the calendar rules, imported by both instead of duplicated.
+
+Two windowing strategies:
 
 - Rolling 30-day: always the most recent 30 days as of the run date.
 - Banlist-period: non-overlapping periods aligned to Magic's Banned &
@@ -11,7 +17,7 @@ Two windowing strategies, both shipped (T6, ADR-13):
 The banlist-period boundary math is the trickiest part of this whole
 pipeline (T6's own doc flags it explicitly) -- year rollover (Nov -> Jan)
 and month-length edge cases -- so it's isolated here as pure functions,
-independently tested, before anything else in the pipeline depends on it.
+independently tested, before anything else depends on it.
 """
 
 from dataclasses import dataclass
@@ -143,3 +149,28 @@ def resolve_windows(date_to: date, kinds: tuple[WindowKind, ...]) -> list[Window
         WindowKind.banlist_period: banlist_period_window,
     }
     return [resolvers[kind](date_to) for kind in kinds]
+
+
+def all_time_periods(earliest: date, date_to: date) -> list[Window]:
+    """Every banlist period from the one containing `earliest` through the
+    one containing `date_to`, oldest first.
+
+    Used for "all time" trend bucketing (one point per historical banlist
+    period) and for indexing "any previous banlist period" by offset from
+    the end of this list. Walking backward from `date_to` is the natural
+    direction (each period's start determines the next lookup); the
+    result is reversed at the end since callers want oldest-first.
+    """
+    if earliest > date_to:
+        raise ValueError(f"earliest ({earliest}) must not be after date_to ({date_to})")
+
+    periods: list[Window] = []
+    cursor = date_to
+    while True:
+        window = banlist_period_window(cursor)
+        periods.append(window)
+        if window.date_from <= earliest:
+            break
+        cursor = window.date_from - timedelta(days=1)
+    periods.reverse()
+    return periods

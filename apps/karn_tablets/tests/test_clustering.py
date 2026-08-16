@@ -3,11 +3,11 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import pytest
+from dc_calendar.windowing import Window, WindowKind
 
 from karn_tablets import clustering
 from karn_tablets.clustering import clusterize, suggest_clusters, suggest_clusters_bic
 from karn_tablets.features import flatten_features_dict
-from karn_tablets.windowing import Window, WindowKind
 
 
 class TestSuggestClusters:

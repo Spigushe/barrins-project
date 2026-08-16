@@ -5,7 +5,7 @@ from datetime import date
 
 from httpx import AsyncClient
 
-from app.models.scripture import BSSource, BSTournament
+from app.models.scripture import BSDeck, BSSource, BSTournament
 
 from .conftest import BASE
 
@@ -85,6 +85,26 @@ class TestTournamentDetail:
 
 
 class TestTournamentDecksAndStandings:
+    async def _deck(
+        self,
+        db_session,
+        tournament: BSTournament,
+        *,
+        player: str,
+        result: str | None,
+    ) -> BSDeck:
+        deck = BSDeck(
+            tournament_id=tournament.id,
+            date=tournament.date,
+            player=player,
+            result=result,
+            anchor_uri=f"{tournament.url}#deck_{uuid.uuid4()}",
+        )
+        db_session.add(deck)
+        await db_session.commit()
+        await db_session.refresh(deck)
+        return deck
+
     async def test_lists_decks(
         self,
         client: AsyncClient,
@@ -98,6 +118,86 @@ class TestTournamentDecksAndStandings:
         data = resp.json()["data"]
         assert len(data) == 1
         assert data[0]["player"] == "A. Nakamura"
+
+    async def test_decks_are_sorted_by_result_leading_number_not_lexicographically(
+        self,
+        client: AsyncClient,
+        db_session,
+        duel_commander_tournament: BSTournament,
+        duel_commander_deck,  # result="1", player "A. Nakamura"
+    ) -> None:
+        # "10" sorts after "2" numerically despite "10" < "2" lexicographically;
+        # "5-8" (a bracket-range result) ranks by its leading number (5).
+        tenth = await self._deck(
+            db_session, duel_commander_tournament, player="B. Costa", result="10"
+        )
+        second = await self._deck(
+            db_session, duel_commander_tournament, player="C. Dubois", result="2"
+        )
+        bracket = await self._deck(
+            db_session, duel_commander_tournament, player="D. Chen", result="5-8"
+        )
+        unresulted = await self._deck(
+            db_session, duel_commander_tournament, player="E. Silva", result=None
+        )
+
+        resp = await client.get(
+            f"{BASE}/tournaments/{duel_commander_tournament.id}/decks"
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert [row["id"] for row in data] == [
+            str(duel_commander_deck.id),  # "1"
+            str(second.id),  # "2"
+            str(bracket.id),  # "5-8" -> ranks as 5
+            str(tenth.id),  # "10"
+            str(unresulted.id),  # no result -> sorts last
+        ]
+
+    async def test_commander_column_populated_for_duel_commander_tournament(
+        self,
+        client: AsyncClient,
+        duel_commander_tournament: BSTournament,
+        duel_commander_deck,
+    ) -> None:
+        resp = await client.get(
+            f"{BASE}/tournaments/{duel_commander_tournament.id}/decks"
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert len(data) == 1
+        assert data[0]["commanders"] == [
+            {
+                "name": "Tymna the Weaver",
+                "scryfall_id": "tymna-scryfall-id",
+                "color_identity": ["W", "B"],
+                "mana_cost": "{1}{W}{B}",
+                "text": None,
+                "keywords": [],
+            }
+        ]
+
+    async def test_commander_column_empty_for_non_duel_commander_tournament(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        legacy_tournament = BSTournament(
+            source=BSSource.mtgo,
+            date=date(2026, 4, 9),
+            name="Legacy Challenge",
+            url="https://mtgo.com/decklist/legacy-challenge-tourn-decks",
+            format="Legacy",
+            players=1,
+        )
+        db_session.add(legacy_tournament)
+        await db_session.flush()
+        await self._deck(
+            db_session, legacy_tournament, player="Legacy Pilot", result="1"
+        )
+
+        resp = await client.get(f"{BASE}/tournaments/{legacy_tournament.id}/decks")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data[0]["commanders"] == []
 
     async def test_lists_standings_ordered_by_rank(
         self, client: AsyncClient, duel_commander_tournament: BSTournament, standings

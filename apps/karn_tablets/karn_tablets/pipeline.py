@@ -10,10 +10,11 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from dc_calendar.windowing import Window
+
 from karn_tablets import aggregation, clustering, extract
 from karn_tablets.clustering import AlgorithmLiteral
 from karn_tablets.schemas import Decklist
-from karn_tablets.windowing import Window
 
 logger = logging.getLogger(__name__)
 
