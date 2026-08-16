@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { getDeck, listCommanders, listDecks, type DeckListFilters } from '@/api/decks'
+import {
+  getDeck,
+  getStaples,
+  listCommanders,
+  listDecks,
+  type DeckListFilters,
+} from '@/api/decks'
 
 export function useDeck(id: string) {
   return useQuery({
@@ -19,5 +25,13 @@ export function useCommanders() {
   return useQuery({
     queryKey: ['commanders'],
     queryFn: () => listCommanders(),
+  })
+}
+
+export function useStaples(dateFrom: string | undefined, dateTo: string | undefined) {
+  return useQuery({
+    queryKey: ['decks', 'staples', dateFrom, dateTo],
+    queryFn: () => getStaples(dateFrom!, dateTo!),
+    enabled: dateFrom !== undefined && dateTo !== undefined,
   })
 }

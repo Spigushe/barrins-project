@@ -39,15 +39,53 @@ from app.schemas.responses_tolaria_news import (
     DeckDetail,
     DeckListItem,
     Page,
+    StapleRow,
+    StaplesResponse,
     TrendWindowMode,
     WindowOut,
 )
-from app.services.decklist_sort import decklist_sort_key, group_by_category
+from app.services.decklist_sort import categorize, decklist_sort_key, group_by_category
 from app.services.scripture.card_resolver import resolve_card_name
 from app.services.tolaria_news.pagination import decode_cursor, encode_cursor
 
 _TOP_TRENDING_COMMANDERS = 10
 _BUCKET_DAYS = 7
+
+#: Staples rows are capped to one deck's worth -- a long window's full
+#: mainboard pool can run into hundreds of unique names once 1-of tech
+#: cards are included; 60 keeps the table to what's actually "staple"
+#: without an unbounded response.
+_TOP_STAPLES = 60
+
+#: A card only counts as a "staple" if played in at least this fraction of
+#: the pooled decks -- below this it's just a played card, not a defining
+#: trend of the metagame. Applied on top of `_TOP_STAPLES`'s cap. Real
+#: pooled data (real dev-DB spot check, 2026-08-16) tops out well under
+#: the 75% this was originally set to -- 65% is a floor real windows can
+#: actually clear. Exposed as `list_staples`/the route's default
+#: `min_percentage` rather than hardcoded, so retuning this again doesn't
+#: need a deploy -- a query param override is enough.
+DEFAULT_STAPLE_MIN_PERCENTAGE = 65.0
+
+#: If `min_percentage` leaves zero rows for a window, `list_staples`
+#: retries once at this lower floor before giving up -- a softer bar for
+#: thinner/more diverse metagame snapshots, rather than surfacing nothing
+#: at all. Same query-param-overridable posture as
+#: `DEFAULT_STAPLE_MIN_PERCENTAGE`.
+DEFAULT_STAPLE_FALLBACK_MIN_PERCENTAGE = 45.0
+
+#: Below this window span, every tournament in range is pooled -- a
+#: narrow window is a small enough sample on its own. At or above it,
+#: `_STAPLES_MTGTOP8_MIN_PLAYERS`/MTGO-source gating kicks in instead (see
+#: `list_staples`), so a long/all-time window's pool doesn't include every
+#: small local event ever recorded.
+_STAPLES_POOL_WINDOW_MAX_DAYS = 65
+
+#: MTGTop8-sourced tournaments need more players than this to qualify for
+#: the pool once the window is `_STAPLES_POOL_WINDOW_MAX_DAYS` or wider.
+#: MTGO-sourced tournaments have no such gate (any player count, including
+#: leagues' `players == 0`) -- see `list_staples`.
+_STAPLES_MTGTOP8_MIN_PLAYERS = 80
 
 #: Mirrors `barrins_scripture.schemas.formats.Formats.DUEL_COMMANDER`
 #: (the exact string that source stores into `bs_tournaments.format`).
@@ -588,3 +626,162 @@ async def list_trending_commanders(
         for key in top_keys
     ]
     return CommanderTrendsResponse(window=window_out, series=series)
+
+
+def _staple_row(
+    name: str, match: Card | None, deck_count: int, decks_considered: int
+) -> StapleRow:
+    return StapleRow(
+        name=match.name if match is not None else name,
+        cmc=match.mana_value if match is not None else None,
+        type_line=match.type_line if match is not None else None,
+        scryfall_id=match.scryfall_id if match is not None else None,
+        mana_cost=match.mana_cost if match is not None else None,
+        text=match.text if match is not None else None,
+        keywords=match.keywords if match is not None else [],
+        deck_count=deck_count,
+        percentage=round(deck_count / decks_considered * 100, 1),
+    )
+
+
+async def list_staples(
+    session: AsyncSession,
+    *,
+    date_from: date_type,
+    date_to: date_type,
+    min_percentage: float = DEFAULT_STAPLE_MIN_PERCENTAGE,
+    fallback_min_percentage: float = DEFAULT_STAPLE_FALLBACK_MIN_PERCENTAGE,
+) -> StaplesResponse:
+    """Mainboard card frequency (`GET /decks/staples`) pooled across every
+    qualifying Duel Commander tournament in `[date_from, date_to]` -- a
+    metagame-wide "staples" view, not scoped to a single tournament.
+
+    `min_percentage`/`fallback_min_percentage` default to values tuned
+    against real pooled data, but are caller-overridable (via the route's
+    own query params) so retuning them again doesn't need a deploy.
+
+    Qualifying tournaments:
+    - if the window spans fewer than `_STAPLES_POOL_WINDOW_MAX_DAYS` days,
+      every tournament dated in the window (a narrow window doesn't need
+      further gating -- the pool stays small on its own);
+    - otherwise, only "major" tournaments: MTGTop8 tournaments with more
+      than `_STAPLES_MTGTOP8_MIN_PLAYERS` players, or any MTGO-sourced
+      tournament (leagues and other MTGO event types alike) -- keeps a
+      long/all-time window's pool from including every small local event
+      ever recorded.
+    - Always excluded: MTGTop8 tournaments whose name contains "MTGO" --
+      MTGTop8 mirrors some MTGO events under its own listing, and the
+      underlying decks are already counted via the native `mtgo`-sourced
+      tournament, so counting both would double-count the same decks.
+
+    Sideboard rows are excluded entirely (see this module's docstring:
+    for Duel Commander that's the commander, already covered by the
+    commander-trend chips). Lands are excluded too -- near-ubiquitous by
+    deck-building necessity, not by strategic choice; a card that can't be
+    resolved against `mj_cards` can't be classified as a land, so it's
+    kept rather than silently dropped.
+    """
+    span_days = (date_to - date_from).days
+
+    tournament_ids_stmt = select(BSTournament.id).where(
+        BSTournament.format == DUEL_COMMANDER_FORMAT,
+        BSTournament.date >= date_from,
+        BSTournament.date <= date_to,
+        ~and_(
+            BSTournament.source == BSSource.mtgtop8,
+            BSTournament.name.ilike("%MTGO%"),
+        ),
+    )
+    if span_days >= _STAPLES_POOL_WINDOW_MAX_DAYS:
+        tournament_ids_stmt = tournament_ids_stmt.where(
+            or_(
+                and_(
+                    BSTournament.source == BSSource.mtgtop8,
+                    BSTournament.players > _STAPLES_MTGTOP8_MIN_PLAYERS,
+                ),
+                BSTournament.source == BSSource.mtgo,
+            )
+        )
+    tournament_ids = (await session.execute(tournament_ids_stmt)).scalars().all()
+
+    if not tournament_ids:
+        return StaplesResponse(
+            date_from=date_from,
+            date_to=date_to,
+            tournaments_considered=0,
+            decks_considered=0,
+            min_percentage=min_percentage,
+            rows=[],
+        )
+
+    deck_count = (
+        await session.execute(
+            select(func.count())
+            .select_from(BSDeck)
+            .where(BSDeck.tournament_id.in_(tournament_ids))
+        )
+    ).scalar_one()
+    if deck_count == 0:
+        return StaplesResponse(
+            date_from=date_from,
+            date_to=date_to,
+            tournaments_considered=len(tournament_ids),
+            decks_considered=0,
+            min_percentage=min_percentage,
+            rows=[],
+        )
+
+    card_rows = (
+        (
+            await session.execute(
+                select(BSDeckCard)
+                .join(BSDeck, BSDeckCard.deck_id == BSDeck.id)
+                .where(
+                    BSDeck.tournament_id.in_(tournament_ids),
+                    BSDeckCard.board == BSDeckBoard.mainboard,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    resolved = await resolved_cards(session, card_rows)
+
+    decks_by_name: dict[str, set[uuid.UUID]] = {}
+    match_by_name: dict[str, Card | None] = {}
+    for card in card_rows:
+        match = resolved[card.id]
+        if match is not None and categorize(match.type_line) == "land":
+            continue
+        name = match.name if match is not None else card.card_name
+        decks_by_name.setdefault(name, set()).add(card.deck_id)
+        match_by_name.setdefault(name, match)
+
+    sorted_rows = sorted(
+        (
+            _staple_row(name, match_by_name[name], len(decks), deck_count)
+            for name, decks in decks_by_name.items()
+        ),
+        key=lambda row: (-row.deck_count, row.name),
+    )
+
+    applied_min_percentage = min_percentage
+    rows = [row for row in sorted_rows if row.percentage >= applied_min_percentage][
+        :_TOP_STAPLES
+    ]
+    if not rows:
+        # The primary floor left nothing -- retry once at the softer
+        # fallback rather than surfacing an empty table outright.
+        applied_min_percentage = fallback_min_percentage
+        rows = [row for row in sorted_rows if row.percentage >= applied_min_percentage][
+            :_TOP_STAPLES
+        ]
+
+    return StaplesResponse(
+        date_from=date_from,
+        date_to=date_to,
+        tournaments_considered=len(tournament_ids),
+        decks_considered=deck_count,
+        min_percentage=applied_min_percentage,
+        rows=rows,
+    )

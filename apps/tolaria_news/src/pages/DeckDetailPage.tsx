@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useDeck } from '@/hooks/useDecks'
-import { CardFacesPreview } from '@/components/card-faces-preview'
+import { CardNameCell } from '@/components/card-name-cell'
 import { ManaPips } from '@/components/mana-pips'
 import { Card, CardTitle, CardDescription } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { CommanderRef, DeckCardCategory, DeckCardOut } from '@/schemas/tolariaNews'
@@ -30,24 +29,6 @@ const DECK_CARD_CATEGORY_LABELS: Record<DeckCardCategory, string> = {
   enchantment: 'Enchantments',
   land: 'Lands',
   other: 'Other',
-}
-
-function CardNameCell({ card }: { card: Pick<DeckCardOut, 'name' | 'scryfall_id'> }) {
-  if (!card.scryfall_id) {
-    return <span>{card.name}</span>
-  }
-  return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
-        <span className="cursor-default underline decoration-dotted decoration-muted-foreground">
-          {card.name}
-        </span>
-      </HoverCardTrigger>
-      <HoverCardContent className="w-auto">
-        <CardFacesPreview scryfallId={card.scryfall_id} name={card.name} />
-      </HoverCardContent>
-    </HoverCard>
-  )
 }
 
 function CardInfoCell({

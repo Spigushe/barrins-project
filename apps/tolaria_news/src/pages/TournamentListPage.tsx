@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTournaments } from '@/hooks/useTournaments'
 import { useTrendingCommanders } from '@/hooks/useCommanderTrends'
+import { useStaples } from '@/hooks/useDecks'
 import type { TournamentListFilters } from '@/api/tournaments'
+import type { StaplesResponse } from '@/schemas/tolariaNews'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import {
@@ -22,6 +24,8 @@ import {
   resolveWindowParams,
   type WindowPreset,
 } from '@/components/commanderTrends/TournamentWindowFilter'
+import { CardNameCell } from '@/components/card-name-cell'
+import { ManaPips } from '@/components/mana-pips'
 
 const SOURCES = [
   { value: '', label: 'All sources' },
@@ -31,6 +35,70 @@ const SOURCES = [
 
 const inputClass =
   'h-9 rounded-(--radius-input) border border-border bg-input px-2 text-sm text-foreground'
+
+/** Metagame-wide card frequency, pooled across every qualifying
+ * tournament in the shared window above -- not scoped to a single
+ * tournament (see `app.services.tolaria_news.decks.list_staples`'s
+ * docstring for the tournament-pooling rule). Presentational, same
+ * "page owns the query" convention `CommanderTrendChips` uses. */
+function StaplesSection({
+  data,
+  isLoading,
+  isError,
+}: {
+  data: StaplesResponse | undefined
+  isLoading: boolean
+  isError: boolean
+}) {
+  if (isLoading) return <Skeleton className="h-40 w-full" />
+
+  if (isError) {
+    return (
+      <Card className="border-destructive/40 text-destructive">
+        Failed to load staples.
+      </Card>
+    )
+  }
+
+  if (!data) return null
+
+  return (
+    <Card className="p-0">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Card</TableHead>
+            <TableHead>Mana Cost</TableHead>
+            <TableHead>Decks</TableHead>
+            <TableHead>%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.rows.map((row) => (
+            <TableRow key={row.name}>
+              <TableCell>
+                <CardNameCell card={row} />
+              </TableCell>
+              <TableCell>
+                <ManaPips manaCost={row.mana_cost} />
+              </TableCell>
+              <TableCell>{row.deck_count}</TableCell>
+              <TableCell>{row.percentage}%</TableCell>
+            </TableRow>
+          ))}
+          {data.rows.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={4} className="text-center text-muted-foreground">
+                No card is played in at least {data.min_percentage}% of decks for this
+                window.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </Card>
+  )
+}
 
 export function TournamentListPage() {
   const [source, setSource] = useState<TournamentListFilters['source']>(undefined)
@@ -48,6 +116,7 @@ export function TournamentListPage() {
     windowParams.dateTo,
   )
   const resolvedWindow = trending.data?.data.window
+  const staples = useStaples(resolvedWindow?.date_from, resolvedWindow?.date_to)
 
   // Tolaria News only covers Duel Commander (per apps/tolaria_news/README.md) —
   // format is fixed, not a user-facing filter. The date range comes from the
@@ -114,6 +183,12 @@ export function TournamentListPage() {
         series={trending.data?.data.series}
         isLoading={trending.isLoading}
         isError={trending.isError}
+      />
+
+      <StaplesSection
+        data={staples.data?.data}
+        isLoading={staples.isLoading}
+        isError={staples.isError}
       />
 
       <div className="flex flex-wrap items-end gap-3">

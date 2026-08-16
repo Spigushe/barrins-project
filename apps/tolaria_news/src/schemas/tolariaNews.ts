@@ -68,6 +68,29 @@ export const deckCardOutSchema = z.object({
 })
 export type DeckCardOut = z.infer<typeof deckCardOutSchema>
 
+export const stapleRowSchema = z.object({
+  name: z.string(),
+  cmc: z.number().nullable(),
+  type_line: z.string().nullable(),
+  scryfall_id: z.string().nullable(),
+  mana_cost: z.string().nullable(),
+  text: z.string().nullable(),
+  keywords: z.array(z.string()),
+  deck_count: z.number(),
+  percentage: z.number(),
+})
+export type StapleRow = z.infer<typeof stapleRowSchema>
+
+export const staplesResponseSchema = z.object({
+  date_from: z.iso.date(),
+  date_to: z.iso.date(),
+  tournaments_considered: z.number(),
+  decks_considered: z.number(),
+  min_percentage: z.number(),
+  rows: z.array(stapleRowSchema),
+})
+export type StaplesResponse = z.infer<typeof staplesResponseSchema>
+
 export const deckCardCategorySchema = z.enum([
   'planeswalker',
   'battle',
