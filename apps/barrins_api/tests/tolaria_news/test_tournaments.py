@@ -154,6 +154,8 @@ class TestNoAuthRequired:
             f"/tournaments/{tid}/decks",
             f"/tournaments/{tid}/standings",
             f"/tournaments/{tid}/bracket",
+            "/decks",
+            "/decks/commanders",
             f"/decks/{duel_commander_deck.id}",
         ):
             resp = await client.get(f"{BASE}{path}")

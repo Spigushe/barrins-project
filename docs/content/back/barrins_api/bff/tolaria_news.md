@@ -79,6 +79,8 @@ free ground.
 | `GET` | `/bff/tolaria-news/tournaments/{id}/decks` | Decks entered (`bs_decks`), `cursor`/`limit` |
 | `GET` | `/bff/tolaria-news/tournaments/{id}/standings` | Standings (`bs_standings`, ordered by `rank`), `cursor`/`limit` |
 | `GET` | `/bff/tolaria-news/tournaments/{id}/bracket` | Elimination bracket (`bs_rounds`/`bs_round_matches`), rounds + nested matches in scrape order. No pagination (small dataset); empty list for Swiss-only tournaments |
+| `GET` | `/bff/tolaria-news/decks` | Global, cross-tournament decklist index (T5's `/decklists` route). Restricted server-side to Duel Commander tournaments. Filters: `player` (substring), `source`, `commander` (exact), `colors` (repeated, exact color-identity match), `date_from`/`date_to`. `cursor`/`limit`. Each row carries `tournament_name`/`tournament_source` so it's meaningful without a second request |
+| `GET` | `/bff/tolaria-news/decks/commanders` | Distinct commander names across Duel Commander tournaments — backs `/decklists`' commander dropdown. Small, unpaginated. Must stay registered before `/decks/{id}` (see code comment) |
 | `GET` | `/bff/tolaria-news/decks/{id}` | Deck detail: full decklist + derived commander(s) |
 
 No route accepts or requires `CurrentUser` — covered by an explicit
@@ -91,6 +93,33 @@ Deliberately **not** in v1 (see "Deferred scope" below):
 oracle-text/image proxy, and tournament `location`. Bracket data
 (`bs_rounds`/`bs_round_matches`) **is** in v1 (`/tournaments/{id}/bracket`,
 added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)).
+
+**Addendum (2026-08-15)**: `GET /decks` (global index) added to back T5's
+`/decklists` route. Deliberately a plain filtered list, not the
+design-handoff prototype's `commander:X color:UW` search DSL — at the
+time, commander/color looked like they needed indexing as queryable data
+that didn't exist anywhere (`get_deck` only ever derived a commander for
+one deck at a time, on demand). Full DSL support was tracked as a
+separate follow-up.
+
+**Addendum (2026-08-16)**: that premise was wrong, and it's worth
+recording why. `app/services/scripture/ingester.py::_replace_deck_cards`
+already runs *every* `bs_deck_cards.card_name` — mainboard and sideboard
+— through `card_resolver.resolve_card_name` before storing it; a name
+that doesn't resolve is skipped at ingest, never stored. So `card_name`
+is never a raw scraped string — it's already guaranteed to equal some
+`mj_cards.name`/`face_name` exactly. That means commander/color-identity
+filtering needs no Python-side resolution at query time and no new
+indexed columns: it's plain, exact-match SQL joining `bs_deck_cards` to
+`mj_cards` on name equality. `list_decks` gained `commander` (an `EXISTS`
+against sideboard `card_name`) and `colors` (exact color-identity-set
+match, decomposed into two conditions — no sideboard card has a color
+outside the requested set, and every requested color is covered by at
+least one sideboard card — using `ARRAY.contains()`/`.contained_by()`,
+correct across a partner pair's up-to-2 commander rows without needing
+`unnest`/aggregation). New `list_commanders` backs the dropdown. No
+change to pagination — both filters are ordinary SQL `WHERE` clauses, so
+the existing keyset cursor logic needed no special-casing.
 
 ### Commander + card data (`/decks/{id}`)
 
@@ -245,3 +274,26 @@ own decklist redesign (shared `app/services/decklist_sort.py` and
 `app/services/scryfall/`) — see the "Commander + card data" section
 above. Full `barrins_api` suite now 500 passing, 97.20% coverage;
 `ruff`/`ty` clean.
+
+**T5 addendum (2026-08-15)**: `GET /decks` (global decklist index) added
+— see the route-map addendum above. `app/schemas/responses_tolaria_news.py`
+gained `DeckListItem`; `app/services/tolaria_news/decks.py` gained
+`list_decks` (same keyset-cursor pattern as `list_tournaments`);
+`app/api/tolaria_news/decks.py` gained the route plus its own local
+`_meta`/`_decode_cursor_or_400` helpers (mirroring `tournaments.py`).
+14 new/updated tests in `tests/tolaria_news/test_decks.py` (25 total in
+the package); `ruff`/`ty` clean.
+
+**T5 addendum (2026-08-16)**: `commander`/`colors` filters and
+`GET /decks/commanders` added to `GET /decks` — see the 2026-08-16
+route-map addendum above for why this turned out to be plain SQL rather
+than the follow-up item the previous addendum expected.
+`app/services/tolaria_news/decks.py` gained `_sideboard_card_exists`,
+`_sideboard_card_joined_to_mj_cards`, and `list_commanders`.
+`pyproject.toml` gained `[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Query"]` — ruff's B008 treats any
+non-scalar-typed default (`list[str] | None`) as mutable regardless of
+the `Query(...)` call wrapping it; this is ruff's own documented escape
+hatch for that FastAPI pattern. 8 new tests in
+`tests/tolaria_news/test_decks.py` (33 total in the package); `ruff`/`ty`
+clean.

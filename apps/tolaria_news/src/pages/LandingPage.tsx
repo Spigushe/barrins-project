@@ -80,6 +80,12 @@ export function LandingPage() {
               {primaryCta.label}
               <Arrow />
             </Link>
+            <Link
+              to="/methodology"
+              className="inline-flex items-center gap-2.5 rounded-(--radius-button) border border-border px-[22px] py-3.5 text-[14.5px] font-medium text-foreground transition-colors duration-150 hover:bg-input"
+            >
+              Read the methodology
+            </Link>
           </div>
 
           <div className="mt-14 flex flex-wrap gap-10">

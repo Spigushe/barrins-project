@@ -5,6 +5,8 @@ import { LandingPage } from '@/pages/LandingPage'
 import { TournamentListPage } from '@/pages/TournamentListPage'
 import { TournamentDetailPage } from '@/pages/TournamentDetailPage'
 import { DeckDetailPage } from '@/pages/DeckDetailPage'
+import { DecklistsPage } from '@/pages/DecklistsPage'
+import { MethodologyPage } from '@/pages/MethodologyPage'
 import { MetagamePage } from '@/pages/MetagamePage'
 import { ArchetypesPage } from '@/pages/ArchetypesPage'
 import { TrendsPage } from '@/pages/TrendsPage'
@@ -18,6 +20,8 @@ function App() {
           <Route path="/tournaments" element={<TournamentListPage />} />
           <Route path="/tournaments/:id" element={<TournamentDetailPage />} />
           <Route path="/decks/:id" element={<DeckDetailPage />} />
+          <Route path="/decklists" element={<DecklistsPage />} />
+          <Route path="/methodology" element={<MethodologyPage />} />
 
           {/* Karn Tablets (T4 iteration 2 / T6, ADR-13) — prepared ahead of
               the backend, hidden behind VITE_FEATURE_KARN_TABLETS. */}

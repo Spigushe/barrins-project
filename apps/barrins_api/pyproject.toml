@@ -92,6 +92,14 @@ select = [
 ]
 ignore = ["E402", "E712", "F403", "S101"]  # S101: allow assert in tests
 
+[tool.ruff.lint.flake8-bugbear]
+# B008 treats any non-scalar-typed default (e.g. `list[str] | None`) as
+# "mutable" regardless of the call inside it, so `Query(...)` false-positives
+# on list-typed query params (scalar ones like `Query(1, ge=1)` are already
+# exempt via B008's own immutable-annotation check). This is ruff's own
+# documented escape hatch for exactly that FastAPI pattern.
+extend-immutable-calls = ["fastapi.Query"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

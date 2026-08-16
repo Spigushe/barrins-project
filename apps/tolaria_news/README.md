@@ -31,6 +31,14 @@ npm run dev        # Vite dev server, http://localhost:5173
   Duel Commander, this app's only scope)
 - `/tournaments/:id` — tournament detail (Decks / Standings / Bracket tabs)
 - `/decks/:id` — decklist detail (mainboard + derived commander(s))
+- `/decklists` — global, cross-tournament decklist index (filters: pilot,
+  source, commander, color identity, date range; cursor pagination). Color
+  identity is exact-match (click pips to select/unselect, multi-select) —
+  a deck's combined commander color identity must equal the selected set
+  exactly, not "contains". No `commander:X color:UW` text search DSL —
+  the dropdown/pip filters cover the same ground without one
+- `/methodology` — stub page (placeholder copy, no data), linked from the
+  landing page's secondary CTA
 
 ### Metagame / Archetypes / Trends (`VITE_FEATURE_KARN_TABLETS`)
 
@@ -83,10 +91,13 @@ stack, teal accent, icon/sigil, Eyebrow/StatBlock components) is adapted
 from the design handoff at
 `docs/project/v2.0.0-bump/t5-tolaria-news-frontend/handoff/design_handoff_tolaria_news/`
 (`DESIGN_SYSTEM.md`, `PAGES.md`). Restyle only, by explicit decision — the
-handoff's speculative `/bff/v1/*` contract and its larger page set
-(landing hero, node-graph viz, `/decklists` search, forecasts, `⌘K`
-search, sign-in) are **not** implemented here; this app stays wired to the
-real, shipped `/bff/tolaria-news/*` contract only.
+handoff's speculative `/bff/v1/*` contract and most of its larger page set
+(landing hero, node-graph viz, forecasts, `⌘K` search, sign-in) are **not**
+implemented here; this app stays wired to the real, shipped
+`/bff/tolaria-news/*` contract only. `/decklists` was added later as its
+own item (see the app's CHANGELOG) — a real global index with commander
+and color-identity filters, but without the handoff's `commander:X
+color:UW` text search bar (a dropdown + clickable pips instead).
 
 ## Notes
 

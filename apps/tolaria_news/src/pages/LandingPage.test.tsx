@@ -28,6 +28,9 @@ describe('LandingPage', () => {
     const cta = screen.getByRole('link', { name: /Browse tournaments/ })
     expect(cta).toHaveAttribute('href', '/tournaments')
     expect(screen.queryByText('archetypes mapped')).not.toBeInTheDocument()
+
+    const methodologyCta = screen.getByRole('link', { name: 'Read the methodology' })
+    expect(methodologyCta).toHaveAttribute('href', '/methodology')
   })
 
   it('links the primary CTA to /metagame and shows the archetypes stat when the flag is on', () => {
@@ -37,5 +40,10 @@ describe('LandingPage', () => {
     const cta = screen.getByRole('link', { name: /Explore the metagame/ })
     expect(cta).toHaveAttribute('href', '/metagame')
     expect(screen.getByText('archetypes mapped')).toBeInTheDocument()
+
+    expect(screen.getByRole('link', { name: 'Read the methodology' })).toHaveAttribute(
+      'href',
+      '/methodology',
+    )
   })
 })

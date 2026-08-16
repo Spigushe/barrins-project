@@ -59,6 +59,16 @@ class DeckSummary(BaseResponse):
     anchor_uri: str
 
 
+class DeckListItem(DeckSummary):
+    """One row of the global cross-tournament decklist index
+    (`GET /decks`) -- carries just enough tournament context to be
+    meaningful on its own, since a global list isn't scoped to a single
+    tournament page the way `DeckSummary` normally is."""
+
+    tournament_name: str
+    tournament_source: BSSource
+
+
 class CommanderRef(BaseResponse):
     name: str
     scryfall_id: str | None
