@@ -372,8 +372,21 @@ def _weekly_buckets(
     return buckets
 
 
+#: Above this span, a custom window buckets by banlist period instead of
+#: by week (see `_resolve_trend_window`'s `custom` branch) -- roughly 3x
+#: a banlist period's own ~60-day span, comfortably separating "a custom
+#: range shaped like banlist_period/rolling_30d" from "a custom range
+#: shaped like all_time".
+_CUSTOM_WEEKLY_BUCKET_MAX_DAYS = 180
+
+
 async def _resolve_trend_window(
-    session: AsyncSession, *, mode: TrendWindowMode, period_offset: int
+    session: AsyncSession,
+    *,
+    mode: TrendWindowMode,
+    period_offset: int,
+    date_from: date_type | None,
+    date_to: date_type | None,
 ) -> tuple[WindowOut, list[tuple[date_type, date_type]]]:
     """Resolves the outer date range for `mode` (walking `period_offset`
     banlist periods into the past when `mode` is `banlist_period`) and the
@@ -383,9 +396,32 @@ async def _resolve_trend_window(
     (`dc_calendar.all_time_periods`), not weekly slices -- weekly buckets
     across an open-ended, potentially years-long span would produce an
     unreadable number of points; one point per banlist era is the natural
-    granularity "all time" implies.
+    granularity "all time" implies. `custom` picks between the two
+    strategies by span (see `_CUSTOM_WEEKLY_BUCKET_MAX_DAYS`), since a
+    caller-supplied range can be either shape.
     """
     today = date_type.today()
+
+    if mode == "custom":
+        assert date_from is not None  # the route 400s otherwise
+        resolved_to = date_to or today
+        buckets = (
+            _weekly_buckets(date_from, resolved_to)
+            if (resolved_to - date_from).days <= _CUSTOM_WEEKLY_BUCKET_MAX_DAYS
+            else [
+                (p.date_from, p.date_to)
+                for p in all_time_periods(date_from, resolved_to)
+            ]
+        )
+        return (
+            WindowOut(
+                kind=mode,
+                label=f"custom:{date_from.isoformat()}_{resolved_to.isoformat()}",
+                date_from=date_from,
+                date_to=resolved_to,
+            ),
+            buckets,
+        )
 
     if mode == "rolling_30d":
         window = rolling_30d_window(today)
@@ -445,6 +481,8 @@ async def list_trending_commanders(
     *,
     mode: TrendWindowMode,
     period_offset: int,
+    date_from: date_type | None = None,
+    date_to: date_type | None = None,
 ) -> CommanderTrendsResponse:
     """Top `_TOP_TRENDING_COMMANDERS` commanders (solo or partner pairs) by
     deck count in `mode`'s window, each with a per-bucket play-count trend.
@@ -452,9 +490,16 @@ async def list_trending_commanders(
     Partner pairs are grouped by the sorted tuple of their resolved
     commander names, so a pair groups identically regardless of which
     card `bs_deck_cards` happened to store first.
+
+    `date_from`/`date_to` only apply to `mode=custom` (see the route's
+    validation -- `date_from` is required in that case).
     """
     window_out, buckets = await _resolve_trend_window(
-        session, mode=mode, period_offset=period_offset
+        session,
+        mode=mode,
+        period_offset=period_offset,
+        date_from=date_from,
+        date_to=date_to,
     )
     if not buckets:
         return CommanderTrendsResponse(window=window_out, series=[])

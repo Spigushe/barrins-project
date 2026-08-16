@@ -1,11 +1,8 @@
-import { useState } from 'react'
 import { Line, LineChart, ResponsiveContainer } from 'recharts'
 import { CommanderHoverBadge } from '@/components/commander-hover-badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTrendingCommanders } from '@/hooks/useCommanderTrends'
-import type { CommanderTrendSeries, TrendWindowMode } from '@/schemas/tolariaNews'
-import { TrendWindowControls } from './TrendWindowControls'
+import type { CommanderTrendSeries } from '@/schemas/tolariaNews'
 
 function CommanderTrendChip({ series }: { series: CommanderTrendSeries }) {
   const data = series.points.map((point, index) => ({
@@ -41,24 +38,20 @@ function CommanderTrendChip({ series }: { series: CommanderTrendSeries }) {
 }
 
 /** Top-10 most-played commanders (or partner pairs) chip row, with a
- * per-commander play-count sparkline -- Tolaria News' tournament index
- * (`TournamentListPage`), not scoped to any single tournament (a single
- * past event has one fixed date, so "last 30 days"/"banlist window"
- * windowing only makes sense at the index level). */
-export function CommanderTrendChips() {
-  const [mode, setMode] = useState<TrendWindowMode>('rolling_30d')
-  const [periodOffset, setPeriodOffset] = useState(0)
-  const { data, isLoading, isError } = useTrendingCommanders(mode, periodOffset)
-
+ * per-commander play-count sparkline. Presentational -- the window/date
+ * filter driving `series` is owned by `TournamentListPage` (shared with
+ * the tournament table below it), not by this component. */
+export function CommanderTrendChips({
+  series,
+  isLoading,
+  isError,
+}: {
+  series: CommanderTrendSeries[] | undefined
+  isLoading: boolean
+  isError: boolean
+}) {
   return (
     <div className="flex flex-col gap-3">
-      <TrendWindowControls
-        mode={mode}
-        onModeChange={setMode}
-        periodOffset={periodOffset}
-        onPeriodOffsetChange={setPeriodOffset}
-      />
-
       {isLoading && (
         <div className="flex flex-wrap gap-3">
           {Array.from({ length: 5 }, (_, i) => (
@@ -73,16 +66,16 @@ export function CommanderTrendChips() {
         </Card>
       )}
 
-      {data && data.data.series.length === 0 && (
+      {series && series.length === 0 && (
         <p className="text-sm text-muted-foreground">No decks recorded in this window.</p>
       )}
 
-      {data && data.data.series.length > 0 && (
+      {series && series.length > 0 && (
         <div className="flex flex-wrap gap-3">
-          {data.data.series.map((series) => (
+          {series.map((s) => (
             <CommanderTrendChip
-              key={series.commanders.map((c) => c.name).join(' / ')}
-              series={series}
+              key={s.commanders.map((c) => c.name).join(' / ')}
+              series={s}
             />
           ))}
         </div>

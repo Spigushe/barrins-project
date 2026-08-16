@@ -121,7 +121,12 @@ export const roundOutSchema = z.object({
 })
 export type RoundOut = z.infer<typeof roundOutSchema>
 
-export const trendWindowModeSchema = z.enum(['rolling_30d', 'banlist_period', 'all_time'])
+export const trendWindowModeSchema = z.enum([
+  'rolling_30d',
+  'banlist_period',
+  'all_time',
+  'custom',
+])
 export type TrendWindowMode = z.infer<typeof trendWindowModeSchema>
 
 export const windowOutSchema = z.object({

@@ -784,3 +784,95 @@ class TestTrendingCommanders:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["series"] == []
+
+    async def test_custom_mode_requires_date_from(self, client: AsyncClient) -> None:
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending", params={"mode": "custom"}
+        )
+        assert resp.status_code == 400
+
+    async def test_custom_mode_rejects_date_to_before_date_from(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending",
+            params={
+                "mode": "custom",
+                "date_from": "2026-05-01",
+                "date_to": "2026-04-01",
+            },
+        )
+        assert resp.status_code == 400
+
+    async def test_custom_mode_without_date_to_defaults_to_today(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        await self._deck(
+            db_session,
+            tournament,
+            player="P1",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending",
+            params={"mode": "custom", "date_from": today.isoformat()},
+        )
+        assert resp.status_code == 200
+        body = resp.json()["data"]
+        assert body["window"]["date_from"] == today.isoformat()
+        assert body["window"]["date_to"] == today.isoformat()
+        assert body["series"][0]["total_deck_count"] == 1
+
+    async def test_custom_mode_short_range_buckets_weekly(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        await self._deck(
+            db_session,
+            tournament,
+            player="P1",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending",
+            params={
+                "mode": "custom",
+                "date_from": (today - timedelta(days=14)).isoformat(),
+                "date_to": today.isoformat(),
+            },
+        )
+        body = resp.json()["data"]
+        points = body["series"][0]["points"]
+        # 15 inclusive days -> 3 weekly buckets (7 + 7 + 1).
+        assert len(points) == 3
+
+    async def test_custom_mode_long_range_buckets_by_banlist_period(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        old_date = today - timedelta(days=400)
+        tournament = await self._tournament(db_session, event_date=old_date)
+        await self._deck(
+            db_session,
+            tournament,
+            player="Old Pilot",
+            deck_date=old_date,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending",
+            params={"mode": "custom", "date_from": old_date.isoformat()},
+        )
+        body = resp.json()["data"]
+        assert body["window"]["date_from"] == old_date.isoformat()
+        assert body["window"]["date_to"] == today.isoformat()
+        # A 400+ day span buckets by banlist period, not by week.
+        assert 1 < len(body["series"][0]["points"]) < 20

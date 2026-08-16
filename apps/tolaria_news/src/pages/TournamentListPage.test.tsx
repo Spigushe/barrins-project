@@ -44,33 +44,34 @@ vi.mock('@/hooks/useTournaments', () => ({
   useTournaments: (
     filters: unknown,
     cursor: string | undefined,
-  ): ReturnType<typeof useTournamentsMock> => useTournamentsMock(filters, cursor),
+    enabled: boolean | undefined,
+  ): ReturnType<typeof useTournamentsMock> =>
+    useTournamentsMock(filters, cursor, enabled),
 }))
 
 const trendMeta = { generated_at: '2026-08-01T00:00:00Z', source_synced_at: null }
 
-const emptyTrends = {
-  data: {
-    window: {
-      kind: 'rolling_30d',
-      label: 'rolling_30d:2026-08-01',
-      date_from: '2026-07-02',
-      date_to: '2026-08-01',
+function trendsWithWindow(dateFrom: string, dateTo: string) {
+  return {
+    data: {
+      window: {
+        kind: 'banlist_period',
+        label: `banlist_period:${dateFrom}_${dateTo}`,
+        date_from: dateFrom,
+        date_to: dateTo,
+      },
+      series: [] as unknown[],
     },
-    series: [],
-  },
-  meta: trendMeta,
-  page: null,
+    meta: trendMeta,
+    page: null,
+  }
 }
+
+const currentSeasonTrends = trendsWithWindow('2026-07-02', '2026-08-01')
 
 const tymnaTrends = {
   data: {
-    window: {
-      kind: 'rolling_30d',
-      label: 'rolling_30d:2026-08-01',
-      date_from: '2026-07-02',
-      date_to: '2026-08-01',
-    },
+    window: currentSeasonTrends.data.window,
     series: [
       {
         commanders: [
@@ -101,8 +102,10 @@ vi.mock('@/hooks/useCommanderTrends', () => ({
   useTrendingCommanders: (
     mode: unknown,
     periodOffset: unknown,
+    dateFrom: unknown,
+    dateTo: unknown,
   ): ReturnType<typeof useTrendingCommandersMock> =>
-    useTrendingCommandersMock(mode, periodOffset),
+    useTrendingCommandersMock(mode, periodOffset, dateFrom, dateTo),
 }))
 
 function renderPage() {
@@ -125,7 +128,7 @@ describe('TournamentListPage', () => {
 
     useTrendingCommandersMock.mockReset()
     useTrendingCommandersMock.mockReturnValue({
-      data: emptyTrends,
+      data: currentSeasonTrends,
       isLoading: false,
       isError: false,
       error: null,
@@ -163,6 +166,28 @@ describe('TournamentListPage', () => {
     expect(screen.getByText('No tournaments match these filters.')).toBeInTheDocument()
   })
 
+  it('passes the resolved window as the date_from/date_to table filter', () => {
+    renderPage()
+
+    expect(useTournamentsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dateFrom: '2026-07-02', dateTo: '2026-08-01' }),
+      undefined,
+      true,
+    )
+  })
+
+  it('does not query the table until the window has resolved', () => {
+    useTrendingCommandersMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+    })
+    renderPage()
+
+    expect(useTournamentsMock).toHaveBeenCalledWith(expect.anything(), undefined, false)
+  })
+
   describe('commander trend chips', () => {
     it('shows an empty state when no decks are recorded in the window', () => {
       renderPage()
@@ -182,25 +207,83 @@ describe('TournamentListPage', () => {
       expect(screen.getByText('Tymna the Weaver')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
     })
+  })
 
-    it('switches window mode, resetting to the current period', async () => {
-      const user = userEvent.setup()
+  describe('window filter', () => {
+    it('defaults to the current banlist season', () => {
       renderPage()
 
-      await user.selectOptions(screen.getByLabelText('Window'), 'banlist_period')
-
-      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith('banlist_period', 0)
-      expect(screen.getByRole('button', { name: '← Earlier period' })).toBeInTheDocument()
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'banlist_period',
+        0,
+        undefined,
+        undefined,
+      )
     })
 
-    it('steps into an earlier banlist period', async () => {
+    it('switches to the previous banlist season', async () => {
       const user = userEvent.setup()
       renderPage()
-      await user.selectOptions(screen.getByLabelText('Window'), 'banlist_period')
 
-      await user.click(screen.getByRole('button', { name: '← Earlier period' }))
+      await user.selectOptions(screen.getByLabelText('Window'), 'previous_season')
 
-      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith('banlist_period', 1)
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'banlist_period',
+        1,
+        undefined,
+        undefined,
+      )
+    })
+
+    it('switches to the 20-life decks preset with a fixed start date', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Window'), 'life_20')
+
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'custom',
+        undefined,
+        '2016-11-11',
+        undefined,
+      )
+    })
+
+    it('switches to all time', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Window'), 'all_time')
+
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'all_time',
+        undefined,
+        undefined,
+        undefined,
+      )
+    })
+
+    it('reveals date pickers for a custom range and passes the picked dates', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Window'), 'custom')
+      await user.type(screen.getByLabelText('From'), '2026-01-01')
+      await user.type(screen.getByLabelText('To'), '2026-02-01')
+
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'custom',
+        undefined,
+        '2026-01-01',
+        '2026-02-01',
+      )
+    })
+
+    it('does not show date pickers for non-custom presets', () => {
+      renderPage()
+
+      expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('To')).not.toBeInTheDocument()
     })
   })
 })

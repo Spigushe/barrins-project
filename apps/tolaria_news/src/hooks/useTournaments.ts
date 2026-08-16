@@ -8,10 +8,15 @@ import {
   type TournamentListFilters,
 } from '@/api/tournaments'
 
-export function useTournaments(filters: TournamentListFilters, cursor?: string) {
+export function useTournaments(
+  filters: TournamentListFilters,
+  cursor?: string,
+  enabled = true,
+) {
   return useQuery({
     queryKey: ['tournaments', filters, cursor],
     queryFn: () => listTournaments(filters, cursor),
+    enabled,
   })
 }
 
