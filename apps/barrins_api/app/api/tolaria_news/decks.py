@@ -8,7 +8,14 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.database.session import DatabaseSession
 from app.models.scripture import BSSource
-from app.schemas.responses_tolaria_news import DeckDetail, DeckListItem, Envelope, Meta
+from app.schemas.responses_tolaria_news import (
+    CommanderTrendsResponse,
+    DeckDetail,
+    DeckListItem,
+    Envelope,
+    Meta,
+    TrendWindowMode,
+)
 from app.services.tolaria_news import decks as service
 from app.services.tolaria_news import tournaments as tournaments_service
 from app.services.tolaria_news.pagination import decode_cursor
@@ -71,6 +78,25 @@ async def list_commanders(session: DatabaseSession) -> Envelope[list[str]]:
     `{deck_id}` would otherwise swallow this path and fail UUID parsing
     with a 422 instead of reaching this handler."""
     data = await service.list_commanders(session)
+    return Envelope(data=data, meta=await _meta(session))
+
+
+@router.get(
+    "/decks/commanders/trending",
+    response_model=Envelope[CommanderTrendsResponse],
+)
+async def list_trending_commanders(
+    session: DatabaseSession,
+    mode: TrendWindowMode = "rolling_30d",
+    period_offset: int = 0,
+) -> Envelope[CommanderTrendsResponse]:
+    """Top 10 commanders (or partner pairs) by deck count in `mode`'s
+    window, each with a per-bucket play-count trend. `period_offset`
+    only applies to `mode=banlist_period` (0 = the period containing
+    today, 1 = the one before that, ...)."""
+    data = await service.list_trending_commanders(
+        session, mode=mode, period_offset=period_offset
+    )
     return Envelope(data=data, meta=await _meta(session))
 
 

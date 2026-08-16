@@ -40,6 +40,7 @@ dependencies = [
     "uvicorn>=0.51.0",
     # >=69.0: includes fixes for both CVE-2025-68616 and CVE-2026-49452 (see S5 ADR/I8).
     "weasyprint>=69.0",
+    "dc-calendar",
 ]
 
 [dependency-groups]
@@ -109,6 +110,10 @@ docstring-code-line-length = "dynamic"
 
 [tool.ty.environment]
 python-version = "3.14"
+# dc_calendar is a local editable dependency (uv's setuptools editable
+# install uses a MetaPathFinder .pth hook, which ty -- unlike Python's own
+# import machinery -- can't resolve statically without this hint).
+extra-paths = ["../dc_calendar"]
 
 [tool.ty.src]
 exclude = ["tests"]
@@ -184,3 +189,6 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "reports/pytest_html_report"
+
+[tool.uv.sources]
+dc-calendar = { path = "../dc_calendar", editable = true }

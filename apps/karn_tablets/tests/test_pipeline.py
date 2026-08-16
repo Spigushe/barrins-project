@@ -2,9 +2,9 @@ from datetime import date
 
 import pandas as pd
 import pytest
+from dc_calendar.windowing import Window, WindowKind
 
 from karn_tablets import pipeline
-from karn_tablets.windowing import Window, WindowKind
 
 _WINDOW = Window(
     kind=WindowKind.rolling_30d, date_from=date(2026, 5, 1), date_to=date(2026, 5, 31)

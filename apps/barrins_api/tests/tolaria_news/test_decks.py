@@ -2,7 +2,7 @@
 card resolution + commander derivation."""
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from httpx import AsyncClient
 
@@ -531,3 +531,256 @@ class TestDeckDetail:
     async def test_unknown_id_is_404(self, client: AsyncClient) -> None:
         resp = await client.get(f"{BASE}/decks/{uuid.uuid4()}")
         assert resp.status_code == 404
+
+
+class TestTrendingCommanders:
+    async def _tournament(self, db_session, *, event_date: date) -> BSTournament:
+        t = BSTournament(
+            source=BSSource.mtgo,
+            date=event_date,
+            name=f"Trend Event {event_date.isoformat()}",
+            url=f"https://mtgo.com/decklist/trend-{uuid.uuid4()}",
+            format="Duel Commander",
+            players=1,
+        )
+        db_session.add(t)
+        await db_session.flush()
+        return t
+
+    async def _deck(
+        self,
+        db_session,
+        tournament: BSTournament,
+        *,
+        player: str,
+        deck_date: date,
+        commanders: list[str],
+    ) -> BSDeck:
+        deck = BSDeck(
+            tournament_id=tournament.id,
+            date=deck_date,
+            player=player,
+            result=None,
+            anchor_uri=f"{tournament.url}#deck_{uuid.uuid4()}",
+        )
+        db_session.add(deck)
+        await db_session.flush()
+        db_session.add_all(
+            [
+                BSDeckCard(
+                    deck_id=deck.id,
+                    board=BSDeckBoard.sideboard,
+                    card_name=name,
+                    count=1,
+                )
+                for name in commanders
+            ]
+        )
+        await db_session.commit()
+        await db_session.refresh(deck)
+        return deck
+
+    async def test_default_mode_is_rolling_30d_ranked_by_deck_count(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        await self._deck(
+            db_session,
+            tournament,
+            player="P1",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+        await self._deck(
+            db_session,
+            tournament,
+            player="P2",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+        await self._deck(
+            db_session,
+            tournament,
+            player="P3",
+            deck_date=today,
+            commanders=["Sol Ring"],
+        )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        assert resp.status_code == 200
+        body = resp.json()["data"]
+        assert body["window"]["kind"] == "rolling_30d"
+        series = body["series"]
+        assert series[0]["commanders"][0]["name"] == "Tymna the Weaver"
+        assert series[0]["total_deck_count"] == 2
+        assert series[1]["commanders"][0]["name"] == "Sol Ring"
+        assert series[1]["total_deck_count"] == 1
+
+    async def test_partner_pair_groups_as_one_series_regardless_of_card_order(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        db_session.add(
+            Card(
+                id=uuid.uuid4(),
+                set_code="TST",
+                name="Kraum, Ludevic's Opus",
+                type_line="Legendary Creature — Zombie Horror",
+                mana_cost="{1}{U}{R}",
+                mana_value=3,
+                color_identity=["U", "R"],
+                rarity="rare",
+                number="3",
+                scryfall_id="kraum-scryfall-id",
+            )
+        )
+        await db_session.commit()
+
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        await self._deck(
+            db_session,
+            tournament,
+            player="P1",
+            deck_date=today,
+            commanders=["Tymna the Weaver", "Kraum, Ludevic's Opus"],
+        )
+        await self._deck(
+            db_session,
+            tournament,
+            player="P2",
+            deck_date=today,
+            commanders=["Kraum, Ludevic's Opus", "Tymna the Weaver"],  # reversed order
+        )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        body = resp.json()["data"]
+        assert len(body["series"]) == 1
+        assert body["series"][0]["total_deck_count"] == 2
+        assert {c["name"] for c in body["series"][0]["commanders"]} == {
+            "Tymna the Weaver",
+            "Kraum, Ludevic's Opus",
+        }
+
+    async def test_caps_at_top_ten(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        extra_cards = [
+            Card(
+                id=uuid.uuid4(),
+                set_code="TST",
+                name=f"Trend Card {i}",
+                type_line="Legendary Creature — Test",
+                mana_cost="{1}",
+                mana_value=1,
+                color_identity=[],
+                rarity="common",
+                number=str(10 + i),
+                scryfall_id=f"trend-card-{i}-scryfall-id",
+            )
+            for i in range(9)
+        ]
+        db_session.add_all(extra_cards)
+        await db_session.commit()
+
+        all_names = ["Tymna the Weaver", "Sol Ring", *(c.name for c in extra_cards)]
+        for name in all_names:
+            await self._deck(
+                db_session,
+                tournament,
+                player=f"Pilot {name}",
+                deck_date=today,
+                commanders=[name],
+            )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        assert len(resp.json()["data"]["series"]) == 10
+
+    async def test_bucket_with_no_decks_reports_null_not_zero(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        tournament = await self._tournament(db_session, event_date=today)
+        await self._deck(
+            db_session,
+            tournament,
+            player="P1",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        points = resp.json()["data"]["series"][0]["points"]
+        assert any(p["deck_count"] is None for p in points)
+        assert any(p["deck_count"] == 1 for p in points)
+
+    async def test_excludes_non_duel_commander_tournaments(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        legacy_tournament = BSTournament(
+            source=BSSource.mtgo,
+            date=today,
+            name="Legacy Trend Challenge",
+            url=f"https://mtgo.com/decklist/legacy-trend-{uuid.uuid4()}",
+            format="Legacy",
+            players=1,
+        )
+        db_session.add(legacy_tournament)
+        await db_session.flush()
+        await self._deck(
+            db_session,
+            legacy_tournament,
+            player="Legacy Pilot",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        assert resp.json()["data"]["series"] == []
+
+    async def test_banlist_period_offset_shifts_to_an_earlier_period(
+        self, client: AsyncClient
+    ) -> None:
+        current = await client.get(
+            f"{BASE}/decks/commanders/trending", params={"mode": "banlist_period"}
+        )
+        previous = await client.get(
+            f"{BASE}/decks/commanders/trending",
+            params={"mode": "banlist_period", "period_offset": 1},
+        )
+        current_window = current.json()["data"]["window"]
+        previous_window = previous.json()["data"]["window"]
+        assert current_window["label"] != previous_window["label"]
+        assert previous_window["date_to"] < current_window["date_from"]
+
+    async def test_all_time_spans_from_earliest_tournament(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        old_date = date.today() - timedelta(days=400)
+        tournament = await self._tournament(db_session, event_date=old_date)
+        await self._deck(
+            db_session,
+            tournament,
+            player="Old Pilot",
+            deck_date=old_date,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending", params={"mode": "all_time"}
+        )
+        body = resp.json()["data"]
+        assert body["window"]["date_from"] == old_date.isoformat()
+        assert len(body["series"][0]["points"]) > 1
+
+    async def test_all_time_with_no_tournaments_returns_empty_series(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending", params={"mode": "all_time"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["series"] == []

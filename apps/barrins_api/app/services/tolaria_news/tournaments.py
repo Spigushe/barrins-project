@@ -4,11 +4,13 @@ import uuid
 from datetime import date as date_type
 from datetime import datetime
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import Integer, cast, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scripture import (
     BSDeck,
+    BSDeckBoard,
+    BSDeckCard,
     BSRound,
     BSRoundMatch,
     BSSource,
@@ -16,18 +18,33 @@ from app.models.scripture import (
     BSTournament,
 )
 from app.schemas.responses_tolaria_news import (
-    DeckSummary,
+    CommanderRef,
     Page,
     RoundMatchOut,
     RoundOut,
     StandingRow,
+    TournamentDeckSummary,
     TournamentDetail,
     TournamentSummary,
+)
+from app.services.tolaria_news.decks import (
+    DUEL_COMMANDER_FORMAT,
+    commander_ref,
+    resolved_cards,
 )
 from app.services.tolaria_news.pagination import decode_cursor, encode_cursor
 
 _DEFAULT_LIMIT = 20
 _MAX_LIMIT = 50
+
+#: Sentinel rank for decks with no numeric-leading `result` (no result yet,
+#: or a non-numeric one like "DQ") -- sorts after every real placement.
+_UNRESULTED_RANK = 2**31 - 1
+
+#: `result`'s leading integer ("5-8" -> 5, "1" -> 1), or `NULL` if `result`
+#: is `NULL` or doesn't start with a digit -- `coalesce`d to
+#: `_UNRESULTED_RANK` at each use site so unresulted decks sort last.
+_RESULT_LEADING_NUMBER = cast(func.substring(BSDeck.result, r"^\d+"), Integer)
 
 
 async def latest_sync(session: AsyncSession) -> datetime | None:
@@ -113,27 +130,72 @@ async def list_decks(
     *,
     cursor: str | None,
     limit: int,
-) -> tuple[list[DeckSummary], Page]:
+) -> tuple[list[TournamentDeckSummary], Page]:
+    """Decks entered in one tournament, ordered by placement (`result`'s
+    leading number, e.g. "5-8" ranks as 5th) then player name -- decks
+    with no numeric-leading result (not yet resolved, or e.g. "DQ") sort
+    last. Each deck carries its `commanders` (populated only for Duel
+    Commander tournaments, same guard `get_deck` applies)."""
     limit = min(limit, _MAX_LIMIT) if limit else _DEFAULT_LIMIT
+    rank_expr = func.coalesce(_RESULT_LEADING_NUMBER, _UNRESULTED_RANK)
     stmt = (
-        select(BSDeck)
+        select(BSDeck, rank_expr)
         .where(BSDeck.tournament_id == tournament_id)
-        .order_by(BSDeck.player.asc(), BSDeck.id.asc())
+        .order_by(rank_expr.asc(), BSDeck.player.asc(), BSDeck.id.asc())
     )
     if cursor is not None:
-        cursor_player, cursor_id = decode_cursor(cursor)
+        cursor_rank, cursor_player, cursor_id = decode_cursor(cursor)
         stmt = stmt.where(
-            tuple_(BSDeck.player, BSDeck.id) > (cursor_player, uuid.UUID(cursor_id))
+            tuple_(rank_expr, BSDeck.player, BSDeck.id)
+            > (int(cursor_rank), cursor_player, uuid.UUID(cursor_id))
         )
-    rows = (await session.execute(stmt.limit(limit + 1))).scalars().all()
+    rows = (await session.execute(stmt.limit(limit + 1))).all()
 
     has_more = len(rows) > limit
     rows = rows[:limit]
     next_cursor = (
-        encode_cursor(rows[-1].player, str(rows[-1].id)) if has_more and rows else None
+        encode_cursor(str(rows[-1][1]), rows[-1][0].player, str(rows[-1][0].id))
+        if has_more and rows
+        else None
     )
+    decks = [row[0] for row in rows]
+
+    commanders_by_deck: dict[uuid.UUID, list[CommanderRef]] = {
+        deck.id: [] for deck in decks
+    }
+    tournament = await session.get(BSTournament, tournament_id)
+    if tournament is not None and tournament.format == DUEL_COMMANDER_FORMAT and decks:
+        card_rows = (
+            (
+                await session.execute(
+                    select(BSDeckCard).where(
+                        BSDeckCard.deck_id.in_([d.id for d in decks]),
+                        BSDeckCard.board == BSDeckBoard.sideboard,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        resolved = await resolved_cards(session, card_rows)
+        for card in card_rows:
+            commanders_by_deck[card.deck_id].append(
+                commander_ref(card.card_name, resolved[card.id])
+            )
+
     return (
-        [DeckSummary.model_validate(d) for d in rows],
+        [
+            TournamentDeckSummary(
+                id=deck.id,
+                tournament_id=deck.tournament_id,
+                date=deck.date,
+                player=deck.player,
+                result=deck.result,
+                anchor_uri=deck.anchor_uri,
+                commanders=commanders_by_deck[deck.id],
+            )
+            for deck in decks
+        ],
         Page(next_cursor=next_cursor, limit=limit),
     )
 

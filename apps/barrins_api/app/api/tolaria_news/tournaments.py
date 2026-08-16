@@ -9,11 +9,11 @@ from fastapi import APIRouter, HTTPException, status
 from app.database.session import DatabaseSession
 from app.models.scripture import BSSource
 from app.schemas.responses_tolaria_news import (
-    DeckSummary,
     Envelope,
     Meta,
     RoundOut,
     StandingRow,
+    TournamentDeckSummary,
     TournamentDetail,
     TournamentSummary,
 )
@@ -81,14 +81,14 @@ async def get_tournament(
 
 @router.get(
     "/tournaments/{tournament_id}/decks",
-    response_model=Envelope[list[DeckSummary]],
+    response_model=Envelope[list[TournamentDeckSummary]],
 )
 async def list_tournament_decks(
     tournament_id: uuid.UUID,
     session: DatabaseSession,
     cursor: str | None = None,
     limit: int = 20,
-) -> Envelope[list[DeckSummary]]:
+) -> Envelope[list[TournamentDeckSummary]]:
     _decode_cursor_or_400(cursor)
     data, page = await service.list_decks(
         session, tournament_id, cursor=cursor, limit=limit

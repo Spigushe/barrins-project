@@ -1,7 +1,7 @@
 import {
   tournamentSummarySchema,
   tournamentDetailSchema,
-  deckSummarySchema,
+  tournamentDeckSummarySchema,
   standingRowSchema,
   roundOutSchema,
   type BSSource,
@@ -39,7 +39,7 @@ export function getTournament(id: string) {
 export function getTournamentDecks(id: string, cursor?: string, limit = 20) {
   return apiRequest(
     `/bff/tolaria-news/tournaments/${id}/decks`,
-    deckSummarySchema.array(),
+    tournamentDeckSummarySchema.array(),
     { params: { cursor, limit } },
   )
 }

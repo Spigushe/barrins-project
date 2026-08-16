@@ -16,8 +16,14 @@ partner pair -- since Commander has no traditional sideboard zone.
 import uuid
 from collections.abc import Sequence
 from datetime import date as date_type
+from datetime import timedelta
 
-from sqlalchemy import and_, exists, or_, select, tuple_
+from dc_calendar.windowing import (
+    all_time_periods,
+    banlist_period_window,
+    rolling_30d_window,
+)
+from sqlalchemy import and_, exists, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -25,27 +31,35 @@ from app.models.mtgjson import Card
 from app.models.scripture import BSDeck, BSDeckBoard, BSDeckCard, BSSource, BSTournament
 from app.schemas.responses_tolaria_news import (
     CommanderRef,
+    CommanderTrendPoint,
+    CommanderTrendSeries,
+    CommanderTrendsResponse,
     DeckCardOut,
     DeckCardTypeGroup,
     DeckDetail,
     DeckListItem,
     Page,
+    TrendWindowMode,
+    WindowOut,
 )
 from app.services.decklist_sort import decklist_sort_key, group_by_category
 from app.services.scripture.card_resolver import resolve_card_name
 from app.services.tolaria_news.pagination import decode_cursor, encode_cursor
 
+_TOP_TRENDING_COMMANDERS = 10
+_BUCKET_DAYS = 7
+
 #: Mirrors `barrins_scripture.schemas.formats.Formats.DUEL_COMMANDER`
 #: (the exact string that source stores into `bs_tournaments.format`).
 #: Not imported cross-app on purpose -- `barrins_api` doesn't depend on
 #: `barrins_scripture`'s package, only on the string it writes.
-_DUEL_COMMANDER_FORMAT = "Duel Commander"
+DUEL_COMMANDER_FORMAT = "Duel Commander"
 
 _DEFAULT_LIMIT = 20
 _MAX_LIMIT = 50
 
 
-async def _resolved_cards(
+async def resolved_cards(
     session: AsyncSession, card_rows: Sequence[BSDeckCard]
 ) -> dict[uuid.UUID, Card | None]:
     """`{bs_deck_cards.id: matching mj_cards row or None}` for every row.
@@ -57,6 +71,10 @@ async def _resolved_cards(
     across printings, `scryfall_id` isn't (picks *a* printing's image,
     not necessarily the newest); acceptable for v1, not guaranteed
     "preferred art".
+
+    Exported (not module-private) -- `app.services.tolaria_news.tournaments`
+    reuses this for the tournament deck list's commander column, rather
+    than re-implementing the same resolve-then-batch-join.
     """
     canonical_by_card_id: dict[uuid.UUID, str] = {}
     for card in card_rows:
@@ -89,6 +107,22 @@ async def _resolved_cards(
     }
 
 
+def commander_ref(name: str, match: Card | None) -> CommanderRef:
+    """Builds one `CommanderRef` from a raw sideboard card name and its
+    resolved `mj_cards` match (`None` if resolution failed) -- shared by
+    `get_deck`, `list_trending_commanders`, and (cross-module)
+    `app.services.tolaria_news.tournaments.list_decks`'s commander column,
+    so this fallback shape is defined once."""
+    return CommanderRef(
+        name=match.name if match is not None else name,
+        scryfall_id=match.scryfall_id if match is not None else None,
+        color_identity=match.color_identity if match is not None else [],
+        mana_cost=match.mana_cost if match is not None else None,
+        text=match.text if match is not None else None,
+        keywords=match.keywords if match is not None else [],
+    )
+
+
 def _as_deck_card_out(card: BSDeckCard, resolved: Card | None) -> DeckCardOut:
     return DeckCardOut(
         name=resolved.name if resolved is not None else card.card_name,
@@ -116,7 +150,7 @@ async def get_deck(session: AsyncSession, deck_id: uuid.UUID) -> DeckDetail | No
         .scalars()
         .all()
     )
-    resolved = await _resolved_cards(session, card_rows)
+    resolved = await resolved_cards(session, card_rows)
 
     sorted_mainboard = sorted(
         (
@@ -134,21 +168,11 @@ async def get_deck(session: AsyncSession, deck_id: uuid.UUID) -> DeckDetail | No
     ]
 
     commanders: list[CommanderRef] = []
-    if tournament.format == _DUEL_COMMANDER_FORMAT:
+    if tournament.format == DUEL_COMMANDER_FORMAT:
         for c in card_rows:
             if c.board != BSDeckBoard.sideboard:
                 continue
-            match = resolved[c.id]
-            commanders.append(
-                CommanderRef(
-                    name=match.name if match is not None else c.card_name,
-                    scryfall_id=match.scryfall_id if match is not None else None,
-                    color_identity=match.color_identity if match is not None else [],
-                    mana_cost=match.mana_cost if match is not None else None,
-                    text=match.text if match is not None else None,
-                    keywords=match.keywords if match is not None else [],
-                )
-            )
+            commanders.append(commander_ref(c.card_name, resolved[c.id]))
 
     return DeckDetail(
         id=deck.id,
@@ -247,7 +271,7 @@ async def list_decks(
     stmt = (
         select(BSDeck, BSTournament.name, BSTournament.source)
         .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
-        .where(BSTournament.format == _DUEL_COMMANDER_FORMAT)
+        .where(BSTournament.format == DUEL_COMMANDER_FORMAT)
         .order_by(BSDeck.date.desc(), BSDeck.id.desc())
     )
     if player is not None:
@@ -323,8 +347,199 @@ async def list_commanders(session: AsyncSession) -> list[str]:
         .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
         .where(
             BSDeckCard.board == BSDeckBoard.sideboard,
-            BSTournament.format == _DUEL_COMMANDER_FORMAT,
+            BSTournament.format == DUEL_COMMANDER_FORMAT,
         )
         .order_by(BSDeckCard.card_name.asc())
     )
     return list((await session.execute(stmt)).scalars().all())
+
+
+def _weekly_buckets(
+    date_from: date_type, date_to: date_type
+) -> list[tuple[date_type, date_type]]:
+    """Non-overlapping `_BUCKET_DAYS`-wide buckets spanning
+    `[date_from, date_to]`, oldest first. The final bucket may be shorter
+    than a full week if the span isn't an exact multiple of one -- the
+    same "shared intervals, trailing partial one allowed" shape a rolling
+    30-day window naturally produces (31 inclusive days -> 4 full weeks
+    plus a 3-day tail)."""
+    buckets: list[tuple[date_type, date_type]] = []
+    cursor = date_from
+    while cursor <= date_to:
+        bucket_end = min(cursor + timedelta(days=_BUCKET_DAYS - 1), date_to)
+        buckets.append((cursor, bucket_end))
+        cursor = bucket_end + timedelta(days=1)
+    return buckets
+
+
+async def _resolve_trend_window(
+    session: AsyncSession, *, mode: TrendWindowMode, period_offset: int
+) -> tuple[WindowOut, list[tuple[date_type, date_type]]]:
+    """Resolves the outer date range for `mode` (walking `period_offset`
+    banlist periods into the past when `mode` is `banlist_period`) and the
+    equal-length sub-buckets the trend line plots one point per.
+
+    `all_time`'s buckets are the historical banlist periods themselves
+    (`dc_calendar.all_time_periods`), not weekly slices -- weekly buckets
+    across an open-ended, potentially years-long span would produce an
+    unreadable number of points; one point per banlist era is the natural
+    granularity "all time" implies.
+    """
+    today = date_type.today()
+
+    if mode == "rolling_30d":
+        window = rolling_30d_window(today)
+        return (
+            WindowOut(
+                kind=mode,
+                label=window.label,
+                date_from=window.date_from,
+                date_to=window.date_to,
+            ),
+            _weekly_buckets(window.date_from, window.date_to),
+        )
+
+    if mode == "banlist_period":
+        window = banlist_period_window(today)
+        for _ in range(period_offset):
+            window = banlist_period_window(window.date_from - timedelta(days=1))
+        return (
+            WindowOut(
+                kind=mode,
+                label=window.label,
+                date_from=window.date_from,
+                date_to=window.date_to,
+            ),
+            _weekly_buckets(window.date_from, window.date_to),
+        )
+
+    # all_time
+    earliest = (
+        await session.execute(
+            select(func.min(BSTournament.date)).where(
+                BSTournament.format == DUEL_COMMANDER_FORMAT
+            )
+        )
+    ).scalar_one()
+    if earliest is None:
+        return (
+            WindowOut(
+                kind=mode, label="all_time:empty", date_from=today, date_to=today
+            ),
+            [],
+        )
+    periods = all_time_periods(earliest, today)
+    return (
+        WindowOut(
+            kind=mode,
+            label=f"all_time:{earliest.isoformat()}_{today.isoformat()}",
+            date_from=earliest,
+            date_to=today,
+        ),
+        [(p.date_from, p.date_to) for p in periods],
+    )
+
+
+async def list_trending_commanders(
+    session: AsyncSession,
+    *,
+    mode: TrendWindowMode,
+    period_offset: int,
+) -> CommanderTrendsResponse:
+    """Top `_TOP_TRENDING_COMMANDERS` commanders (solo or partner pairs) by
+    deck count in `mode`'s window, each with a per-bucket play-count trend.
+
+    Partner pairs are grouped by the sorted tuple of their resolved
+    commander names, so a pair groups identically regardless of which
+    card `bs_deck_cards` happened to store first.
+    """
+    window_out, buckets = await _resolve_trend_window(
+        session, mode=mode, period_offset=period_offset
+    )
+    if not buckets:
+        return CommanderTrendsResponse(window=window_out, series=[])
+    date_from, date_to = buckets[0][0], buckets[-1][1]
+
+    rows = (
+        await session.execute(
+            select(BSDeckCard.card_name, BSDeck.id, BSDeck.date)
+            .join(BSDeck, BSDeckCard.deck_id == BSDeck.id)
+            .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
+            .where(
+                BSDeckCard.board == BSDeckBoard.sideboard,
+                BSTournament.format == DUEL_COMMANDER_FORMAT,
+                BSDeck.date >= date_from,
+                BSDeck.date <= date_to,
+            )
+        )
+    ).all()
+    if not rows:
+        return CommanderTrendsResponse(window=window_out, series=[])
+
+    canonical_by_name: dict[str, str] = {}
+    for name in {row[0] for row in rows}:
+        canonical = await resolve_card_name(session, name)
+        if canonical is not None:
+            canonical_by_name[name] = canonical
+
+    names_by_deck: dict[uuid.UUID, set[str]] = {}
+    date_by_deck: dict[uuid.UUID, date_type] = {}
+    for card_name, deck_id, deck_date in rows:
+        canonical = canonical_by_name.get(card_name)
+        if canonical is None:
+            continue
+        names_by_deck.setdefault(deck_id, set()).add(canonical)
+        date_by_deck[deck_id] = deck_date
+
+    total_counts: dict[tuple[str, ...], int] = {}
+    bucket_counts: dict[tuple[str, ...], list[int]] = {}
+    for deck_id, names in names_by_deck.items():
+        if not names:
+            continue
+        key = tuple(sorted(names))
+        deck_date = date_by_deck[deck_id]
+        total_counts[key] = total_counts.get(key, 0) + 1
+        counts = bucket_counts.setdefault(key, [0] * len(buckets))
+        for i, (bucket_from, bucket_to) in enumerate(buckets):
+            if bucket_from <= deck_date <= bucket_to:
+                counts[i] += 1
+                break
+
+    top_keys = sorted(total_counts, key=lambda k: total_counts[k], reverse=True)[
+        :_TOP_TRENDING_COMMANDERS
+    ]
+
+    all_names = {name for key in top_keys for name in key}
+    matches = (
+        (
+            await session.execute(
+                select(Card).where(
+                    or_(Card.name.in_(all_names), Card.face_name.in_(all_names))
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    card_by_name: dict[str, Card] = {}
+    for match in matches:
+        card_by_name.setdefault(match.name, match)
+        if match.face_name:
+            card_by_name.setdefault(match.face_name, match)
+
+    series = [
+        CommanderTrendSeries(
+            commanders=[commander_ref(name, card_by_name.get(name)) for name in key],
+            total_deck_count=total_counts[key],
+            points=[
+                CommanderTrendPoint(
+                    date_from=bucket_from,
+                    date_to=bucket_to,
+                    deck_count=bucket_counts[key][i] or None,
+                )
+                for i, (bucket_from, bucket_to) in enumerate(buckets)
+            ],
+        )
+        for key in top_keys
+    ]
+    return CommanderTrendsResponse(window=window_out, series=series)

@@ -62,6 +62,16 @@ describe('TournamentDetailPage', () => {
             player: 'Alice',
             result: '3-1',
             anchor_uri: 'x',
+            commanders: [
+              {
+                name: 'Tymna the Weaver',
+                scryfall_id: 'tymna-scryfall-id',
+                color_identity: ['W', 'B'],
+                mana_cost: '{1}{W}{B}',
+                text: null,
+                keywords: [],
+              },
+            ],
           },
         ],
         meta,
@@ -107,6 +117,12 @@ describe('TournamentDetailPage', () => {
       'href',
       '/decks/d1',
     )
+  })
+
+  it('shows the commander(s) column for each deck', () => {
+    renderPage()
+
+    expect(screen.getByText('Tymna the Weaver')).toBeInTheDocument()
   })
 
   it('switches to the standings tab on click', async () => {

@@ -1,10 +1,10 @@
 from datetime import date
 
 import pytest
+from dc_calendar.windowing import Window, WindowKind
 
 from karn_tablets import __main__ as cli
 from karn_tablets.pipeline import ClusteringRunResult
-from karn_tablets.windowing import Window, WindowKind
 
 
 def _empty_result(window: Window) -> ClusteringRunResult:
