@@ -876,3 +876,395 @@ class TestTrendingCommanders:
         assert body["window"]["date_to"] == today.isoformat()
         # A 400+ day span buckets by banlist period, not by week.
         assert 1 < len(body["series"][0]["points"]) < 20
+
+
+class TestStaples:
+    async def _tournament(
+        self,
+        db_session,
+        *,
+        event_date: date,
+        source: BSSource = BSSource.mtgtop8,
+        players: int = 1,
+        name: str = "Staples Event",
+        format_: str = "Duel Commander",
+    ) -> BSTournament:
+        t = BSTournament(
+            source=source,
+            date=event_date,
+            name=name,
+            url=f"https://example.com/{uuid.uuid4()}",
+            format=format_,
+            players=players,
+        )
+        db_session.add(t)
+        await db_session.commit()
+        await db_session.refresh(t)
+        return t
+
+    async def _deck(
+        self,
+        db_session,
+        tournament: BSTournament,
+        *,
+        player: str,
+        mainboard: tuple[str, ...] = (),
+    ) -> BSDeck:
+        deck = BSDeck(
+            tournament_id=tournament.id,
+            date=tournament.date,
+            player=player,
+            result=None,
+            anchor_uri=f"{tournament.url}#deck_{uuid.uuid4()}",
+        )
+        db_session.add(deck)
+        await db_session.flush()
+        db_session.add_all(
+            [
+                BSDeckCard(
+                    deck_id=deck.id,
+                    board=BSDeckBoard.mainboard,
+                    card_name=name,
+                    count=1,
+                )
+                for name in mainboard
+            ]
+        )
+        await db_session.commit()
+        await db_session.refresh(deck)
+        return deck
+
+    async def test_narrow_window_pools_every_tournament_regardless_of_size(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        small_mtgtop8 = await self._tournament(
+            db_session, event_date=date(2026, 1, 3), source=BSSource.mtgtop8, players=8
+        )
+        await self._deck(
+            db_session, small_mtgtop8, player="P1", mainboard=("Sol Ring",)
+        )
+        small_mtgo = await self._tournament(
+            db_session,
+            event_date=date(2026, 1, 5),
+            source=BSSource.mtgo,
+            players=0,
+            name="Duel Commander League",
+        )
+        await self._deck(db_session, small_mtgo, player="P2", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},  # 9-day span
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["tournaments_considered"] == 2
+        assert data["decks_considered"] == 2
+        assert data["rows"][0]["name"] == "Sol Ring"
+        assert data["rows"][0]["deck_count"] == 2
+        assert data["rows"][0]["percentage"] == 100.0
+
+    async def test_wide_window_gates_mtgtop8_by_player_count_but_not_mtgo(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        below = await self._tournament(
+            db_session,
+            event_date=date(2025, 6, 1),
+            source=BSSource.mtgtop8,
+            players=50,
+            name="Below Threshold",
+        )
+        await self._deck(db_session, below, player="P1", mainboard=("Sol Ring",))
+        boundary = await self._tournament(
+            db_session,
+            event_date=date(2025, 6, 15),
+            source=BSSource.mtgtop8,
+            players=80,
+            name="Exactly At Threshold",
+        )
+        await self._deck(db_session, boundary, player="P2", mainboard=("Sol Ring",))
+        above = await self._tournament(
+            db_session,
+            event_date=date(2025, 7, 1),
+            source=BSSource.mtgtop8,
+            players=81,
+            name="Above Threshold",
+        )
+        await self._deck(db_session, above, player="P3", mainboard=("Sol Ring",))
+        league = await self._tournament(
+            db_session,
+            event_date=date(2025, 8, 1),
+            source=BSSource.mtgo,
+            players=0,
+            name="Duel Commander League",
+        )
+        await self._deck(db_session, league, player="P4", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2025-01-01", "date_to": "2026-06-01"},  # >65 days
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        # "above" (81 players) and "league" (mtgo, any player count) qualify;
+        # "below" (50) and "boundary" (exactly 80, not > 80) don't.
+        assert data["tournaments_considered"] == 2
+        assert data["decks_considered"] == 2
+
+    async def test_span_boundary_at_65_days(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        small = await self._tournament(
+            db_session, event_date=date(2026, 1, 2), source=BSSource.mtgtop8, players=5
+        )
+        await self._deck(db_session, small, player="P1", mainboard=("Sol Ring",))
+
+        ungated = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-03-06"},  # 64-day span
+        )
+        assert ungated.json()["data"]["tournaments_considered"] == 1
+
+        gated = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-03-07"},  # 65-day span
+        )
+        assert gated.json()["data"]["tournaments_considered"] == 0
+
+    async def test_mtgtop8_tournament_named_mtgo_is_excluded_as_duplicate(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        mirror = await self._tournament(
+            db_session,
+            event_date=date(2026, 1, 3),
+            source=BSSource.mtgtop8,
+            players=200,
+            name="Duel Commander MTGO League",
+        )
+        await self._deck(db_session, mirror, player="P1", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["tournaments_considered"] == 0
+        assert data["rows"] == []
+
+    async def test_tournaments_outside_window_are_excluded(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        outside = await self._tournament(
+            db_session, event_date=date(2025, 12, 31), players=200
+        )
+        await self._deck(db_session, outside, player="P1", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"] == {
+            "date_from": "2026-01-01",
+            "date_to": "2026-01-10",
+            "tournaments_considered": 0,
+            "decks_considered": 0,
+            "min_percentage": 65.0,
+            "rows": [],
+        }
+
+    async def test_non_duel_commander_tournaments_are_excluded(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        legacy = await self._tournament(
+            db_session, event_date=date(2026, 1, 3), players=200, format_="Legacy"
+        )
+        await self._deck(db_session, legacy, player="P1", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["tournaments_considered"] == 0
+
+    async def test_percentage_is_computed_across_the_pooled_deck_count(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(db_session, t1, player="P1", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P2", mainboard=("Sol Ring",))
+        t2 = await self._tournament(db_session, event_date=date(2026, 1, 5), players=10)
+        await self._deck(db_session, t2, player="P3", mainboard=("Sol Ring",))
+        await self._deck(db_session, t2, player="P4")  # doesn't run it
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["tournaments_considered"] == 2
+        assert data["decks_considered"] == 4
+        assert data["min_percentage"] == 65.0
+        assert data["rows"] == [
+            {
+                "name": "Sol Ring",
+                "cmc": 1.0,
+                "type_line": "Artifact",
+                "scryfall_id": "sol-ring-scryfall-id",
+                "mana_cost": "{1}",
+                "text": None,
+                "keywords": [],
+                "deck_count": 3,
+                "percentage": 75.0,
+            }
+        ]
+
+    async def test_falls_back_to_45_percent_when_65_percent_yields_no_rows(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(db_session, t1, player="P1", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P2")  # Sol Ring in 1 of 2 -> 50%
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["min_percentage"] == 45.0
+        assert data["rows"] == [
+            {
+                "name": "Sol Ring",
+                "cmc": 1.0,
+                "type_line": "Artifact",
+                "scryfall_id": "sol-ring-scryfall-id",
+                "mana_cost": "{1}",
+                "text": None,
+                "keywords": [],
+                "deck_count": 1,
+                "percentage": 50.0,
+            }
+        ]
+
+    async def test_min_percentage_and_fallback_are_overridable_via_query_params(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(db_session, t1, player="P1", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P2")  # Sol Ring in 1 of 2 -> 50%
+
+        # Sol Ring's 50% is below the default 65% primary floor (which
+        # would normally fall back to 45%) -- passing an explicit 40%
+        # primary floor should include it directly, no fallback needed.
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={
+                "date_from": "2026-01-01",
+                "date_to": "2026-01-10",
+                "min_percentage": 40,
+                "fallback_min_percentage": 10,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["min_percentage"] == 40.0
+        assert [row["name"] for row in data["rows"]] == ["Sol Ring"]
+
+    async def test_reports_the_fallback_floor_even_when_it_also_yields_no_rows(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(db_session, t1, player="P1", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P2")
+        await self._deck(db_session, t1, player="P3")
+        await self._deck(db_session, t1, player="P4")
+        # Sol Ring in 1 of 4 decks -> 25%, below both the 65% primary and
+        # the 45% fallback floor -- still empty even after the retry.
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["min_percentage"] == 45.0
+        assert data["rows"] == []
+
+    async def test_card_below_percentage_threshold_is_excluded(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(
+            db_session, t1, player="P1", mainboard=("Sol Ring", "Tymna the Weaver")
+        )
+        await self._deck(db_session, t1, player="P2", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P3", mainboard=("Sol Ring",))
+        await self._deck(db_session, t1, player="P4")
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        names = [row["name"] for row in resp.json()["data"]["rows"]]
+        assert names == ["Sol Ring"]
+
+    async def test_land_cards_are_excluded(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        db_session.add(
+            Card(
+                id=uuid.uuid4(),
+                set_code="TST",
+                name="Command Tower",
+                type_line="Land",
+                mana_cost=None,
+                mana_value=0,
+                color_identity=[],
+                rarity="common",
+                number="3",
+                scryfall_id="command-tower-scryfall-id",
+            )
+        )
+        await db_session.commit()
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        await self._deck(
+            db_session, t1, player="P1", mainboard=("Sol Ring", "Command Tower")
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        names = [row["name"] for row in resp.json()["data"]["rows"]]
+        assert names == ["Sol Ring"]
+
+    async def test_results_are_capped_at_sixty(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        cards = tuple(f"Unique Card {i}" for i in range(61))
+        await self._deck(db_session, t1, player="P1", mainboard=cards)
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-01", "date_to": "2026-01-10"},
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()["data"]["rows"]) == 60
+
+    async def test_date_to_before_date_from_is_400(self, client: AsyncClient) -> None:
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2026-01-10", "date_to": "2026-01-01"},
+        )
+        assert resp.status_code == 400
+
+    async def test_missing_params_is_422(self, client: AsyncClient) -> None:
+        resp = await client.get(f"{BASE}/decks/staples")
+        assert resp.status_code == 422

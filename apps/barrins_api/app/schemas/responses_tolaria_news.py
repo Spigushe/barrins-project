@@ -99,6 +99,42 @@ class DeckCardOut(BaseResponse):
     keywords: list[str]
 
 
+class StapleRow(BaseResponse):
+    name: str
+    cmc: float | None
+    type_line: str | None
+    scryfall_id: str | None
+    mana_cost: str | None
+    text: str | None
+    keywords: list[str]
+    deck_count: int
+    #: `deck_count / decks_considered * 100`, rounded to one decimal place.
+    percentage: float
+
+
+class StaplesResponse(BaseResponse):
+    """A metagame-wide "staples" snapshot -- card frequency pooled across
+    every qualifying tournament in `[date_from, date_to]`, not one
+    tournament's own decks (see
+    `app.services.tolaria_news.decks.list_staples`'s docstring for the
+    tournament-pooling rule)."""
+
+    date_from: date_type
+    date_to: date_type
+    tournaments_considered: int
+    decks_considered: int
+    #: Minimum `StapleRow.percentage` a card had to reach to be included in
+    #: `rows` -- normally 65.0, or the softer 45.0 fallback if 65.0 would
+    #: have left `rows` empty for this window (see
+    #: `app.services.tolaria_news.decks.list_staples`). Reported (not
+    #: hardcoded by the frontend) so the empty-state message always names
+    #: the floor that was actually applied.
+    min_percentage: float
+    #: Up to 60 rows meeting `min_percentage`, ranked descending by
+    #: `deck_count`.
+    rows: list[StapleRow]
+
+
 class DeckCardTypeGroup(BaseResponse):
     """One type-ordered section of `mainboard` (e.g. "creature" with its
     cards) -- Duel Commander display order (planeswalker, battle, creature,

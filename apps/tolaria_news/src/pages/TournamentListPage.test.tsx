@@ -108,6 +108,51 @@ vi.mock('@/hooks/useCommanderTrends', () => ({
     useTrendingCommandersMock(mode, periodOffset, dateFrom, dateTo),
 }))
 
+const emptyStaples = {
+  data: {
+    date_from: '2026-07-02',
+    date_to: '2026-08-01',
+    tournaments_considered: 0,
+    decks_considered: 0,
+    min_percentage: 75,
+    rows: [] as unknown[],
+  },
+  meta: trendMeta,
+  page: null,
+}
+
+const solRingStaples = {
+  data: {
+    date_from: '2026-07-02',
+    date_to: '2026-08-01',
+    tournaments_considered: 3,
+    decks_considered: 4,
+    min_percentage: 75,
+    rows: [
+      {
+        name: 'Sol Ring',
+        cmc: 1,
+        type_line: 'Artifact',
+        scryfall_id: 'sol-ring-scryfall-id',
+        mana_cost: '{1}',
+        text: null,
+        keywords: [],
+        deck_count: 3,
+        percentage: 75,
+      },
+    ],
+  },
+  meta: trendMeta,
+  page: null,
+}
+
+const useStaplesMock = vi.fn()
+
+vi.mock('@/hooks/useDecks', () => ({
+  useStaples: (dateFrom: unknown, dateTo: unknown): ReturnType<typeof useStaplesMock> =>
+    useStaplesMock(dateFrom, dateTo),
+}))
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -129,6 +174,14 @@ describe('TournamentListPage', () => {
     useTrendingCommandersMock.mockReset()
     useTrendingCommandersMock.mockReturnValue({
       data: currentSeasonTrends,
+      isLoading: false,
+      isError: false,
+      error: null,
+    })
+
+    useStaplesMock.mockReset()
+    useStaplesMock.mockReturnValue({
+      data: emptyStaples,
       isLoading: false,
       isError: false,
       error: null,
@@ -284,6 +337,47 @@ describe('TournamentListPage', () => {
 
       expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('To')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('staples section', () => {
+    it('shows an empty state message using the response min_percentage', () => {
+      renderPage()
+
+      expect(
+        screen.getByText('No card is played in at least 75% of decks for this window.'),
+      ).toBeInTheDocument()
+    })
+
+    it('renders staple rows with deck count and percentage', () => {
+      useStaplesMock.mockReturnValue({
+        data: solRingStaples,
+        isLoading: false,
+        isError: false,
+        error: null,
+      })
+      renderPage()
+
+      expect(screen.getByText('Sol Ring')).toBeInTheDocument()
+      expect(screen.getByText('75%')).toBeInTheDocument()
+    })
+
+    it('passes the resolved window to useStaples', () => {
+      renderPage()
+
+      expect(useStaplesMock).toHaveBeenLastCalledWith('2026-07-02', '2026-08-01')
+    })
+
+    it('has nothing resolved to pass until the shared window resolves', () => {
+      useTrendingCommandersMock.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+        error: null,
+      })
+      renderPage()
+
+      expect(useStaplesMock).toHaveBeenLastCalledWith(undefined, undefined)
     })
   })
 })

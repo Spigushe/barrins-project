@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   deckDetailSchema,
   deckListItemSchema,
+  staplesResponseSchema,
   type BSSource,
 } from '@/schemas/tolariaNews'
 import { apiRequest } from './client'
@@ -36,4 +37,10 @@ export function listCommanders() {
 
 export function getDeck(id: string) {
   return apiRequest(`/bff/tolaria-news/decks/${id}`, deckDetailSchema)
+}
+
+export function getStaples(dateFrom: string, dateTo: string) {
+  return apiRequest('/bff/tolaria-news/decks/staples', staplesResponseSchema, {
+    params: { date_from: dateFrom, date_to: dateTo },
+  })
 }

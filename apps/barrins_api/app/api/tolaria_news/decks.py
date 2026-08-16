@@ -14,6 +14,7 @@ from app.schemas.responses_tolaria_news import (
     DeckListItem,
     Envelope,
     Meta,
+    StaplesResponse,
     TrendWindowMode,
 )
 from app.services.tolaria_news import decks as service
@@ -115,6 +116,38 @@ async def list_trending_commanders(
         period_offset=period_offset,
         date_from=date_from,
         date_to=date_to,
+    )
+    return Envelope(data=data, meta=await _meta(session))
+
+
+@router.get("/decks/staples", response_model=Envelope[StaplesResponse])
+async def get_staples(
+    session: DatabaseSession,
+    date_from: date_type,
+    date_to: date_type,
+    min_percentage: float = service.DEFAULT_STAPLE_MIN_PERCENTAGE,
+    fallback_min_percentage: float = service.DEFAULT_STAPLE_FALLBACK_MIN_PERCENTAGE,
+) -> Envelope[StaplesResponse]:
+    """Must stay registered before `/decks/{deck_id}` -- both match
+    `/decks/<segment>`, and route matching is registration-order (same
+    reasoning as `list_commanders`'s own placement above).
+
+    `min_percentage`/`fallback_min_percentage` default to
+    `list_staples`'s own tuned defaults but are overridable here -- this
+    threshold has already been retuned once against real data, so a query
+    param (not a hardcoded constant only) keeps the next retune a
+    parameter change, not a deploy."""
+    if date_to < date_from:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_to must not be before date_from.",
+        )
+    data = await service.list_staples(
+        session,
+        date_from=date_from,
+        date_to=date_to,
+        min_percentage=min_percentage,
+        fallback_min_percentage=fallback_min_percentage,
     )
     return Envelope(data=data, meta=await _meta(session))
 
