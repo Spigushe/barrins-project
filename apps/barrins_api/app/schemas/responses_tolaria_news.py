@@ -140,11 +140,13 @@ class RoundOut(BaseResponse):
     matches: list[RoundMatchOut]
 
 
-#: Mirrors `dc_calendar.windowing.WindowKind` plus the "all_time" mode that
-#: package doesn't itself have a concept of (it only resolves *a* window,
-#: never "every window there's ever been") -- see
+#: Mirrors `dc_calendar.windowing.WindowKind` plus two modes that package
+#: doesn't itself have a concept of (it only resolves *a* window, given a
+#: kind and a reference date): "all_time" (every window there's ever
+#: been) and "custom" (a caller-supplied date range, e.g. the frontend's
+#: "20-life decks" preset or its date-picker range) -- see
 #: `app/services/tolaria_news/decks.py::list_trending_commanders`.
-TrendWindowMode = Literal["rolling_30d", "banlist_period", "all_time"]
+TrendWindowMode = Literal["rolling_30d", "banlist_period", "all_time", "custom"]
 
 
 class WindowOut(BaseResponse):

@@ -89,13 +89,32 @@ async def list_trending_commanders(
     session: DatabaseSession,
     mode: TrendWindowMode = "rolling_30d",
     period_offset: int = 0,
+    date_from: date_type | None = None,
+    date_to: date_type | None = None,
 ) -> Envelope[CommanderTrendsResponse]:
     """Top 10 commanders (or partner pairs) by deck count in `mode`'s
     window, each with a per-bucket play-count trend. `period_offset`
     only applies to `mode=banlist_period` (0 = the period containing
-    today, 1 = the one before that, ...)."""
+    today, 1 = the one before that, ...). `date_from` is required (and
+    `date_to` optional, defaulting server-side to today) when
+    `mode=custom` -- e.g. the frontend's "20-life decks" preset (a fixed
+    start date, open-ended end) or its date-picker range (both given)."""
+    if mode == "custom" and date_from is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from is required when mode=custom.",
+        )
+    if date_to is not None and date_from is not None and date_to < date_from:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_to must not be before date_from.",
+        )
     data = await service.list_trending_commanders(
-        session, mode=mode, period_offset=period_offset
+        session,
+        mode=mode,
+        period_offset=period_offset,
+        date_from=date_from,
+        date_to=date_to,
     )
     return Envelope(data=data, meta=await _meta(session))
 

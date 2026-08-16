@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTournaments } from '@/hooks/useTournaments'
+import { useTrendingCommanders } from '@/hooks/useCommanderTrends'
 import type { TournamentListFilters } from '@/api/tournaments'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
@@ -16,6 +17,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CommanderTrendChips } from '@/components/commanderTrends/CommanderTrendChips'
+import {
+  TournamentWindowFilter,
+  resolveWindowParams,
+  type WindowPreset,
+} from '@/components/commanderTrends/TournamentWindowFilter'
 
 const SOURCES = [
   { value: '', label: 'All sources' },
@@ -26,19 +32,40 @@ const SOURCES = [
 const inputClass =
   'h-9 rounded-(--radius-input) border border-border bg-input px-2 text-sm text-foreground'
 
-// Tolaria News only covers Duel Commander (per apps/tolaria_news/README.md) —
-// format is fixed, not a user-facing filter.
-const DEFAULT_FILTERS: TournamentListFilters = { format: 'Duel Commander' }
-
 export function TournamentListPage() {
-  const [filters, setFilters] = useState<TournamentListFilters>(DEFAULT_FILTERS)
+  const [source, setSource] = useState<TournamentListFilters['source']>(undefined)
+  const [preset, setPreset] = useState<WindowPreset>('current_season')
+  const [customDateFrom, setCustomDateFrom] = useState('')
+  const [customDateTo, setCustomDateTo] = useState('')
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
 
-  const { data, isLoading, isError, error } = useTournaments(filters, cursor)
+  const windowParams = resolveWindowParams(preset, customDateFrom, customDateTo)
+  const trending = useTrendingCommanders(
+    windowParams.mode,
+    windowParams.periodOffset,
+    windowParams.dateFrom,
+    windowParams.dateTo,
+  )
+  const resolvedWindow = trending.data?.data.window
 
-  function updateFilters(next: TournamentListFilters) {
-    setFilters(next)
+  // Tolaria News only covers Duel Commander (per apps/tolaria_news/README.md) —
+  // format is fixed, not a user-facing filter. The date range comes from the
+  // shared window filter above, not an independent From/To input.
+  const filters: TournamentListFilters = {
+    format: 'Duel Commander',
+    source,
+    dateFrom: resolvedWindow?.date_from,
+    dateTo: resolvedWindow?.date_to,
+  }
+
+  const { data, isLoading, isError, error } = useTournaments(
+    filters,
+    cursor,
+    resolvedWindow !== undefined,
+  )
+
+  function resetPagination() {
     setCursor(undefined)
     setCursorHistory([])
   }
@@ -65,21 +92,42 @@ export function TournamentListPage() {
         <CardTitle>Where the format gets decided.</CardTitle>
       </div>
 
-      <CommanderTrendChips />
+      <TournamentWindowFilter
+        preset={preset}
+        onPresetChange={(next) => {
+          setPreset(next)
+          resetPagination()
+        }}
+        customDateFrom={customDateFrom}
+        customDateTo={customDateTo}
+        onCustomDateFromChange={(value) => {
+          setCustomDateFrom(value)
+          resetPagination()
+        }}
+        onCustomDateToChange={(value) => {
+          setCustomDateTo(value)
+          resetPagination()
+        }}
+      />
+
+      <CommanderTrendChips
+        series={trending.data?.data.series}
+        isLoading={trending.isLoading}
+        isError={trending.isError}
+      />
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
           Source
           <select
             className={inputClass}
-            value={filters.source ?? ''}
+            value={source ?? ''}
             onChange={(e) => {
               const value = e.target.value
-              updateFilters({
-                ...filters,
-                source:
-                  value === '' ? undefined : (value as TournamentListFilters['source']),
-              })
+              setSource(
+                value === '' ? undefined : (value as TournamentListFilters['source']),
+              )
+              resetPagination()
             }}
           >
             {SOURCES.map((s) => (
@@ -89,31 +137,9 @@ export function TournamentListPage() {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
-          From
-          <input
-            type="date"
-            className={inputClass}
-            value={filters.dateFrom ?? ''}
-            onChange={(e) =>
-              updateFilters({ ...filters, dateFrom: e.target.value || undefined })
-            }
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
-          To
-          <input
-            type="date"
-            className={inputClass}
-            value={filters.dateTo ?? ''}
-            onChange={(e) =>
-              updateFilters({ ...filters, dateTo: e.target.value || undefined })
-            }
-          />
-        </label>
       </div>
 
-      {isLoading && (
+      {(isLoading || resolvedWindow === undefined) && (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
@@ -127,7 +153,7 @@ export function TournamentListPage() {
         </Card>
       )}
 
-      {data && (
+      {data && resolvedWindow !== undefined && (
         <>
           <Card className="p-0">
             <Table>
