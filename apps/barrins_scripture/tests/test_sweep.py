@@ -299,6 +299,11 @@ class TestMain:
         monkeypatch.delenv("SCRIPTURE_INGEST_TOKEN", raising=False)
         with (
             patch("sys.argv", ["sweep"]),
+            # Without this, main()'s load_dotenv() call reads the real
+            # apps/barrins_scripture/.env off disk (local dev only -- CI
+            # has no such file) and silently repopulates the two vars
+            # this test just deleted, defeating the "missing" scenario.
+            patch.object(sweep, "load_dotenv"),
             patch.object(sweep, "sweep") as mock_sweep,
             pytest.raises(SystemExit),
         ):
