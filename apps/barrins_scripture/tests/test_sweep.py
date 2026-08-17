@@ -85,6 +85,17 @@ class TestIterArchiveFiles:
         assert len(found) == 1
 
 
+class TestChunked:
+    def test_splits_into_slices_of_at_most_size(self) -> None:
+        assert list(sweep._chunked([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
+
+    def test_size_larger_than_items_yields_one_chunk(self) -> None:
+        assert list(sweep._chunked([1, 2], 10)) == [[1, 2]]
+
+    def test_empty_items_yields_no_chunks(self) -> None:
+        assert list(sweep._chunked([], 5)) == []
+
+
 class TestSweep:
     def test_posts_every_selected_file_with_source_and_token(
         self, archive: Path
@@ -235,6 +246,54 @@ class TestSweep:
         assert (succeeded, failed) == (0, 0)
         pool_cls.assert_not_called()
 
+    def test_chunk_size_splits_selection_across_multiple_pools(
+        self, archive: Path
+    ) -> None:
+        """4 files with chunk_size=1 must yield 4 separate thread pools --
+        the whole point of chunking is that a chunk's payloads are read,
+        posted, and dropped before the next chunk's are read, so at most
+        chunk_size payloads are ever in memory at once."""
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                chunk_size=1,
+            )
+        assert (succeeded, failed) == (4, 0)
+        assert pool_cls.call_count == 4
+
+    def test_chunk_size_larger_than_selection_uses_one_pool(
+        self, archive: Path
+    ) -> None:
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                chunk_size=sweep.DEFAULT_CHUNK_SIZE,
+            )
+        assert (succeeded, failed) == (4, 0)
+        assert pool_cls.call_count == 1
+
     def test_endpoint_trailing_slash_is_normalized(self, archive: Path) -> None:
         mock_response = Mock()
         with patch.object(sweep.requests, "post", return_value=mock_response) as post:
@@ -263,6 +322,7 @@ class TestBuildParser:
         assert args.token is None
         assert args.concurrency == sweep.DEFAULT_CONCURRENCY
         assert args.progress is False
+        assert args.chunk_size == sweep.DEFAULT_CHUNK_SIZE
 
     def test_reads_concurrency_flag(self) -> None:
         args = sweep.build_parser().parse_args(["--concurrency", "12"])
@@ -271,6 +331,10 @@ class TestBuildParser:
     def test_reads_progress_flag(self) -> None:
         args = sweep.build_parser().parse_args(["--progress"])
         assert args.progress is True
+
+    def test_reads_chunk_size_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--chunk-size", "50"])
+        assert args.chunk_size == 50
 
     def test_rejects_unknown_mode(self) -> None:
         with pytest.raises(SystemExit):
@@ -339,6 +403,7 @@ class TestMain:
             3,
             concurrency=sweep.DEFAULT_CONCURRENCY,
             progress=False,
+            chunk_size=sweep.DEFAULT_CHUNK_SIZE,
         )
 
     def test_exits_nonzero_when_any_file_failed(self, tmp_path: Path) -> None:
