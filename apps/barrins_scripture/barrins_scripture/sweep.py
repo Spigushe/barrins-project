@@ -26,6 +26,15 @@ rather than all at once — ``--mode full`` walks the entire archive, and
 loading every JSON payload into memory up front OOMs once the archive
 gets large. Only the (path, source) pairs for the whole selection are
 held at once, which is cheap.
+
+``--fast-forward`` (``--mode full`` only, 2026-08-17 decision) skips
+re-POSTing files whose tournament URL is already in ``bs_tournaments``:
+fetched once per run from ``GET /internal/scripture/ingested-urls``. Not
+supported with ``--mode recent`` — that mode intentionally re-submits
+every file inside the ``--days`` window on every tick to catch MTGO
+decklists edited within their ~3-day post-publication window, and
+fast-forwarding by URL alone would silently stop picking up those edits
+after a tournament's first ingest.
 """
 
 import argparse
@@ -142,6 +151,27 @@ def _post_file(
     return True
 
 
+def _fetch_ingested_urls(api_url: str, headers: dict[str, str]) -> set[str]:
+    """GETs every already-ingested tournament URL from `bs_tournaments`.
+
+    Backs `--fast-forward`. Never raises -- a fetch failure is logged and
+    treated as an empty set, so `--fast-forward` degrades to "skip
+    nothing" (posts every selected file, same as without the flag)
+    instead of aborting the run.
+    """
+    endpoint = api_url.rstrip("/") + "/internal/scripture/ingested-urls"
+    try:
+        response = requests.get(endpoint, headers=headers, timeout=30)
+        response.raise_for_status()
+        return set(response.json()["urls"])
+    except requests.RequestException, KeyError, ValueError:
+        logger.exception(
+            "failed to fetch already-ingested URLs for --fast-forward; "
+            "proceeding without skipping anything"
+        )
+        return set()
+
+
 def _format_eta(seconds: float) -> str:
     """`H:MM:SS` (or `MM:SS` under an hour) -- `str(timedelta(...))`'s
     format, minus the microseconds it appends for a non-integer count."""
@@ -203,6 +233,7 @@ def sweep(
     concurrency: int = DEFAULT_CONCURRENCY,
     progress: bool = False,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
+    fast_forward: bool = False,
 ) -> tuple[int, int]:
     """Posts every file `mode` selects to `POST /internal/scripture/ingest`.
 
@@ -232,15 +263,22 @@ def sweep(
     ever on screen at once rather than one line surviving per chunk.
     Off by default since a scheduled/cron invocation has no terminal to
     render it on and would otherwise fill logs with escape-code junk.
+
+    `fast_forward`, when True, fetches every already-ingested tournament
+    URL once up front and skips POSTing (and, notably, the DB round trip
+    behind it) any selected file whose `tournament.url` is already known
+    -- see the module docstring for why this is `--mode full`-only.
     """
     endpoint = api_url.rstrip("/") + "/internal/scripture/ingest"
     headers = {"X-Scripture-Token": token}
-    succeeded = failed = 0
+    succeeded = failed = fast_forwarded = 0
 
     selected = list(iter_archive_files(archive_dir, mode, days, now))
     if not selected:
         logger.info("sweep done (mode=%s): 0 succeeded, 0 failed", mode)
         return 0, 0
+
+    ingested_urls = _fetch_ingested_urls(api_url, headers) if fast_forward else None
 
     chunks = list(_chunked(selected, chunk_size))
     total_chunks = len(chunks)
@@ -276,6 +314,14 @@ def sweep(
                 logger.exception("skipping unreadable archive file %s", file_path)
                 failed += 1
                 chunk_failed += 1
+                chunk_done += 1
+                continue
+            if (
+                ingested_urls is not None
+                and payload.get("tournament", {}).get("url") in ingested_urls
+            ):
+                logger.debug("fast-forward: skipping already-ingested %s", file_path)
+                fast_forwarded += 1
                 chunk_done += 1
                 continue
             to_post.append((file_path, payload))
@@ -326,7 +372,11 @@ def sweep(
             sys.stderr.flush()
 
     logger.info(
-        "sweep done (mode=%s): %d succeeded, %d failed", mode, succeeded, failed
+        "sweep done (mode=%s): %d succeeded, %d failed%s",
+        mode,
+        succeeded,
+        failed,
+        f", {fast_forwarded} fast-forwarded (already ingested)" if fast_forward else "",
     )
     return succeeded, failed
 
@@ -398,6 +448,16 @@ def build_parser() -> argparse.ArgumentParser:
             "regardless of archive size)"
         ),
     )
+    parser.add_argument(
+        "--fast-forward",
+        action="store_true",
+        default=False,
+        help=(
+            "skip files whose tournament URL is already in bs_tournaments "
+            "(default: off; only valid with --mode full -- --mode recent "
+            "intentionally re-submits within --days to catch late MTGO edits)"
+        ),
+    )
     return parser
 
 
@@ -416,6 +476,8 @@ def main() -> None:
         parser.error(
             "--api-url/BARRINS_API_URL and --token/SCRIPTURE_INGEST_TOKEN are required"
         )
+    if args.fast_forward and args.mode != "full":
+        parser.error("--fast-forward is only supported with --mode full")
 
     _succeeded, failed = sweep(
         args.archive_dir,
@@ -426,6 +488,7 @@ def main() -> None:
         concurrency=args.concurrency,
         progress=args.progress,
         chunk_size=args.chunk_size,
+        fast_forward=args.fast_forward,
     )
     if failed:
         raise SystemExit(1)
