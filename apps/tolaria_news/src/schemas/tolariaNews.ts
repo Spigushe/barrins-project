@@ -160,6 +160,14 @@ export const windowOutSchema = z.object({
 })
 export type WindowOut = z.infer<typeof windowOutSchema>
 
+export const telemetrySchema = z.object({
+  season: windowOutSchema,
+  season_year: z.number(),
+  season_number: z.number(),
+  next_banlist_at: z.iso.datetime({ offset: true }),
+})
+export type Telemetry = z.infer<typeof telemetrySchema>
+
 export const commanderTrendPointSchema = z.object({
   date_from: z.iso.date(),
   date_to: z.iso.date(),

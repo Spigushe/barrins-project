@@ -5,9 +5,10 @@ Under /bff/tolaria-news.
 
 from fastapi import APIRouter
 
-from app.api.tolaria_news import decks, tournaments
+from app.api.tolaria_news import decks, telemetry, tournaments
 
 router = APIRouter(prefix="/bff/tolaria-news", tags=["tolaria-news"])
 
 router.include_router(tournaments.router)
 router.include_router(decks.router)
+router.include_router(telemetry.router)

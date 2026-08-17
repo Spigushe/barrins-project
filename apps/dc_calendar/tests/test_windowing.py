@@ -4,17 +4,21 @@ month-length edge cases). Expected values cross-checked against a real
 Python date computation, not hand-derived.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from itertools import pairwise
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from dc_calendar.windowing import (
+    BANLIST_TIMEZONE,
     Window,
     WindowKind,
     all_time_periods,
     banlist_period_containing,
+    banlist_period_number,
     banlist_period_window,
+    effective_banlist_period,
     last_weekday_of_month,
     resolve_windows,
     rolling_30d_window,
@@ -219,3 +223,65 @@ class TestAllTimePeriods:
     def test_rejects_earliest_after_date_to(self):
         with pytest.raises(ValueError, match="must not be after"):
             all_time_periods(date(2026, 5, 1), date(2026, 1, 1))
+
+
+class TestEffectiveBanlistPeriod:
+    """The May(26)->Jul(27) 2026 period is the transition under test here:
+    the previous period (Mar 31 -> May 25) ends May 25, so May 26 2026 is
+    where a real transition day's date-vs-time subtlety shows up."""
+
+    def test_mid_period_now_matches_the_raw_calendar_period(self):
+        now = datetime(2026, 4, 15, 12, 0, tzinfo=BANLIST_TIMEZONE)
+        effective, next_at = effective_banlist_period(now)
+        assert effective.date_from == date(2026, 3, 31)
+        assert effective.date_to == date(2026, 5, 25)
+        assert next_at == datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+
+    def test_transition_day_before_2000_paris_still_reports_the_previous_period(self):
+        now = datetime(2026, 5, 26, 10, 0, tzinfo=BANLIST_TIMEZONE)
+        effective, next_at = effective_banlist_period(now)
+        assert effective.date_from == date(2026, 3, 31)
+        assert effective.date_to == date(2026, 5, 25)
+        assert next_at == datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+
+    def test_transition_day_at_2000_paris_flips_to_the_new_period(self):
+        now = datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+        effective, next_at = effective_banlist_period(now)
+        assert effective.date_from == date(2026, 5, 26)
+        assert effective.date_to == date(2026, 7, 27)
+        assert next_at == datetime(2026, 7, 28, 20, 0, tzinfo=BANLIST_TIMEZONE)
+
+    def test_transition_day_after_2000_paris_reports_the_new_period(self):
+        now = datetime(2026, 5, 26, 21, 30, tzinfo=BANLIST_TIMEZONE)
+        effective, _next_at = effective_banlist_period(now)
+        assert effective.date_from == date(2026, 5, 26)
+        assert effective.date_to == date(2026, 7, 27)
+
+    def test_accepts_a_non_paris_timezone_and_converts_internally(self):
+        # 2026-05-26 21:30 Paris (UTC+2, summer) == 19:30 UTC same day.
+        now_utc = datetime(2026, 5, 26, 19, 30, tzinfo=ZoneInfo("UTC"))
+        effective, _next_at = effective_banlist_period(now_utc)
+        assert effective.date_from == date(2026, 5, 26)  # already past 20:00 Paris
+
+
+class TestBanlistPeriodNumber:
+    def test_january_anchored_period_is_number_one(self):
+        window = banlist_period_window(date(2026, 2, 1))
+        assert window.date_from == date(2026, 1, 27)
+        assert banlist_period_number(window) == (2026, 1)
+
+    def test_november_anchored_period_is_number_six(self):
+        window = banlist_period_window(date(2026, 12, 15))
+        assert window.date_from == date(2026, 11, 24)
+        assert banlist_period_number(window) == (2026, 6)
+
+    def test_numbers_off_date_from_year_even_when_date_to_rolls_into_january(self):
+        window = banlist_period_window(date(2027, 1, 10))
+        assert window.date_from == date(2026, 11, 24)
+        assert window.date_to == date(2027, 1, 25)
+        assert banlist_period_number(window) == (2026, 6)
+
+    def test_rejects_a_non_banlist_period_window(self):
+        window = rolling_30d_window(date(2026, 4, 15))
+        with pytest.raises(ValueError, match="only applies to banlist_period"):
+            banlist_period_number(window)

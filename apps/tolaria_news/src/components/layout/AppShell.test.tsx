@@ -11,6 +11,14 @@ vi.mock('@/lib/featureFlags', () => ({
   },
 }))
 
+const useTelemetryMock = vi.fn()
+
+vi.mock('@/hooks/useTelemetry', () => ({
+  useTelemetry: (): ReturnType<typeof useTelemetryMock> => useTelemetryMock(),
+}))
+
+useTelemetryMock.mockReturnValue({ data: undefined, isLoading: true, isError: false })
+
 describe('AppShell nav', () => {
   it('hides Karn Tablets links when the flag is off', () => {
     flagState.karnTabletsEnabled = false
