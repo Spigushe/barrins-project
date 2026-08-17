@@ -5,6 +5,7 @@ import type { DeckListFilters } from '@/api/decks'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { ColorIdentityPicker } from '@/components/color-identity-picker'
+import { TournamentSizeFilter } from '@/components/tournament-size-filter'
 import {
   Table,
   TableHeader,
@@ -57,6 +58,14 @@ export function DecklistsPage() {
       ? current.filter((c) => c !== color)
       : [...current, color]
     updateFilters({ ...filters, colors: next.length > 0 ? next : undefined })
+  }
+
+  function toggleSize(bucket: string) {
+    const current = filters.sizes ?? []
+    const next = current.includes(bucket)
+      ? current.filter((b) => b !== bucket)
+      : [...current, bucket]
+    updateFilters({ ...filters, sizes: next.length > 0 ? next : undefined })
   }
 
   function goNext() {
@@ -158,6 +167,10 @@ export function DecklistsPage() {
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
           Color identity
           <ColorIdentityPicker selected={filters.colors ?? []} onToggle={toggleColor} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+          Tournament size
+          <TournamentSizeFilter selected={filters.sizes ?? []} onToggle={toggleSize} />
         </label>
       </div>
 

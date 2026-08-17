@@ -11,6 +11,7 @@ import { apiRequest } from './client'
 export interface TournamentListFilters {
   source?: BSSource
   format?: string
+  sizes?: string[]
   dateFrom?: string
   dateTo?: string
 }
@@ -24,6 +25,7 @@ export function listTournaments(
     params: {
       source: filters.source,
       format: filters.format,
+      sizes: filters.sizes,
       date_from: filters.dateFrom,
       date_to: filters.dateTo,
       cursor,

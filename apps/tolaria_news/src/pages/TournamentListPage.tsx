@@ -26,6 +26,7 @@ import {
 } from '@/components/commanderTrends/TournamentWindowFilter'
 import { CardNameCell } from '@/components/card-name-cell'
 import { ManaPips } from '@/components/mana-pips'
+import { TournamentSizeFilter } from '@/components/tournament-size-filter'
 
 const SOURCES = [
   { value: '', label: 'All sources' },
@@ -102,6 +103,7 @@ function StaplesSection({
 
 export function TournamentListPage() {
   const [source, setSource] = useState<TournamentListFilters['source']>(undefined)
+  const [sizes, setSizes] = useState<string[]>([])
   const [preset, setPreset] = useState<WindowPreset>('current_season')
   const [customDateFrom, setCustomDateFrom] = useState('')
   const [customDateTo, setCustomDateTo] = useState('')
@@ -124,6 +126,7 @@ export function TournamentListPage() {
   const filters: TournamentListFilters = {
     format: 'Duel Commander',
     source,
+    sizes: sizes.length > 0 ? sizes : undefined,
     dateFrom: resolvedWindow?.date_from,
     dateTo: resolvedWindow?.date_to,
   }
@@ -137,6 +140,15 @@ export function TournamentListPage() {
   function resetPagination() {
     setCursor(undefined)
     setCursorHistory([])
+  }
+
+  function toggleSize(bucket: string) {
+    setSizes((current) =>
+      current.includes(bucket)
+        ? current.filter((b) => b !== bucket)
+        : [...current, bucket],
+    )
+    resetPagination()
   }
 
   function goNext() {
@@ -211,6 +223,10 @@ export function TournamentListPage() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+          Tournament size
+          <TournamentSizeFilter selected={sizes} onToggle={toggleSize} />
         </label>
       </div>
 

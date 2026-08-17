@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from datetime import date as date_type
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.database.session import DatabaseSession
 from app.models.scripture import BSSource
@@ -49,6 +49,7 @@ async def list_tournaments(
     session: DatabaseSession,
     source: BSSource | None = None,
     format: str | None = None,  # noqa: A002 -- matches the query param name
+    sizes: list[service.TournamentSizeBucket] | None = Query(None),
     date_from: date_type | None = None,
     date_to: date_type | None = None,
     cursor: str | None = None,
@@ -59,6 +60,7 @@ async def list_tournaments(
         session,
         source=source,
         format_=format,
+        sizes=frozenset(sizes) if sizes else None,
         date_from=date_from,
         date_to=date_to,
         cursor=cursor,

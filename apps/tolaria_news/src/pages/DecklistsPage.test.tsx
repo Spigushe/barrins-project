@@ -169,4 +169,27 @@ describe('DecklistsPage', () => {
       undefined,
     )
   })
+
+  it('toggles size chips into and out of the sizes filter, multi-select', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Tournament size: Leagues' }))
+    expect(useDecksMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sizes: ['leagues'] }),
+      undefined,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Tournament size: 100+' }))
+    expect(useDecksMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sizes: ['leagues', 'major'] }),
+      undefined,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Tournament size: Leagues' }))
+    expect(useDecksMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sizes: ['major'] }),
+      undefined,
+    )
+  })
 })

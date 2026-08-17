@@ -64,6 +64,81 @@ class TestListTournaments:
         )
         assert resp.status_code == 400
 
+    async def test_excludes_mtgtop8_tournaments_that_mirror_mtgo_events(
+        self, client: AsyncClient, db_session, duel_commander_tournament: BSTournament
+    ) -> None:
+        mirror = BSTournament(
+            source=BSSource.mtgtop8,
+            date=date(2026, 4, 8),
+            name="Duel Commander MTGO League 2026-04-08",
+            url="https://mtgtop8.com/event?e=99999&f=EDH",
+            format="Duel Commander",
+            players=50,
+        )
+        db_session.add(mirror)
+        await db_session.commit()
+
+        resp = await client.get(f"{BASE}/tournaments")
+        assert resp.status_code == 200
+        assert [t["id"] for t in resp.json()["data"]] == [
+            str(duel_commander_tournament.id)
+        ]
+
+    async def _sized_tournament(
+        self,
+        db_session,
+        *,
+        players: int,
+        source: BSSource = BSSource.mtgtop8,
+        name: str = "Sized Event",
+    ) -> BSTournament:
+        t = BSTournament(
+            source=source,
+            date=date(2026, 4, 10),
+            name=name,
+            url=f"https://example.com/{uuid.uuid4()}",
+            format="Duel Commander",
+            players=players,
+        )
+        db_session.add(t)
+        await db_session.commit()
+        await db_session.refresh(t)
+        return t
+
+    async def test_sizes_filter_matches_leagues(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        league = await self._sized_tournament(
+            db_session, players=0, source=BSSource.mtgo, name="Duel Commander League"
+        )
+        await self._sized_tournament(db_session, players=50, name="Regular Event")
+
+        resp = await client.get(f"{BASE}/tournaments", params={"sizes": ["leagues"]})
+        assert resp.status_code == 200
+        assert [t["id"] for t in resp.json()["data"]] == [str(league.id)]
+
+    async def test_sizes_filter_multiple_buckets_are_ored(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        small = await self._sized_tournament(db_session, players=10, name="Small")
+        major = await self._sized_tournament(db_session, players=200, name="Major")
+        await self._sized_tournament(db_session, players=30, name="Medium")
+
+        resp = await client.get(
+            f"{BASE}/tournaments", params={"sizes": ["small", "major"]}
+        )
+        assert resp.status_code == 200
+        assert {t["id"] for t in resp.json()["data"]} == {str(small.id), str(major.id)}
+
+    async def test_no_sizes_param_returns_everything_unfiltered(
+        self, client: AsyncClient, duel_commander_tournament: BSTournament
+    ) -> None:
+        resp = await client.get(f"{BASE}/tournaments")
+        assert resp.status_code == 200
+        assert [t["id"] for t in resp.json()["data"]] == [
+            str(duel_commander_tournament.id)
+        ]
+
 
 class TestTournamentDetail:
     async def test_detail_includes_counts(

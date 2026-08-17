@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import date as date_type
 from datetime import timedelta
+from typing import Literal
 
 from dc_calendar.windowing import (
     all_time_periods,
@@ -95,6 +96,47 @@ DUEL_COMMANDER_FORMAT = "Duel Commander"
 
 _DEFAULT_LIMIT = 20
 _MAX_LIMIT = 50
+
+TournamentSizeBucket = Literal["leagues", "small", "medium", "large", "major"]
+
+
+def exclude_mtgtop8_mtgo_mirrors() -> ColumnElement[bool]:
+    """True when a `BSTournament` is *not* an MTGTop8 mirror of a native
+    MTGO event -- MTGTop8 sometimes lists an MTGO event under its own
+    tournament entry (name contains "MTGO"); the decks are already
+    counted via the native `mtgo`-sourced tournament, so listing or
+    aggregating both would double up the same decks. Applied
+    unconditionally (not a user-toggleable filter) everywhere tournaments
+    or their decks are listed or aggregated: `list_decks`,
+    `list_commanders`, `list_trending_commanders`, `list_staples` (this
+    module) and `tournaments.list_tournaments`."""
+    return ~and_(
+        BSTournament.source == BSSource.mtgtop8,
+        BSTournament.name.ilike("%MTGO%"),
+    )
+
+
+def size_bucket_condition(bucket: TournamentSizeBucket) -> ColumnElement[bool]:
+    """SQL condition for one `TournamentSizeBucket` -- both `list_decks`'s
+    and (cross-module) `tournaments.list_tournaments`'s `sizes` filters OR
+    one or more of these together. Numeric buckets start at `players >=
+    1` (not `>= 0`) so a non-league tournament that happens to report
+    `players == 0` (an ingestion anomaly, not a real "0 players" event)
+    doesn't silently land in `small`, and so leagues never double-match a
+    numeric bucket."""
+    if bucket == "leagues":
+        return and_(
+            BSTournament.source == BSSource.mtgo,
+            BSTournament.players == 0,
+            BSTournament.name.contains("League"),
+        )
+    if bucket == "small":
+        return and_(BSTournament.players >= 1, BSTournament.players <= 16)
+    if bucket == "medium":
+        return and_(BSTournament.players >= 17, BSTournament.players <= 63)
+    if bucket == "large":
+        return and_(BSTournament.players >= 64, BSTournament.players <= 99)
+    return BSTournament.players >= 100  # "major"
 
 
 async def resolved_cards(
@@ -278,6 +320,7 @@ async def list_decks(
     source: BSSource | None,
     commander: str | None,
     colors: frozenset[str] | None,
+    sizes: frozenset[TournamentSizeBucket] | None,
     date_from: date_type | None,
     date_to: date_type | None,
     cursor: str | None,
@@ -304,12 +347,18 @@ async def list_decks(
       `colors` is at most 5 elements, and this correctly captures a
       partner pair's *combined* identity without needing to aggregate
       across their up-to-2 rows).
+
+    `sizes` is additive -- a deck matches if its tournament falls into
+    *any* selected `TournamentSizeBucket` (see `size_bucket_condition`).
     """
     limit = min(limit, _MAX_LIMIT) if limit else _DEFAULT_LIMIT
     stmt = (
         select(BSDeck, BSTournament.name, BSTournament.source)
         .join(BSTournament, BSDeck.tournament_id == BSTournament.id)
-        .where(BSTournament.format == DUEL_COMMANDER_FORMAT)
+        .where(
+            BSTournament.format == DUEL_COMMANDER_FORMAT,
+            exclude_mtgtop8_mtgo_mirrors(),
+        )
         .order_by(BSDeck.date.desc(), BSDeck.id.desc())
     )
     if player is not None:
@@ -318,6 +367,8 @@ async def list_decks(
         stmt = stmt.where(BSTournament.source == source)
     if commander is not None:
         stmt = stmt.where(_sideboard_card_exists(BSDeckCard.card_name == commander))
+    if sizes:
+        stmt = stmt.where(or_(*(size_bucket_condition(b) for b in sizes)))
     if colors:
         color_list = list(colors)
         stmt = stmt.where(
@@ -386,6 +437,7 @@ async def list_commanders(session: AsyncSession) -> list[str]:
         .where(
             BSDeckCard.board == BSDeckBoard.sideboard,
             BSTournament.format == DUEL_COMMANDER_FORMAT,
+            exclude_mtgtop8_mtgo_mirrors(),
         )
         .order_by(BSDeckCard.card_name.asc())
     )
@@ -551,6 +603,7 @@ async def list_trending_commanders(
             .where(
                 BSDeckCard.board == BSDeckBoard.sideboard,
                 BSTournament.format == DUEL_COMMANDER_FORMAT,
+                exclude_mtgtop8_mtgo_mirrors(),
                 BSDeck.date >= date_from,
                 BSDeck.date <= date_to,
             )
@@ -669,10 +722,11 @@ async def list_staples(
       tournament (leagues and other MTGO event types alike) -- keeps a
       long/all-time window's pool from including every small local event
       ever recorded.
-    - Always excluded: MTGTop8 tournaments whose name contains "MTGO" --
-      MTGTop8 mirrors some MTGO events under its own listing, and the
-      underlying decks are already counted via the native `mtgo`-sourced
-      tournament, so counting both would double-count the same decks.
+    - Always excluded (`exclude_mtgtop8_mtgo_mirrors`): MTGTop8
+      tournaments whose name contains "MTGO" -- MTGTop8 mirrors some
+      MTGO events under its own listing, and the underlying decks are
+      already counted via the native `mtgo`-sourced tournament, so
+      counting both would double-count the same decks.
 
     Sideboard rows are excluded entirely (see this module's docstring:
     for Duel Commander that's the commander, already covered by the
@@ -687,10 +741,7 @@ async def list_staples(
         BSTournament.format == DUEL_COMMANDER_FORMAT,
         BSTournament.date >= date_from,
         BSTournament.date <= date_to,
-        ~and_(
-            BSTournament.source == BSSource.mtgtop8,
-            BSTournament.name.ilike("%MTGO%"),
-        ),
+        exclude_mtgtop8_mtgo_mirrors(),
     )
     if span_days >= _STAPLES_POOL_WINDOW_MAX_DAYS:
         tournament_ids_stmt = tournament_ids_stmt.where(

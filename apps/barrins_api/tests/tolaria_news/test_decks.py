@@ -44,6 +44,39 @@ class TestListDecks:
         await db_session.refresh(deck)
         return deck
 
+    async def _tournament_with_deck(
+        self,
+        db_session,
+        *,
+        players: int,
+        source: BSSource = BSSource.mtgtop8,
+        name: str = "Sized Event",
+        player: str = "Pilot",
+    ) -> BSDeck:
+        """A deck under a fresh tournament with the given size/source/name --
+        for the `sizes` filter and MTGTop8/MTGO dedup assertions."""
+        tournament = BSTournament(
+            source=source,
+            date=date(2026, 4, 10),
+            name=name,
+            url=f"https://example.com/{uuid.uuid4()}",
+            format="Duel Commander",
+            players=players,
+        )
+        db_session.add(tournament)
+        await db_session.flush()
+        deck = BSDeck(
+            tournament_id=tournament.id,
+            date=tournament.date,
+            player=player,
+            result=None,
+            anchor_uri=f"{tournament.url}#deck_{uuid.uuid4()}",
+        )
+        db_session.add(deck)
+        await db_session.commit()
+        await db_session.refresh(deck)
+        return deck
+
     async def test_lists_decks_across_tournaments_most_recent_first(
         self, client: AsyncClient, db_session, duel_commander_deck: BSDeck
     ) -> None:
@@ -308,6 +341,138 @@ class TestListDecks:
             str(duel_commander_deck.id),
             str(second.id),
         }
+
+    async def test_excludes_mtgtop8_tournaments_that_mirror_mtgo_events(
+        self, client: AsyncClient, db_session, duel_commander_deck: BSDeck
+    ) -> None:
+        await self._tournament_with_deck(
+            db_session,
+            players=50,
+            source=BSSource.mtgtop8,
+            name="Duel Commander MTGO League 2026-04-08",
+            player="Mirror Pilot",
+        )
+
+        resp = await client.get(f"{BASE}/decks")
+        assert resp.status_code == 200
+        assert [row["id"] for row in resp.json()["data"]] == [
+            str(duel_commander_deck.id)
+        ]
+
+    async def test_sizes_filter_matches_leagues(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        league_deck = await self._tournament_with_deck(
+            db_session,
+            players=0,
+            source=BSSource.mtgo,
+            name="Duel Commander League",
+            player="P1",
+        )
+        await self._tournament_with_deck(
+            db_session, players=50, name="Regular Event", player="P2"
+        )
+
+        resp = await client.get(f"{BASE}/decks", params={"sizes": ["leagues"]})
+        assert resp.status_code == 200
+        assert [row["id"] for row in resp.json()["data"]] == [str(league_deck.id)]
+
+    async def test_sizes_filter_leagues_requires_mtgo_source_players_and_name(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        # mtgo source + players=0 but no "League" in the name -- shouldn't match.
+        await self._tournament_with_deck(
+            db_session,
+            players=0,
+            source=BSSource.mtgo,
+            name="Duel Commander Open",
+            player="P1",
+        )
+
+        resp = await client.get(f"{BASE}/decks", params={"sizes": ["leagues"]})
+        assert resp.status_code == 200
+        assert resp.json()["data"] == []
+
+    async def test_sizes_filter_boundary_16_vs_17(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        small_deck = await self._tournament_with_deck(
+            db_session, players=16, name="Small", player="P1"
+        )
+        medium_deck = await self._tournament_with_deck(
+            db_session, players=17, name="Medium", player="P2"
+        )
+
+        small_resp = await client.get(f"{BASE}/decks", params={"sizes": ["small"]})
+        assert [row["id"] for row in small_resp.json()["data"]] == [str(small_deck.id)]
+
+        medium_resp = await client.get(f"{BASE}/decks", params={"sizes": ["medium"]})
+        assert [row["id"] for row in medium_resp.json()["data"]] == [
+            str(medium_deck.id)
+        ]
+
+    async def test_sizes_filter_boundary_63_vs_64(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        medium_deck = await self._tournament_with_deck(
+            db_session, players=63, name="Medium", player="P1"
+        )
+        large_deck = await self._tournament_with_deck(
+            db_session, players=64, name="Large", player="P2"
+        )
+
+        medium_resp = await client.get(f"{BASE}/decks", params={"sizes": ["medium"]})
+        assert [row["id"] for row in medium_resp.json()["data"]] == [
+            str(medium_deck.id)
+        ]
+
+        large_resp = await client.get(f"{BASE}/decks", params={"sizes": ["large"]})
+        assert [row["id"] for row in large_resp.json()["data"]] == [str(large_deck.id)]
+
+    async def test_sizes_filter_boundary_99_vs_100(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        large_deck = await self._tournament_with_deck(
+            db_session, players=99, name="Large", player="P1"
+        )
+        major_deck = await self._tournament_with_deck(
+            db_session, players=100, name="Major", player="P2"
+        )
+
+        large_resp = await client.get(f"{BASE}/decks", params={"sizes": ["large"]})
+        assert [row["id"] for row in large_resp.json()["data"]] == [str(large_deck.id)]
+
+        major_resp = await client.get(f"{BASE}/decks", params={"sizes": ["major"]})
+        assert [row["id"] for row in major_resp.json()["data"]] == [str(major_deck.id)]
+
+    async def test_sizes_filter_multiple_buckets_are_ored(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        small_deck = await self._tournament_with_deck(
+            db_session, players=10, name="Small", player="P1"
+        )
+        major_deck = await self._tournament_with_deck(
+            db_session, players=200, name="Major", player="P2"
+        )
+        await self._tournament_with_deck(
+            db_session, players=30, name="Medium", player="P3"
+        )
+
+        resp = await client.get(f"{BASE}/decks", params={"sizes": ["small", "major"]})
+        assert resp.status_code == 200
+        assert {row["id"] for row in resp.json()["data"]} == {
+            str(small_deck.id),
+            str(major_deck.id),
+        }
+
+    async def test_no_sizes_param_returns_everything_unfiltered(
+        self, client: AsyncClient, duel_commander_deck: BSDeck
+    ) -> None:
+        resp = await client.get(f"{BASE}/decks")
+        assert resp.status_code == 200
+        assert [row["id"] for row in resp.json()["data"]] == [
+            str(duel_commander_deck.id)
+        ]
 
 
 class TestListCommanders:
@@ -734,6 +899,31 @@ class TestTrendingCommanders:
             db_session,
             legacy_tournament,
             player="Legacy Pilot",
+            deck_date=today,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(f"{BASE}/decks/commanders/trending")
+        assert resp.json()["data"]["series"] == []
+
+    async def test_excludes_commanders_played_only_in_mtgtop8_mtgo_mirror_tournaments(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        today = date.today()
+        mirror_tournament = BSTournament(
+            source=BSSource.mtgtop8,
+            date=today,
+            name="Duel Commander MTGO League",
+            url=f"https://mtgtop8.com/event?e={uuid.uuid4()}&f=EDH",
+            format="Duel Commander",
+            players=50,
+        )
+        db_session.add(mirror_tournament)
+        await db_session.flush()
+        await self._deck(
+            db_session,
+            mirror_tournament,
+            player="Mirror Pilot",
             deck_date=today,
             commanders=["Tymna the Weaver"],
         )

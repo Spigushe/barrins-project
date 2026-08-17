@@ -380,4 +380,42 @@ describe('TournamentListPage', () => {
       expect(useStaplesMock).toHaveBeenLastCalledWith(undefined, undefined)
     })
   })
+
+  describe('tournament size filter', () => {
+    it('toggles size chips into and out of the sizes filter, multi-select', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.click(screen.getByRole('button', { name: 'Tournament size: Leagues' }))
+      expect(useTournamentsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sizes: ['leagues'] }),
+        undefined,
+        true,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Tournament size: 100+' }))
+      expect(useTournamentsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sizes: ['leagues', 'major'] }),
+        undefined,
+        true,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Tournament size: Leagues' }))
+      expect(useTournamentsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sizes: ['major'] }),
+        undefined,
+        true,
+      )
+    })
+
+    it('omits sizes from the filters when nothing is selected', () => {
+      renderPage()
+
+      expect(useTournamentsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sizes: undefined }),
+        undefined,
+        true,
+      )
+    })
+  })
 })
