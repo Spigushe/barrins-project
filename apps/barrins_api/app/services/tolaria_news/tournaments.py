@@ -4,7 +4,7 @@ import uuid
 from datetime import date as date_type
 from datetime import datetime
 
-from sqlalchemy import Integer, cast, func, select, tuple_
+from sqlalchemy import Integer, cast, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scripture import (
@@ -29,8 +29,11 @@ from app.schemas.responses_tolaria_news import (
 )
 from app.services.tolaria_news.decks import (
     DUEL_COMMANDER_FORMAT,
+    TournamentSizeBucket,
     commander_ref,
+    exclude_mtgtop8_mtgo_mirrors,
     resolved_cards,
+    size_bucket_condition,
 )
 from app.services.tolaria_news.pagination import decode_cursor, encode_cursor
 
@@ -59,19 +62,27 @@ async def list_tournaments(
     *,
     source: BSSource | None,
     format_: str | None,
+    sizes: frozenset[TournamentSizeBucket] | None,
     date_from: date_type | None,
     date_to: date_type | None,
     cursor: str | None,
     limit: int,
 ) -> tuple[list[TournamentSummary], Page]:
+    """`sizes` is additive -- a tournament matches if it falls into *any*
+    selected `TournamentSizeBucket` (see `decks.size_bucket_condition`),
+    same semantics as `decks.list_decks`'s own `sizes` filter."""
     limit = min(limit, _MAX_LIMIT) if limit else _DEFAULT_LIMIT
-    stmt = select(BSTournament).order_by(
-        BSTournament.date.desc(), BSTournament.id.desc()
+    stmt = (
+        select(BSTournament)
+        .where(exclude_mtgtop8_mtgo_mirrors())
+        .order_by(BSTournament.date.desc(), BSTournament.id.desc())
     )
     if source is not None:
         stmt = stmt.where(BSTournament.source == source)
     if format_ is not None:
         stmt = stmt.where(BSTournament.format == format_)
+    if sizes:
+        stmt = stmt.where(or_(*(size_bucket_condition(b) for b in sizes)))
     if date_from is not None:
         stmt = stmt.where(BSTournament.date >= date_from)
     if date_to is not None:

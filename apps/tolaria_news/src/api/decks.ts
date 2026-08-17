@@ -12,6 +12,7 @@ export interface DeckListFilters {
   source?: BSSource
   commander?: string
   colors?: string[]
+  sizes?: string[]
   dateFrom?: string
   dateTo?: string
 }
@@ -23,6 +24,7 @@ export function listDecks(filters: DeckListFilters = {}, cursor?: string, limit 
       source: filters.source,
       commander: filters.commander,
       colors: filters.colors,
+      sizes: filters.sizes,
       date_from: filters.dateFrom,
       date_to: filters.dateTo,
       cursor,
