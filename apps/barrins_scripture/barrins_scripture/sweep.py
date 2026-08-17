@@ -20,6 +20,12 @@ is a no-op, not a duplicate row. A failed POST (``barrins_api`` down, a
 malformed file, ...) is logged and skipped, never retried within the same
 run — the next scheduled sweep tick picks it up, per the 2026-08-07
 decision superseding the original push+maintenance-gate+backoff design.
+
+File *contents* are read and posted one ``--chunk-size`` slice at a time
+rather than all at once — ``--mode full`` walks the entire archive, and
+loading every JSON payload into memory up front OOMs once the archive
+gets large. Only the (path, source) pairs for the whole selection are
+held at once, which is cheap.
 """
 
 import argparse
@@ -48,6 +54,11 @@ DEFAULT_RECENT_DAYS = 7
 #: `max_overflow=10` ceiling, so a sweep tick doesn't starve other API
 #: traffic of connections while it runs.
 DEFAULT_CONCURRENCY = 5
+#: Max archive files read + parsed into memory at once. Bounds `--mode
+#: full`'s memory use to this many JSON payloads regardless of archive
+#: size -- the whole point of chunking (the archive can hold far more
+#: files than comfortably fit in memory at once).
+DEFAULT_CHUNK_SIZE = 200
 
 
 def _default_archive_dir() -> Path:
@@ -143,13 +154,21 @@ def _format_eta(seconds: float) -> str:
 
 
 def _render_progress(
-    done: int, total: int, failed: int, elapsed: float, width: int = 30
+    done: int,
+    total: int,
+    failed: int,
+    elapsed: float,
+    prefix: str = "",
+    width: int = 30,
 ) -> str:
     """`\\r`-prefixed single-line bar -- overwrites in place, never scrolls.
 
     ETA is derived from the observed per-file rate so far (`elapsed /
     done` extrapolated over what's left) -- accurate once a handful of
     files have completed, meaningless (and hidden) before that.
+
+    `prefix` distinguishes the chunk-advancement bar from the per-chunk
+    sub-bar when both are on screen at once (see `sweep`).
     """
     filled = int(width * done / total) if total else width
     bar = "#" * filled + "-" * (width - filled)
@@ -157,7 +176,21 @@ def _render_progress(
     if done:
         remaining = elapsed / done * (total - done)
         stats += f" eta {_format_eta(remaining)}"
-    return f"\r[{bar}] {stats}"
+    return f"\r{prefix}[{bar}] {stats}"
+
+
+#: Clears the current terminal line and returns the cursor to its start,
+#: and moves the cursor up one line -- used together to drop the finished
+#: chunk's sub-bar and rewrite the chunk-advancement bar in its place, so
+#: at most 2 progress lines are ever on screen (see `sweep`).
+_CLEAR_LINE = "\x1b[2K\r"
+_CURSOR_UP = "\x1b[1A"
+
+
+def _chunked[T](items: list[T], size: int) -> Iterator[list[T]]:
+    """Yields `items` sliced into consecutive lists of at most `size`."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
 
 
 def sweep(
@@ -169,6 +202,7 @@ def sweep(
     now: datetime | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
     progress: bool = False,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> tuple[int, int]:
     """Posts every file `mode` selects to `POST /internal/scripture/ingest`.
 
@@ -180,66 +214,116 @@ def sweep(
     lookback window — defaults to the real current time, overridable for
     deterministic tests.
 
-    Reading and parsing each file stays sequential (cheap local I/O, and
-    keeps failure logging in a stable, predictable order); only the POSTs
-    -- the actual per-file bottleneck, one HTTP round trip that itself
-    fans out into many DB round trips server-side -- run concurrently,
-    up to `concurrency` at a time.
+    Selection (`iter_archive_files`) is materialized up front -- cheap,
+    it's just paths and a source string per file. File *contents* are
+    read and posted `chunk_size` files at a time, so at most `chunk_size`
+    parsed JSON payloads are ever in memory at once, regardless of how
+    large `--mode full` makes the overall selection. Within a chunk,
+    reading/parsing stays sequential (cheap local I/O, stable failure-log
+    ordering); only the POSTs -- the actual bottleneck, one HTTP round
+    trip that itself fans out into many DB round trips server-side --
+    run concurrently, up to `concurrency` at a time.
 
-    `progress`, when True, overwrites a single stderr line with a live
-    `done/total` bar and an ETA (extrapolated from the observed per-file
-    rate) as POSTs complete -- off by default since a scheduled/cron
-    invocation has no terminal to render it on and would otherwise fill
-    logs with carriage-return junk.
+    `progress`, when True, renders two live stderr lines: a
+    chunk-advancement bar (chunks completed / total chunks) that persists
+    across the whole run, and a sub-bar tracking POSTs completed within
+    the *current* chunk. The sub-bar is cleared when its chunk finishes
+    (replaced by the advanced chunk bar), so at most 2 progress lines are
+    ever on screen at once rather than one line surviving per chunk.
+    Off by default since a scheduled/cron invocation has no terminal to
+    render it on and would otherwise fill logs with escape-code junk.
     """
     endpoint = api_url.rstrip("/") + "/internal/scripture/ingest"
     headers = {"X-Scripture-Token": token}
     succeeded = failed = 0
 
-    to_post: list[tuple[Path, dict]] = []
-    for file_path, source in iter_archive_files(archive_dir, mode, days, now):
-        try:
-            payload = json.loads(file_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                # A syntactically valid JSON file can still be a list,
-                # string, number, or null at the top level -- `payload[...]
-                # = source` below would raise a TypeError that isn't a
-                # json.JSONDecodeError, so this file is caught here rather
-                # than being an assignment done outside the try below,
-                # where it would have crashed the whole run instead of
-                # just this one file.
-                raise TypeError(
-                    f"expected a JSON object at the top level, got "
-                    f"{type(payload).__name__}"
-                )
-            payload["source"] = source
-        except OSError, json.JSONDecodeError, TypeError:
-            logger.exception("skipping unreadable archive file %s", file_path)
-            failed += 1
-            continue
-        to_post.append((file_path, payload))
+    selected = list(iter_archive_files(archive_dir, mode, days, now))
+    if not selected:
+        logger.info("sweep done (mode=%s): 0 succeeded, 0 failed", mode)
+        return 0, 0
 
-    if to_post:
-        total = len(to_post)
-        done = 0
-        start = time.monotonic()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures = [
-                pool.submit(_post_file, endpoint, headers, file_path, payload)
-                for file_path, payload in to_post
-            ]
-            for future in concurrent.futures.as_completed(futures):
-                if future.result():
-                    succeeded += 1
-                else:
-                    failed += 1
-                done += 1
-                if progress:
-                    elapsed = time.monotonic() - start
-                    sys.stderr.write(_render_progress(done, total, failed, elapsed))
-                    sys.stderr.flush()
+    chunks = list(_chunked(selected, chunk_size))
+    total_chunks = len(chunks)
+    start = time.monotonic()
+
+    if progress:
+        sys.stderr.write(
+            _render_progress(0, total_chunks, 0, 0.0, prefix="chunks ") + "\n"
+        )
+        sys.stderr.flush()
+
+    for chunk_index, chunk in enumerate(chunks, start=1):
+        to_post: list[tuple[Path, dict]] = []
+        chunk_total = len(chunk)
+        chunk_done = chunk_failed = 0
+        for file_path, source in chunk:
+            try:
+                payload = json.loads(file_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    # A syntactically valid JSON file can still be a list,
+                    # string, number, or null at the top level --
+                    # `payload[...] = source` below would raise a
+                    # TypeError that isn't a json.JSONDecodeError, so this
+                    # file is caught here rather than being an assignment
+                    # done outside the try below, where it would have
+                    # crashed the whole run instead of just this one file.
+                    raise TypeError(
+                        f"expected a JSON object at the top level, got "
+                        f"{type(payload).__name__}"
+                    )
+                payload["source"] = source
+            except OSError, json.JSONDecodeError, TypeError:
+                logger.exception("skipping unreadable archive file %s", file_path)
+                failed += 1
+                chunk_failed += 1
+                chunk_done += 1
+                continue
+            to_post.append((file_path, payload))
+
+        chunk_start = time.monotonic()
+        if to_post:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = [
+                    pool.submit(_post_file, endpoint, headers, file_path, payload)
+                    for file_path, payload in to_post
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    if future.result():
+                        succeeded += 1
+                    else:
+                        failed += 1
+                        chunk_failed += 1
+                    chunk_done += 1
+                    if progress:
+                        elapsed = time.monotonic() - chunk_start
+                        sys.stderr.write(
+                            _render_progress(
+                                chunk_done,
+                                chunk_total,
+                                chunk_failed,
+                                elapsed,
+                                prefix=f"  chunk {chunk_index}/{total_chunks} ",
+                            )
+                        )
+                        sys.stderr.flush()
+
         if progress:
+            # Drop the finished chunk's sub-bar and advance the chunk bar
+            # in its place -- see the `progress` docstring above.
+            sys.stderr.write(_CLEAR_LINE)
+            sys.stderr.write(_CURSOR_UP)
+            sys.stderr.write(_CLEAR_LINE)
+            sys.stderr.write(
+                _render_progress(
+                    chunk_index,
+                    total_chunks,
+                    failed,
+                    time.monotonic() - start,
+                    prefix="chunks ",
+                )
+            )
             sys.stderr.write("\n")
+            sys.stderr.flush()
 
     logger.info(
         "sweep done (mode=%s): %d succeeded, %d failed", mode, succeeded, failed
@@ -304,6 +388,16 @@ def build_parser() -> argparse.ArgumentParser:
             "(default: off -- for interactive/manual runs, not cron)"
         ),
     )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_CHUNK_SIZE,
+        help=(
+            "max archive files read into memory at once "
+            f"(default: {DEFAULT_CHUNK_SIZE} -- keeps --mode full bounded "
+            "regardless of archive size)"
+        ),
+    )
     return parser
 
 
@@ -331,6 +425,7 @@ def main() -> None:
         args.days,
         concurrency=args.concurrency,
         progress=args.progress,
+        chunk_size=args.chunk_size,
     )
     if failed:
         raise SystemExit(1)
