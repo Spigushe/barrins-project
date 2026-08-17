@@ -122,6 +122,9 @@ class TestSweep:
         assert post.call_count == 2
 
     def test_continues_after_a_failed_post(self, archive: Path) -> None:
+        # concurrency=1 pins execution order to submission order, so the
+        # side_effect list below lines up with the two "recent" files --
+        # otherwise which file gets which side effect is a race.
         with patch.object(
             sweep.requests,
             "post",
@@ -134,6 +137,7 @@ class TestSweep:
                 mode="recent",
                 days=7,
                 now=_NOW,
+                concurrency=1,
             )
         assert (succeeded, failed) == (1, 1)
         assert post.call_count == 2
@@ -198,6 +202,39 @@ class TestSweep:
         assert (succeeded, failed) == (1, 1)
         assert post.call_count == 1
 
+    def test_concurrency_is_forwarded_to_the_thread_pool(self, archive: Path) -> None:
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                concurrency=3,
+            )
+        pool_cls.assert_called_once_with(max_workers=3)
+
+    def test_no_files_selected_does_not_touch_the_thread_pool(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(sweep.concurrent.futures, "ThreadPoolExecutor") as pool_cls:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+        assert (succeeded, failed) == (0, 0)
+        pool_cls.assert_not_called()
+
     def test_endpoint_trailing_slash_is_normalized(self, archive: Path) -> None:
         mock_response = Mock()
         with patch.object(sweep.requests, "post", return_value=mock_response) as post:
@@ -224,6 +261,16 @@ class TestBuildParser:
         assert args.days == sweep.DEFAULT_RECENT_DAYS
         assert args.api_url is None
         assert args.token is None
+        assert args.concurrency == sweep.DEFAULT_CONCURRENCY
+        assert args.progress is False
+
+    def test_reads_concurrency_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--concurrency", "12"])
+        assert args.concurrency == 12
+
+    def test_reads_progress_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--progress"])
+        assert args.progress is True
 
     def test_rejects_unknown_mode(self) -> None:
         with pytest.raises(SystemExit):
@@ -280,7 +327,13 @@ class TestMain:
         ):
             sweep.main()  # must not raise
         mock_sweep.assert_called_once_with(
-            tmp_path, "https://api.example.com", "tok", "full", 3
+            tmp_path,
+            "https://api.example.com",
+            "tok",
+            "full",
+            3,
+            concurrency=sweep.DEFAULT_CONCURRENCY,
+            progress=False,
         )
 
     def test_exits_nonzero_when_any_file_failed(self, tmp_path: Path) -> None:
