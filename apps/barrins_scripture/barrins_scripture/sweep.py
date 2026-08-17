@@ -23,9 +23,12 @@ decision superseding the original push+maintenance-gate+backoff design.
 """
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
+import sys
+import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -39,6 +42,12 @@ logger = logging.getLogger(__name__)
 #: writes under (see utils/mtgo.py::BASE_PATH, utils/mtgtop8.py::BASE_PATH).
 DEFAULT_ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "scraped"
 DEFAULT_RECENT_DAYS = 7
+#: Matches `barrins_api`'s `pool_size=5` (`app/database/connection.py`) --
+#: high enough to overlap files' DB round trips instead of paying them one
+#: at a time, but capped at the pool's steady-state size rather than its
+#: `max_overflow=10` ceiling, so a sweep tick doesn't starve other API
+#: traffic of connections while it runs.
+DEFAULT_CONCURRENCY = 5
 
 
 def _default_archive_dir() -> Path:
@@ -104,6 +113,53 @@ def iter_archive_files(
             yield file_path, source
 
 
+def _post_file(
+    endpoint: str, headers: dict[str, str], file_path: Path, payload: dict
+) -> bool:
+    """POSTs one already-parsed payload. Returns True on success.
+
+    Never raises -- a `RequestException` (connection error, timeout,
+    `raise_for_status()`) is logged and reported as failure instead, so
+    one bad file can't take down the whole worker pool.
+    """
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.exception("ingest failed for %s", file_path)
+        return False
+    return True
+
+
+def _format_eta(seconds: float) -> str:
+    """`H:MM:SS` (or `MM:SS` under an hour) -- `str(timedelta(...))`'s
+    format, minus the microseconds it appends for a non-integer count."""
+    total_seconds = int(seconds)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _render_progress(
+    done: int, total: int, failed: int, elapsed: float, width: int = 30
+) -> str:
+    """`\\r`-prefixed single-line bar -- overwrites in place, never scrolls.
+
+    ETA is derived from the observed per-file rate so far (`elapsed /
+    done` extrapolated over what's left) -- accurate once a handful of
+    files have completed, meaningless (and hidden) before that.
+    """
+    filled = int(width * done / total) if total else width
+    bar = "#" * filled + "-" * (width - filled)
+    stats = f"{done}/{total} ({failed} failed)"
+    if done:
+        remaining = elapsed / done * (total - done)
+        stats += f" eta {_format_eta(remaining)}"
+    return f"\r[{bar}] {stats}"
+
+
 def sweep(
     archive_dir: Path,
     api_url: str,
@@ -111,6 +167,8 @@ def sweep(
     mode: str = "recent",
     days: int = DEFAULT_RECENT_DAYS,
     now: datetime | None = None,
+    concurrency: int = DEFAULT_CONCURRENCY,
+    progress: bool = False,
 ) -> tuple[int, int]:
     """Posts every file `mode` selects to `POST /internal/scripture/ingest`.
 
@@ -121,11 +179,24 @@ def sweep(
     `now` is forwarded to `iter_archive_files` for `--mode recent`'s
     lookback window — defaults to the real current time, overridable for
     deterministic tests.
+
+    Reading and parsing each file stays sequential (cheap local I/O, and
+    keeps failure logging in a stable, predictable order); only the POSTs
+    -- the actual per-file bottleneck, one HTTP round trip that itself
+    fans out into many DB round trips server-side -- run concurrently,
+    up to `concurrency` at a time.
+
+    `progress`, when True, overwrites a single stderr line with a live
+    `done/total` bar and an ETA (extrapolated from the observed per-file
+    rate) as POSTs complete -- off by default since a scheduled/cron
+    invocation has no terminal to render it on and would otherwise fill
+    logs with carriage-return junk.
     """
     endpoint = api_url.rstrip("/") + "/internal/scripture/ingest"
     headers = {"X-Scripture-Token": token}
     succeeded = failed = 0
 
+    to_post: list[tuple[Path, dict]] = []
     for file_path, source in iter_archive_files(archive_dir, mode, days, now):
         try:
             payload = json.loads(file_path.read_text(encoding="utf-8"))
@@ -146,16 +217,29 @@ def sweep(
             logger.exception("skipping unreadable archive file %s", file_path)
             failed += 1
             continue
+        to_post.append((file_path, payload))
 
-        try:
-            response = requests.post(
-                endpoint, json=payload, headers=headers, timeout=30
-            )
-            response.raise_for_status()
-            succeeded += 1
-        except requests.RequestException:
-            logger.exception("ingest failed for %s", file_path)
-            failed += 1
+    if to_post:
+        total = len(to_post)
+        done = 0
+        start = time.monotonic()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = [
+                pool.submit(_post_file, endpoint, headers, file_path, payload)
+                for file_path, payload in to_post
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                if future.result():
+                    succeeded += 1
+                else:
+                    failed += 1
+                done += 1
+                if progress:
+                    elapsed = time.monotonic() - start
+                    sys.stderr.write(_render_progress(done, total, failed, elapsed))
+                    sys.stderr.flush()
+        if progress:
+            sys.stderr.write("\n")
 
     logger.info(
         "sweep done (mode=%s): %d succeeded, %d failed", mode, succeeded, failed
@@ -202,6 +286,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("SCRIPTURE_INGEST_TOKEN"),
         help="shared ingestion secret (env: SCRIPTURE_INGEST_TOKEN)",
     )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=(
+            "max concurrent POSTs to /internal/scripture/ingest "
+            f"(default: {DEFAULT_CONCURRENCY}, matching barrins_api's DB pool_size)"
+        ),
+    )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        default=False,
+        help=(
+            "show a live progress bar on stderr while posting files "
+            "(default: off -- for interactive/manual runs, not cron)"
+        ),
+    )
     return parser
 
 
@@ -222,7 +324,13 @@ def main() -> None:
         )
 
     _succeeded, failed = sweep(
-        args.archive_dir, args.api_url, args.token, args.mode, args.days
+        args.archive_dir,
+        args.api_url,
+        args.token,
+        args.mode,
+        args.days,
+        concurrency=args.concurrency,
+        progress=args.progress,
     )
     if failed:
         raise SystemExit(1)
