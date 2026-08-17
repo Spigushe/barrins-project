@@ -192,6 +192,20 @@ class WindowOut(BaseResponse):
     date_to: date_type
 
 
+class TelemetryResponse(BaseResponse):
+    """Bottom-rail data: the currently *effective* banlist season (not
+    necessarily the calendar-date period -- see
+    `dc_calendar.windowing.effective_banlist_period`), its `<year>-<number>`
+    label components, and when the next one takes effect."""
+
+    season: WindowOut
+    #: 1-6, the season's position within `season_year` -- see
+    #: `dc_calendar.windowing.banlist_period_number`.
+    season_year: int
+    season_number: int
+    next_banlist_at: datetime
+
+
 class CommanderTrendPoint(BaseResponse):
     date_from: date_type
     date_to: date_type

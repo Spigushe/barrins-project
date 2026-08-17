@@ -20,7 +20,13 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    # zoneinfo (used for Europe/Paris banlist-effective-time math) needs a
+    # real IANA tz database, which isn't guaranteed on every platform
+    # (Windows, minimal containers) -- tzdata is the Python-core-maintained,
+    # pure-data companion package for exactly this case.
+    "tzdata>=2025.2",
+]
 
 [dependency-groups]
 test = [

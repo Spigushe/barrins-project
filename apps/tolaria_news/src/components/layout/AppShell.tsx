@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
 import { cn } from '@/lib/utils'
+import { BottomRail } from './BottomRail'
+import { FOOTER_ROW_CLASS } from './footerRow'
 
 function NavItem({ to, label }: { to: string; label: string }) {
   return (
@@ -59,11 +61,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="border-t-[0.5px] border-border">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-1 px-6 py-3 font-mono text-[10.5px] uppercase tracking-[0.1em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between md:px-14">
-          <span>Duel Commander · Barrin&rsquo;s Project</span>
-          <span>Public tournament data</span>
-          <span>Read-only</span>
+        <div className={FOOTER_ROW_CLASS}>
+          <span className="sm:text-left">Duel Commander · Barrin&rsquo;s Project</span>
+          <span className="sm:text-center">Public tournament data</span>
+          <span className="sm:text-right">Read-only</span>
         </div>
+        <BottomRail />
       </footer>
     </div>
   )

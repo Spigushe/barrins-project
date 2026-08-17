@@ -45,15 +45,17 @@ function Callout({
 
 /**
  * The landing page's right-hand showpiece: corner brackets + the decorative
- * meta-graph + telemetry callouts. Per the design handoff, the graph itself
- * is always decorative/procedural (no backend ever required for it — see
- * NodeGraph). The three floating callouts, though, read as *specific*
+ * meta-graph + telemetry callouts. Per the design handoff, the graph mesh
+ * itself is always decorative/procedural (no backend ever required for it
+ * — see NodeGraph). The three floating callouts read as *specific*
  * archetype-clustering metrics (cluster share, sample size, winrate delta)
  * — those are Karn Tablets data (T4 iteration 2 / T6, not shipped), so they
  * only render behind `VITE_FEATURE_KARN_TABLETS` rather than showing
- * invented numbers.
+ * invented numbers. The "meta-graph" label's `seasonLabel`, unlike the mesh
+ * and the callouts, is real: the current banlist season from
+ * `useTelemetry()`, threaded down from `LandingPage`.
  */
-export function VizPanel() {
+export function VizPanel({ seasonLabel }: { seasonLabel?: string }) {
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[620px]">
       <Brackets />
@@ -84,7 +86,8 @@ export function VizPanel() {
       )}
 
       <div className="absolute top-0 left-0 font-mono text-[10.5px] tracking-[0.08em] text-muted-foreground uppercase">
-        <span className="text-accent">◆</span> meta-graph · dc.001
+        <span className="text-accent">◆</span> meta-graph
+        {seasonLabel ? ` · ${seasonLabel}` : ''}
       </div>
       <div className="absolute top-0 right-0 font-mono text-[10.5px] tracking-[0.08em] text-muted-foreground uppercase">
         procedural · 80 nodes

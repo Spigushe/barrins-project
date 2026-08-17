@@ -332,6 +332,7 @@ class TestNoAuthRequired:
             "/decks",
             "/decks/commanders",
             f"/decks/{duel_commander_deck.id}",
+            "/telemetry",
         ):
             resp = await client.get(f"{BASE}{path}")
             assert resp.status_code == 200, path

@@ -21,8 +21,9 @@ independently tested, before anything else depends on it.
 """
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 #: Odd-numbered months, in calendar order. A banlist period starts on one
 #: of these and ends on the next one in this cycle (wrapping Nov -> Jan).
@@ -31,6 +32,12 @@ _ODD_MONTHS: tuple[int, ...] = (1, 3, 5, 7, 9, 11)
 _TUESDAY = 1
 
 ROLLING_WINDOW_DAYS = 30
+
+#: A Duel Commander banlist change is calendar-date-effective per
+#: `banlist_period_window`, but *actually* takes effect at this time on its
+#: period's first day -- see `effective_banlist_period`.
+BANLIST_EFFECTIVE_TIME = time(20, 0)
+BANLIST_TIMEZONE = ZoneInfo("Europe/Paris")
 
 
 class WindowKind(StrEnum):
@@ -140,6 +147,55 @@ def banlist_period_window(date_to: date) -> Window:
     """The banlist-period window containing `date_to`."""
     start, end = banlist_period_containing(date_to)
     return Window(kind=WindowKind.banlist_period, date_from=start, date_to=end)
+
+
+def effective_banlist_period(now: datetime) -> tuple[Window, datetime]:
+    """The banlist period actually in effect at `now`, and the datetime
+    the *next* period takes effect (20:00 Europe/Paris on its first day).
+
+    `banlist_period_window` only knows calendar-date boundaries -- a
+    period's first day already "belongs" to it from midnight, even though
+    the banlist doesn't *actually* take effect until `BANLIST_EFFECTIVE_TIME`
+    that same day. On a transition day itself, before that time, the
+    *calendar* period has already flipped to the new one while the
+    *effective* (real-world) period is still the previous one. This
+    reconciles the two so "current season" and "next banlist" don't jump
+    ahead a whole period too early.
+    """
+    now_paris = now.astimezone(BANLIST_TIMEZONE)
+    raw = banlist_period_window(now_paris.date())
+    transition = datetime.combine(
+        raw.date_from, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
+    )
+    if now_paris < transition:
+        effective = banlist_period_window(raw.date_from - timedelta(days=1))
+        next_at = transition
+    else:
+        after = banlist_period_window(raw.date_to + timedelta(days=1))
+        effective = raw
+        next_at = datetime.combine(
+            after.date_from, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
+        )
+    return effective, next_at
+
+
+def banlist_period_number(window: Window) -> tuple[int, int]:
+    """(year, 1-based index within that year) for a banlist-period
+    `Window` -- Jan-anchored = 1, Mar-anchored = 2, ... Nov-anchored = 6.
+    Resets every January; the year alone already disambiguates across year
+    boundaries, so the index doesn't climb forever.
+
+    Reads directly off `date_from`, which always falls *in* one of
+    `_ODD_MONTHS` itself (only `date_to` can roll into the following year,
+    e.g. a Nov-anchored period ending in January) -- no need to re-derive
+    the period.
+    """
+    if window.kind is not WindowKind.banlist_period:
+        raise ValueError(
+            "banlist_period_number only applies to banlist_period windows, "
+            f"got {window.kind}"
+        )
+    return window.date_from.year, _ODD_MONTHS.index(window.date_from.month) + 1
 
 
 def resolve_windows(date_to: date, kinds: tuple[WindowKind, ...]) -> list[Window]:

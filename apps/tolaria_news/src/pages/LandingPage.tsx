@@ -3,6 +3,7 @@ import { Eyebrow } from '@/components/ui/eyebrow'
 import { BackgroundField } from '@/components/landing/BackgroundField'
 import { VizPanel } from '@/components/landing/VizPanel'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
+import { useTelemetry } from '@/hooks/useTelemetry'
 
 // Copy matches the design handoff's prototype defaults
 // (handoff/design_handoff_tolaria_news/design_files/app.jsx TWEAK_DEFAULTS)
@@ -52,6 +53,11 @@ export function LandingPage() {
     ? { to: '/metagame', label: 'Explore the metagame' }
     : { to: '/tournaments', label: 'Browse tournaments' }
 
+  const telemetry = useTelemetry()
+  const seasonLabel = telemetry.data
+    ? `${telemetry.data.data.season_year.toString()}-${telemetry.data.data.season_number.toString()}`
+    : undefined
+
   return (
     <div className="relative">
       <BackgroundField />
@@ -98,7 +104,7 @@ export function LandingPage() {
         </div>
 
         <div className="hidden md:block">
-          <VizPanel />
+          <VizPanel seasonLabel={seasonLabel} />
         </div>
       </div>
     </div>
