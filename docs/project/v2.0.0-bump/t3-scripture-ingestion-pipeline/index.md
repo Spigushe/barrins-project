@@ -126,6 +126,25 @@ backend-only-route decision stands; only who calls it and when changes).
       own systemd timer tick (independent of the scrape schedule) is T8's
       remaining task, not built here.
 
+**Added (2026-08-17) — `--fast-forward` for `--mode full`.** The full-archive
+replay re-POSTs every file even when most tournaments are already in
+`bs_*` — harmless (idempotent upsert, T2) but wasteful at archive scale,
+paying an HTTP + DB round trip per already-known tournament. Decided:
+a new read-only route, `GET /internal/scripture/ingested-urls` (same dual
+auth gate as `db-metrics`), returns every `bs_tournaments.url`; the sweep's
+`--fast-forward` flag fetches that set once per run and skips re-POSTing
+any selected file whose `tournament.url` is already in it.
+**`--mode full` only** — deliberately rejected (`parser.error`) with
+`--mode recent`, because recent-mode's whole point is re-submitting files
+inside `--days` to catch MTGO's ~3-day post-publication edits, and
+fast-forwarding by URL alone would silently stop picking up an edit to a
+tournament already ingested once. A fetch failure degrades to "skip
+nothing" (posts everything, same as without the flag) rather than
+aborting the run. `app/services/scripture/ingested_urls.py`,
+`app/schemas/scripture_ingested_urls.py`, route added to
+`app/api/general/scripture.py`; sweep changes in
+`apps/barrins_scripture/barrins_scripture/sweep.py`.
+
 ## UAT (manual)
 
 - [x] Run the sweep in full-archive mode against the real
@@ -164,6 +183,13 @@ backend-only-route decision stands; only who calls it and when changes).
   from archive subdirectory, per-file failure isolation (a failed POST or
   malformed JSON file doesn't stop the rest of the sweep), CLI argument
   parsing/env-var fallback, nonzero exit when any file failed.
-- Full suites: `barrins_api` 424 tests passing (96.92% coverage),
-  `barrins_scripture` 146 tests passing (95.74% coverage); `ruff`/`ty`/
-  `bandit` clean on both apps.
+- `--fast-forward` (2026-08-17) — `test_sweep.py::TestFastForwardSweep`:
+  already-known URLs are skipped without a POST, a fetch failure falls
+  back to posting everything, `--fast-forward` never calls the new
+  endpoint when off; `TestMain` covers the `--mode recent` rejection and
+  forwarding to `sweep()` with `--mode full`.
+  `apps/barrins_api/tests/scripture/test_ingested_urls.py` covers the new
+  route's auth gate and reported URL set (mirrors `test_db_metrics.py`).
+- Full suites re-run after this addition (2026-08-17): `barrins_api` 570
+  tests passing (97.24% coverage), `barrins_scripture` 176 tests passing
+  (93.44% coverage); `ruff`/`ty` clean on both apps' changed files.

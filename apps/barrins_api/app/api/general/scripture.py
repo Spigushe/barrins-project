@@ -17,6 +17,14 @@ row count of every `bs_*` table. Callable by the same service secret as
 ops/admin caller doesn't hold the service secret, so the JWT fallback is
 required, not just convenient.
 
+Also home to `GET /internal/scripture/ingested-urls`: every
+`bs_tournaments.url` already in the database. Backs Barrin's Scripture's
+sweep `--fast-forward` (`--mode full` only, 2026-08-17 decision) — the
+sweep fetches this set once per run and skips re-POSTing archive files
+whose tournament URL is already known, avoiding a wasted (though
+idempotent) HTTP + DB round trip per file on a bulk-replay-sized archive.
+Same dual auth gate as `db-metrics`.
+
 Gated by a static shared secret (`X-Scripture-Token`,
 `app/dependencies/service_auth.py`), not a user JWT — the caller is
 another Barrin's-ecosystem service, not a logged-in user. Not registered
@@ -32,8 +40,10 @@ from app.schemas.scripture_ingest import (
     ResponseScriptureIngest,
     ScriptureIngestRequest,
 )
+from app.schemas.scripture_ingested_urls import ResponseScriptureIngestedUrls
 from app.schemas.scripture_metrics import ResponseScriptureDbMetrics, ResponseTableSize
 from app.services.scripture.db_metrics import compute_scripture_db_metrics
+from app.services.scripture.ingested_urls import fetch_ingested_tournament_urls
 from app.services.scripture.ingester import ingest_scrape
 
 router = APIRouter()
@@ -80,3 +90,18 @@ async def db_metrics(
             for size in sizes
         ]
     )
+
+
+@router.get("/ingested-urls", response_model=ResponseScriptureIngestedUrls)
+async def ingested_urls(
+    session: DatabaseSession,
+    _auth: ScriptureOrAdmin,
+) -> ResponseScriptureIngestedUrls:
+    """Every `bs_tournaments.url` already ingested.
+
+    Backs Barrin's Scripture's sweep `--fast-forward` (`--mode full`
+    only): the sweep fetches this once per run and skips re-POSTing
+    archive files whose tournament URL is already present.
+    """
+    urls = await fetch_ingested_tournament_urls(session)
+    return ResponseScriptureIngestedUrls(urls=urls)
