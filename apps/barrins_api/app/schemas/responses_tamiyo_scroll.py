@@ -12,6 +12,7 @@ from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     ExpectedLevel,
     GameResult,
+    MetagameRosterScope,
     SessionType,
 )
 from app.schemas.responses_base import BaseResponse
@@ -22,6 +23,7 @@ class ResponseUserSettings(BaseResponse):
     data_shared: bool
     receive_shared_data: bool
     active_personal_deck_id: uuid.UUID | None
+    metagame_roster_scope: MetagameRosterScope
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -52,12 +54,16 @@ class ResponseDecklistVersion(BaseResponse):
 class ResponseMetaDeck(BaseResponse):
     id: uuid.UUID
     name: str
+    # None only for a foreign (is_readonly) row merged in from a sharer
+    # (F10) — the sharer's own personal_deck_id is never exposed to the
+    # viewer, same "never leak a sharer's raw id" rule sharing_merge
+    # already applies to EffectiveMatch.
+    personal_deck_id: uuid.UUID | None
     tier: float
     category: ArchetypeCategory
-    # Nullable — inherited automatically from whichever personal deck this
-    # meta deck was created against (soft data tag, no enforced constraint;
-    # see TSMetaDeck.game's docstring). None if created without that
-    # context, or if that personal deck itself had no game set yet.
+    # Nullable — inherited automatically from `personal_deck_id` at
+    # creation time (see TSMetaDeck.game's docstring). None if that
+    # personal deck itself had no game set yet.
     game: CardGame | None
     decklist_notes: str | None
     top8: int
@@ -69,6 +75,12 @@ class ResponseMetaDeck(BaseResponse):
     shared_by: str | None = None
     has_shared_data: bool = False
     is_multi_share: bool = False
+    # Every underlying TSMetaDeck.id this row represents (F10) — just
+    # [id] normally, or every id a game-scope collapse folded together.
+    # A match logged against a now-merged-away duplicate still carries
+    # that duplicate's id, so the frontend needs this to resolve it back
+    # to this row rather than showing "?"/an unselected dropdown.
+    merged_ids: tuple[uuid.UUID, ...] = ()
 
     @computed_field  # type: ignore[prop-decorator]
     @property

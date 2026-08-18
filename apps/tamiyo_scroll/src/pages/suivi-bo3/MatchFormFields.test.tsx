@@ -5,9 +5,13 @@ import { emptyMatchDraft, MatchFormFields } from './MatchForm'
 
 const createMetaDeckMutateAsync = vi.fn()
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useCreateMetaDeck: () => ({ mutateAsync: createMetaDeckMutateAsync }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useCreateMetaDeck: () => ({ mutateAsync: createMetaDeckMutateAsync }),
+  }
+})
 
 let sessions: { id: string; name: string; ended_at: string | null }[] = []
 const createSessionMutateAsync = vi.fn()
@@ -74,6 +78,7 @@ describe('MatchFormFields — opponent deck field', () => {
       presence: 0,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: 'deck-mine',
     })
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ opponentDeckId: 'deck-new' }),

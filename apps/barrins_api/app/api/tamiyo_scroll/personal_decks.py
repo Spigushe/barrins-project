@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import func, select, update
+from sqlalchemy import func, insert, select, update
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
@@ -66,11 +66,22 @@ async def _sync_opponent_deck_games(
     session: DatabaseSession, deck: TSPersonalDeck, owner_id: uuid.UUID
 ) -> None:
     """Cascades a corrected `game` onto every opponent (meta) deck this
-    personal deck has been matched against — always overwrites, unlike
-    the creation-time hint (`TSMetaDeck.game`'s docstring): once a
-    personal deck's game is fixed via PATCH, the opponent decks logged
-    against it should carry that same corrected value for ML export
-    filtering, not a stale/mismatched one.
+    personal deck has been matched against, for ML export filtering. Runs
+    on `game` change (patch_personal_deck).
+
+    Post-F10, an opponent row now carries its own `personal_deck_id`
+    owner, which may not be *this* personal deck (the "game" roster scope
+    can surface another of the owner's decks' rows in a match-logging
+    picker). Rows already owned by `deck` are corrected in place — same
+    single-owner behavior as before (always overwrites, unlike the
+    creation-time inheritance hint). Rows owned by a **different**
+    personal deck are duplicate-and-allocated instead of overwritten (the
+    same rule the F10 backfill migration uses): a new row is inserted,
+    owned by `deck`, carrying the corrected `game`; only `deck`'s own
+    matches against the original row are repointed to the new duplicate.
+    The original row (still owned by the other personal deck) is left
+    untouched — a blind overwrite would otherwise silently mutate data
+    that belongs, via FK, to a different deck.
     """
     opponent_ids_result = await session.execute(
         select(TSMatch.opponent_deck_id)
@@ -80,9 +91,51 @@ async def _sync_opponent_deck_games(
     opponent_ids = opponent_ids_result.scalars().all()
     if not opponent_ids:
         return
-    await session.execute(
-        update(TSMetaDeck).where(TSMetaDeck.id.in_(opponent_ids)).values(game=deck.game)
+
+    opponents_result = await session.execute(
+        select(TSMetaDeck).where(TSMetaDeck.id.in_(opponent_ids))
     )
+    opponents = list(opponents_result.scalars().all())
+
+    own_ids = [o.id for o in opponents if o.personal_deck_id == deck.id]
+    if own_ids:
+        await session.execute(
+            update(TSMetaDeck)
+            .where(TSMetaDeck.id.in_(own_ids))
+            .values(game=deck.game, updated_at=datetime.now(UTC))
+        )
+
+    foreign_opponents = [o for o in opponents if o.personal_deck_id != deck.id]
+    for original in foreign_opponents:
+        new_id = uuid.uuid4()
+        now = datetime.now(UTC)
+        await session.execute(
+            insert(TSMetaDeck).values(
+                id=new_id,
+                owner_id=original.owner_id,
+                personal_deck_id=deck.id,
+                name=original.name,
+                tier=original.tier,
+                category=original.category,
+                game=deck.game,
+                decklist_notes=original.decklist_notes,
+                top8=original.top8,
+                presence=original.presence,
+                expected=original.expected,
+                tests_status=original.tests_status,
+                archived_at=original.archived_at,
+                created_at=original.created_at,
+                updated_at=now,
+            )
+        )
+        await session.execute(
+            update(TSMatch)
+            .where(
+                TSMatch.personal_deck_id == deck.id,
+                TSMatch.opponent_deck_id == original.id,
+            )
+            .values(opponent_deck_id=new_id)
+        )
 
 
 def _moxfield_last_updated_at(raw_data: JsonValue | None) -> datetime | None:

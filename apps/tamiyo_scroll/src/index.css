@@ -60,3 +60,31 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* Thin, theme-matched scrollbar (no prior styling existed — every
+   scrollable area used the browser default) — same border/muted tokens
+   the rest of the UI already uses, not a one-off color. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: var(--radius-input);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-border-dashed);
+}

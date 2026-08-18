@@ -26,9 +26,13 @@ let cardTests: {
   notes: string | null
 }[] = []
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useMetaDecks: () => ({ data: metaDecks }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useMetaDecks: () => ({ data: metaDecks }),
+  }
+})
 
 vi.mock('@/hooks/useAuth', () => ({
   useCurrentUser: () => ({ data: { display_name: 'Alice', email: 'alice@example.com' } }),

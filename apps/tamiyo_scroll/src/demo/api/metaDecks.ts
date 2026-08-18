@@ -29,6 +29,7 @@ export function createMetaDeck(payload: MetaDeckWrite): Promise<MetaDeck> {
   const deck: MetaDeck = {
     id: nextId(),
     name: payload.name,
+    personal_deck_id: payload.personal_deck_id,
     tier: payload.tier,
     category: payload.category,
     decklist_notes: payload.decklist_notes ?? null,

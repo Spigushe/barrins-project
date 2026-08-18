@@ -25,6 +25,7 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
         json={"name": "Mono Red", "game": "magic", "category": "aggro"},
         headers=headers,
     )
+    personal_id = personal_resp.json()["id"]
     meta_resp = await client.post(
         f"{BASE}/meta-decks",
         json={
@@ -34,10 +35,11 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
             "top8": 1,
             "presence": 5,
             "expected": "as_expected",
+            "personal_deck_id": personal_id,
         },
         headers=headers,
     )
-    return personal_resp.json()["id"], meta_resp.json()["id"]
+    return personal_id, meta_resp.json()["id"]
 
 
 def _match_payload(

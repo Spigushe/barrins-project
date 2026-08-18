@@ -17,7 +17,9 @@ async def _create_personal_deck(
     return resp.json()["id"]
 
 
-async def _create_meta_deck(client: AsyncClient, user: User) -> str:
+async def _create_meta_deck(
+    client: AsyncClient, user: User, personal_deck_id: str
+) -> str:
     resp = await client.post(
         f"{BASE}/meta-decks",
         json={
@@ -27,6 +29,7 @@ async def _create_meta_deck(client: AsyncClient, user: User) -> str:
             "top8": 1,
             "presence": 5,
             "expected": "as_expected",
+            "personal_deck_id": personal_deck_id,
         },
         headers=auth_headers(user),
     )
@@ -57,7 +60,7 @@ class TestCreateCardTest:
         self, client: AsyncClient, owner_user: User
     ):
         personal_id = await _create_personal_deck(client, owner_user)
-        meta_id = await _create_meta_deck(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
         resp = await client.post(
             f"{BASE}/card-tests",
             json={

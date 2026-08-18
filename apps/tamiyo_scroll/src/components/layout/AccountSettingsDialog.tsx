@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCurrentUser, useUpdateProfile } from '@/hooks/useAuth'
 import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
+import type { MetagameRosterScope } from '@/schemas/tamiyoScroll'
 import {
   DISPLAY_PREF_MATCHUP_RESULT_FORMAT_2W0L,
   DISPLAY_PREF_MATCHUP_ROW_TINT,
@@ -56,6 +57,11 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [receiveSharedData, setReceiveSharedData] = useState(
     () => settings?.receive_shared_data ?? false,
   )
+  // Server-persisted (F10), unlike the S12 toggles below — it changes what
+  // GET /meta-decks returns, not just how the frontend renders it.
+  const [rosterScope, setRosterScope] = useState<MetagameRosterScope>(
+    () => settings?.metagame_roster_scope ?? 'game',
+  )
 
   // S12 items 8-11: four purely-visual toggles, `localStorage`-backed
   // (not part of the Save/Cancel form above — they apply immediately,
@@ -69,10 +75,8 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
     DISPLAY_PREF_MATCHUP_RESULT_FORMAT_2W0L,
     false,
   )
-  const [rosterArchetypeColorEnabled, setRosterArchetypeColorEnabled] = useLocalStorageFlag(
-    DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
-    false,
-  )
+  const [rosterArchetypeColorEnabled, setRosterArchetypeColorEnabled] =
+    useLocalStorageFlag(DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR, false)
   const [rosterTierColorEnabled, setRosterTierColorEnabled] = useLocalStorageFlag(
     DISPLAY_PREF_ROSTER_TIER_COLOR,
     false,
@@ -86,6 +90,7 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
       updateSettings.mutateAsync({
         data_shared: shareMyData,
         receive_shared_data: receiveSharedData,
+        metagame_roster_scope: rosterScope,
       }),
     ])
     onClose()
@@ -158,10 +163,35 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
         <div role="separator" className="h-px bg-accent" />
 
         <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Store roster decks per game
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Share one roster across all your decks of the same game (MtG, YGO,
+                PKM, ...)
+              </p>
+            </div>
+            <Switch
+              checked={rosterScope === 'game'}
+              onCheckedChange={(checked) => {
+                setRosterScope(checked ? 'game' : 'personal_deck')
+              }}
+              label="Store roster decks per game"
+            />
+          </div>
+        </div>
+
+        <div role="separator" className="h-px bg-accent" />
+
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
           <p className="text-[13.5px] font-semibold text-foreground">Display</p>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[13.5px] font-semibold text-foreground">Winrate row tint</p>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Winrate row tint
+              </p>
               <p className="text-xs text-muted-foreground">
                 Color match-up summary rows red/green for very negative/positive winrates.
               </p>

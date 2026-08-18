@@ -66,6 +66,19 @@ class SessionType(enum.StrEnum):
     training = "training"
 
 
+class MetagameRosterScope(enum.StrEnum):
+    """How `GET /meta-decks` filters the caller's roster (F10).
+
+    `game`: every roster entry whose owning personal deck shares the
+    active deck's `game`, same-name rows collapsed into one (default —
+    matches the single-roster-per-game behavior most users expect).
+    `personal_deck`: only entries created against the exact active deck.
+    """
+
+    game = "game"
+    personal_deck = "personal_deck"
+
+
 class CardGame(enum.StrEnum):
     """Card game a personal deck belongs to (S10) — lets ML training data
     be filtered to Magic decks only, while still keeping other games'
@@ -218,6 +231,17 @@ class TSMetaDeck(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # The personal deck this roster entry was created against (F10) — the
+    # precise per-deck association `GET /meta-decks` filters/scopes by.
+    # A roster deck fought by more than one of the owner's personal decks
+    # is represented as one row per personal deck (duplicate-and-allocate,
+    # see `_sync_opponent_deck_games` and the F10 backfill migration),
+    # never a many-to-many link — keeps this FK simple and always exact.
+    personal_deck_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_personal_decks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     tier: Mapped[Decimal] = mapped_column(
         Numeric(2, 1), nullable=False, default=Decimal("0"), server_default="0"
@@ -225,12 +249,12 @@ class TSMetaDeck(Base):
     category: Mapped[ArchetypeCategory] = mapped_column(
         Enum(ArchetypeCategory, name="ts_archetype_category"), nullable=False
     )
-    # Nullable, no backfill — inherited automatically (never user-picked)
-    # from whichever personal deck's game a meta deck is created against
-    # (match-logging "create opponent" flow, or the active personal deck
-    # on the roster quick-add form). A soft data tag for ML export
-    # filtering, not an enforced constraint: a meta deck can still be used
-    # against a personal deck of a different game, nothing blocks it.
+    # Inherited automatically (never user-picked) from `personal_deck_id`
+    # at creation time. Kept as its own denormalized column — always
+    # derivable via the FK join, but reading it directly avoids a join on
+    # every ML export query (F10) — rather than a required, independently
+    # settable field. Still nullable: a historical row can carry a NULL
+    # `game` if the personal deck it inherited from had none set yet.
     game: Mapped[CardGame | None] = mapped_column(
         Enum(CardGame, name="ts_card_game", create_type=False), nullable=True
     )
@@ -252,6 +276,18 @@ class TSMetaDeck(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    # F10 items 5/6 (same-name/same-game propagation, conflict tie-break)
+    # need "most recently updated" to mean something. Set explicitly by
+    # every write path (route + migration backfill/duplicate-and-allocate)
+    # rather than an ORM/DB `onupdate` trigger — the propagation write is
+    # a raw Core UPDATE across several rows at once, not a per-instance
+    # ORM assignment, so a column-level `onupdate` wouldn't reliably fire
+    # for it anyway.
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
@@ -379,6 +415,16 @@ class TSUserSettings(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("ts_personal_decks.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # F10: how GET /meta-decks filters the roster relative to the active
+    # deck. Defaults "game" (one roster per game) — matches the bug report
+    # exactly; switching to "personal_deck" needs no migration since every
+    # row already carries its exact owning deck via personal_deck_id.
+    metagame_roster_scope: Mapped[MetagameRosterScope] = mapped_column(
+        Enum(MetagameRosterScope, name="ts_metagame_roster_scope"),
+        nullable=False,
+        default=MetagameRosterScope.game,
+        server_default=MetagameRosterScope.game.value,
     )
 
 

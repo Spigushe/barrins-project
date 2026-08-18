@@ -22,6 +22,7 @@
     {
       "id": "4259faaa-431d-4d0c-9b20-b70436558af4",
       "name": "Golgari Midrange",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "midrange",
       "decklist_notes": "Grindy value deck, watch out for edict effects.",
@@ -39,6 +40,7 @@
     {
       "id": "37c95738-f081-476b-a1ce-7a64e1549808",
       "name": "Izzet Spells",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "combo",
       "decklist_notes": "Storm-adjacent, race it or disrupt the graveyard.",
@@ -56,6 +58,7 @@
     {
       "id": "c5f81885-ffb5-4eea-b934-e1d3b578b1e2",
       "name": "Mono White Aggro",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 2,
       "category": "aggro",
       "decklist_notes": "Go wide, watch out for anthem effects.",
@@ -73,6 +76,7 @@
     {
       "id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
       "name": "Azorius Control",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "control",
       "decklist_notes": "Counterspells + card draw, close it out fast.",
@@ -90,6 +94,7 @@
     {
       "id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
       "name": "Gruul Stompy",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 2,
       "category": "aggro",
       "decklist_notes": "Big dumb creatures, out-value the top end.",
