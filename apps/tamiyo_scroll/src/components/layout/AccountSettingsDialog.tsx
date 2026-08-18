@@ -9,7 +9,6 @@ import {
   DISPLAY_PREF_ROSTER_ARCHETYPE_COLOR,
   DISPLAY_PREF_ROSTER_TIER_COLOR,
 } from '@/lib/displayPrefs'
-import { AccountSettingsTeamSection } from './AccountSettingsTeamSection'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -25,9 +24,7 @@ import { Switch } from '@/components/ui/switch'
  * entry point was removed from the header entirely (not this popup's
  * scope; where/whether it resurfaces is a product decision). The
  * underlying read-as-another-user mechanism (`useViewingOwner`,
- * `applyOwnerParam`) is untouched. The "Team de test" section
- * (`AccountSettingsTeamSection`, S2) acts immediately on click — it isn't
- * part of the Save/Cancel form state below.
+ * `applyOwnerParam`) is untouched.
  */
 export function AccountSettingsDialog({
   open,
@@ -248,10 +245,6 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
             />
           </div>
         </div>
-
-        <div role="separator" className="h-px bg-accent" />
-
-        <AccountSettingsTeamSection onClose={onClose} />
 
         <div className="flex justify-end gap-2.5">
           <Button type="button" variant="ghost" onClick={onClose}>

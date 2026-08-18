@@ -33,17 +33,6 @@ vi.mock('@/hooks/useSettings', () => ({
   }),
 }))
 
-// No team by default — `AccountSettingsTeamSection.test.tsx` covers the
-// join/create/member/owner states in depth.
-vi.mock('@/hooks/useTeams', () => ({
-  useMyTeams: () => ({ data: [] }),
-  useTeam: () => ({ data: undefined }),
-  useCreateTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useJoinTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useLeaveTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}))
-
 function renderDialog(props: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return render(
     <MemoryRouter>
@@ -77,16 +66,10 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders the join/create team picker when the account has no team', () => {
+  it('renders separators between the display name, sharing, roster scope and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    expect(screen.getByText('Join a team')).toBeInTheDocument()
-    expect(screen.getByText('Create a team')).toBeInTheDocument()
-  })
-
-  it('renders separators between the display name, sharing, roster scope, display and team sections', () => {
-    renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Display name / Share my data / Roster scope (F10) / Display (S12) / Team de test.
-    expect(screen.getAllByRole('separator')).toHaveLength(4)
+    // Display name / Share my data / Roster scope (F10) / Display (S12).
+    expect(screen.getAllByRole('separator')).toHaveLength(3)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
