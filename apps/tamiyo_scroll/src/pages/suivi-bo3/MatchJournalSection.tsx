@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useDecklistVersions } from '@/hooks/useDecklistVersions'
 import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
-import { useMetaDecks } from '@/hooks/useMetaDecks'
+import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
 import { useSessions } from '@/hooks/useSessions'
 import type { GameResult, Match, Session } from '@/schemas/tamiyoScroll'
@@ -75,6 +75,13 @@ export function MatchJournalSection() {
   const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
+  // A historical match can point at a roster entry the owner has since
+  // archived (or, for a shared match, one collapsed away when a same-name
+  // own entry appeared later) — the default query excludes archived rows
+  // so the edit form's picker never offers them, but resolving *display*
+  // names for the journal needs to see them too, to tell "deleted roster
+  // entry" apart from a genuinely broken reference.
+  const { data: metaDecksIncludingArchived } = useMetaDecks({ includeArchived: true })
   const { data: sessions } = useSessions(activeDeckId)
   const updateMatch = useUpdateMatch()
   const deleteMatch = useDeleteMatch()
@@ -90,7 +97,11 @@ export function MatchJournalSection() {
     return personalDecks?.find((deck) => deck.id === id)?.name ?? '?'
   }
   function opponentDeckName(id: string) {
-    return metaDecks?.find((deck) => deck.id === id)?.name ?? '?'
+    const active = resolveMetaDeckOption(metaDecks, id)
+    if (active) return active.name
+    const archived = resolveMetaDeckOption(metaDecksIncludingArchived, id)
+    if (archived) return 'Deleted deck'
+    return '?'
   }
   function sessionById(id: string) {
     return sessions?.find((session) => session.id === id)

@@ -219,6 +219,7 @@ describe('demo metaDecks api', () => {
       presence: 2,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: DECK_ID,
     })
     metaDeckSchema.parse(created)
 
@@ -231,6 +232,7 @@ describe('demo metaDecks api', () => {
       presence: 6,
       expected: 'more_expected',
       tests_status: null,
+      personal_deck_id: DECK_ID,
     })
     expect(updated.tier).toBe(1)
     expect(updated.decklist_notes).toBe('Updated notes')

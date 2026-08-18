@@ -20,7 +20,13 @@ vi.mock('@/hooks/useAuth', () => ({
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
-  useMySettings: () => ({ data: { data_shared: true, receive_shared_data: false } }),
+  useMySettings: () => ({
+    data: {
+      data_shared: true,
+      receive_shared_data: false,
+      metagame_roster_scope: 'game',
+    },
+  }),
   useUpdateMySettings: () => ({
     mutateAsync: updateSettingsMutateAsync,
     isPending: false,
@@ -77,10 +83,10 @@ describe('AccountSettingsDialog', () => {
     expect(screen.getByText('Create a team')).toBeInTheDocument()
   })
 
-  it('renders separators between the display name, sharing, display and team sections', () => {
+  it('renders separators between the display name, sharing, roster scope, display and team sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Display name / Share my data / Display (S12) / Team de test.
-    expect(screen.getAllByRole('separator')).toHaveLength(3)
+    // Display name / Share my data / Roster scope (F10) / Display (S12) / Team de test.
+    expect(screen.getAllByRole('separator')).toHaveLength(4)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -125,8 +131,30 @@ describe('AccountSettingsDialog', () => {
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
       data_shared: true,
       receive_shared_data: true,
+      metagame_roster_scope: 'game',
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('pre-fills the roster scope toggle from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(
+      screen.getByRole('switch', { name: 'Store roster decks per game' }),
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('saves the roster scope toggle', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(
+      screen.getByRole('switch', { name: 'Store roster decks per game' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ metagame_roster_scope: 'personal_deck' }),
+    )
   })
 
   it('clears the display name to null when left empty', async () => {
@@ -172,9 +200,10 @@ describe('AccountSettingsDialog — Display section', () => {
     expect(
       screen.getByRole('switch', { name: 'Colored archetype cell' }),
     ).toHaveAttribute('aria-checked', 'false')
-    expect(
-      screen.getByRole('switch', { name: 'Tier background color' }),
-    ).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: 'Tier background color' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 
   it('persists a toggle to localStorage immediately, not on Save', async () => {

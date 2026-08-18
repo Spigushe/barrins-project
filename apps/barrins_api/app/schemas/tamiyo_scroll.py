@@ -9,6 +9,7 @@ from app.models.tamiyo_scroll import (
     CardGame,
     ExpectedLevel,
     GameResult,
+    MetagameRosterScope,
     SessionType,
 )
 
@@ -21,6 +22,7 @@ class UserSettingsUpdate(BaseModel):
     data_shared: bool | None = None
     receive_shared_data: bool | None = None
     active_personal_deck_id: uuid.UUID | None = None
+    metagame_roster_scope: MetagameRosterScope | None = None
 
 
 class PersonalDeckCreate(BaseModel):
@@ -70,11 +72,11 @@ class MoxfieldImportRequest(BaseModel):
 class MetaDeckWrite(BaseModel):
     """Payload shared by POST and PUT /meta-decks — full replacement.
 
-    `personal_deck_id` is a creation-time-only hint, not a stored FK: on
-    create, its game is copied onto the new meta deck's own `game` (soft
-    inheritance, no selector, no enforced constraint — see
-    `TSMetaDeck.game`'s docstring). Ignored on update — a meta deck's
-    `game`, once set, isn't silently changed by a later edit.
+    `personal_deck_id` is required (F10) — every roster row now carries a
+    real, owner-validated FK to the personal deck it was created against;
+    it's a stored value, not a soft creation-time hint. Ignored on
+    update — a meta deck's owning deck, once set, isn't reassigned by a
+    later edit (moving it is a data-migration concern, not a form field).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -87,7 +89,7 @@ class MetaDeckWrite(BaseModel):
     presence: int = Field(default=0, ge=0)
     expected: ExpectedLevel = ExpectedLevel.as_expected
     tests_status: str | None = None
-    personal_deck_id: uuid.UUID | None = None
+    personal_deck_id: uuid.UUID
 
 
 class MatchWrite(BaseModel):

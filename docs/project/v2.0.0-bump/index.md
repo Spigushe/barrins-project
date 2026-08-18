@@ -186,6 +186,27 @@ no dedicated face-A-Land rule was implemented for multi-face cards; see
 S4's own page for the full gap list. `barrins_api` now 500 tests
 passing, 97.20% coverage; `apps/tamiyo_scroll` 232 tests,
 `apps/tolaria_news` 14 tests, both frontends typecheck/build/lint clean.
+**2026-08-18, F10 implemented**: `TSMetaDeck.personal_deck_id` (required
+FK) + `TSMetaDeck.updated_at` (new, not in the original task list —
+needed by the item 5/6 "most recently updated wins" rule, which had no
+timestamp to compare against before this), backfilled via two chained
+Alembic migrations
+(`e91a4c7f2b56_add_personal_deck_id_to_ts_meta_decks.py`,
+`f4b6d3a8c17e_add_metagame_roster_scope_to_ts_user_.py`) written inline
+with locally-declared `sa.table()` mirrors rather than importing the live
+ORM models, per Alembic's own convention. `_sync_opponent_deck_games`
+reworked to duplicate-and-allocate instead of overwriting a differently-
+owned opponent row in place. `build_merged_view` gained a separate
+`filter_meta_decks_by_personal_deck` opt-in flag rather than overloading
+its existing `personal_deck_id` parameter — `stats.py` and the
+personal-deck PDF report route already relied on that parameter
+returning the *full* roster with only matches narrowed, and reusing it
+for `TSMetaDeck` filtering too would have silently changed their output;
+caught by their own tests failing partway through implementation, not by
+design. See F10's own page for the full implementation breakdown. Every
+existing Tamiyo Scroll backend test that created a roster entry needed
+`personal_deck_id` added to its payload (nine files) once that field
+became required. `barrins_api` now 582 tests passing, 97.40% coverage.
 
 ---
 
@@ -1260,6 +1281,7 @@ repo on 2026-07-25, not previously written down anywhere):
 | F7 | Several files reference planning documents that do not exist anywhere in the repository: `docs/decklist_integration/`, `docs/tolaria_news/00_plan_general.md`, `docs/tamiyo_scroll_tracker/00_plan_general.md`, `docs/signup_email_verification/00_plan_general.md`, and (found while scoping S6/§1.7) `docs/auth_roles/10_deploiement.md` — cited from `docs/content/back/barrins_api/bff/tamiyo_scroll.md`, `docs/content/back/barrins_api/signup_email_verification.md`, `docs/content/front/tamiyo_scroll/bootstrap.md`, `apps/barrins_api/scripts/create_admin.py`, and from code comments in `app/services/tamiyo_scroll/*.py`, `app/models/tamiyo_scroll.py`, `app/core/security.py`, `app/services/email/*.py`. Either these were real, unpublished planning docs that were never migrated into `docs/content/` during the docs restructuring, or the paths were always aspirational. Worth a deliberate decision: recreate them under `docs/content/` (if the design decisions they're cited for still need a home) or update every citing file to stop pointing at a dead path. 🟡 **`docs/decklist_integration/` resolved (redirect, 2026-08-11, via T2)** — four paths remain | Full-repo search, zero matches for any of the five paths as an existing file | [f7-broken-doc-references/](f7-broken-doc-references/index.md) |
 | F8 | Same category of gap as F7, found 2026-07-26 while scoping S4: `docs/content/back/barrins_api/auth_roles.md` describes a `POST /mtgjson/import` route, an `admin`-gated MTGJSON import capability, and implies `sets`/`cards` read routes exist (`GET /sets/`, `GET /cards/{uuid}`, etc.) as part of the **already-implemented** role/security matrix. **None of it exists in code.** Zero Python files anywhere in the repository reference `mtgjson`; no `Card`/`Set` ORM model exists. This is purely aspirational documentation, not a resurrected or hidden feature — S4 and S2's deck-validation gate were both originally scoped assuming this pipeline already existed; both now depend on **S8** instead. | Full-repo search (`grep -ri mtgjson`), zero Python matches; `auth_roles.md`'s security matrix and role table are the only places this is described | [f8-mtgjson-docs-gap/](f8-mtgjson-docs-gap/index.md) |
 | F9 | ✅ **Done** (PR #23) — branch protection & CI coverage gap for `proj/*` branches, decided 2026-07-26 (§3): `.github/workflows/CI.yml` only triggered on `pull_request`/`push` to `[staging, main]` — verified directly in the workflow file — so every `proj/*` PR (including this release's own `proj/v2.0.0-bump` and its sub-branches) ran **no CI at all**. No GitHub branch-protection ruleset covered `proj/*` either, so PRs into it weren't actually mandatory, only conventional. Both gaps closed: `proj/*` added to `CI.yml`'s triggers, and a new `proj-release-branch-protection` ruleset added; UAT confirmed (test PR ran CI, direct push rejected) | `.github/workflows/CI.yml` (direct read); carried-over open item from v1.0.0, now decided | [f9-proj-branch-protection/](f9-proj-branch-protection/index.md) |
+| F10 | User-reported 2026-08-17: Tamiyo Scroll's Metagame tab (`GET /meta-decks`, `MetaDecksRosterSection`/`ExpectedMetagameSection`) isn't scoped to the active personal deck at all — switching decks (same game or a different one) never filters or clears the opponent roster. Traces back to S10's `TSMetaDeck.game` being a soft, unenforced ML-export tag, never wired to any UI filter, and the only roster-creation UI path never even sets it. ✅ **Done (2026-08-18)** — `TSMetaDeck.personal_deck_id` (required FK) + `TSMetaDeck.updated_at` (new), two chained migrations with an inline backfill, `metagame_roster_scope` per-user setting (default `"game"`), `_sync_opponent_deck_games` reworked to duplicate-and-allocate, `build_merged_view` gained a separate opt-in flag rather than overloading its existing `personal_deck_id` param (would have silently narrowed `stats.py`/the PDF report route). `barrins_api` 582 tests passing, 97.40% coverage. Not yet exercised against a database with real pre-F10 rows (backfill correctness) — see the page's own UAT | Direct code read: `meta_decks.py`, `MetaDecksSections.tsx`, `useMetaDecks.ts`, `models/tamiyo_scroll.py`, `sharing_merge.py`, `personal_decks.py` (`_sync_opponent_deck_games`); cross-referenced against S10's own scoping | [f10-metagame-cross-game-leak/](f10-metagame-cross-game-leak/index.md) |
 
 ### Group D — Deployment playbooks for new applications/services (request item 4)
 

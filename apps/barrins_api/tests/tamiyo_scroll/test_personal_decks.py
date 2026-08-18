@@ -8,7 +8,12 @@ from sqlalchemy import select, update
 
 from app.main import app
 from app.models.mtgjson import Card, MTGSet
-from app.models.tamiyo_scroll import TSPersonalDeck, TSPersonalDecklistVersion
+from app.models.tamiyo_scroll import (
+    TSMatch,
+    TSMetaDeck,
+    TSPersonalDeck,
+    TSPersonalDecklistVersion,
+)
 from app.models.user import User
 from app.services.moxfield import get_moxfield_client
 from app.services.moxfield.base import MoxfieldDeckFetch
@@ -233,6 +238,127 @@ class TestPatchPersonalDeck:
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 422
+
+
+async def _create_meta_deck(
+    client: AsyncClient, user: User, personal_deck_id: str, name: str = "Control"
+) -> dict:
+    resp = await client.post(
+        f"{BASE}/meta-decks",
+        json={
+            "name": name,
+            "tier": 1.0,
+            "category": "control",
+            "top8": 0,
+            "presence": 0,
+            "expected": "as_expected",
+            "personal_deck_id": personal_deck_id,
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def _log_match(
+    client: AsyncClient, user: User, personal_deck_id: str, opponent_deck_id: str
+) -> None:
+    resp = await client.post(
+        f"{BASE}/matches",
+        json={
+            "personal_deck_id": personal_deck_id,
+            "opponent_deck_id": opponent_deck_id,
+            "on_play": True,
+            "game1": "win",
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+
+
+class TestSyncOpponentDeckGames:
+    """`_sync_opponent_deck_games` (F10) — cascades a PATCHed personal
+    deck's `game` onto its logged opponents' `game`, either in place
+    (single-owner) or via duplicate-and-allocate (multi-owner)."""
+
+    async def test_single_owner_updates_game_in_place(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+        opponent = await _create_meta_deck(client, owner_user, deck_id)
+        await _log_match(client, owner_user, deck_id, opponent["id"])
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"game": "pokemon"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        row = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == uuid.UUID(opponent["id"]))
+            )
+        ).scalar_one()
+        assert row.game.value == "pokemon"
+
+    async def test_multi_owner_duplicates_instead_of_overwriting(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """An opponent roster row already owned (via `personal_deck_id`)
+        by a *different* personal deck must not be silently overwritten
+        when this deck's game is corrected — it's duplicated instead, and
+        only this deck's own matches repoint to the duplicate. The
+        original row (still owned by the other deck) is left untouched.
+        """
+        headers = auth_headers(owner_user)
+        deck_a_id = await _create_deck(client, owner_user, "Deck A")
+        deck_b_id = await _create_deck(client, owner_user, "Deck B")
+
+        # The roster row is owned by deck A; deck B also logs a match
+        # against the same row (allowed — the "game" roster scope can
+        # surface another of the owner's decks' rows in the picker).
+        opponent = await _create_meta_deck(client, owner_user, deck_a_id)
+        await _log_match(client, owner_user, deck_a_id, opponent["id"])
+        await _log_match(client, owner_user, deck_b_id, opponent["id"])
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_b_id}",
+            json={"game": "pokemon"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        original = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == uuid.UUID(opponent["id"]))
+            )
+        ).scalar_one()
+        assert original.game.value == "magic"
+
+        matches = (
+            (
+                await db_session.execute(
+                    select(TSMatch).where(TSMatch.owner_id == owner_user.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        deck_a_match = next(m for m in matches if str(m.personal_deck_id) == deck_a_id)
+        deck_b_match = next(m for m in matches if str(m.personal_deck_id) == deck_b_id)
+        assert str(deck_a_match.opponent_deck_id) == opponent["id"]
+        assert deck_b_match.opponent_deck_id != deck_a_match.opponent_deck_id
+
+        duplicate = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == deck_b_match.opponent_deck_id)
+            )
+        ).scalar_one()
+        assert duplicate.game.value == "pokemon"
+        assert duplicate.name == "Control"
+        assert str(duplicate.personal_deck_id) == deck_b_id
 
 
 class TestArchivePersonalDeck:

@@ -32,6 +32,11 @@ const sharedMatch: Match = {
 
 let matches: Match[] = [baseMatch]
 
+const activeMetaDecks: { id: string; name: string }[] = [
+  { id: 'deck-theirs', name: 'Boros Energy' },
+]
+let archivedOnlyMetaDecks: { id: string; name: string }[] = []
+
 vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-mine', canEdit: true }),
 }))
@@ -42,9 +47,16 @@ vi.mock('@/hooks/useMatches', () => ({
   useDeleteMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useMetaDecks: () => ({ data: [{ id: 'deck-theirs', name: 'Boros Energy' }] }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useMetaDecks: (options?: { includeArchived?: boolean }) =>
+      options?.includeArchived
+        ? { data: [...activeMetaDecks, ...archivedOnlyMetaDecks] }
+        : { data: activeMetaDecks },
+  }
+})
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({ data: [{ id: 'deck-mine', name: 'Mono Red' }] }),
@@ -171,5 +183,25 @@ describe('MatchJournalSection — session badge', () => {
     await user.click(screen.getByRole('button', { name: 'View' }))
 
     expect(screen.getAllByText('Tournament: RC Toronto 2026')).toHaveLength(2)
+  })
+})
+
+describe('MatchJournalSection — opponent deck resolution', () => {
+  beforeEach(() => {
+    sessions = []
+    archivedOnlyMetaDecks = []
+  })
+
+  it('shows "Deleted deck" when the opponent exists but is archived', () => {
+    matches = [{ ...baseMatch, opponent_deck_id: 'deck-archived' }]
+    archivedOnlyMetaDecks = [{ id: 'deck-archived', name: 'Old Boros Energy' }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Deleted deck')).toBeInTheDocument()
+  })
+
+  it('falls back to "?" when the opponent cannot be resolved at all', () => {
+    matches = [{ ...baseMatch, opponent_deck_id: 'deck-unknown' }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('?')).toBeInTheDocument()
   })
 })

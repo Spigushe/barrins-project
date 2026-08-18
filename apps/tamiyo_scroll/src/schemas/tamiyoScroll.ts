@@ -39,10 +39,14 @@ export const decklistLineStatusSchema = z.enum([
 ])
 export type DecklistLineStatus = z.infer<typeof decklistLineStatusSchema>
 
+export const metagameRosterScopeSchema = z.enum(['game', 'personal_deck'])
+export type MetagameRosterScope = z.infer<typeof metagameRosterScopeSchema>
+
 export const userSettingsSchema = z.object({
   data_shared: z.boolean(),
   receive_shared_data: z.boolean(),
   active_personal_deck_id: z.uuid().nullable(),
+  metagame_roster_scope: metagameRosterScopeSchema,
 })
 export type UserSettings = z.infer<typeof userSettingsSchema>
 
@@ -74,6 +78,9 @@ export type DecklistVersion = z.infer<typeof decklistVersionSchema>
 export const metaDeckSchema = z.object({
   id: z.uuid(),
   name: z.string(),
+  // Null only for a foreign (is_readonly) row merged in from a sharer
+  // (F10) — never the sharer's own personal_deck_id.
+  personal_deck_id: z.uuid().nullable(),
   tier: z.number(),
   category: archetypeCategorySchema,
   decklist_notes: z.string().nullable(),
@@ -87,6 +94,11 @@ export const metaDeckSchema = z.object({
   shared_by: z.string().nullable().optional(),
   has_shared_data: z.boolean(),
   is_multi_share: z.boolean(),
+  // Every underlying id this row represents (F10) — [id] normally, or
+  // every id a game-scope collapse folded together. Resolve a match's
+  // opponent_deck_id against this, not just `id`, or a match referencing
+  // a merged-away duplicate won't be found.
+  merged_ids: z.array(z.uuid()).default([]),
 })
 export type MetaDeck = z.infer<typeof metaDeckSchema>
 
@@ -221,6 +233,8 @@ export const metaDeckWriteSchema = z.object({
   presence: z.number().int().min(0),
   expected: expectedLevelSchema,
   tests_status: z.string().nullable().optional(),
+  // Required (F10) — every roster entry is created for a specific deck.
+  personal_deck_id: z.uuid(),
 })
 export type MetaDeckWrite = z.infer<typeof metaDeckWriteSchema>
 

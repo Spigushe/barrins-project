@@ -5,7 +5,7 @@ import {
   useDeleteCardTest,
   useUpdateCardTest,
 } from '@/hooks/useCardTests'
-import { useMetaDecks } from '@/hooks/useMetaDecks'
+import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { useCurrentUser } from '@/hooks/useAuth'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import type { CardTest, CardTestWrite, MetaDeck } from '@/schemas/tamiyoScroll'
@@ -76,7 +76,7 @@ function MatchupDeckField({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 
-  const selected = options.find((deck) => deck.id === value)
+  const selected = resolveMetaDeckOption(options, value)
   const selectedLabel =
     value === NO_MATCHUP ? NO_MATCHUP_LABEL : (selected?.name ?? NO_MATCHUP_LABEL)
   const trimmedSearch = search.trim()
@@ -141,7 +141,9 @@ function MatchupDeckField({
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span>
-                        {deck.id === value ? '✓ ' : ''}
+                        {deck.id === value || deck.merged_ids?.includes(value)
+                          ? '✓ '
+                          : ''}
                         {deck.name}
                       </span>
                       {deck.is_readonly && (
@@ -419,9 +421,7 @@ export function CardTestsSection() {
               )
             }
 
-            const matchupDeck = deckOptions.find(
-              (deck) => deck.id === test.opponent_deck_id,
-            )
+            const matchupDeck = resolveMetaDeckOption(deckOptions, test.opponent_deck_id)
             return (
               <TableRow key={test.id}>
                 <TableCell>{test.tester}</TableCell>

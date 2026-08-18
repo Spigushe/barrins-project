@@ -18,6 +18,7 @@ class TestGetMySettings:
         assert body["data_shared"] is True
         assert body["receive_shared_data"] is False
         assert body["active_personal_deck_id"] is None
+        assert body["metagame_roster_scope"] == "game"
 
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.get(f"{BASE}/me/settings")
@@ -183,6 +184,31 @@ class TestUpdateMySettings:
         resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
         assert resp.status_code == 200
         assert resp.json()["data_shared"] is True
+
+    async def test_sets_metagame_roster_scope(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"metagame_roster_scope": "personal_deck"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["metagame_roster_scope"] == "personal_deck"
+
+        resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
+        assert resp.json()["metagame_roster_scope"] == "personal_deck"
+
+    async def test_invalid_metagame_roster_scope_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"metagame_roster_scope": "not-a-scope"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
 
     async def test_extra_field_returns_422(self, client: AsyncClient, owner_user: User):
         resp = await client.patch(

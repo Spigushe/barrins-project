@@ -62,12 +62,16 @@ function toWrite(deck: MetaDeck, overrides: Partial<MetaDeckWrite> = {}): MetaDe
     presence: deck.presence,
     expected: deck.expected,
     tests_status: deck.tests_status,
+    // Only ever called for editable (non-readonly, own) rows, which
+    // always carry a personal_deck_id — ignored by the backend on PUT
+    // anyway (a deck's owning deck isn't reassigned by an edit).
+    personal_deck_id: deck.personal_deck_id ?? deck.id,
     ...overrides,
   }
 }
 
 export function MetaDecksRosterSection() {
-  const { canEdit } = useActiveDeck()
+  const { canEdit, activeDeckId } = useActiveDeck()
   const { data: metaDecks } = useMetaDecks()
   const createDeck = useCreateMetaDeck()
   const updateDeck = useUpdateMetaDeck()
@@ -81,9 +85,26 @@ export function MetaDecksRosterSection() {
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
 
+  function handleNameChange(value: string) {
+    setNewName(value)
+    // Create-time pre-fill (F10 item 5): typing a name that matches an
+    // existing roster entry (already scoped/collapsed to the "most
+    // recently updated" row by the backend) pre-fills tier/archetype —
+    // still fully editable, and still re-validated server-side.
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) return
+    const existing = (metaDecks ?? []).find(
+      (deck) => deck.name.trim().toLowerCase() === normalized,
+    )
+    if (existing) {
+      setNewTier(existing.tier)
+      setNewCategory(existing.category)
+    }
+  }
+
   async function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (!newName.trim()) return
+    if (!newName.trim() || !activeDeckId) return
     await createDeck.mutateAsync({
       name: newName.trim(),
       tier: newTier,
@@ -93,6 +114,7 @@ export function MetaDecksRosterSection() {
       presence: 0,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: activeDeckId,
     })
     setNewName('')
     setNewTier(1)
@@ -157,7 +179,7 @@ export function MetaDecksRosterSection() {
             placeholder="Opponent deck name"
             value={newName}
             onChange={(event) => {
-              setNewName(event.target.value)
+              handleNameChange(event.target.value)
             }}
             className="max-w-64"
           />
@@ -212,7 +234,9 @@ function RosterRow({
 
   return (
     <TableRow>
-      <TableCell className={tierColorEnabled ? tierBackgroundClass(deck.tier) : undefined}>
+      <TableCell
+        className={tierColorEnabled ? tierBackgroundClass(deck.tier) : undefined}
+      >
         <Select
           value={String(deck.tier)}
           onValueChange={(value) => {
