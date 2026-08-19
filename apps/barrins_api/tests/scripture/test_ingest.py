@@ -44,6 +44,9 @@ async def seeded_cards(db_session) -> None:
     - a card whose canonical name uses U+A789 MODIFIER LETTER COLON (the
       real Unicode compatibility character some MTG card names use) — a
       scraped line typing a plain ASCII colon instead must still match.
+    - "Extremely Attractive Trap": an Attraction (Un-set mechanic,
+      `subtypes` contains "Attraction") — resolves fine but must never
+      be persisted to `bs_deck_cards` (2026-08-19 decision).
     """
     mtg_set = MTGSet(
         code="TST",
@@ -97,6 +100,16 @@ async def seeded_cards(db_session) -> None:
                 rarity="mythic",
                 number="3",
             ),
+            Card(
+                id=uuid.uuid4(),
+                set_code="TST",
+                name="Extremely Attractive Trap",
+                type_line="Artifact — Attraction",
+                types=["Artifact"],
+                subtypes=["Attraction"],
+                rarity="rare",
+                number="4",
+            ),
         ]
     )
     await db_session.commit()
@@ -128,6 +141,7 @@ def _payload(anchor_suffix: str = "1", mainboard: list[dict] | None = None) -> d
                 ],
                 "sideboard": [
                     {"count": 1, "name": "Ratonhnhake:ton"},
+                    {"count": 1, "name": "Extremely Attractive Trap"},
                 ],
             }
         ],
@@ -192,7 +206,8 @@ class TestIngestRoute:
         assert body["decks_upserted"] == 1
         # Sol Ring + "sol ring" merge into one row (count 2), Bonecrusher
         # Giant resolves via face_name, Totally Fake Card XYZ is skipped —
-        # mainboard contributes 2 rows, sideboard 1 (the special-colon card).
+        # mainboard contributes 2 rows, sideboard 1 (the special-colon
+        # card; the Attraction resolves but is dropped, not stored).
         assert body["deck_cards_upserted"] == 3
         assert body["rounds_upserted"] == 1
         assert body["round_matches_upserted"] == 1
@@ -225,6 +240,8 @@ class TestIngestRoute:
         assert by_name["Bonecrusher Giant"].board == BSDeckBoard.mainboard
         # Canonical spelling stored, not the scraper's plain-ASCII input.
         assert by_name["Ratonhnhaké꞉ton"].board == BSDeckBoard.sideboard  # noqa: RUF001
+        # Attraction: resolves fine but must never be persisted.
+        assert "Extremely Attractive Trap" not in by_name
 
         match = (await db_session.execute(select(BSRoundMatch))).scalar_one()
         assert match.result == "2-0"
