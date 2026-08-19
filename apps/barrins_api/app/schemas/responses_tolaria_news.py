@@ -121,6 +121,10 @@ class StaplesResponse(BaseResponse):
 
     date_from: date_type
     date_to: date_type
+    #: Set when the pool was narrowed to decks piloting this commander
+    #: (see `app.services.tolaria_news.decks.list_staples`'s `commander`
+    #: param); `None` for the metagame-wide view.
+    commander: str | None = None
     tournaments_considered: int
     decks_considered: int
     #: Minimum `StapleRow.percentage` a card had to reach to be included in
