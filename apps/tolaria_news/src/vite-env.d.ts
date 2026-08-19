@@ -8,3 +8,7 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** The monorepo release version, injected at build time from
+ * docs/CHANGELOG.md's latest heading -- see vite.config.ts. */
+declare const __APP_VERSION__: string

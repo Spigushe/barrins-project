@@ -188,3 +188,9 @@ export const commanderTrendsResponseSchema = z.object({
   series: z.array(commanderTrendSeriesSchema),
 })
 export type CommanderTrendsResponse = z.infer<typeof commanderTrendsResponseSchema>
+
+export const statsSchema = z.object({
+  tournaments_count: z.number(),
+  decks_count: z.number(),
+})
+export type Stats = z.infer<typeof statsSchema>

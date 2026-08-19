@@ -4,21 +4,22 @@ import { BackgroundField } from '@/components/landing/BackgroundField'
 import { VizPanel } from '@/components/landing/VizPanel'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
 import { useTelemetry } from '@/hooks/useTelemetry'
+import { useStats } from '@/hooks/useStats'
 
 // Copy matches the design handoff's prototype defaults
 // (handoff/design_handoff_tolaria_news/design_files/app.jsx TWEAK_DEFAULTS)
-// pixel-for-copy, restyled into this app's real component system.
-const EYEBROW = 'Duel Commander · v0.4 Tolarian Release'
+// pixel-for-copy, restyled into this app's real component system, except
+// the version -- that's the real monorepo release version (see
+// __APP_VERSION__ in vite.config.ts), not the handoff's placeholder.
+const EYEBROW = `Duel Commander · v${__APP_VERSION__}`
 const SUBHEAD =
   "Barrin's Project is a suite of machine learning tools for competitive Magic: the Gathering: deck synthesis, surfacing trends, and meta forecast for Duel Commander pilots."
 
-// The prototype's stats row ships static example numbers — it never calls a
-// real API either. Kept as-is for tournaments/decklists (placeholder,
-// pending a future barrins_api aggregate endpoint — not a T6 dependency).
-// "Archetypes mapped" specifically needs T6 (Karn Tablets, not started), so
-// it's the one gated behind the flag rather than shown as invented data.
-const TOURNAMENTS_PARSED_PLACEHOLDER = '3,184'
-const DECKLISTS_INDEXED_PLACEHOLDER = '96k'
+// "Archetypes mapped" still needs T6 (Karn Tablets, not started), so it's
+// the one kept as a placeholder, gated behind the flag rather than shown
+// as invented data. Tournaments/decklists now come from `useStats` (real
+// `GET /bff/tolaria-news/stats` counts) instead of the prototype's static
+// example numbers.
 const ARCHETYPES_MAPPED_PLACEHOLDER = '412'
 
 function StatBlock({ n, l }: { n: string; l: string }) {
@@ -58,6 +59,14 @@ export function LandingPage() {
     ? `${telemetry.data.data.season_year.toString()}-${telemetry.data.data.season_number.toString()}`
     : undefined
 
+  const stats = useStats()
+  const tournamentsParsed = stats.data
+    ? stats.data.data.tournaments_count.toLocaleString('en-US')
+    : '—'
+  const decklistsIndexed = stats.data
+    ? stats.data.data.decks_count.toLocaleString('en-US')
+    : '—'
+
   return (
     <div className="relative">
       <BackgroundField />
@@ -95,11 +104,11 @@ export function LandingPage() {
           </div>
 
           <div className="mt-14 flex flex-wrap gap-10">
-            <StatBlock n={TOURNAMENTS_PARSED_PLACEHOLDER} l="tournaments parsed" />
+            <StatBlock n={tournamentsParsed} l="tournaments parsed" />
             {karnTabletsEnabled && (
               <StatBlock n={ARCHETYPES_MAPPED_PLACEHOLDER} l="archetypes mapped" />
             )}
-            <StatBlock n={DECKLISTS_INDEXED_PLACEHOLDER} l="decklists indexed" />
+            <StatBlock n={decklistsIndexed} l="decklists indexed" />
           </div>
         </div>
 
