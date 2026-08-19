@@ -1,6 +1,5 @@
 import { Badge } from '@/components/ui/badge'
 import { CardFacesPreview } from '@/components/card-faces-preview'
-import { ManaPips } from '@/components/mana-pips'
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card'
 import type { CommanderRef } from '@/schemas/tolariaNews'
 
@@ -16,10 +15,7 @@ function CommanderBadge({ commander }: { commander: CommanderRef }) {
         </Badge>
       </HoverCardTrigger>
       <HoverCardContent className="w-auto">
-        <div className="flex flex-col gap-2">
-          <CardFacesPreview scryfallId={commander.scryfall_id} name={commander.name} />
-          <ManaPips manaCost={commander.mana_cost} />
-        </div>
+        <CardFacesPreview scryfallId={commander.scryfall_id} name={commander.name} />
       </HoverCardContent>
     </HoverCard>
   )
