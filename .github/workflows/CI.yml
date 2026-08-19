@@ -61,9 +61,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install WeasyPrint's native dependencies (S5 — Pango/cairo/GDK-Pixbuf)
+        timeout-minutes: 3
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
-          sudo apt-get update
+          sudo apt-get update \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=10 \
+            -o Acquire::https::Timeout=10 \
+            -o Acquire::ForceIPv4=true
           sudo apt-get install -y --no-install-recommends \
+            -o Acquire::ForceIPv4=true \
             libpango-1.0-0 libpangocairo-1.0-0 libcairo2 \
             libgdk-pixbuf-2.0-0 shared-mime-info
       - name: Install uv
