@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { TrendWindowMode } from '@/schemas/tolariaNews'
 
 export type WindowPreset =
@@ -58,7 +59,24 @@ const inputClass =
 /** Tournament-page window/date filter -- one control driving both the
  * commander-trend chips and the tournament table's own listing below it
  * (merged per the user's request; previously two independent controls:
- * the chips' window-mode select and the table's raw From/To inputs). */
+ * the chips' window-mode select and the table's raw From/To inputs).
+ *
+ * The custom-range From/To inputs commit on blur or Enter (not on every
+ * keystroke -- `onCustomDateFromChange`/`onCustomDateToChange` only
+ * update what the caller shows as the field's *draft* value; the actual
+ * query-triggering commit happens via `onCustomDateFromCommit`/
+ * `onCustomDateToCommit`, mirroring `DecklistsPage`'s pilot-name field).
+ * Completing one field auto-focuses the other when it's still empty, and
+ * vice versa -- a plain "type both ends of a range" flow without extra
+ * clicks.
+ *
+ * The auto-focus check runs on blur/Enter, not on every `onChange` --
+ * `<input type="date">` fires `input`/`change` continuously while the
+ * user is still keying through its internal month/day/year segments
+ * (UAT: typing "01012" -- not yet a complete date -- was stealing focus
+ * mid-entry). Blur/Enter are the actual "I'm done with this field"
+ * signals; checking there instead means the shift never fires before
+ * the field is complete. */
 export function TournamentWindowFilter({
   preset,
   onPresetChange,
@@ -66,6 +84,8 @@ export function TournamentWindowFilter({
   customDateTo,
   onCustomDateFromChange,
   onCustomDateToChange,
+  onCustomDateFromCommit,
+  onCustomDateToCommit,
 }: {
   preset: WindowPreset
   onPresetChange: (preset: WindowPreset) => void
@@ -73,7 +93,12 @@ export function TournamentWindowFilter({
   customDateTo: string
   onCustomDateFromChange: (value: string) => void
   onCustomDateToChange: (value: string) => void
+  onCustomDateFromCommit: () => void
+  onCustomDateToCommit: () => void
 }) {
+  const dateFromRef = useRef<HTMLInputElement>(null)
+  const dateToRef = useRef<HTMLInputElement>(null)
+
   return (
     <div className="flex flex-wrap items-end gap-3">
       <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
@@ -97,22 +122,42 @@ export function TournamentWindowFilter({
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
             From
             <input
+              ref={dateFromRef}
               type="date"
               className={inputClass}
               value={customDateFrom}
               onChange={(e) => {
                 onCustomDateFromChange(e.target.value)
               }}
+              onBlur={() => {
+                onCustomDateFromCommit()
+                if (customDateFrom && !customDateTo) dateToRef.current?.focus()
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                onCustomDateFromCommit()
+                if (customDateFrom && !customDateTo) dateToRef.current?.focus()
+              }}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
             To
             <input
+              ref={dateToRef}
               type="date"
               className={inputClass}
               value={customDateTo}
               onChange={(e) => {
                 onCustomDateToChange(e.target.value)
+              }}
+              onBlur={() => {
+                onCustomDateToCommit()
+                if (customDateTo && !customDateFrom) dateFromRef.current?.focus()
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                onCustomDateToCommit()
+                if (customDateTo && !customDateFrom) dateFromRef.current?.focus()
               }}
             />
           </label>

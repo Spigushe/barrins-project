@@ -28,10 +28,15 @@ export function useCommanders() {
   })
 }
 
-export function useStaples(dateFrom: string | undefined, dateTo: string | undefined) {
+export function useStaples(
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+  commander: string | undefined,
+  enabled: boolean,
+) {
   return useQuery({
-    queryKey: ['decks', 'staples', dateFrom, dateTo],
-    queryFn: () => getStaples(dateFrom!, dateTo!),
-    enabled: dateFrom !== undefined && dateTo !== undefined,
+    queryKey: ['decks', 'staples', dateFrom, dateTo, commander],
+    queryFn: () => getStaples(dateFrom, dateTo, commander),
+    enabled,
   })
 }

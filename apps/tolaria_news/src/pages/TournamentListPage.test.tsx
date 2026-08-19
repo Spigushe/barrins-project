@@ -1,8 +1,25 @@
-import { render, screen } from '@testing-library/react'
+import { cloneElement, type ReactElement } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TournamentListPage } from './TournamentListPage'
+
+// jsdom reports 0x0 for ResponsiveContainer's measured size, so recharts
+// never renders its children (the commander trend chart's Legend
+// included) -- bypass sizing by cloning with an explicit width/height,
+// the standard workaround (see CommanderTrendChart.test.tsx).
+vi.mock('recharts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('recharts')>()
+  return {
+    ...actual,
+    ResponsiveContainer: ({
+      children,
+    }: {
+      children: ReactElement<{ width?: number; height?: number }>
+    }) => cloneElement(children, { width: 800, height: 400 }),
+  }
+})
 
 const meta = { generated_at: '2026-08-01T00:00:00Z', source_synced_at: null }
 
@@ -112,6 +129,7 @@ const emptyStaples = {
   data: {
     date_from: '2026-07-02',
     date_to: '2026-08-01',
+    commander: null,
     tournaments_considered: 0,
     decks_considered: 0,
     min_percentage: 75,
@@ -125,6 +143,7 @@ const solRingStaples = {
   data: {
     date_from: '2026-07-02',
     date_to: '2026-08-01',
+    commander: null,
     tournaments_considered: 3,
     decks_considered: 4,
     min_percentage: 75,
@@ -149,8 +168,13 @@ const solRingStaples = {
 const useStaplesMock = vi.fn()
 
 vi.mock('@/hooks/useDecks', () => ({
-  useStaples: (dateFrom: unknown, dateTo: unknown): ReturnType<typeof useStaplesMock> =>
-    useStaplesMock(dateFrom, dateTo),
+  useStaples: (
+    dateFrom: unknown,
+    dateTo: unknown,
+    commander: unknown,
+    enabled: unknown,
+  ): ReturnType<typeof useStaplesMock> =>
+    useStaplesMock(dateFrom, dateTo, commander, enabled),
 }))
 
 function renderPage() {
@@ -241,14 +265,14 @@ describe('TournamentListPage', () => {
     expect(useTournamentsMock).toHaveBeenCalledWith(expect.anything(), undefined, false)
   })
 
-  describe('commander trend chips', () => {
+  describe('commander trend chart', () => {
     it('shows an empty state when no decks are recorded in the window', () => {
       renderPage()
 
       expect(screen.getByText('No decks recorded in this window.')).toBeInTheDocument()
     })
 
-    it('renders a chip with the commander name and total deck count', () => {
+    it('renders one legend entry per commander with its total deck count', () => {
       useTrendingCommandersMock.mockReturnValue({
         data: tymnaTrends,
         isLoading: false,
@@ -257,8 +281,7 @@ describe('TournamentListPage', () => {
       })
       renderPage()
 
-      expect(screen.getByText('Tymna the Weaver')).toBeInTheDocument()
-      expect(screen.getByText('3')).toBeInTheDocument()
+      expect(screen.getByText('Tymna the Weaver (3)')).toBeInTheDocument()
     })
   })
 
@@ -316,19 +339,68 @@ describe('TournamentListPage', () => {
       )
     })
 
-    it('reveals date pickers for a custom range and passes the picked dates', async () => {
+    it('does not refetch while typing -- only on blur', async () => {
       const user = userEvent.setup()
       renderPage()
 
       await user.selectOptions(screen.getByLabelText('Window'), 'custom')
-      await user.type(screen.getByLabelText('From'), '2026-01-01')
-      await user.type(screen.getByLabelText('To'), '2026-02-01')
+      const fromInput = screen.getByLabelText('From') as HTMLInputElement
+      fireEvent.change(fromInput, { target: { value: '2026-01-01' } })
+
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'custom',
+        undefined,
+        undefined,
+        undefined,
+      )
+    })
+
+    it('commits the picked dates on blur, auto-focusing the still-empty field', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Window'), 'custom')
+      const fromInput = screen.getByLabelText('From') as HTMLInputElement
+      const toInput = screen.getByLabelText('To') as HTMLInputElement
+
+      fromInput.focus()
+      fireEvent.change(fromInput, { target: { value: '2026-01-01' } })
+      // The auto-focus-shift check only runs on blur, not on every keystroke
+      // -- a date input fires change continuously while the user is still
+      // keying through its internal segments, so checking there caused a
+      // real regression (focus jumping away mid-entry, before the date was
+      // even complete).
+      expect(document.activeElement).not.toBe(toInput)
+
+      fireEvent.blur(fromInput)
+      expect(document.activeElement).toBe(toInput) // auto-focus-shift to the empty field
+
+      fireEvent.change(toInput, { target: { value: '2026-02-01' } })
+      fireEvent.blur(toInput)
 
       expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
         'custom',
         undefined,
         '2026-01-01',
         '2026-02-01',
+      )
+    })
+
+    it('commits the picked dates on Enter without needing blur', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Window'), 'custom')
+      const fromInput = screen.getByLabelText('From') as HTMLInputElement
+
+      fireEvent.change(fromInput, { target: { value: '2026-01-01' } })
+      fireEvent.keyDown(fromInput, { key: 'Enter' })
+
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'custom',
+        undefined,
+        '2026-01-01',
+        undefined,
       )
     })
 
@@ -349,7 +421,7 @@ describe('TournamentListPage', () => {
       ).toBeInTheDocument()
     })
 
-    it('renders staple rows with deck count and percentage', () => {
+    it('renders each staple as a card image with its play-rate percentage below it', () => {
       useStaplesMock.mockReturnValue({
         data: solRingStaples,
         isLoading: false,
@@ -358,17 +430,27 @@ describe('TournamentListPage', () => {
       })
       renderPage()
 
-      expect(screen.getByText('Sol Ring')).toBeInTheDocument()
-      expect(screen.getByText('75%')).toBeInTheDocument()
+      const tile = screen.getByAltText('Sol Ring')
+      expect(tile).toBeInTheDocument()
+      expect(tile).toHaveAttribute(
+        'src',
+        expect.stringContaining('/cards/sol-ring-scryfall-id/image'),
+      )
+      expect(screen.getByText('75% of decks')).toBeInTheDocument()
     })
 
-    it('passes the resolved window to useStaples', () => {
+    it('passes the resolved window to useStaples, not scoped to any commander', () => {
       renderPage()
 
-      expect(useStaplesMock).toHaveBeenLastCalledWith('2026-07-02', '2026-08-01')
+      expect(useStaplesMock).toHaveBeenLastCalledWith(
+        '2026-07-02',
+        '2026-08-01',
+        undefined,
+        true,
+      )
     })
 
-    it('has nothing resolved to pass until the shared window resolves', () => {
+    it('has nothing resolved to pass, and is disabled, until the shared window resolves', () => {
       useTrendingCommandersMock.mockReturnValue({
         data: undefined,
         isLoading: true,
@@ -377,7 +459,12 @@ describe('TournamentListPage', () => {
       })
       renderPage()
 
-      expect(useStaplesMock).toHaveBeenLastCalledWith(undefined, undefined)
+      expect(useStaplesMock).toHaveBeenLastCalledWith(
+        undefined,
+        undefined,
+        undefined,
+        false,
+      )
     })
   })
 
@@ -415,6 +502,52 @@ describe('TournamentListPage', () => {
         expect.objectContaining({ sizes: undefined }),
         undefined,
         true,
+      )
+    })
+  })
+
+  describe('reset filters', () => {
+    it('is disabled when filters are already at their defaults', () => {
+      renderPage()
+
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeDisabled()
+    })
+
+    it('restores source, sizes, and window preset to their defaults', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Source'), 'mtgo')
+      await user.click(screen.getByRole('button', { name: 'Tournament size: Leagues' }))
+      await user.selectOptions(screen.getByLabelText('Window'), 'all_time')
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeEnabled()
+
+      await user.click(screen.getByRole('button', { name: 'Reset filters' }))
+
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeDisabled()
+      expect(useTournamentsMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ source: undefined, sizes: undefined }),
+        undefined,
+        true,
+      )
+      expect(useTrendingCommandersMock).toHaveBeenLastCalledWith(
+        'banlist_period',
+        0,
+        undefined,
+        undefined,
+      )
+    })
+  })
+
+  describe('section titles and methodology note', () => {
+    it('titles the commander and staples sections and links to methodology', () => {
+      renderPage()
+
+      expect(screen.getByText('Top commanders')).toBeInTheDocument()
+      expect(screen.getByText('Staples')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'methodology' })).toHaveAttribute(
+        'href',
+        '/methodology',
       )
     })
   })
