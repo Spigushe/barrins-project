@@ -44,6 +44,7 @@ const commandersMeta = { generated_at: '2026-08-01T00:00:00Z', source_synced_at:
 
 const useDecksMock = vi.fn()
 const useCommandersMock = vi.fn()
+const useStaplesMock = vi.fn()
 
 vi.mock('@/hooks/useDecks', () => ({
   useDecks: (
@@ -51,6 +52,13 @@ vi.mock('@/hooks/useDecks', () => ({
     cursor: string | undefined,
   ): ReturnType<typeof useDecksMock> => useDecksMock(filters, cursor),
   useCommanders: (): ReturnType<typeof useCommandersMock> => useCommandersMock(),
+  useStaples: (
+    dateFrom: unknown,
+    dateTo: unknown,
+    commander: unknown,
+    enabled: unknown,
+  ): ReturnType<typeof useStaplesMock> =>
+    useStaplesMock(dateFrom, dateTo, commander, enabled),
 }))
 
 function renderPage() {
@@ -74,6 +82,13 @@ describe('DecklistsPage', () => {
     useCommandersMock.mockReturnValue({
       data: { data: ['Kraum, Ludevic’s Opus', 'Tymna the Weaver'], meta: commandersMeta },
       isLoading: false,
+    })
+    useStaplesMock.mockReset()
+    useStaplesMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
     })
   })
 
@@ -191,5 +206,90 @@ describe('DecklistsPage', () => {
       expect.objectContaining({ sizes: ['major'] }),
       undefined,
     )
+  })
+
+  describe('staples panel', () => {
+    it('is hidden until a commander filter is selected', () => {
+      renderPage()
+
+      expect(useStaplesMock).toHaveBeenLastCalledWith(
+        undefined,
+        undefined,
+        undefined,
+        false,
+      )
+      expect(screen.queryByText(/Staples for/)).not.toBeInTheDocument()
+    })
+
+    it('fetches and shows staples scoped to the selected commander', async () => {
+      const user = userEvent.setup()
+      useStaplesMock.mockReturnValue({
+        data: {
+          data: {
+            date_from: '2015-11-01',
+            date_to: '2026-08-19',
+            commander: 'Tymna the Weaver',
+            tournaments_considered: 3,
+            decks_considered: 4,
+            min_percentage: 65,
+            rows: [
+              {
+                name: 'Sol Ring',
+                cmc: 1,
+                type_line: 'Artifact',
+                scryfall_id: 'sol-ring-scryfall-id',
+                mana_cost: '{1}',
+                text: null,
+                keywords: [],
+                deck_count: 3,
+                percentage: 75,
+              },
+            ],
+          },
+          meta,
+          page: null,
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+      })
+      renderPage()
+
+      await user.selectOptions(screen.getByLabelText('Commander'), 'Tymna the Weaver')
+
+      expect(useStaplesMock).toHaveBeenLastCalledWith(
+        undefined,
+        undefined,
+        'Tymna the Weaver',
+        true,
+      )
+      expect(screen.getByText('Staples for Tymna the Weaver')).toBeInTheDocument()
+      expect(screen.getByAltText('Sol Ring')).toBeInTheDocument()
+      expect(screen.getByText('75% of decks')).toBeInTheDocument()
+    })
+  })
+
+  describe('reset filters', () => {
+    it('is disabled when filters are already at their defaults', () => {
+      renderPage()
+
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeDisabled()
+    })
+
+    it('clears the pilot input, filters, and staples panel', async () => {
+      const user = userEvent.setup()
+      renderPage()
+
+      await user.type(screen.getByPlaceholderText('Search by pilot name'), 'nakamura')
+      await user.selectOptions(screen.getByLabelText('Commander'), 'Tymna the Weaver')
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeEnabled()
+
+      await user.click(screen.getByRole('button', { name: 'Reset filters' }))
+
+      expect(screen.getByRole('button', { name: 'Reset filters' })).toBeDisabled()
+      expect(screen.getByPlaceholderText('Search by pilot name')).toHaveValue('')
+      expect(useDecksMock).toHaveBeenLastCalledWith({}, undefined)
+      expect(screen.queryByText(/Staples for/)).not.toBeInTheDocument()
+    })
   })
 })
