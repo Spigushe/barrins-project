@@ -36,7 +36,7 @@ from app.schemas.scripture_ingest import (
     RequestTournament,
     ScriptureIngestRequest,
 )
-from app.services.scripture.card_resolver import resolve_card_name
+from app.services.scripture.card_resolver import is_attraction, resolve_card_name
 
 
 @dataclass(frozen=True)
@@ -123,6 +123,12 @@ async def _replace_deck_cards(
     unusual promos MTGJSON doesn't carry, ...) are skipped — not stored —
     and added to `skipped`, per the 2026-08-07 decision that one bad name
     shouldn't lose an otherwise-good tournament's data.
+
+    Attraction cards (Un-set mechanic) are dropped outright, not added to
+    `skipped`: sources list them under the sideboard, but they resolve
+    fine and aren't a data-quality problem — the application must not
+    treat them at all (2026-08-19 decision), so they're excluded from
+    `bs_deck_cards` entirely rather than merely miscategorized.
     """
     await session.execute(delete(BSDeckCard).where(BSDeckCard.deck_id == deck_id))
 
@@ -138,6 +144,8 @@ async def _replace_deck_cards(
             canonical_name = await resolve_card_name(session, entry.name)
             if canonical_name is None:
                 skipped.add(entry.name)
+                continue
+            if is_attraction(canonical_name):
                 continue
             key = (board, canonical_name)
             merged[key] = merged.get(key, 0) + entry.count
