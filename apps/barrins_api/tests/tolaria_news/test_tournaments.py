@@ -139,6 +139,42 @@ class TestListTournaments:
             str(duel_commander_tournament.id)
         ]
 
+    async def _pre_floor_tournament(self, db_session) -> BSTournament:
+        t = BSTournament(
+            source=BSSource.mtgtop8,
+            date=date(2010, 1, 1),  # before EARLIEST_RELEVANT_DATE (2015-11-01)
+            name="Pre-floor Event",
+            url=f"https://example.com/{uuid.uuid4()}",
+            format="Duel Commander",
+            players=200,
+        )
+        db_session.add(t)
+        await db_session.commit()
+        await db_session.refresh(t)
+        return t
+
+    async def test_omitted_date_from_excludes_pre_floor_tournaments(
+        self, client: AsyncClient, db_session, duel_commander_tournament: BSTournament
+    ) -> None:
+        pre_floor = await self._pre_floor_tournament(db_session)
+
+        resp = await client.get(f"{BASE}/tournaments")
+        assert resp.status_code == 200
+        ids = {t["id"] for t in resp.json()["data"]}
+        assert str(pre_floor.id) not in ids
+        assert str(duel_commander_tournament.id) in ids
+
+    async def test_explicit_date_from_before_the_floor_is_honored(
+        self, client: AsyncClient, db_session
+    ) -> None:
+        pre_floor = await self._pre_floor_tournament(db_session)
+
+        resp = await client.get(
+            f"{BASE}/tournaments", params={"date_from": "2010-01-01"}
+        )
+        assert resp.status_code == 200
+        assert [t["id"] for t in resp.json()["data"]] == [str(pre_floor.id)]
+
 
 class TestTournamentDetail:
     async def test_detail_includes_counts(

@@ -94,6 +94,15 @@ _STAPLES_MTGTOP8_MIN_PLAYERS = 80
 #: `barrins_scripture`'s package, only on the string it writes.
 DUEL_COMMANDER_FORMAT = "Duel Commander"
 
+#: Default lower bound applied to every date-filtered Tolaria News query
+#: (`list_decks`, `list_tournaments`, `list_staples`, `all_time` trends)
+#: whenever the caller doesn't supply an explicit `date_from` -- the first
+#: MTGO Duel Commander events predate this only with noise too sparse to
+#: be representative of the current meta. An explicit caller-supplied
+#: `date_from` (e.g. the frontend's "custom range" preset) always
+#: overrides this, even when it's earlier.
+EARLIEST_RELEVANT_DATE = date_type(2015, 11, 1)
+
 _DEFAULT_LIMIT = 20
 _MAX_LIMIT = 50
 
@@ -384,8 +393,10 @@ async def list_decks(
                 )
             ),
         )
-    if date_from is not None:
-        stmt = stmt.where(BSDeck.date >= date_from)
+    # No explicit date_from -> default to EARLIEST_RELEVANT_DATE rather than
+    # leaving the lower bound open; an explicit date_from (even one earlier
+    # than the floor) always overrides it.
+    stmt = stmt.where(BSDeck.date >= (date_from or EARLIEST_RELEVANT_DATE))
     if date_to is not None:
         stmt = stmt.where(BSDeck.date <= date_to)
     if cursor is not None:
@@ -554,6 +565,10 @@ async def _resolve_trend_window(
             ),
             [],
         )
+    # Never plot further back than EARLIEST_RELEVANT_DATE even if older
+    # data exists -- same floor list_decks/list_tournaments/list_staples
+    # apply by default.
+    earliest = max(earliest, EARLIEST_RELEVANT_DATE)
     periods = all_time_periods(earliest, today)
     return (
         WindowOut(

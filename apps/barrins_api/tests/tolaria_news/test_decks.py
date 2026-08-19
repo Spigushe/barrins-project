@@ -8,6 +8,7 @@ from httpx import AsyncClient
 
 from app.models.mtgjson import Card
 from app.models.scripture import BSDeck, BSDeckBoard, BSDeckCard, BSSource, BSTournament
+from app.services.tolaria_news.decks import EARLIEST_RELEVANT_DATE
 
 from .conftest import BASE
 
@@ -124,6 +125,44 @@ class TestListDecks:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert [row["id"] for row in data] == [str(duel_commander_deck.id)]
+
+    async def test_omitted_date_from_excludes_pre_floor_decks(
+        self, client: AsyncClient, db_session, duel_commander_deck: BSDeck
+    ) -> None:
+        pre_floor_tournament = BSTournament(
+            source=BSSource.mtgo,
+            date=date(2010, 1, 1),  # before EARLIEST_RELEVANT_DATE (2015-11-01)
+            name="Pre-floor Event",
+            url=f"https://example.com/{uuid.uuid4()}",
+            format="Duel Commander",
+            players=1,
+        )
+        db_session.add(pre_floor_tournament)
+        await db_session.flush()
+        pre_floor_deck = BSDeck(
+            tournament_id=pre_floor_tournament.id,
+            date=pre_floor_tournament.date,
+            player="Old Pilot",
+            result=None,
+            anchor_uri=f"{pre_floor_tournament.url}#deck_old",
+        )
+        db_session.add(pre_floor_deck)
+        await db_session.commit()
+
+        resp = await client.get(f"{BASE}/decks")
+        assert resp.status_code == 200
+        ids = {row["id"] for row in resp.json()["data"]}
+        assert str(pre_floor_deck.id) not in ids
+        assert str(duel_commander_deck.id) in ids
+
+        # An explicit date_from before the floor is honored (the override).
+        override_resp = await client.get(
+            f"{BASE}/decks", params={"date_from": "2010-01-01", "date_to": "2010-01-01"}
+        )
+        assert override_resp.status_code == 200
+        assert [row["id"] for row in override_resp.json()["data"]] == [
+            str(pre_floor_deck.id)
+        ]
 
     async def test_excludes_decks_from_non_duel_commander_tournament(
         self, client: AsyncClient, db_session, duel_commander_tournament: BSTournament
@@ -965,6 +1004,25 @@ class TestTrendingCommanders:
         body = resp.json()["data"]
         assert body["window"]["date_from"] == old_date.isoformat()
         assert len(body["series"][0]["points"]) > 1
+
+    async def test_all_time_clamps_to_earliest_relevant_date(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        pre_floor_date = date(2010, 1, 1)  # before EARLIEST_RELEVANT_DATE
+        tournament = await self._tournament(db_session, event_date=pre_floor_date)
+        await self._deck(
+            db_session,
+            tournament,
+            player="Old Pilot",
+            deck_date=pre_floor_date,
+            commanders=["Tymna the Weaver"],
+        )
+
+        resp = await client.get(
+            f"{BASE}/decks/commanders/trending", params={"mode": "all_time"}
+        )
+        body = resp.json()["data"]
+        assert body["window"]["date_from"] == EARLIEST_RELEVANT_DATE.isoformat()
 
     async def test_all_time_with_no_tournaments_returns_empty_series(
         self, client: AsyncClient

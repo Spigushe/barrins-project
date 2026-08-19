@@ -29,6 +29,7 @@ from app.schemas.responses_tolaria_news import (
 )
 from app.services.tolaria_news.decks import (
     DUEL_COMMANDER_FORMAT,
+    EARLIEST_RELEVANT_DATE,
     TournamentSizeBucket,
     commander_ref,
     exclude_mtgtop8_mtgo_mirrors,
@@ -83,8 +84,10 @@ async def list_tournaments(
         stmt = stmt.where(BSTournament.format == format_)
     if sizes:
         stmt = stmt.where(or_(*(size_bucket_condition(b) for b in sizes)))
-    if date_from is not None:
-        stmt = stmt.where(BSTournament.date >= date_from)
+    # No explicit date_from -> default to EARLIEST_RELEVANT_DATE rather than
+    # leaving the lower bound open; an explicit date_from (even one earlier
+    # than the floor) always overrides it.
+    stmt = stmt.where(BSTournament.date >= (date_from or EARLIEST_RELEVANT_DATE))
     if date_to is not None:
         stmt = stmt.where(BSTournament.date <= date_to)
     if cursor is not None:
