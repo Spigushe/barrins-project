@@ -6,10 +6,11 @@ from typing import Literal
 import pytest
 from httpx import AsyncClient
 
-from app.core.exceptions import ResourceNotFoundError
+from app.core.exceptions import ExternalServiceError, ResourceNotFoundError
 from app.main import app
 from app.services.scryfall import get_scryfall_client
 from app.services.scryfall.base import ScryfallImageFetch
+from app.services.scryfall.image_cache import read_cached_image
 
 _BASE = "/api/v1"
 _SETTINGS = "app.services.scryfall.image_cache.settings.base"
@@ -23,14 +24,18 @@ def _cache_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 class _FakeScryfallClient:
-    def __init__(self, *, has_back_face: bool = False) -> None:
+    def __init__(self, *, has_back_face: bool = False, fail_times: int = 0) -> None:
         self.calls: list[tuple[str, str]] = []
         self._has_back_face = has_back_face
+        self._fail_times = fail_times
 
     async def fetch_card_image(
         self, scryfall_id: str, face: Literal["front", "back"] = "front"
     ) -> ScryfallImageFetch:
         self.calls.append((scryfall_id, face))
+        if self._fail_times > 0:
+            self._fail_times -= 1
+            raise ExternalServiceError(message="Could not reach Scryfall.")
         if face == "back" and not self._has_back_face:
             raise ResourceNotFoundError(message="No back face.")
         return ScryfallImageFetch(
@@ -100,3 +105,28 @@ class TestGetCardImage:
             app.dependency_overrides.pop(get_scryfall_client, None)
 
         assert resp.status_code == 404
+
+    async def test_upstream_failure_is_not_cached_and_is_retried(
+        self, client: AsyncClient
+    ):
+        # Simulates a connection issue: the first request fails upstream
+        # and must not poison the disk cache, so a later request (e.g.
+        # after the connection recovers) still reaches Scryfall instead
+        # of being stuck serving/reusing the failed attempt.
+        fake_client = _FakeScryfallClient(fail_times=1)
+        app.dependency_overrides[get_scryfall_client] = lambda: fake_client
+        try:
+            failed = await client.get(f"{_BASE}/cards/some-scryfall-id/image")
+            assert read_cached_image("some-scryfall-id") is None
+
+            retried = await client.get(f"{_BASE}/cards/some-scryfall-id/image")
+        finally:
+            app.dependency_overrides.pop(get_scryfall_client, None)
+
+        assert failed.status_code == 502
+        assert retried.status_code == 200
+        assert retried.content == b"fake-front-jpeg-bytes"
+        assert fake_client.calls == [
+            ("some-scryfall-id", "front"),
+            ("some-scryfall-id", "front"),
+        ]
