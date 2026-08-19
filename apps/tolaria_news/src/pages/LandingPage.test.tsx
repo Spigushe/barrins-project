@@ -17,6 +17,18 @@ vi.mock('@/hooks/useTelemetry', () => ({
   useTelemetry: (): ReturnType<typeof useTelemetryMock> => useTelemetryMock(),
 }))
 
+const useStatsMock = vi.fn()
+
+vi.mock('@/hooks/useStats', () => ({
+  useStats: (): ReturnType<typeof useStatsMock> => useStatsMock(),
+}))
+
+const statsEnvelope = {
+  data: { tournaments_count: 3184, decks_count: 96234 },
+  meta: { generated_at: '2026-08-01T00:00:00Z', source_synced_at: null },
+  page: null,
+}
+
 const telemetryEnvelope = {
   data: {
     season: {
@@ -45,6 +57,8 @@ describe('LandingPage', () => {
   beforeEach(() => {
     useTelemetryMock.mockReset()
     useTelemetryMock.mockReturnValue({ data: telemetryEnvelope, isLoading: false })
+    useStatsMock.mockReset()
+    useStatsMock.mockReturnValue({ data: statsEnvelope, isLoading: false })
   })
 
   it('renders the headline and links the primary CTA to tournaments when Karn Tablets is off', () => {
@@ -58,6 +72,26 @@ describe('LandingPage', () => {
 
     const methodologyCta = screen.getByRole('link', { name: 'Read the methodology' })
     expect(methodologyCta).toHaveAttribute('href', '/methodology')
+  })
+
+  it('shows real tournament/deck counts from useStats, comma-formatted', () => {
+    renderPage()
+
+    expect(screen.getByText('3,184')).toBeInTheDocument()
+    expect(screen.getByText('96,234')).toBeInTheDocument()
+  })
+
+  it('shows a placeholder dash for counts while stats are loading', () => {
+    useStatsMock.mockReturnValue({ data: undefined, isLoading: true })
+    renderPage()
+
+    expect(screen.getAllByText('—')).toHaveLength(2)
+  })
+
+  it('shows the eyebrow with the injected monorepo version', () => {
+    renderPage()
+
+    expect(screen.getByText(`Duel Commander · v${__APP_VERSION__}`)).toBeInTheDocument()
   })
 
   it('links the primary CTA to /metagame and shows the archetypes stat when the flag is on', () => {
