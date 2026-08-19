@@ -230,3 +230,13 @@ class CommanderTrendsResponse(BaseResponse):
     window: WindowOut
     #: Up to 10 entries, ranked descending by `total_deck_count`.
     series: list[CommanderTrendSeries]
+
+
+class StatsResponse(BaseResponse):
+    """Landing-page headline counts (`GET /stats`) -- Duel Commander
+    tournaments/decks recorded from `EARLIEST_RELEVANT_DATE` onward, same
+    scope every other Tolaria News endpoint defaults to (see
+    `app.services.tolaria_news.decks.EARLIEST_RELEVANT_DATE`)."""
+
+    tournaments_count: int
+    decks_count: int
