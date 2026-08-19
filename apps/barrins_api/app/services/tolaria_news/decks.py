@@ -280,13 +280,23 @@ def _sideboard_card_exists(*extra: ColumnElement[bool]) -> ColumnElement[bool]:
     """`EXISTS` probe over the current deck's sideboard rows (the
     commander slot for Duel Commander -- see the module docstring's
     "Commander derivation" note), correlated against the outer `BSDeck`.
-    Shared shape for the `commander` and `colors` filters below."""
+    Shared shape for the `commander` and `colors` filters below.
+
+    `.correlate(BSDeck)` pins auto-correlation to exactly that table --
+    required once a caller's outer query *also* selects from
+    `BSDeckCard` (`list_staples`'s `card_rows` query does, joining
+    `BSDeckCard` to `BSDeck`): without it, SQLAlchemy's default
+    auto-correlation matches the inner `BSDeckCard` against the outer
+    one too and strips it from this EXISTS's own FROM, leaving it with
+    none at all."""
     return exists(
-        select(BSDeckCard.id).where(
+        select(BSDeckCard.id)
+        .where(
             BSDeckCard.deck_id == BSDeck.id,
             BSDeckCard.board == BSDeckBoard.sideboard,
             *extra,
         )
+        .correlate(BSDeck)
     )
 
 
@@ -715,14 +725,21 @@ def _staple_row(
 async def list_staples(
     session: AsyncSession,
     *,
-    date_from: date_type,
-    date_to: date_type,
+    date_from: date_type | None = None,
+    date_to: date_type | None = None,
+    commander: str | None = None,
     min_percentage: float = DEFAULT_STAPLE_MIN_PERCENTAGE,
     fallback_min_percentage: float = DEFAULT_STAPLE_FALLBACK_MIN_PERCENTAGE,
 ) -> StaplesResponse:
     """Mainboard card frequency (`GET /decks/staples`) pooled across every
     qualifying Duel Commander tournament in `[date_from, date_to]` -- a
-    metagame-wide "staples" view, not scoped to a single tournament.
+    metagame-wide "staples" view, not scoped to a single tournament (unless
+    `commander` narrows it -- see below).
+
+    `date_from`/`date_to` default to `EARLIEST_RELEVANT_DATE`/today when
+    omitted, same floor `list_decks`/`list_tournaments` apply -- an
+    explicit `date_from` always overrides it, even one earlier than the
+    floor.
 
     `min_percentage`/`fallback_min_percentage` default to values tuned
     against real pooled data, but are caller-overridable (via the route's
@@ -743,6 +760,11 @@ async def list_staples(
       already counted via the native `mtgo`-sourced tournament, so
       counting both would double-count the same decks.
 
+    `commander`, when given, restricts the pooled decks to those piloting
+    it (same sideboard-derived match `list_decks`'s own `commander` filter
+    uses) -- the tournament-pooling rule above is unchanged, only the
+    deck-level frequency count narrows.
+
     Sideboard rows are excluded entirely (see this module's docstring:
     for Duel Commander that's the commander, already covered by the
     commander-trend chips). Lands are excluded too -- near-ubiquitous by
@@ -750,12 +772,14 @@ async def list_staples(
     resolved against `mj_cards` can't be classified as a land, so it's
     kept rather than silently dropped.
     """
-    span_days = (date_to - date_from).days
+    resolved_date_from = date_from or EARLIEST_RELEVANT_DATE
+    resolved_date_to = date_to or date_type.today()
+    span_days = (resolved_date_to - resolved_date_from).days
 
     tournament_ids_stmt = select(BSTournament.id).where(
         BSTournament.format == DUEL_COMMANDER_FORMAT,
-        BSTournament.date >= date_from,
-        BSTournament.date <= date_to,
+        BSTournament.date >= resolved_date_from,
+        BSTournament.date <= resolved_date_to,
         exclude_mtgtop8_mtgo_mirrors(),
     )
     if span_days >= _STAPLES_POOL_WINDOW_MAX_DAYS:
@@ -772,45 +796,49 @@ async def list_staples(
 
     if not tournament_ids:
         return StaplesResponse(
-            date_from=date_from,
-            date_to=date_to,
+            date_from=resolved_date_from,
+            date_to=resolved_date_to,
+            commander=commander,
             tournaments_considered=0,
             decks_considered=0,
             min_percentage=min_percentage,
             rows=[],
         )
 
-    deck_count = (
-        await session.execute(
-            select(func.count())
-            .select_from(BSDeck)
-            .where(BSDeck.tournament_id.in_(tournament_ids))
+    # func.count(BSDeck.id), not the columnless func.count() +
+    # select_from(BSDeck) the pre-`commander`-filter version used --
+    # anchoring BSDeck.id in the SELECT list is required once a
+    # `commander`-filter EXISTS correlated to BSDeck is added below,
+    # otherwise SQLAlchemy auto-correlates BSDeck out of its own FROM.
+    deck_count_stmt = select(func.count(BSDeck.id)).where(
+        BSDeck.tournament_id.in_(tournament_ids)
+    )
+    card_rows_stmt = (
+        select(BSDeckCard)
+        .join(BSDeck, BSDeckCard.deck_id == BSDeck.id)
+        .where(
+            BSDeck.tournament_id.in_(tournament_ids),
+            BSDeckCard.board == BSDeckBoard.mainboard,
         )
-    ).scalar_one()
+    )
+    if commander is not None:
+        commander_filter = _sideboard_card_exists(BSDeckCard.card_name == commander)
+        deck_count_stmt = deck_count_stmt.where(commander_filter)
+        card_rows_stmt = card_rows_stmt.where(commander_filter)
+
+    deck_count = (await session.execute(deck_count_stmt)).scalar_one()
     if deck_count == 0:
         return StaplesResponse(
-            date_from=date_from,
-            date_to=date_to,
+            date_from=resolved_date_from,
+            date_to=resolved_date_to,
+            commander=commander,
             tournaments_considered=len(tournament_ids),
             decks_considered=0,
             min_percentage=min_percentage,
             rows=[],
         )
 
-    card_rows = (
-        (
-            await session.execute(
-                select(BSDeckCard)
-                .join(BSDeck, BSDeckCard.deck_id == BSDeck.id)
-                .where(
-                    BSDeck.tournament_id.in_(tournament_ids),
-                    BSDeckCard.board == BSDeckBoard.mainboard,
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    card_rows = (await session.execute(card_rows_stmt)).scalars().all()
     resolved = await resolved_cards(session, card_rows)
 
     decks_by_name: dict[str, set[uuid.UUID]] = {}
@@ -844,8 +872,9 @@ async def list_staples(
         ]
 
     return StaplesResponse(
-        date_from=date_from,
-        date_to=date_to,
+        date_from=resolved_date_from,
+        date_to=resolved_date_to,
+        commander=commander,
         tournaments_considered=len(tournament_ids),
         decks_considered=deck_count,
         min_percentage=applied_min_percentage,

@@ -1316,6 +1316,7 @@ class TestStaples:
         assert resp.json()["data"] == {
             "date_from": "2026-01-01",
             "date_to": "2026-01-10",
+            "commander": None,
             "tournaments_considered": 0,
             "decks_considered": 0,
             "min_percentage": 65.0,
@@ -1513,6 +1514,84 @@ class TestStaples:
         )
         assert resp.status_code == 400
 
-    async def test_missing_params_is_422(self, client: AsyncClient) -> None:
+    async def test_missing_params_defaults_to_earliest_relevant_date_and_today(
+        self, client: AsyncClient
+    ) -> None:
         resp = await client.get(f"{BASE}/decks/staples")
-        assert resp.status_code == 422
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["date_from"] == EARLIEST_RELEVANT_DATE.isoformat()
+        assert data["date_to"] == date.today().isoformat()
+
+    async def test_explicit_date_from_before_the_floor_is_honored(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        pre_floor = await self._tournament(
+            db_session, event_date=date(2010, 1, 3), players=200
+        )
+        await self._deck(db_session, pre_floor, player="P1", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={"date_from": "2010-01-01", "date_to": "2010-01-10"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["date_from"] == "2010-01-01"
+        assert data["tournaments_considered"] == 1
+        assert data["decks_considered"] == 1
+
+    async def test_omitted_date_from_excludes_pre_floor_tournaments(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        pre_floor = await self._tournament(
+            db_session, event_date=date(2010, 1, 3), players=200
+        )
+        await self._deck(db_session, pre_floor, player="P1", mainboard=("Sol Ring",))
+        in_scope = await self._tournament(
+            db_session, event_date=date(2026, 1, 3), players=200
+        )
+        await self._deck(db_session, in_scope, player="P2", mainboard=("Sol Ring",))
+
+        resp = await client.get(
+            f"{BASE}/decks/staples", params={"date_to": "2026-06-01"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["date_from"] == EARLIEST_RELEVANT_DATE.isoformat()
+        assert data["tournaments_considered"] == 1
+        assert data["decks_considered"] == 1
+
+    async def test_commander_filter_scopes_to_decks_piloting_it(
+        self, client: AsyncClient, db_session, mtg_cards
+    ) -> None:
+        t1 = await self._tournament(db_session, event_date=date(2026, 1, 3), players=10)
+        piloted = await self._deck(db_session, t1, player="P1", mainboard=("Sol Ring",))
+        db_session.add(
+            BSDeckCard(
+                deck_id=piloted.id,
+                board=BSDeckBoard.sideboard,
+                card_name="Tymna the Weaver",
+                count=1,
+            )
+        )
+        await self._deck(db_session, t1, player="P2", mainboard=("Sol Ring",))
+        await db_session.commit()
+
+        resp = await client.get(
+            f"{BASE}/decks/staples",
+            params={
+                "date_from": "2026-01-01",
+                "date_to": "2026-01-10",
+                "commander": "Tymna the Weaver",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["commander"] == "Tymna the Weaver"
+        assert data["decks_considered"] == 1
+        assert data["rows"] == [
+            row for row in data["rows"] if row["name"] == "Sol Ring"
+        ]
+        assert data["rows"][0]["deck_count"] == 1
+        assert data["rows"][0]["percentage"] == 100.0
