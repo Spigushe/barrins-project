@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 from barrins_scripture.utils import selenium_driver
 
@@ -77,6 +77,19 @@ class TestGetMtgoTournaments:
         # on a page that loaded but never rendered the expected element.
         driver = Mock()
         driver.get.side_effect = TimeoutException()
+        links = selenium_driver.get_mtgo_tournaments(driver, 2026, 6, timeout=1)
+
+        assert links == []
+        assert driver.get.call_count == selenium_driver.MAX_RETRIES + 1
+
+    def test_retries_on_connection_reset(self) -> None:
+        # A dropped/reset connection (net::ERR_CONNECTION_RESET) surfaces as
+        # the base WebDriverException, not TimeoutException - it should be
+        # retried the same way a hung navigation is, not crash the run.
+        driver = Mock()
+        driver.get.side_effect = WebDriverException(
+            "unknown error: net::ERR_CONNECTION_RESET"
+        )
         links = selenium_driver.get_mtgo_tournaments(driver, 2026, 6, timeout=1)
 
         assert links == []
