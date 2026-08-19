@@ -4,7 +4,6 @@ import { useTournaments } from '@/hooks/useTournaments'
 import { useTrendingCommanders } from '@/hooks/useCommanderTrends'
 import { useStaples } from '@/hooks/useDecks'
 import type { TournamentListFilters } from '@/api/tournaments'
-import type { StaplesResponse } from '@/schemas/tolariaNews'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import {
@@ -18,14 +17,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CommanderTrendChips } from '@/components/commanderTrends/CommanderTrendChips'
+import { CommanderTrendChart } from '@/components/commanderTrends/CommanderTrendChart'
 import {
   TournamentWindowFilter,
   resolveWindowParams,
   type WindowPreset,
 } from '@/components/commanderTrends/TournamentWindowFilter'
-import { CardNameCell } from '@/components/card-name-cell'
-import { ManaPips } from '@/components/mana-pips'
+import { StaplesSection } from '@/components/staples-section'
 import { TournamentSizeFilter } from '@/components/tournament-size-filter'
 
 const SOURCES = [
@@ -37,78 +35,28 @@ const SOURCES = [
 const inputClass =
   'h-9 rounded-(--radius-input) border border-border bg-input px-2 text-sm text-foreground'
 
-/** Metagame-wide card frequency, pooled across every qualifying
- * tournament in the shared window above -- not scoped to a single
- * tournament (see `app.services.tolaria_news.decks.list_staples`'s
- * docstring for the tournament-pooling rule). Presentational, same
- * "page owns the query" convention `CommanderTrendChips` uses. */
-function StaplesSection({
-  data,
-  isLoading,
-  isError,
-}: {
-  data: StaplesResponse | undefined
-  isLoading: boolean
-  isError: boolean
-}) {
-  if (isLoading) return <Skeleton className="h-40 w-full" />
-
-  if (isError) {
-    return (
-      <Card className="border-destructive/40 text-destructive">
-        Failed to load staples.
-      </Card>
-    )
-  }
-
-  if (!data) return null
-
-  return (
-    <Card className="p-0">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Card</TableHead>
-            <TableHead>Mana Cost</TableHead>
-            <TableHead>Decks</TableHead>
-            <TableHead>%</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.rows.map((row) => (
-            <TableRow key={row.name}>
-              <TableCell>
-                <CardNameCell card={row} />
-              </TableCell>
-              <TableCell>
-                <ManaPips manaCost={row.mana_cost} />
-              </TableCell>
-              <TableCell>{row.deck_count}</TableCell>
-              <TableCell>{row.percentage}%</TableCell>
-            </TableRow>
-          ))}
-          {data.rows.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={4} className="text-center text-muted-foreground">
-                No card is played in at least {data.min_percentage}% of decks for this
-                window.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </Card>
-  )
-}
+const DEFAULT_PRESET: WindowPreset = 'current_season'
 
 export function TournamentListPage() {
   const [source, setSource] = useState<TournamentListFilters['source']>(undefined)
   const [sizes, setSizes] = useState<string[]>([])
-  const [preset, setPreset] = useState<WindowPreset>('current_season')
+  const [preset, setPreset] = useState<WindowPreset>(DEFAULT_PRESET)
+  // Committed custom-range dates -- what actually drives the query. Kept
+  // separate from the inputs' own draft value (see `draftDateFrom`/
+  // `draftDateTo` below) so typing doesn't refetch on every keystroke.
   const [customDateFrom, setCustomDateFrom] = useState('')
   const [customDateTo, setCustomDateTo] = useState('')
+  const [draftDateFrom, setDraftDateFrom] = useState('')
+  const [draftDateTo, setDraftDateTo] = useState('')
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([])
+
+  const isAtDefaultFilters =
+    source === undefined &&
+    sizes.length === 0 &&
+    preset === DEFAULT_PRESET &&
+    customDateFrom === '' &&
+    customDateTo === ''
 
   const windowParams = resolveWindowParams(preset, customDateFrom, customDateTo)
   const trending = useTrendingCommanders(
@@ -118,7 +66,12 @@ export function TournamentListPage() {
     windowParams.dateTo,
   )
   const resolvedWindow = trending.data?.data.window
-  const staples = useStaples(resolvedWindow?.date_from, resolvedWindow?.date_to)
+  const staples = useStaples(
+    resolvedWindow?.date_from,
+    resolvedWindow?.date_to,
+    undefined,
+    resolvedWindow !== undefined,
+  )
 
   // Tolaria News only covers Duel Commander (per apps/tolaria_news/README.md) —
   // format is fixed, not a user-facing filter. The date range comes from the
@@ -140,6 +93,27 @@ export function TournamentListPage() {
   function resetPagination() {
     setCursor(undefined)
     setCursorHistory([])
+  }
+
+  function resetFilters() {
+    setSource(undefined)
+    setSizes([])
+    setPreset(DEFAULT_PRESET)
+    setCustomDateFrom('')
+    setCustomDateTo('')
+    setDraftDateFrom('')
+    setDraftDateTo('')
+    resetPagination()
+  }
+
+  function commitDateFrom() {
+    setCustomDateFrom(draftDateFrom)
+    resetPagination()
+  }
+
+  function commitDateTo() {
+    setCustomDateTo(draftDateTo)
+    resetPagination()
   }
 
   function toggleSize(bucket: string) {
@@ -168,40 +142,71 @@ export function TournamentListPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Eyebrow>Duel Commander · Tournaments</Eyebrow>
-        <CardTitle>Where the format gets decided.</CardTitle>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <Eyebrow>Duel Commander · Tournaments</Eyebrow>
+          <CardTitle>Where the format gets decided.</CardTitle>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isAtDefaultFilters}
+          onClick={resetFilters}
+        >
+          Reset filters
+        </Button>
       </div>
 
-      <TournamentWindowFilter
-        preset={preset}
-        onPresetChange={(next) => {
-          setPreset(next)
-          resetPagination()
-        }}
-        customDateFrom={customDateFrom}
-        customDateTo={customDateTo}
-        onCustomDateFromChange={(value) => {
-          setCustomDateFrom(value)
-          resetPagination()
-        }}
-        onCustomDateToChange={(value) => {
-          setCustomDateTo(value)
-          resetPagination()
-        }}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <TournamentWindowFilter
+          preset={preset}
+          onPresetChange={(next) => {
+            setPreset(next)
+            setDraftDateFrom('')
+            setDraftDateTo('')
+            setCustomDateFrom('')
+            setCustomDateTo('')
+            resetPagination()
+          }}
+          customDateFrom={draftDateFrom}
+          customDateTo={draftDateTo}
+          onCustomDateFromChange={setDraftDateFrom}
+          onCustomDateToChange={setDraftDateTo}
+          onCustomDateFromCommit={commitDateFrom}
+          onCustomDateToCommit={commitDateTo}
+        />
+        {(trending.isLoading || staples.isLoading) && (
+          <span className="text-xs text-muted-foreground">Loading…</span>
+        )}
+      </div>
 
-      <CommanderTrendChips
-        series={trending.data?.data.series}
-        isLoading={trending.isLoading}
-        isError={trending.isError}
-      />
+      <div className="flex flex-col gap-2">
+        <CardTitle className="text-base">Top commanders</CardTitle>
+        <CommanderTrendChart
+          series={trending.data?.data.series}
+          isLoading={trending.isLoading}
+          isError={trending.isError}
+        />
+      </div>
 
-      <StaplesSection
-        data={staples.data?.data}
-        isLoading={staples.isLoading}
-        isError={staples.isError}
-      />
+      <div className="flex flex-col gap-2">
+        <CardTitle className="text-base">Staples</CardTitle>
+        <StaplesSection
+          data={staples.data?.data}
+          isLoading={staples.isLoading}
+          isError={staples.isError}
+        />
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Trends and staples are pooled across qualifying tournaments in the window above,
+        see{' '}
+        <Link to="/methodology" className="underline hover:text-accent">
+          methodology
+        </Link>{' '}
+        for the pooling and threshold rules.
+      </p>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">

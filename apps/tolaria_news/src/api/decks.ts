@@ -41,8 +41,12 @@ export function getDeck(id: string) {
   return apiRequest(`/bff/tolaria-news/decks/${id}`, deckDetailSchema)
 }
 
-export function getStaples(dateFrom: string, dateTo: string) {
+export function getStaples(
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+  commander?: string,
+) {
   return apiRequest('/bff/tolaria-news/decks/staples', staplesResponseSchema, {
-    params: { date_from: dateFrom, date_to: dateTo },
+    params: { date_from: dateFrom, date_to: dateTo, commander },
   })
 }

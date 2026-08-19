@@ -84,6 +84,7 @@ export type StapleRow = z.infer<typeof stapleRowSchema>
 export const staplesResponseSchema = z.object({
   date_from: z.iso.date(),
   date_to: z.iso.date(),
+  commander: z.string().nullable(),
   tournaments_considered: z.number(),
   decks_considered: z.number(),
   min_percentage: z.number(),
