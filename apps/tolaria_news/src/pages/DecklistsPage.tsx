@@ -1,11 +1,12 @@
 import { useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { useCommanders, useDecks } from '@/hooks/useDecks'
+import { useCommanders, useDecks, useStaples } from '@/hooks/useDecks'
 import type { DeckListFilters } from '@/api/decks'
 import { Card, CardTitle } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
 import { ColorIdentityPicker } from '@/components/color-identity-picker'
 import { TournamentSizeFilter } from '@/components/tournament-size-filter'
+import { StaplesSection } from '@/components/staples-section'
 import {
   Table,
   TableHeader,
@@ -37,11 +38,24 @@ export function DecklistsPage() {
 
   const { data, isLoading, isError, error } = useDecks(filters, cursor)
   const { data: commanders, isLoading: commandersLoading } = useCommanders()
+  const staples = useStaples(
+    filters.dateFrom,
+    filters.dateTo,
+    filters.commander,
+    filters.commander !== undefined,
+  )
+
+  const isAtDefaultFilters = Object.keys(filters).length === 0 && playerInput === ''
 
   function updateFilters(next: DeckListFilters) {
     setFilters(next)
     setCursor(undefined)
     setCursorHistory([])
+  }
+
+  function resetFilters() {
+    updateFilters(DEFAULT_FILTERS)
+    setPlayerInput('')
   }
 
   function commitPlayerFilter() {
@@ -85,9 +99,20 @@ export function DecklistsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Eyebrow>Duel Commander · Decklists</Eyebrow>
-        <CardTitle>Every list. Every result.</CardTitle>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <Eyebrow>Duel Commander · Decklists</Eyebrow>
+          <CardTitle>Every list. Every result.</CardTitle>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isAtDefaultFilters}
+          onClick={resetFilters}
+        >
+          Reset filters
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -173,6 +198,17 @@ export function DecklistsPage() {
           <TournamentSizeFilter selected={filters.sizes ?? []} onToggle={toggleSize} />
         </label>
       </div>
+
+      {filters.commander !== undefined && (
+        <div className="flex flex-col gap-2">
+          <CardTitle className="text-base">Staples for {filters.commander}</CardTitle>
+          <StaplesSection
+            data={staples.data?.data}
+            isLoading={staples.isLoading}
+            isError={staples.isError}
+          />
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex flex-col gap-2">
