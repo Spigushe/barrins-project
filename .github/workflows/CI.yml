@@ -69,8 +69,10 @@ jobs:
           sudo apt-get update \
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=10 \
-            -o Acquire::https::Timeout=10
+            -o Acquire::https::Timeout=10 \
+            -o Acquire::ForceIPv4=true
           sudo apt-get install -y --no-install-recommends \
+            -o Acquire::ForceIPv4=true \
             libpango-1.0-0 libpangocairo-1.0-0 libcairo2 \
             libgdk-pixbuf-2.0-0 shared-mime-info
       - name: Install uv
