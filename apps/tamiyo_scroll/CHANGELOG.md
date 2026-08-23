@@ -96,6 +96,10 @@ section of the docs site for details.
 
 ### Changed
 
+- `MetaDecksSections` (`RosterRow`), `PersonalDeckSelector`, and
+  `AccountSettingsTeamSection`'s existing confirm-before-delete dialogs
+  are refactored onto the shared `ConfirmDialog` (S13); behavior is
+  unchanged, including the team flow's extra invite-code-retype step.
 - `getDecklistView`'s Zod schema (`decklistViewSchema`) replaces the old
   flat `decklistLineSchema.array()`; the demo-mode API
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
