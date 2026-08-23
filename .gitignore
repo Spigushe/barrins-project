@@ -49,6 +49,8 @@ docs/content/back/barrins_identity/index.md
 docs/content/front/tamiyo_scroll/index.md
 docs/content/front/tolaria_news/index.md
 docs/content/service/barrins_scripture/index.md
+docs/content/service/karn_tablets/index.md
+docs/content/shared/dc_calendar/index.md
 
 # Generated from ops/my-server/roles/<role>/README.md by docs/hooks/sync_readmes.py
 # on every build. Add a new line here whenever a role is added.
@@ -57,6 +59,7 @@ docs/content/ops/roles/create_ssh_key/index.md
 docs/content/ops/roles/docs_site/index.md
 docs/content/ops/roles/fastapi_backend/index.md
 docs/content/ops/roles/github_token/index.md
+docs/content/ops/roles/mtgjson_import_scheduler/index.md
 docs/content/ops/roles/pgadmin/index.md
 docs/content/ops/roles/postgres_backup/index.md
 docs/content/ops/roles/react_frontend/index.md
@@ -81,3 +84,4 @@ docs/content/changelog/ops.md
 # personal collection data, never checked in.
 apps/barrins_api/scripts/input/
 apps/barrins_api/scripts/outputs/
+node_modules

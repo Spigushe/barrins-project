@@ -4,8 +4,8 @@ Clusters Duel Commander tournament decks (`bs_*`, scraped by Barrin's
 Scripture) into archetypes over a time window, and aggregates that into a
 deck-type distribution — feeding Tolaria News' public `/metagame`/
 `/archetypes` routes and Tamiyo Scroll's S6 admin dashboard (T6, see
-[ADR-13](../../docs/content/ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)
-for the full context/alternatives/decision record).
+ADR-13, `docs/content/ops/architecture/decisions.md`, for the full
+context/alternatives/decision record).
 
 ## Scope (v1)
 

@@ -92,7 +92,7 @@ Deliberately **not** in v1 (see "Deferred scope" below):
 `/metagame`, `/archetypes`, `/trends`, `/forecasts`, `/search`, a card
 oracle-text/image proxy, and tournament `location`. Bracket data
 (`bs_rounds`/`bs_round_matches`) **is** in v1 (`/tournaments/{id}/bracket`,
-added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)).
+added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output-data-flow-scope-and-consumption-surface)).
 
 **Addendum (2026-08-15)**: `GET /decks` (global index) added to back T5's
 `/decklists` route. Deliberately a plain filtered list, not the
