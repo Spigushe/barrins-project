@@ -22,6 +22,7 @@ import { FilePdfIcon } from '@/components/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -273,6 +274,7 @@ export function SessionsOverviewSection() {
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<SessionType>('training')
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [pendingArchive, setPendingArchive] = useState<Session | null>(null)
 
   const deckNameById = new Map((personalDecks ?? []).map((deck) => [deck.id, deck.name]))
   // Non-archived sessions only — the archive action is a soft-delete that
@@ -456,7 +458,7 @@ export function SessionsOverviewSection() {
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          handleArchive(session.id)
+                          setPendingArchive(session)
                         }}
                       >
                         ✕
@@ -483,6 +485,22 @@ export function SessionsOverviewSection() {
       <SessionSummarySection
         sessionId={selectedSessionId}
         deckNameById={deckNameById}
+      />
+
+      <ConfirmDialog
+        open={pendingArchive !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingArchive(null)
+        }}
+        title={pendingArchive ? `Archive "${pendingArchive.name}"?` : ''}
+        description="It will disappear from this list. This can't be undone."
+        confirmLabel="Archive"
+        confirmDisabled={archiveSession.isPending}
+        onConfirm={() => {
+          if (!pendingArchive) return
+          handleArchive(pendingArchive.id)
+          setPendingArchive(null)
+        }}
       />
     </>
   )

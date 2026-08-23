@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -333,45 +333,21 @@ function RosterRow({
               >
                 ✕
               </Button>
-              {/* S12 item 12: confirm before delete, same Dialog-based
-                  pattern already used for archiving a personal deck
+              {/* S13: shared confirm-before-delete dialog (same pattern
+                  used for archiving a personal deck
                   (`PersonalDeckSelector.tsx`) and deleting a team
-                  (`AccountSettingsTeamSection.tsx`) — not a native
+                  (`AccountSettingsTeamSection.tsx`)) — not a native
                   `window.confirm`. */}
-              <Dialog
+              <ConfirmDialog
                 open={confirmingDelete}
-                onOpenChange={(next) => {
-                  if (!next) setConfirmingDelete(false)
+                onOpenChange={setConfirmingDelete}
+                title={`Delete "${deck.name}"?`}
+                description="It will disappear from the roster. This can't be undone."
+                onConfirm={() => {
+                  setConfirmingDelete(false)
+                  onDelete()
                 }}
-              >
-                <DialogContent>
-                  <DialogTitle>Delete "{deck.name}"?</DialogTitle>
-                  <p className="text-sm text-muted-foreground">
-                    It will disappear from the roster. This can't be undone.
-                  </p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setConfirmingDelete(false)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        setConfirmingDelete(false)
-                        onDelete()
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              />
             </>
           )}
         </TableCell>

@@ -200,14 +200,31 @@ describe('SessionsOverviewSection — merged sessions list', () => {
     })
   })
 
-  it('archives a session', async () => {
+  it('asks for confirmation before archiving a session', async () => {
     sessions = [activeTrainingSession]
     const user = userEvent.setup()
     render(<SessionsOverviewSection />)
 
     await user.click(screen.getByRole('button', { name: '✕' }))
 
+    expect(archiveSessionMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Archive "Weekly Training"?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+
     expect(archiveSessionMutateAsync).toHaveBeenCalledWith('session-active')
+  })
+
+  it('cancels without archiving', async () => {
+    sessions = [activeTrainingSession]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: '✕' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(archiveSessionMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archive "Weekly Training"?')).not.toBeInTheDocument()
   })
 
   it('excludes archived sessions from the list', () => {

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { personalDeckNeedsSetup, PersonalDeckSetupControl } from '@/components/layout/PersonalDeckSetupControl'
@@ -89,6 +90,7 @@ export function MatchJournalSection() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MatchDraft | null>(null)
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Match | null>(null)
   const { data: editingDeckVersions } = useDecklistVersions(
     editDraft?.personalDeckId ?? null,
   )
@@ -240,7 +242,7 @@ export function MatchJournalSection() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        void deleteMatch.mutateAsync(match.id)
+                        setPendingDelete(match)
                       }}
                     >
                       Delete
@@ -305,6 +307,25 @@ export function MatchJournalSection() {
           </DialogContent>
         )}
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        title={
+          pendingDelete
+            ? `Delete ${personalDeckName(pendingDelete.personal_deck_id)} vs ${opponentDeckName(pendingDelete.opponent_deck_id)}?`
+            : ''
+        }
+        description="It will disappear from the match log. This can't be undone."
+        confirmDisabled={deleteMatch.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          void deleteMatch.mutateAsync(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </Card>
   )
 }
