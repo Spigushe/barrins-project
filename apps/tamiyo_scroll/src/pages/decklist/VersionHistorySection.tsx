@@ -1,16 +1,20 @@
+import { useState } from 'react'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import {
   useDecklistVersions,
   useDeleteDecklistVersion,
 } from '@/hooks/useDecklistVersions'
+import type { DecklistVersion } from '@/schemas/tamiyoScroll'
 import { DECKLIST_VERSION_SOURCE_LABELS, formatDateTime } from '@/lib/mtg-format'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export function VersionHistorySection() {
   const { activeDeckId, canEdit } = useActiveDeck()
   const { data: versions } = useDecklistVersions(activeDeckId)
   const deleteVersion = useDeleteDecklistVersion()
+  const [pendingDelete, setPendingDelete] = useState<DecklistVersion | null>(null)
 
   if (activeDeckId === null) return null
   const deckId = activeDeckId
@@ -41,7 +45,7 @@ export function VersionHistorySection() {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  void deleteVersion.mutateAsync({ deckId, versionId: version.id })
+                  setPendingDelete(version)
                 }}
               >
                 ✕
@@ -53,6 +57,21 @@ export function VersionHistorySection() {
           <p className="text-center text-muted-foreground">No version saved.</p>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        title={pendingDelete ? `Delete version ${pendingDelete.version}?` : ''}
+        description="It will disappear from this deck's version history. This can't be undone."
+        confirmDisabled={deleteVersion.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          void deleteVersion.mutateAsync({ deckId, versionId: pendingDelete.id })
+          setPendingDelete(null)
+        }}
+      />
     </Card>
   )
 }

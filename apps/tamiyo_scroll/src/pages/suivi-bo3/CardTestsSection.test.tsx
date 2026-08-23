@@ -1,15 +1,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CardTestsSection } from './CardTestsSection'
 
 const createTestMutateAsync = vi.fn()
 const updateTestMutateAsync = vi.fn()
+const deleteTestMutateAsync = vi.fn()
 
 vi.mock('@/hooks/useCardTests', () => ({
   useCardTests: () => ({ data: cardTests }),
   useCreateCardTest: () => ({ mutateAsync: createTestMutateAsync, isPending: false }),
-  useDeleteCardTest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteCardTest: () => ({ mutateAsync: deleteTestMutateAsync, isPending: false }),
   useUpdateCardTest: () => ({ mutateAsync: updateTestMutateAsync, isPending: false }),
 }))
 
@@ -48,6 +49,47 @@ describe('CardTestsSection', () => {
     render(<CardTestsSection />)
 
     expect(screen.getByLabelText('Nickname')).toHaveValue('Alice')
+  })
+})
+
+describe('CardTestsSection — delete confirmation', () => {
+  beforeEach(() => {
+    cardTests = [
+      {
+        id: 'test-1',
+        tester: 'Alice',
+        card_name: 'Lightning Bolt',
+        opponent_deck_id: null,
+        rating: 3,
+        notes: null,
+      },
+    ]
+    deleteTestMutateAsync.mockClear()
+  })
+
+  it('asks for confirmation before deleting, without deleting immediately', async () => {
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.click(screen.getByRole('button', { name: '✕' }))
+
+    expect(deleteTestMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Delete "Lightning Bolt"?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(deleteTestMutateAsync).toHaveBeenCalledWith('test-1')
+  })
+
+  it('cancels without deleting', async () => {
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.click(screen.getByRole('button', { name: '✕' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(deleteTestMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Delete "Lightning Bolt"?')).not.toBeInTheDocument()
   })
 })
 

@@ -13,6 +13,7 @@ import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Command,
   CommandEmpty,
@@ -213,6 +214,7 @@ export function CardTestsSection() {
   const [newDraft, setNewDraft] = useState<Draft>(emptyDraft(defaultTester))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Draft>(emptyDraft())
+  const [pendingDelete, setPendingDelete] = useState<CardTest | null>(null)
 
   useEffect(() => {
     setNewDraft((draft) => {
@@ -450,7 +452,7 @@ export function CardTestsSection() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        void deleteTest.mutateAsync(test.id)
+                        setPendingDelete(test)
                       }}
                     >
                       ✕
@@ -469,6 +471,21 @@ export function CardTestsSection() {
           )}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        title={pendingDelete ? `Delete "${pendingDelete.card_name}"?` : ''}
+        description="It will disappear from this deck's test feedback. This can't be undone."
+        confirmDisabled={deleteTest.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          void deleteTest.mutateAsync(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </Card>
   )
 }

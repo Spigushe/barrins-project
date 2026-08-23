@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Match } from '@/schemas/tamiyoScroll'
@@ -41,10 +41,12 @@ vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-mine', canEdit: true }),
 }))
 
+const deleteMatchMutateAsync = vi.fn()
+
 vi.mock('@/hooks/useMatches', () => ({
   useMatches: () => ({ data: matches }),
   useUpdateMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteMatch: () => ({ mutateAsync: deleteMatchMutateAsync, isPending: false }),
 }))
 
 vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
@@ -183,6 +185,47 @@ describe('MatchJournalSection — session badge', () => {
     await user.click(screen.getByRole('button', { name: 'View' }))
 
     expect(screen.getAllByText('Tournament: RC Toronto 2026')).toHaveLength(2)
+  })
+})
+
+describe('MatchJournalSection — delete confirmation', () => {
+  beforeEach(() => {
+    matches = [baseMatch]
+    sessions = []
+    deleteMatchMutateAsync.mockClear()
+  })
+
+  it('asks for confirmation before deleting, without deleting immediately', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(deleteMatchMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Delete Mono Red vs Boros Energy?')).toBeInTheDocument()
+  })
+
+  it('deletes the match once confirmed', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+
+    expect(deleteMatchMutateAsync).toHaveBeenCalledWith('match-1')
+  })
+
+  it('cancels without deleting', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(deleteMatchMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Delete Mono Red vs Boros Energy?')).not.toBeInTheDocument()
   })
 })
 
