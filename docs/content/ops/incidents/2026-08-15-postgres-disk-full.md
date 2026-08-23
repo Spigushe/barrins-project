@@ -41,7 +41,8 @@ application.
    `pg_dump: error: could not write to output file: No space left on device`.
    Per-database sizing showed `barrins_db` (~1.6-1.7GB/dump × ~15 days
    retained) as the dominant contributor, not a single runaway file.
-4. **Immediate mitigation**: `sudo find /var/backups/postgresql -type f -mtime +5 -delete`
+4. **Immediate mitigation**:
+   `sudo find /var/backups/postgresql -type f -mtime +5 -delete`
    freed ~17G (74G disk: 355M → 17G free).
 5. **`postgresql-15-main.log` review** (no corruption found):
    - 2026-08-15 03:27:14 — the backup's `pg_dump` COPY on `barrins_db`
