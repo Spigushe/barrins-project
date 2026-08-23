@@ -207,6 +207,29 @@ design. See F10's own page for the full implementation breakdown. Every
 existing Tamiyo Scroll backend test that created a roster entry needed
 `personal_deck_id` added to its payload (nine files) once that field
 became required. `barrins_api` now 582 tests passing, 97.40% coverage.
+**2026-08-23**: four new items, **S13-S16**, added from GitHub issues
+[#79](https://github.com/Spigushe/barrins-project/issues/79)-[#82](https://github.com/Spigushe/barrins-project/issues/82)
+(reported the same day, not part of the original v2.0.0 request) — a
+missed accidental deletion in the Match journal (no confirmation dialog
+existed anywhere for it) prompted a wider audit finding 4 of 7 delete
+actions across the app unprotected (**S13**); a session-management
+overhaul covering rename, editable dates, sort/pagination, per-session
+color, a Match-journal session tag, and archive search/restore/auto-
+archive (**S14**, all 9 of the issue's items, including the four it
+labeled "related possible change," confirmed in scope by the user); the
+long-requested ability to actually view/diff past decklist versions
+(**S15**) — the version history list has existed since S3 but never
+exposed a version's content, only its metadata; and a full semantic
+pivot of the "Tested Cards" feature into a Removed/Added-card change log
+(**S16**), the largest and only breaking one of the four — reusing
+`tester`/`card_name` under new names rather than adding new columns,
+which raises an unresolved question (kept open, not guessed) about what
+happens to existing rows recorded under the old semantics. All four
+scoping decisions (full pivot vs. additive for S16, full 9-item scope
+for S14, editable end-date alongside start-date, shared `ConfirmDialog`
+extraction for S13) were made by the user the same day, in the same
+Context/Alternatives/Trade-offs shape as every other item in this
+document.
 
 ---
 
@@ -1242,6 +1265,10 @@ R5 turning each into a real ADR.
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | ✅ **Done**. `CardGame` enum (`magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana`), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. 2026-08-03 follow-up: `game` cascades to opponent/meta decks | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
 | S12 | UI/UX polish bundle — four small frontend fixes brought into v2.0.0 from the feature-roadmap backlog (`docs/content/front/tamiyo_scroll/roadmap.md`, "v2.0.0 candidates" section), added 2026-07-30 | — | All four are frontend-only (`apps/tamiyo_scroll`), no schema/API change: personal-deck creation affordance gets a green `[new]` text label (no icon library needed — `apps/tamiyo_scroll` has none today); the "tested cards" matchup select is rebuilt on the same combobox pattern as the BO3 opponent select; "Final turn" label renamed; matchup-summary "Games" column (already counting `match_count`) relabelled "Matches" | [s12-uiux-polish/](s12-uiux-polish/index.md) |
+| S13 | Confirmation dialog before every deletion — 4 of 7 delete actions (Match, Card test, Decklist version, Session) have none today; added 2026-08-23 from GitHub issue #79 | — | Not started. Frontend-only, no new dependency — extracts a shared `ConfirmDialog` off the existing `Dialog` primitive, also refactoring the 3 already-protected spots (roster deck, personal deck, team) onto it | [s13-delete-confirmation/](s13-delete-confirmation/index.md) |
+| S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | Not started. Schema: new `TSSession.started_at`/`hue`, new `TSUserSettings` auto-archive fields. Auto-archive's periodic-job mechanism is an open spike (Agent 1/Agent 3), not yet chosen | [s14-session-overhaul/](s14-session-overhaul/index.md) |
+| S15 | Decklist version history — view a past version's full content (default-on) + line-level diff against the prior version (opt-in) — added 2026-08-23 from GitHub issue #81 | S4 (reuses `ResponseDecklistView`) | Not started. Diff computed server-side via stdlib `difflib` — no new dependency | [s15-decklist-version-diff/](s15-decklist-version-diff/index.md) |
+| S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus opt-in validation (removed card must be in decklist, added card must exist) and an opt-in inline change-log display in the decklist view — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (UI pattern reuse) | **Blocked on an unresolved data question** — existing `ts_card_tests` rows predate this semantic pivot; keep them mislabeled or clear the table on migration is not yet decided, see the page's Open question 1 | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
 
 ### Group RA — Release wrap for `v2.0.0-alpha` (Tamiyo Scroll only, §1.11)
 
