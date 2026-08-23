@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/tamiyo_scroll` (React/Vite) only | No `barrins_api` change |
 | **Initial date** | 2026-08-23 | Drafted 2026-08-23 |
-| **Status** | Not started | / |
+| **Status** | ✅ Done (2026-08-23) | / |
 | **Source** | GitHub issue [#79](https://github.com/Spigushe/barrins-project/issues/79), reported 2026-08-23 — a user clicked Delete instead of Edit in the Match journal with no confirmation at all | / |
 | **Dependency** | None | / |
 
@@ -72,47 +72,74 @@ to fix this, the existing `Dialog` primitive is sufficient.
 
 ### 1. Shared component
 
-- [ ] Build `components/ui/confirm-dialog.tsx`.
+- [x] Build `components/ui/confirm-dialog.tsx`.
 
 ### 2. Wire into the 4 unprotected spots
 
-- [ ] `MatchJournalSection.tsx` delete action.
-- [ ] `CardTestsSection.tsx` delete action.
-- [ ] `VersionHistorySection.tsx` delete action.
-- [ ] `SessionsSections.tsx` archive action.
+- [x] `MatchJournalSection.tsx` delete action.
+- [x] `CardTestsSection.tsx` delete action.
+- [x] `VersionHistorySection.tsx` delete action.
+- [x] `SessionsSections.tsx` archive action.
 
 ### 3. Refactor the 3 existing spots onto the shared component
 
-- [ ] `MetaDecksSections.tsx` (`RosterRow`).
-- [ ] `PersonalDeckSelector.tsx`.
-- [ ] `AccountSettingsTeamSection.tsx` (title/button chrome only — keep
+- [x] `MetaDecksSections.tsx` (`RosterRow`).
+- [x] `PersonalDeckSelector.tsx`.
+- [x] `AccountSettingsTeamSection.tsx` (title/button chrome only — keep
       the invite-code-retype step).
 
 ## Open questions (flagged, not guessed)
 
-1. **Exact confirm copy per entity type.** The existing pattern's body
-   text ("It will disappear from ... This can't be undone.") is a
-   reasonable template; exact wording per entity (Match/Card test/
-   Decklist version/Session) is unconfirmed — pick reasonable copy
-   during implementation unless the user has a preference.
+1. **Exact confirm copy per entity type — resolved during implementation.**
+   Reasonable per-entity copy was picked, following the existing
+   template's shape (what disappears + "This can't be undone."):
+   Match → "Delete {personal deck} vs {opponent deck}?" / "It will
+   disappear from the match log."; Card test → "Delete "{card name}"?"
+   / "It will disappear from this deck's test feedback."; Decklist
+   version → "Delete version {n}?" / "It will disappear from this
+   deck's version history."; Session → "Archive "{name}"?" / "It will
+   disappear from this list." No user preference was given, so none of
+   this is final/locked — revisit if it reads wrong in practice.
 
 ## UAT (manual)
 
-- [ ] Click Delete on a Match journal row → confirm dialog appears
+- [X] Click Delete on a Match journal row → confirm dialog appears
       naming the match; Cancel leaves it in place, Confirm deletes it.
-- [ ] Same for a Card test row, a Decklist version row, and a Session's
+- [X] Same for a Card test row, a Decklist version row, and a Session's
       archive action.
-- [ ] Existing archive/delete flows for a roster deck, a personal deck,
+- [X] Existing archive/delete flows for a roster deck, a personal deck,
       and a team still work exactly as before after the refactor.
 
 ## Non-regression tests
 
 - Frontend: existing tests for `MetaDecksSections`/`PersonalDeckSelector`/
   `AccountSettingsTeamSection` confirm-then-delete flows still pass
-  after the refactor onto `ConfirmDialog`.
+  after the refactor onto `ConfirmDialog` (no assertions changed —
+  `MetaDecksSections.test.tsx`/`PersonalDeckSelector.test.tsx` needed no
+  edits at all; `AccountSettingsTeamSection.test.tsx` also needed none,
+  since `ConfirmDialog`'s two-step-swap keeps the same title/button
+  labels/aria-label per step).
 - Frontend: new tests for the 4 previously-unprotected delete flows,
   covering both Cancel (mutation never called) and Confirm (mutation
-  called once).
+  called once): `MatchJournalSection.test.tsx`, `CardTestsSection.test.tsx`,
+  the new `VersionHistorySection.test.tsx` (no test file existed for this
+  component before), and `SessionsSections.test.tsx` (its pre-existing
+  "archives a session" test was rewritten to go through the confirm step,
+  since direct-call-on-click was the exact behavior this item removes).
+- `apps/tamiyo_scroll` test count: 232 → 248. `tsc -b` and `oxlint` both
+  clean (lint warnings present are pre-existing, unrelated to this item).
+
+## Implementation note
+
+A prior commit (`631e868`, message: "docs(tolaria): Implement
+confirmation dialogs for deletion actions across multiple components")
+claimed this work, plus S14/S15/S16, was already done — verified false
+against the working tree before starting: that commit only added the
+`s13`–`s16` planning pages (`git show --stat` shows zero files touched
+under `apps/`), the commit message body describes work that was never
+actually committed. All code in this item was written from scratch
+against the "Not started" state the Context section above already
+documents.
 
 ## See also
 

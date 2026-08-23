@@ -7,6 +7,11 @@ section of the docs site for details.
 
 ### Added
 
+- Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
+  built on the existing `Dialog` primitive, no new dependency — S13):
+  deleting a Match journal row, a Card test, a Decklist version, or
+  archiving a Session now opens a confirmation dialog naming the target
+  instead of firing the mutation immediately on click.
 - Decklist view (`CurrentDecklistSection`) rebuilt around the backend's
   new structured `ResponseDecklistView` (S4): a Commander table (when
   the decklist has one) plus one table per card-type section
@@ -20,6 +25,10 @@ section of the docs site for details.
 
 ### Changed
 
+- `MetaDecksSections` (`RosterRow`), `PersonalDeckSelector`, and
+  `AccountSettingsTeamSection`'s existing confirm-before-delete dialogs
+  are refactored onto the shared `ConfirmDialog` (S13); behavior is
+  unchanged, including the team flow's extra invite-code-retype step.
 - `getDecklistView`'s Zod schema (`decklistViewSchema`) replaces the old
   flat `decklistLineSchema.array()`; the demo-mode API
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
