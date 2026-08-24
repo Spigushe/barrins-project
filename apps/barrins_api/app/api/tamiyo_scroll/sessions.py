@@ -132,6 +132,9 @@ async def create_session(
         type=payload.type,
         notes=payload.notes,
         location=payload.location,
+        started_at=payload.started_at,
+        ended_at=payload.ended_at,
+        hue=payload.hue,
     )
     session.add(ts_session)
     await session.commit()

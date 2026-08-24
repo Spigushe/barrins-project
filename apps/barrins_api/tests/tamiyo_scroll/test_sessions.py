@@ -71,6 +71,50 @@ class TestCreateSession:
         assert body["hue"] is None
         assert body["location"] is None
 
+    async def test_creates_session_with_dates_and_hue(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        resp = await client.post(
+            f"{BASE}/sessions",
+            json={
+                "name": "RC Toronto 2026",
+                "type": "tournament",
+                "personal_deck_id": personal_id,
+                "location": "Toronto, ON",
+                "notes": "Day 1",
+                "started_at": "2026-08-01T10:00:00Z",
+                "ended_at": "2026-08-01T18:00:00Z",
+                "hue": 210,
+            },
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["location"] == "Toronto, ON"
+        assert body["notes"] == "Day 1"
+        assert body["started_at"] == "2026-08-01T10:00:00Z"
+        assert body["ended_at"] == "2026-08-01T18:00:00Z"
+        assert body["hue"] == 210
+        # started_at/ended_at are independent of the Close/Reopen workflow.
+        assert body["closed_at"] is None
+
+    async def test_hue_out_of_range_is_rejected_on_create(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        resp = await client.post(
+            f"{BASE}/sessions",
+            json={
+                "name": "S1",
+                "type": "training",
+                "personal_deck_id": personal_id,
+                "hue": 360,
+            },
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
     async def test_unknown_personal_deck_returns_404(
         self, client: AsyncClient, owner_user: User
     ):

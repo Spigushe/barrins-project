@@ -120,7 +120,13 @@ class MatchWrite(BaseModel):
 
 
 class SessionCreate(BaseModel):
-    """Payload for POST /sessions."""
+    """Payload for POST /sessions.
+
+    `started_at`/`ended_at`/`hue` mirror `SessionPatch`'s fields of the same
+    name (S14: freely client-suppliable, no workflow meaning) — the create
+    form reuses the same field set as edit so a session can be fully filled
+    in at creation instead of requiring a follow-up PATCH.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -129,6 +135,9 @@ class SessionCreate(BaseModel):
     personal_deck_id: uuid.UUID
     notes: str | None = None
     location: str | None = Field(default=None, max_length=255)
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    hue: int | None = Field(default=None, ge=0, le=359)
 
 
 class SessionPatch(BaseModel):
