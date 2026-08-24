@@ -25,6 +25,8 @@ class ResponseUserSettings(BaseResponse):
     receive_shared_data: bool
     active_personal_deck_id: uuid.UUID | None
     metagame_roster_scope: MetagameRosterScope
+    auto_archive_stale_sessions: bool
+    auto_archive_decklist_version_gap: int
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -212,9 +214,16 @@ class ResponseSession(BaseResponse):
     name: str
     type: SessionType
     notes: str | None
+    location: str | None
     created_at: datetime
+    # S14: freely user-editable, no workflow meaning — see `closed_at`.
+    started_at: datetime | None
     ended_at: datetime | None
+    # Close/Reopen workflow state (the pre-S14 `ended_at`) — drives the
+    # Status ("Ongoing"/"Closed") badge.
+    closed_at: datetime | None
     archived_at: datetime | None
+    hue: int | None
 
 
 class ResponseSessionComparison(BaseResponse):

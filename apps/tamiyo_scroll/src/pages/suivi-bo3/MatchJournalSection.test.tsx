@@ -72,7 +72,9 @@ let sessions: {
   id: string
   name: string
   type: 'tournament' | 'training'
-  ended_at: string | null
+  closed_at: string | null
+  archived_at: string | null
+  hue: number | null
 }[] = []
 
 vi.mock('@/hooks/useSessions', () => ({
@@ -166,7 +168,14 @@ describe('MatchJournalSection — session badge', () => {
   beforeEach(() => {
     matches = [{ ...baseMatch, session_id: 'session-1' }]
     sessions = [
-      { id: 'session-1', name: 'RC Toronto 2026', type: 'tournament', ended_at: null },
+      {
+        id: 'session-1',
+        name: 'RC Toronto 2026',
+        type: 'tournament',
+        closed_at: null,
+        archived_at: null,
+        hue: null,
+      },
     ]
   })
 
@@ -185,6 +194,29 @@ describe('MatchJournalSection — session badge', () => {
     await user.click(screen.getByRole('button', { name: 'View' }))
 
     expect(screen.getAllByText('Tournament: RC Toronto 2026')).toHaveLength(2)
+  })
+
+  it('tints the badge by hue instead of the type variant once a hue is set', () => {
+    sessions = [{ ...sessions[0], hue: 200 }]
+    render(<MatchJournalSection />)
+    const badge = screen.getByText('Tournament: RC Toronto 2026')
+    expect(badge).toHaveStyle({ backgroundColor: 'hsl(200 70% 50% / 0.18)' })
+  })
+
+  it('still resolves the tag for a match pointing at an archived session', () => {
+    matches = [{ ...baseMatch, session_id: 'session-archived' }]
+    sessions = [
+      {
+        id: 'session-archived',
+        name: 'Old Regional',
+        type: 'training',
+        closed_at: '2026-07-01T00:00:00Z',
+        archived_at: '2026-07-02T00:00:00Z',
+        hue: null,
+      },
+    ]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Training: Old Regional')).toBeInTheDocument()
   })
 })
 

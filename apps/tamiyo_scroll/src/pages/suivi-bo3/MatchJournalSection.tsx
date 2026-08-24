@@ -10,7 +10,6 @@ import {
   formatDate,
   GAME_RESULT_BORDER_CLASS,
   GAME_RESULT_LABELS,
-  SESSION_TYPE_BADGE_VARIANT,
   SESSION_TYPE_LABELS,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
@@ -20,7 +19,11 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { personalDeckNeedsSetup, PersonalDeckSetupControl } from '@/components/layout/PersonalDeckSetupControl'
+import {
+  personalDeckNeedsSetup,
+  PersonalDeckSetupControl,
+} from '@/components/layout/PersonalDeckSetupControl'
+import { SessionTypeBadge } from '@/components/session/SessionTypeBadge'
 import {
   draftFromMatch,
   MatchFormFields,
@@ -58,16 +61,17 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
   draw: 'warning',
 }
 
-/** Session tag, colored by session type (S9) — same mapping as the
- * Sessions tab (`SESSION_TYPE_BADGE_VARIANT`). Falls back to the default
- * badge variant if the session isn't in the (non-archived) list, e.g. an
- * archived session a historical match still points to. */
+/** Session tag, colored by the session's hue (S14) if set, falling back to
+ * its type (S9, same mapping as the Sessions tab's
+ * `SESSION_TYPE_BADGE_VARIANT`). The session lookup includes archived
+ * sessions (S14 auto-archive makes this common now), so a historical
+ * match's tag still resolves instead of falling back to "?". */
 function SessionBadge({ session }: { session: Session | undefined }) {
   if (!session) return <Badge>?</Badge>
   return (
-    <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>
+    <SessionTypeBadge session={session}>
       {SESSION_TYPE_LABELS[session.type]}: {session.name}
-    </Badge>
+    </SessionTypeBadge>
   )
 }
 
@@ -83,7 +87,10 @@ export function MatchJournalSection() {
   // names for the journal needs to see them too, to tell "deleted roster
   // entry" apart from a genuinely broken reference.
   const { data: metaDecksIncludingArchived } = useMetaDecks({ includeArchived: true })
-  const { data: sessions } = useSessions(activeDeckId)
+  // Include archived sessions (S14 auto-archive makes them common) — same
+  // "resolve display data even for a since-archived row" precedent as
+  // `metaDecksIncludingArchived` above.
+  const { data: sessions } = useSessions(activeDeckId, true)
   const updateMatch = useUpdateMatch()
   const deleteMatch = useDeleteMatch()
 

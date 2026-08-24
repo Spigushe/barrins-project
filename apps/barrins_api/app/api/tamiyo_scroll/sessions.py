@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
@@ -53,19 +54,54 @@ async def _get_owned_session(
     return ts_session
 
 
+_SORT_COLUMNS = {
+    "name": TSSession.name,
+    "type": TSSession.type,
+    "started_at": TSSession.started_at,
+    # NULL `closed_at` = ongoing — sorts by the same column the Status
+    # badge reads, so "ascending" groups ongoing sessions per Postgres's
+    # default NULLS LAST behavior.
+    "status": TSSession.closed_at,
+}
+
+
 @router.get("/sessions", response_model=list[ResponseSession])
 async def list_sessions(
     session: DatabaseSession,
     current_user: CurrentUser,
     personal_deck_id: uuid.UUID | None = None,
     include_archived: bool = False,
+    limit: int | None = None,
+    offset: int = 0,
+    sort_by: Literal["name", "type", "started_at", "status"] | None = None,
+    sort_dir: Literal["asc", "desc"] = "asc",
+    search: str | None = None,
 ) -> list[ResponseSession]:
+    """`limit`/`offset`/`sort_by`/`sort_dir`/`search` are all optional and
+    additive (S14) — omitting them keeps the original behavior (every
+    matching session, ordered `created_at DESC`), which the match-logging
+    session picker and the Match journal's session lookup both still rely
+    on.
+    """
     stmt = select(TSSession).where(TSSession.owner_id == current_user.id)
     if personal_deck_id is not None:
         stmt = stmt.where(TSSession.personal_deck_id == personal_deck_id)
     if not include_archived:
         stmt = stmt.where(TSSession.archived_at.is_(None))
-    stmt = stmt.order_by(TSSession.created_at.desc())
+    if search:
+        stmt = stmt.where(TSSession.name.ilike(f"%{search}%"))
+
+    if sort_by is None:
+        stmt = stmt.order_by(TSSession.created_at.desc())
+    else:
+        column = _SORT_COLUMNS[sort_by]
+        stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+
+    if limit is not None:
+        stmt = stmt.limit(limit).offset(offset)
+    elif offset:
+        stmt = stmt.offset(offset)
+
     result = await session.execute(stmt)
     return [ResponseSession.model_validate(s) for s in result.scalars().all()]
 
@@ -95,6 +131,7 @@ async def create_session(
         name=payload.name,
         type=payload.type,
         notes=payload.notes,
+        location=payload.location,
     )
     session.add(ts_session)
     await session.commit()
@@ -115,10 +152,20 @@ async def update_session(
         ts_session.name = payload.name
     if "notes" in payload.model_fields_set:
         ts_session.notes = payload.notes
+    if "location" in payload.model_fields_set:
+        ts_session.location = payload.location
+    if "started_at" in payload.model_fields_set:
+        ts_session.started_at = payload.started_at
+    if "ended_at" in payload.model_fields_set:
+        ts_session.ended_at = payload.ended_at
+    if "hue" in payload.model_fields_set:
+        ts_session.hue = payload.hue
     if payload.close:
-        ts_session.ended_at = datetime.now(UTC)
+        ts_session.closed_at = datetime.now(UTC)
     if payload.reopen:
-        ts_session.ended_at = None
+        ts_session.closed_at = None
+    if payload.restore:
+        ts_session.archived_at = None
 
     session.add(ts_session)
     await session.commit()
@@ -284,12 +331,12 @@ async def get_session_report(
         t
         for t in all_card_tests
         if t.created_at >= ts_session.created_at
-        and (ts_session.ended_at is None or t.created_at <= ts_session.ended_at)
+        and (ts_session.closed_at is None or t.created_at <= ts_session.closed_at)
     ]
 
     subtitle = (
         f"{personal_deck.name} · {ts_session.type.value} · "
-        f"{format_period(ts_session.created_at, ts_session.ended_at)}"
+        f"{format_period(ts_session.created_at, ts_session.closed_at)}"
     )
     pdf_bytes = render_session_report_pdf(
         title=ts_session.name,

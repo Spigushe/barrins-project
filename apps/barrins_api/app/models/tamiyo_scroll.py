@@ -426,6 +426,21 @@ class TSUserSettings(Base):
         default=MetagameRosterScope.game,
         server_default=MetagameRosterScope.game.value,
     )
+    # S14 item 9: opt-in, off by default. `auto_archive_decklist_version_gap`
+    # is only meaningful when the bool is true — see
+    # `services/tamiyo_scroll/session_auto_archive.py`.
+    auto_archive_stale_sessions: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    auto_archive_decklist_version_gap: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
+        server_default="3",
+    )
 
 
 class TSSession(Base):
@@ -437,9 +452,18 @@ class TSSession(Base):
     concept. Deletion = archiving (`archived_at`), same soft-delete pattern
     as `TSPersonalDeck`/`TSMetaDeck` — matches keep their `session_id`
     unchanged when their session is archived.
+
+    S14: `closed_at` is the original `ended_at` column, renamed — it's the
+    field Close/Reopen have always driven (and what the Status badge
+    reads), untouched in behavior. The new `started_at`/`ended_at` pair is
+    purely informational and freely user-editable, deliberately decoupled
+    from the Close/Reopen workflow state (S14, "track separately").
     """
 
     __tablename__ = "ts_sessions"
+    __table_args__ = (
+        CheckConstraint("hue BETWEEN 0 AND 359", name="ck_ts_sessions_hue_range"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -461,17 +485,33 @@ class TSSession(Base):
         Enum(SessionType, name="ts_session_type"), nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # S14: where the session was played (freeform, e.g. venue/city).
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
+    # S14: user-editable "when did this session actually start/end",
+    # backfilled from created_at/closed_at on migration. No workflow
+    # meaning — Close/Reopen never touch these.
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Close/Reopen workflow state — the pre-S14 `ended_at` column, renamed.
+    closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # S14 item 6: freeform per-session color, 0-359 degrees. Server-
+    # persisted (unlike the S12 localStorage display-pref pattern) since
+    # it's user-chosen identity data tied to one specific row.
+    hue: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class TSTeam(Base):

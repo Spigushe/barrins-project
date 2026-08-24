@@ -59,6 +59,17 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [rosterScope, setRosterScope] = useState<MetagameRosterScope>(
     () => settings?.metagame_roster_scope ?? 'game',
   )
+  // S14 item 9: opt-in (default off), server-persisted — the periodic-job
+  // question the doc raised is moot here since the sweep runs on decklist
+  // import, not on a schedule.
+  const [autoArchiveEnabled, setAutoArchiveEnabled] = useState(
+    () => settings?.auto_archive_stale_sessions ?? false,
+  )
+  // Kept as raw text (not a number) so the field can be freely cleared
+  // and retyped — clamping happens once, on save.
+  const [autoArchiveGapText, setAutoArchiveGapText] = useState(() =>
+    String(settings?.auto_archive_decklist_version_gap ?? 3),
+  )
 
   // S12 items 8-11: four purely-visual toggles, `localStorage`-backed
   // (not part of the Save/Cancel form above — they apply immediately,
@@ -88,6 +99,11 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
         data_shared: shareMyData,
         receive_shared_data: receiveSharedData,
         metagame_roster_scope: rosterScope,
+        auto_archive_stale_sessions: autoArchiveEnabled,
+        auto_archive_decklist_version_gap: Math.max(
+          1,
+          Number.parseInt(autoArchiveGapText, 10) || 1,
+        ),
       }),
     ])
     onClose()
@@ -166,8 +182,8 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
                 Store roster decks per game
               </p>
               <p className="text-xs text-muted-foreground">
-                Share one roster across all your decks of the same game (MtG, YGO,
-                PKM, ...)
+                Share one roster across all your decks of the same game (MtG, YGO, PKM,
+                ...)
               </p>
             </div>
             <Switch
@@ -178,6 +194,44 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
               label="Store roster decks per game"
             />
           </div>
+        </div>
+
+        <div role="separator" className="h-px bg-accent" />
+
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Auto-archive stale sessions
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Archive a session automatically once its last logged match falls this many
+                decklist versions behind, on your next decklist import.
+              </p>
+            </div>
+            <Switch
+              checked={autoArchiveEnabled}
+              onCheckedChange={setAutoArchiveEnabled}
+              label="Auto-archive stale sessions"
+            />
+          </div>
+          {autoArchiveEnabled && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="auto-archive-gap" className="text-xs text-muted-foreground">
+                Version gap
+              </Label>
+              <Input
+                id="auto-archive-gap"
+                type="number"
+                min={1}
+                value={autoArchiveGapText}
+                onChange={(event) => {
+                  setAutoArchiveGapText(event.target.value)
+                }}
+                className="w-20"
+              />
+            </div>
+          )}
         </div>
 
         <div role="separator" className="h-px bg-accent" />

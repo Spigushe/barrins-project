@@ -38,6 +38,7 @@ from app.services.tamiyo_scroll.report import (
     render_session_report_pdf,
     resolve_report_decklist_version,
 )
+from app.services.tamiyo_scroll.session_auto_archive import sweep_stale_sessions
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 from app.services.tamiyo_scroll.stats import compute_period_stats
 from app.services.tamiyo_scroll.teams import resolve_team_deck_access
@@ -187,6 +188,12 @@ async def _create_version(
     session.add(version)
     await session.commit()
     await session.refresh(version)
+
+    # S14 item 9: a new decklist version is the event that can make a
+    # session's most recent match's version fall further behind — sweep
+    # right here rather than on any periodic schedule.
+    await sweep_stale_sessions(session, deck, deck.owner_id)
+
     return version
 
 

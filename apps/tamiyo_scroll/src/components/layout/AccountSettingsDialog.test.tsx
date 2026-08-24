@@ -25,6 +25,8 @@ vi.mock('@/hooks/useSettings', () => ({
       data_shared: true,
       receive_shared_data: false,
       metagame_roster_scope: 'game',
+      auto_archive_stale_sessions: false,
+      auto_archive_decklist_version_gap: 3,
     },
   }),
   useUpdateMySettings: () => ({
@@ -66,10 +68,10 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders separators between the display name, sharing, roster scope and display sections', () => {
+  it('renders separators between the display name, sharing, roster scope, auto-archive and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Display name / Share my data / Roster scope (F10) / Display (S12).
-    expect(screen.getAllByRole('separator')).toHaveLength(3)
+    // Display name / Share my data / Roster scope (F10) / Auto-archive (S14) / Display (S12).
+    expect(screen.getAllByRole('separator')).toHaveLength(4)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -115,8 +117,28 @@ describe('AccountSettingsDialog', () => {
       data_shared: true,
       receive_shared_data: true,
       metagame_roster_scope: 'game',
+      auto_archive_stale_sessions: false,
+      auto_archive_decklist_version_gap: 3,
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('saves the auto-archive toggle and threshold', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: 'Auto-archive stale sessions' }))
+    const gapInput = screen.getByLabelText('Version gap')
+    await user.clear(gapInput)
+    await user.type(gapInput, '5')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_archive_stale_sessions: true,
+        auto_archive_decklist_version_gap: 5,
+      }),
+    )
   })
 
   it('pre-fills the roster scope toggle from current data', () => {
@@ -130,9 +152,7 @@ describe('AccountSettingsDialog', () => {
     const user = userEvent.setup()
     renderDialog({ open: true, onOpenChange: vi.fn() })
 
-    await user.click(
-      screen.getByRole('switch', { name: 'Store roster decks per game' }),
-    )
+    await user.click(screen.getByRole('switch', { name: 'Store roster decks per game' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
