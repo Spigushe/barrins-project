@@ -64,6 +64,7 @@
         "Historique",
         "HSTS",
         "httpx",
+        "ILIKE",
         "inlines",
         "inspectable",
         "isready",

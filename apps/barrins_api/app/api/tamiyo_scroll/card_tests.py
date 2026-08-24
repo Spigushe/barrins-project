@@ -1,13 +1,15 @@
 """Routes /card-tests (card logs, CRUD) and their evaluations (S17)."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
+from app.models.mtgjson import Card
 from app.models.tamiyo_scroll import (
     TSCardTest,
     TSCardTestEvaluation,
@@ -131,8 +133,52 @@ async def _evaluations_by_test_id(
     return by_test_id
 
 
+async def _scryfall_ids_by_name(
+    session: DatabaseSession, names: Sequence[str]
+) -> dict[str, str | None]:
+    """One resolver pass + one batched `mj_cards` query, name -> scryfall id
+    -- mirrors `decklist_view._resolved_by_name`, narrowed to just the id
+    the card log's own hover preview needs (S17 item 3 follow-up: the
+    "Tested cards" block's Removed/Added Card cells hover the same way
+    a pending decklist line's names do)."""
+    canonical_by_name: dict[str, str] = {}
+    for name in names:
+        canonical = await resolve_card_name(session, name)
+        if canonical is not None:
+            canonical_by_name[name] = canonical
+
+    canonical_names = set(canonical_by_name.values())
+    if not canonical_names:
+        return dict.fromkeys(names)
+
+    matches = await session.execute(
+        select(Card.name, Card.face_name, Card.scryfall_id).where(
+            or_(
+                Card.name.in_(canonical_names),
+                Card.face_name.in_(canonical_names),
+            )
+        )
+    )
+    scryfall_by_card_name: dict[str, str | None] = {}
+    for name, face_name, scryfall_id in matches.all():
+        scryfall_by_card_name.setdefault(name, scryfall_id)
+        if face_name:
+            scryfall_by_card_name.setdefault(face_name, scryfall_id)
+
+    return {
+        name: scryfall_by_card_name.get(canonical_by_name.get(name, ""))
+        for name in names
+    }
+
+
+def _card_test_names(tests: Sequence[TSCardTest]) -> list[str]:
+    return [name for t in tests for name in (t.removed_card_name, t.added_card_name)]
+
+
 def _response_card_test(
-    test: TSCardTest, evaluations: list[TSCardTestEvaluation]
+    test: TSCardTest,
+    evaluations: list[TSCardTestEvaluation],
+    scryfall_by_name: dict[str, str | None],
 ) -> ResponseCardTest:
     """`evaluations` has no ORM relationship to validate `from_attributes`
     against (every `TS*` model in this file is FK-only), so the response
@@ -142,6 +188,8 @@ def _response_card_test(
         personal_deck_id=test.personal_deck_id,
         removed_card_name=test.removed_card_name,
         added_card_name=test.added_card_name,
+        removed_card_scryfall_id=scryfall_by_name.get(test.removed_card_name),
+        added_card_scryfall_id=scryfall_by_name.get(test.added_card_name),
         notes=test.notes,
         created_at=test.created_at,
         evaluations=[ResponseCardTestEvaluation.model_validate(e) for e in evaluations],
@@ -237,7 +285,11 @@ async def list_card_tests(
     result = await session.execute(stmt)
     tests = list(result.scalars().all())
     evaluations_by_test = await _evaluations_by_test_id(session, [t.id for t in tests])
-    return [_response_card_test(t, evaluations_by_test.get(t.id, [])) for t in tests]
+    scryfall_by_name = await _scryfall_ids_by_name(session, _card_test_names(tests))
+    return [
+        _response_card_test(t, evaluations_by_test.get(t.id, []), scryfall_by_name)
+        for t in tests
+    ]
 
 
 @router.get("/card-tests/change-log", response_model=list[ResponseCardTest])
@@ -264,7 +316,11 @@ async def list_card_test_change_log(
     result = await session.execute(stmt)
     tests = [t for t in result.scalars().all() if t.id not in matched_ids]
     evaluations_by_test = await _evaluations_by_test_id(session, [t.id for t in tests])
-    return [_response_card_test(t, evaluations_by_test.get(t.id, [])) for t in tests]
+    scryfall_by_name = await _scryfall_ids_by_name(session, _card_test_names(tests))
+    return [
+        _response_card_test(t, evaluations_by_test.get(t.id, []), scryfall_by_name)
+        for t in tests
+    ]
 
 
 @router.post(
@@ -284,7 +340,10 @@ async def create_card_test(
     session.add(test)
     await session.commit()
     await session.refresh(test)
-    return _response_card_test(test, [])  # a new log starts with no evaluations
+    scryfall_by_name = await _scryfall_ids_by_name(session, _card_test_names([test]))
+    return _response_card_test(
+        test, [], scryfall_by_name
+    )  # a new log starts with no evaluations
 
 
 @router.put("/card-tests/{test_id}", response_model=ResponseCardTest)
@@ -304,7 +363,10 @@ async def update_card_test(
     await session.commit()
     await session.refresh(test)
     evaluations_by_test = await _evaluations_by_test_id(session, [test.id])
-    return _response_card_test(test, evaluations_by_test.get(test.id, []))
+    scryfall_by_name = await _scryfall_ids_by_name(session, _card_test_names([test]))
+    return _response_card_test(
+        test, evaluations_by_test.get(test.id, []), scryfall_by_name
+    )
 
 
 @router.delete("/card-tests/{test_id}", status_code=status.HTTP_204_NO_CONTENT)

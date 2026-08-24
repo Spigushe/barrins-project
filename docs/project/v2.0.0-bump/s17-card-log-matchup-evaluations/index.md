@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` + `apps/tamiyo_scroll` | Breaking schema/API change — splits `TSCardTest` into two entities |
 | **Initial date** | 2026-08-24 | Drafted 2026-08-24 |
-| **Status** | 🔲 **Not started — scoping resolved 2026-08-24** | All 4 open questions decided by the user; ready for implementation |
+| **Status** | ✅ **Done — implemented 2026-08-24** | All 4 open questions decided by the user; implemented same day |
 | **Source** | User-authored draft note (`docs/project/v2.0.0-bump/new-s17.md`), formalized into this page and removed — **not** a GitHub issue like S13-S16 (checked: no open issue past #82 exists in this repo as of 2026-08-24) | / |
 | **Dependency** | [S16](../s16-tested-card-changelog/index.md) — splits the same `TSCardTest` table S16 just pivoted, and item 3 reuses S16's `card_test_matching.py` pattern to decide which decklist line a card log targets | / |
 
@@ -159,91 +159,116 @@
 
 ### 1. Schema split
 
-- [ ] Migration: new `TSCardTestEvaluation` table (`opponent_deck_id`
+- [X] Migration: new `TSCardTestEvaluation` table (`opponent_deck_id`
       required, `rating`, optional `notes`, FK to `ts_card_tests.id`);
       `TSCardTest` drops `opponent_deck_id`/`rating`, keeps `notes`.
-- [ ] Backfill: one evaluation row per existing `ts_card_tests` row,
+- [X] Backfill: one evaluation row per existing `ts_card_tests` row,
       carrying its old `opponent_deck_id`/`rating`.
-- [ ] New `CardTestEvaluationWrite`/`ResponseCardTestEvaluation` schemas;
+- [X] New `CardTestEvaluationWrite`/`ResponseCardTestEvaluation` schemas;
       `CardTestWrite`/`ResponseCardTest` narrowed to base fields.
-- [ ] `POST`/`PUT`/`DELETE /card-tests/{test_id}/evaluations[/{id}]`
+- [X] `POST`/`PUT`/`DELETE /card-tests/{test_id}/evaluations[/{id}]`
       routes, scoped under an owned card log (mirrors the existing
       `_get_owned_card_test` ownership check).
 
 ### 2. Decklist coloring
 
-- [ ] `color_decklist()` reworked: (a) evaluation-based majority coloring
+- [X] `color_decklist()` reworked: (a) evaluation-based majority coloring
       now pools `TSCardTestEvaluation` rows across every matching card log
       (unchanged aggregation, new data source), (b) new `pending` pass —
       a line matching a card log's `removed_card_name` still present in
       the current decklist content renders `pending`, independent of the
       evaluation-based pass.
-- [ ] New `pending` value threaded through: Python `Literal`,
+- [X] New `pending` value threaded through: Python `Literal`,
       `ColoredLine`/`ResponseDecklistLine`, the mirrored TS
       `DecklistLineStatus` union, and `DECKLIST_LINE_STATUS_LABELS`/
       `_BG_CLASS`/`_TEXT_CLASS` in `mtg-format.ts`.
-- [ ] Unit tests: pending detection (present/absent in current decklist),
+- [X] Unit tests: pending detection (present/absent in current decklist),
       pooled evaluation majority across multiple card logs sharing an
       added name, and the two axes never colliding on one line.
 
 ### 3. Name validation UX (item 2)
 
-- [ ] New backend partial-match card-name search endpoint (`GET
-      /cards/search-by-name` doesn't fit — see Context; needs its own
-      route, e.g. prefix/substring `ILIKE` over `Card.name`, 3-character
-      minimum enforced client-side).
-- [ ] Removed-Card dropdown: client-side combobox over the current
+- [X] New backend partial-match card-name search endpoint
+      (`GET /cards/search-by-name-prefix?q=`, `ILIKE` substring over
+      `Card.name`, 20-result cap; 3-character minimum enforced
+      client-side).
+- [X] Removed-Card dropdown: client-side combobox over the current
       decklist's card names (already fetched by the tab via
-      `decklist-view`), reusing `MatchupDeckField`'s combobox pattern.
-- [ ] Added-Card dropdown: same combobox pattern, backed by the new
-      search endpoint; "not found" warning when the query returns no
-      match. Free-text entry stays possible — S16's opt-in validations
-      remain the actual enforcement (Design decisions above).
+      `decklist-view`), same `Popover`+free-text-input shape as
+      `MatchupDeckField`'s combobox, adapted so the input itself is the
+      value (`CardNameField` in `CardTestsSection.tsx`).
+- [X] Added-Card dropdown: same `CardNameField`, backed by the new
+      search endpoint (debounced 250ms via `useDebouncedValue`); "not
+      found" warning when the query returns no match. Free-text entry
+      stays possible — S16's opt-in validations remain the actual
+      enforcement (Design decisions above).
 
 ### 4. Inline decklist display (item 3)
 
-- [ ] `DecklistCardRow`: when a decklist line's card name matches a card
+- [X] `DecklistCardRow`: when a decklist line's card name matches a card
       log's `removed_card_name` still present in the current decklist,
       render the removed name struck-through + blue, a right arrow, and
-      the added name — same row, not a separate list. Reuses S16's
-      `card_test_matching.py` pattern to find the relevant card log.
-- [ ] Hover on either name shows both cards' images (existing Scryfall
-      proxy).
-- [ ] Color pips/popover data reflect the **added** card, not the
-      removed one.
-- [ ] Added name's color (once it actually appears in a decklist version)
-      follows the pooled evaluation-majority rule, unrelated to pending.
-- [ ] `CurrentDecklistSection.tsx`'s separate "Card change being
-      considered" block (lines 79-94) is retired — the inline row display
-      replaces it for changes matched to the current decklist.
+      the added name — same row, not a separate list. Reuses the
+      `pending_card_test_id`/`pending_added_card_*` fields
+      `decklist_view.py` already resolves per line (via the same
+      longest-name-first substring match `color_decklist` uses).
+- [X] Hover on either name shows both cards' images (existing Scryfall
+      proxy) — via a shared `CardNameHover` component, also reused by
+      the "Tested cards" card-log block's own Removed/Added Card cells
+      (follow-up beyond the original item 3 scope, added 2026-08-24 so
+      every card name in the app hovers consistently; backend resolves
+      `removed_card_scryfall_id`/`added_card_scryfall_id` on
+      `ResponseCardTest` the same way).
+- [X] Color pips/popover data reflect the **added** card, not the
+      removed one — backend adds `pending_added_card_mana_cost`/
+      `_text`/`_keywords` to `ResponseDecklistCard`, resolved from the
+      same `mj_cards` lookup as the hover preview.
+- [X] Added name's color (once it actually appears in a decklist version)
+      follows the pooled evaluation-majority rule, unrelated to pending
+      (unchanged — this was already true of the underlying `status`
+      value; item 4 only changed what's *displayed* for a pending line).
+- [X] `CurrentDecklistSection.tsx`'s separate "Card change being
+      considered" block is retired for changes matched to the current
+      decklist: it now filters `unmatchedCardTests` against the
+      `pending_card_test_id`s surfaced on `view`'s cards, so only card
+      logs *not* shown inline (never matched any real diff, and not
+      currently pending) still appear there.
 
 ## UAT (manual)
 
-- [ ] Creating a card log without any evaluation succeeds (base fields —
+- [X] Creating a card log without any evaluation succeeds (base fields —
       Removed Card, Added Card, Notes — only); while the removed card is
       still in the current decklist, that line shows pending/blue with
       the struck-through-name → arrow → new-name treatment.
-- [ ] Adding a match-up evaluation from the edit form, then a second one
+- [X] Adding a match-up evaluation from the edit form, then a second one
       for a different opponent deck, both attach to the same card log;
       each can carry its own note independent of the card log's note.
-- [ ] Saving a new decklist version that actually drops the removed card
+- [X] Saving a new decklist version that actually drops the removed card
       and adds the new one: the line stops showing pending; the added
       card's line instead shows the evaluation-based color.
-- [ ] Two different card logs that both added the same card name: their
+- [X] Two different card logs that both added the same card name: their
       evaluations pool into one majority color on that card's line.
-- [ ] Typing 3+ characters in the Added-Card dropdown returns matching
+- [X] Typing 3+ characters in the Added-Card dropdown returns matching
       names; an unmatched name shows the warning.
-- [ ] Hovering either name in a pending row shows its card image.
+- [X] Hovering either name in a pending row shows its card image.
 
 ## Non-regression tests
 
-- Backend: `test_card_tests.py`, `test_decklist_coloring.py`,
-  `test_personal_decks.py`/`test_teams.py`/`test_sessions.py` (every
-  `color_decklist` call site) need updates for the split schema and the
-  new `pending` state.
-- Frontend: `CardTestsSection.test.tsx` and any `DecklistCardRow`/
-  `DecklistViewContent` tests need updates for the new form shape (no
-  match-up/rating at creation) and the new inline pending-row rendering.
+- Backend: `test_card_tests.py` (card log CRUD, evaluation CRUD,
+  `removed_card_scryfall_id`/`added_card_scryfall_id` resolution across
+  single- and multi-log responses), `test_personal_decks.py`
+  (`TestDecklistView` — pending detection, `pending_card_test_id`
+  round-trip, pending pips/popover fed from the added card),
+  `test_decklist_coloring.py` (pooled evaluation majority, pending vs.
+  evaluation-based axes never colliding) all pass.
+- Frontend: `CardTestsSection.test.tsx` (name dropdowns — decklist-backed
+  Removed-Card suggestions, search-backed Added-Card suggestions with
+  the not-found hint, free text stays valid; card-log hover previews),
+  `DecklistCardRow.test.tsx` (new file — pending struck-through/arrow
+  display, added-card hover image, pips/popover sourced from the added
+  card, graceful fallback when the added card doesn't resolve),
+  `CurrentDecklistSection.test.tsx` (standalone change-log block filters
+  out card logs already shown inline as pending) all pass.
 
 ## See also
 

@@ -8,6 +8,9 @@ import {
   useUpdateCardTest,
   useUpdateCardTestEvaluation,
 } from '@/hooks/useCardTests'
+import { CARD_NAME_SEARCH_MIN_LENGTH, useCardNameSearch } from '@/hooks/useCards'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useDecklistView } from '@/hooks/useDecklistVersions'
 import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { ApiError } from '@/api/client'
@@ -16,10 +19,12 @@ import type {
   CardTestEvaluation,
   CardTestEvaluationWrite,
   CardTestWrite,
+  DecklistView,
   MetaDeck,
 } from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
+import { CardNameHover } from '@/components/card-name-hover'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -33,7 +38,12 @@ import {
 } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -180,6 +190,131 @@ function MatchupDeckField({
   )
 }
 
+/** Every distinct card name currently on the deck's latest decklist —
+ * source for the Removed-Card dropdown (S17 item 2), client-side over
+ * data the tab already fetches, no extra request. */
+function decklistCardNames(view: DecklistView | undefined): string[] {
+  if (!view) return []
+  const names = new Set<string>()
+  for (const card of view.commander_cards) names.add(card.name)
+  for (const group of view.library_cards) {
+    for (const card of group.cards) names.add(card.name)
+  }
+  return [...names]
+}
+
+const CARD_NAME_SUGGESTION_LIMIT = 20
+
+function filterCardNames(names: string[], query: string): string[] {
+  const trimmed = query.trim().toLowerCase()
+  if (!trimmed) return []
+  return names
+    .filter((name) => name.toLowerCase().includes(trimmed))
+    .slice(0, CARD_NAME_SUGGESTION_LIMIT)
+}
+
+/** S17 item 2: "not found" warning for the Added-Card dropdown once its
+ * live search has actually run and come back empty — never shown while
+ * still below the minimum length or mid-fetch, so it can't flash on
+ * every keystroke. */
+function addedCardNotFoundHint(
+  debouncedQuery: string,
+  search: { data?: string[]; isFetching: boolean },
+): string | null {
+  if (debouncedQuery.trim().length < CARD_NAME_SEARCH_MIN_LENGTH) return null
+  if (search.isFetching) return null
+  if (search.data && search.data.length === 0) {
+    return 'No matching card found — you can still save this name.'
+  }
+  return null
+}
+
+/**
+ * Free-text card-name input with a suggestion dropdown (S17 item 2) —
+ * unlike `MatchupDeckField`'s select-only combobox, the input itself
+ * *is* the value (typing freely stays valid; S16's opt-in validations
+ * are the real enforcement), suggestions are just a shortcut onto it.
+ * `PopoverAnchor` wraps the real `Input` so the dropdown positions off
+ * it without stealing its focus or replacing it with a separate search
+ * box.
+ */
+function CardNameField({
+  id,
+  label,
+  value,
+  onChange,
+  suggestions,
+  notFoundHint = null,
+  showLabel = true,
+  className,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  suggestions: string[]
+  notFoundHint?: string | null
+  showLabel?: boolean
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {showLabel && <Label htmlFor={id}>{label}</Label>}
+      <Popover open={open && suggestions.length > 0}>
+        <PopoverAnchor asChild>
+          <Input
+            id={id}
+            aria-label={showLabel ? undefined : label}
+            value={value}
+            autoComplete="off"
+            className={className}
+            onChange={(event) => {
+              onChange(event.target.value)
+              setOpen(true)
+            }}
+            onFocus={() => {
+              setOpen(true)
+            }}
+            onBlur={() => {
+              setOpen(false)
+            }}
+          />
+        </PopoverAnchor>
+        <PopoverContent
+          className="max-h-64 overflow-y-auto p-1"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+          }}
+        >
+          {suggestions.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className="block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-input"
+              // Prevents the input from blurring (and the popover closing)
+              // before the click's onChange-equivalent below can fire.
+              onMouseDown={(event) => {
+                event.preventDefault()
+              }}
+              onClick={() => {
+                onChange(name)
+                setOpen(false)
+              }}
+            >
+              {name}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+      {notFoundHint && (
+        <p className="text-[11px] text-muted-foreground">{notFoundHint}</p>
+      )}
+    </div>
+  )
+}
+
 interface Draft {
   removedCardName: string
   addedCardName: string
@@ -245,6 +380,7 @@ export function CardTestsSection() {
   const { canEdit, activeDeckId } = useActiveDeck()
   const { data: cardTests } = useCardTests(activeDeckId)
   const { data: metaDecks } = useMetaDecks()
+  const { data: decklistView } = useDecklistView(activeDeckId)
   const createTest = useCreateCardTest()
   const updateTest = useUpdateCardTest()
   const deleteTest = useDeleteCardTest()
@@ -267,6 +403,12 @@ export function CardTestsSection() {
   } | null>(null)
 
   const deckOptions = metaDecks ?? []
+  const decklistNames = decklistCardNames(decklistView)
+
+  const debouncedNewAddedCard = useDebouncedValue(newDraft.addedCardName, 250)
+  const newAddedCardSearch = useCardNameSearch(debouncedNewAddedCard)
+  const debouncedEditAddedCard = useDebouncedValue(editDraft.addedCardName, 250)
+  const editAddedCardSearch = useCardNameSearch(debouncedEditAddedCard)
 
   if (activeDeckId === null) return null
   const deckId = activeDeckId
@@ -324,28 +466,30 @@ export function CardTestsSection() {
             void handleAdd(event)
           }}
         >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-removed-card">Removed Card</Label>
-            <Input
-              id="test-removed-card"
-              value={newDraft.removedCardName}
-              onChange={(event) => {
-                setNewDraft({ ...newDraft, removedCardName: event.target.value })
-              }}
-              className="w-32"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-added-card">Added Card</Label>
-            <Input
-              id="test-added-card"
-              value={newDraft.addedCardName}
-              onChange={(event) => {
-                setNewDraft({ ...newDraft, addedCardName: event.target.value })
-              }}
-              className="w-48"
-            />
-          </div>
+          <CardNameField
+            id="test-removed-card"
+            label="Removed Card"
+            value={newDraft.removedCardName}
+            onChange={(value) => {
+              setNewDraft({ ...newDraft, removedCardName: value })
+            }}
+            suggestions={filterCardNames(decklistNames, newDraft.removedCardName)}
+            className="w-32"
+          />
+          <CardNameField
+            id="test-added-card"
+            label="Added Card"
+            value={newDraft.addedCardName}
+            onChange={(value) => {
+              setNewDraft({ ...newDraft, addedCardName: value })
+            }}
+            suggestions={newAddedCardSearch.data ?? []}
+            notFoundHint={addedCardNotFoundHint(
+              debouncedNewAddedCard,
+              newAddedCardSearch,
+            )}
+            className="w-48"
+          />
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="test-notes">Notes</Label>
             <Input
@@ -386,22 +530,34 @@ export function CardTestsSection() {
               return (
                 <TableRow key={test.id}>
                   <TableCell>
-                    <Input
+                    <CardNameField
+                      id={`edit-removed-card-${test.id}`}
+                      label="Removed Card"
+                      showLabel={false}
                       value={editDraft.removedCardName}
-                      onChange={(event) => {
-                        setEditDraft({
-                          ...editDraft,
-                          removedCardName: event.target.value,
-                        })
+                      onChange={(value) => {
+                        setEditDraft({ ...editDraft, removedCardName: value })
                       }}
+                      suggestions={filterCardNames(
+                        decklistNames,
+                        editDraft.removedCardName,
+                      )}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <CardNameField
+                      id={`edit-added-card-${test.id}`}
+                      label="Added Card"
+                      showLabel={false}
                       value={editDraft.addedCardName}
-                      onChange={(event) => {
-                        setEditDraft({ ...editDraft, addedCardName: event.target.value })
+                      onChange={(value) => {
+                        setEditDraft({ ...editDraft, addedCardName: value })
                       }}
+                      suggestions={editAddedCardSearch.data ?? []}
+                      notFoundHint={addedCardNotFoundHint(
+                        debouncedEditAddedCard,
+                        editAddedCardSearch,
+                      )}
                     />
                   </TableCell>
                   <TableCell>
@@ -449,8 +605,18 @@ export function CardTestsSection() {
             return (
               <Fragment key={test.id}>
                 <TableRow>
-                  <TableCell>{test.removed_card_name}</TableCell>
-                  <TableCell className="font-mono">{test.added_card_name}</TableCell>
+                  <TableCell>
+                    <CardNameHover
+                      name={test.removed_card_name}
+                      scryfallId={test.removed_card_scryfall_id}
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    <CardNameHover
+                      name={test.added_card_name}
+                      scryfallId={test.added_card_scryfall_id}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {test.notes ?? '—'}
                   </TableCell>
@@ -616,7 +782,10 @@ export function CardTestsSection() {
                                     size="sm"
                                     variant="ghost"
                                     onClick={() => {
-                                      setPendingDeleteEval({ testId: test.id, evaluation })
+                                      setPendingDeleteEval({
+                                        testId: test.id,
+                                        evaluation,
+                                      })
                                     }}
                                   >
                                     ✕
@@ -637,7 +806,10 @@ export function CardTestsSection() {
                             <MatchupDeckField
                               value={newEvalDraft.opponentDeckId}
                               onChange={(value) => {
-                                setNewEvalDraft({ ...newEvalDraft, opponentDeckId: value })
+                                setNewEvalDraft({
+                                  ...newEvalDraft,
+                                  opponentDeckId: value,
+                                })
                               }}
                               options={deckOptions}
                               idPrefix={`new-eval-matchup-${test.id}`}

@@ -13,9 +13,26 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import type { DecklistView } from '@/schemas/tamiyoScroll'
 import { DecklistViewContent } from './DecklistViewContent'
 
 const LEGEND_STATUSES = ['in_test', 'validated', 'rejected'] as const
+
+/** Card-log ids already shown inline as a pending decklist line (S17) —
+ * the standalone change-log block below only needs to list what's
+ * *not* covered by that inline treatment. */
+function pendingCardTestIds(view: DecklistView | undefined): Set<string> {
+  const ids = new Set<string>()
+  if (!view) return ids
+  const allCards = [
+    ...view.commander_cards,
+    ...view.library_cards.flatMap((group) => group.cards),
+  ]
+  for (const card of allCards) {
+    if (card.pending_card_test_id) ids.add(card.pending_card_test_id)
+  }
+  return ids
+}
 
 export function CurrentDecklistSection() {
   const { activeDeckId } = useActiveDeck()
@@ -28,6 +45,11 @@ export function CurrentDecklistSection() {
   const downloadReport = useDownloadDeckReport()
 
   if (activeDeckId === null) return null
+
+  const inlinePendingIds = pendingCardTestIds(view)
+  const standaloneChangeLog = unmatchedCardTests?.filter(
+    (test) => !inlinePendingIds.has(test.id),
+  )
 
   const latest = versions?.[0]
   const activeDeck = personalDecks?.find((deck) => deck.id === activeDeckId)
@@ -76,13 +98,13 @@ export function CurrentDecklistSection() {
         </div>
       </div>
 
-      {showChangeLog && !((unmatchedCardTests?.length ?? 0) === 0) && (
+      {showChangeLog && !((standaloneChangeLog?.length ?? 0) === 0) && (
         <div className="mt-4 rounded-(--radius-input) border border-border bg-input-inline p-4">
           <p className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             Card change being considered in this version:
           </p>
           <div className="mt-1 flex flex-col gap-1.5 font-mono text-[13px]">
-            {unmatchedCardTests?.map((test) => (
+            {standaloneChangeLog?.map((test) => (
               <div key={test.id}>
                 <p className="font-sans text-muted-foreground">{test.notes ?? '—'}</p>
                 <p className="text-destructive">- {test.removed_card_name}</p>

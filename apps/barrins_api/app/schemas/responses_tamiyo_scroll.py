@@ -131,6 +131,12 @@ class ResponseCardTest(BaseResponse):
     personal_deck_id: uuid.UUID | None
     removed_card_name: str
     added_card_name: str
+    #: Resolved against `mj_cards` the same way a pending decklist line's
+    #: names are (S17 item 3 follow-up) -- lets the "Tested cards" block
+    #: hover-preview either name without a separate lookup. `None` when
+    #: the name doesn't resolve to a known card.
+    removed_card_scryfall_id: str | None = None
+    added_card_scryfall_id: str | None = None
     notes: str | None
     created_at: datetime
     evaluations: list[ResponseCardTestEvaluation]
@@ -146,11 +152,14 @@ class ResponseDecklistLine(BaseResponse):
 class ResponseDecklistCard(BaseResponse):
     """One resolved card line within a structured decklist-view section.
 
-    `pending_added_card_name`/`pending_added_card_scryfall_id` (S17) are
-    only populated when `status == "pending"` — the card log's
+    `pending_added_card_*`/`pending_card_test_id` (S17) are only
+    populated when `status == "pending"` — the card log's
     `added_card_name`, resolved against `mj_cards` the same way this
-    line's own name is, so the frontend can show a hover preview for it
-    without a second lookup (it isn't a real decklist line yet).
+    line's own name is, so the frontend can show a hover preview and
+    pips/popover data for it without a second lookup (it isn't a real
+    decklist line yet). `pending_card_test_id` is the card log this line
+    is pending on, letting the frontend cross-reference it against the
+    standalone unmatched-card-log list without re-deriving the match.
     """
 
     qty: int
@@ -163,6 +172,10 @@ class ResponseDecklistCard(BaseResponse):
     scryfall_id: str | None
     pending_added_card_name: str | None = None
     pending_added_card_scryfall_id: str | None = None
+    pending_added_card_mana_cost: str | None = None
+    pending_added_card_text: str | None = None
+    pending_added_card_keywords: list[str] = Field(default_factory=list)
+    pending_card_test_id: uuid.UUID | None = None
 
 
 class ResponseDecklistTypeGroup(BaseResponse):

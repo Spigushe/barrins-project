@@ -72,6 +72,22 @@ section of the docs site for details.
   fields used to edit a session — instead of just name/type, so a
   session can be fully filled in at creation rather than requiring an
   immediate follow-up edit.
+- **Breaking**: card log / match-up evaluation split (S17). Tested
+  cards' creation form only collects Removed Card, Added Card, and
+  Notes now — match-up (opponent deck) and effectiveness rating moved
+  to an expandable evaluations sub-list on each card log, added from
+  the edit row (one card log, many evaluations). Removed-Card suggests
+  from the current decklist as you type; Added-Card suggests from a
+  live, debounced card-name search (3-character minimum), with a "not
+  found" hint when nothing matches — free text stays valid either way.
+  A decklist line whose card is still present but targeted by a card
+  log's `removed_card_name` renders inline as **pending** (blue): the
+  removed name struck through, an arrow, then the added name, same
+  row — replacing the old separate "Card change being considered"
+  block for changes reflected this way (that block still lists changes
+  not yet reflected in the current decklist). Hovering either name in
+  a pending row, or either name in the "Tested cards" block itself,
+  shows that card's image.
 
 ### Changed
 

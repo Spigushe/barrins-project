@@ -154,6 +154,8 @@ export const cardTestSchema = z.object({
   personal_deck_id: z.uuid().nullable(),
   removed_card_name: z.string(),
   added_card_name: z.string(),
+  removed_card_scryfall_id: z.string().nullable().optional(),
+  added_card_scryfall_id: z.string().nullable().optional(),
   notes: z.string().nullable(),
   created_at: z.iso.datetime({ offset: true }),
   evaluations: z.array(cardTestEvaluationSchema),
@@ -177,6 +179,10 @@ export const decklistCardSchema = z.object({
   scryfall_id: z.string().nullable(),
   pending_added_card_name: z.string().nullable().optional(),
   pending_added_card_scryfall_id: z.string().nullable().optional(),
+  pending_added_card_mana_cost: z.string().nullable().optional(),
+  pending_added_card_text: z.string().nullable().optional(),
+  pending_added_card_keywords: z.array(z.string()).optional(),
+  pending_card_test_id: z.string().nullable().optional(),
 })
 export type DecklistCard = z.infer<typeof decklistCardSchema>
 

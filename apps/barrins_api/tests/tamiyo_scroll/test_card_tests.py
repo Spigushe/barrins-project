@@ -122,6 +122,31 @@ class TestCreateCardTest:
         assert "opponent_deck_id" not in body
         assert "rating" not in body
 
+    async def test_resolves_scryfall_ids_for_hover_preview(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """S17 item 3 follow-up: the "Tested cards" block hovers the
+        removed/added names the same way a pending decklist line does --
+        both must resolve against `mj_cards`, and an unresolvable name
+        (e.g. a homebrew/typo'd added card) must not break the response,
+        just leave that side's id `None`."""
+        await _seed_card(db_session, "Duress")
+        await db_session.commit()
+
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Duress",
+            added_card_name="Not A Real Card XYZ",
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["removed_card_scryfall_id"] == "Duress-scryfall-id"
+        assert body["added_card_scryfall_id"] is None
+
     async def test_unknown_personal_deck_returns_404(
         self, client: AsyncClient, owner_user: User
     ):
@@ -264,6 +289,43 @@ class TestListCardTests:
         )
         names = [t["added_card_name"] for t in resp.json()]
         assert names == ["Counterspell"]
+
+    async def test_resolves_scryfall_ids_across_multiple_logs(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        duress = await _seed_card(db_session, "Duress")
+        db_session.add(
+            Card(
+                id=uuid.uuid4(),
+                set_code=duress.set_code,
+                name="Lightning Bolt",
+                type_line="Instant",
+                mana_cost=None,
+                mana_value=1,
+                color_identity=[],
+                rarity="common",
+                number="Lightning Bolt",
+                scryfall_id="Lightning Bolt-scryfall-id",
+            )
+        )
+        await db_session.commit()
+
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Duress",
+            added_card_name="Lightning Bolt",
+        )
+
+        resp = await client.get(f"{BASE}/card-tests", headers=headers)
+        assert resp.status_code == 200
+        [test] = resp.json()
+        assert test["removed_card_scryfall_id"] == "Duress-scryfall-id"
+        assert test["added_card_scryfall_id"] == "Lightning Bolt-scryfall-id"
 
 
 class TestValidateRemovedCardInDecklist:
