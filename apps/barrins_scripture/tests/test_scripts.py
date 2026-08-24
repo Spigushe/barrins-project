@@ -1,6 +1,6 @@
 from pathlib import Path
 from queue import Queue
-from threading import Lock
+from threading import Event, Lock
 from unittest.mock import Mock, patch
 
 from barrins_scripture.scripts import mtgo_empty_decks, top8_check_gaps
@@ -54,6 +54,99 @@ class TestScrapeGaps:
             top8_check_gaps.scrape_gaps(chunk_size=10, batch_size=10, num_threads=1)
 
         assert mock_producer.call_count == 4  # ids 1-4 are missing before 5
+        # 3rd positional arg must be the scraped-ids set producer's
+        # we_should_scrape_it() checks membership against -- passing the
+        # lock here instead (the pre-fix bug) blows up with a TypeError.
+        for call in mock_producer.call_args_list:
+            assert call.args[2] == {5}
+
+    def test_consumers_receive_an_already_set_producers_done_event(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(top8_check_gaps.mtgtop8_utils, "BASE_PATH", tmp_path)
+        d = tmp_path / "2026" / "07" / "26"
+        d.mkdir(parents=True)
+        (d / "2_x_a.json").write_text("{}", encoding="utf-8")
+
+        with (
+            patch.object(top8_check_gaps, "producer"),
+            patch.object(top8_check_gaps, "consumer") as mock_consumer,
+        ):
+            top8_check_gaps.scrape_gaps(chunk_size=10, batch_size=10, num_threads=2)
+
+        assert mock_consumer.call_count == 2
+        for call in mock_consumer.call_args_list:
+            producers_done = call.args[4]
+            assert isinstance(producers_done, Event)
+            assert producers_done.is_set()
+
+    def test_progress_renders_a_bar_per_chunk(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        monkeypatch.setattr(top8_check_gaps.mtgtop8_utils, "BASE_PATH", tmp_path)
+        d = tmp_path / "2026" / "07" / "26"
+        d.mkdir(parents=True)
+        (d / "5_x_a.json").write_text("{}", encoding="utf-8")
+
+        with (
+            patch.object(top8_check_gaps, "producer"),
+            patch.object(top8_check_gaps, "consumer"),
+        ):
+            top8_check_gaps.scrape_gaps(
+                chunk_size=2, batch_size=10, num_threads=1, progress=True
+            )
+
+        stderr = capsys.readouterr().err
+        assert "0/2 chunks" in stderr  # initial bar
+        assert "1/2 chunks" in stderr
+        assert "2/2 chunks" in stderr
+
+    def test_no_progress_output_when_disabled(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        monkeypatch.setattr(top8_check_gaps.mtgtop8_utils, "BASE_PATH", tmp_path)
+        d = tmp_path / "2026" / "07" / "26"
+        d.mkdir(parents=True)
+        (d / "5_x_a.json").write_text("{}", encoding="utf-8")
+
+        with (
+            patch.object(top8_check_gaps, "producer"),
+            patch.object(top8_check_gaps, "consumer"),
+        ):
+            top8_check_gaps.scrape_gaps(chunk_size=10, batch_size=10, num_threads=1)
+
+        assert capsys.readouterr().err == ""
+
+    def test_output_dir_overrides_base_path(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr(top8_check_gaps.mtgtop8_utils, "BASE_PATH", tmp_path)
+        archive_dir = tmp_path / "external-archive"
+
+        with patch.object(top8_check_gaps, "producer") as mock_producer:
+            top8_check_gaps.scrape_gaps(output_dir=archive_dir)
+
+        assert top8_check_gaps.mtgtop8_utils.BASE_PATH == archive_dir / "mtgtop8.com"
+        mock_producer.assert_not_called()  # nothing archived yet under the new dir
+
+
+class TestBuildParser:
+    def test_defaults(self) -> None:
+        args = top8_check_gaps.build_parser().parse_args([])
+        assert args.output_dir is None
+        assert args.max_missing == 2000
+        assert args.chunk_size == 100
+        assert args.batch_size == 10
+        assert args.num_threads == 4
+        assert args.progress is False
+
+    def test_reads_output_dir_flag(self, tmp_path: Path) -> None:
+        args = top8_check_gaps.build_parser().parse_args(
+            ["--output-dir", str(tmp_path)]
+        )
+        assert args.output_dir == tmp_path
+
+    def test_reads_progress_flag(self) -> None:
+        args = top8_check_gaps.build_parser().parse_args(["--progress"])
+        assert args.progress is True
 
 
 class TestFindAndClearEmptyDecks:
