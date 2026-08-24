@@ -26,6 +26,11 @@ section of the docs site for details.
   can shift/disappear on refresh). New `SCRYFALL_USER_AGENT`/
   `CARD_IMAGE_CACHE_DIR` settings; a placeholder-image console client is
   used when unset outside production.
+- `SessionCreate` (`POST /sessions`, S14 follow-up) now accepts
+  `started_at`/`ended_at`/`hue` alongside the existing `name`/`type`/
+  `personal_deck_id`/`notes`/`location` — the same fields `SessionPatch`
+  already exposed for editing — so a session can be fully filled in at
+  creation instead of requiring an immediate `PATCH`.
 
 ## [2.0.0-alpha] - 2026-08-03
 

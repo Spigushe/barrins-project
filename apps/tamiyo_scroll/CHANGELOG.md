@@ -37,6 +37,11 @@ section of the docs site for details.
   archived automatically the next time a new decklist version is
   imported for that deck (Moxfield or plain-text) — event-triggered, not
   a periodic job.
+- Session creation (S14 follow-up): the "New session" form now reuses
+  `SessionEditFields` — the same location/notes/started_at/ended_at/hue
+  fields used to edit a session — instead of just name/type, so a
+  session can be fully filled in at creation rather than requiring an
+  immediate follow-up edit.
 
 ### Changed
 

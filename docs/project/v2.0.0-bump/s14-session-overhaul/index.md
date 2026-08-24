@@ -46,6 +46,21 @@ Decisions made during implementation, refining/superseding the plan below:
   existing Edit pattern, not a modal dialog — available regardless of a
   session's status (ongoing/closed/archived).
 
+**Follow-up (2026-08-24, same day):** the "New session" form originally
+shipped with only `name`/`type` (matching pre-S14 create behavior) while
+`location`/`notes`/`started_at`/`ended_at`/`hue` were edit-only —
+requiring a session to be created, then immediately edited, to set any of
+this item's new fields up front. Closed the gap: `SessionCreate`
+(`POST /sessions`) now accepts `started_at`/`ended_at`/`hue` (it already
+had `location`/`notes`), and the frontend's create form reuses
+`SessionEditFields` (the same component the row/archived-dialog edit
+surfaces use) instead of two raw inputs, with `Type` (create-only,
+immutable after creation, so not part of the shared edit fields) added
+alongside it. `SessionDraft`→payload conversion was factored into a
+shared `draftToFields` helper behind both `draftToPatch` and the new
+`draftToCreate`, avoiding duplicating the trim/null-coercion rules per
+Constitution §4.2.
+
 ## Context
 
 **Verified against the code (2026-08-23, `feat/tolaria_news_backend`):**
@@ -177,6 +192,9 @@ Decisions made during implementation, refining/superseding the plan below:
   current version are automatically archived the next time a decklist
   version is imported for that deck (event-triggered, not a periodic
   job — see Implementation notes).
+- The "New session" form collects the same fields as editing
+  (location/notes/started_at/ended_at/hue), not just name/type — see
+  Follow-up in Implementation notes.
 
 ## Tasks
 
@@ -304,6 +322,13 @@ Decisions made during implementation, refining/superseding the plan below:
   implicit ordering assumption broke.
 - Frontend: `SessionsSections` tests updated for the new columns/
   controls; existing Close/Reopen/PDF-download assertions still pass.
+- Backend: `TestCreateSession` covers `started_at`/`ended_at`/`hue`
+  accepted on create and hue out-of-range rejection (mirroring the
+  existing `TestUpdateSession` coverage for the same fields on PATCH).
+- Frontend: the "creates a session" test updated for the new form
+  fields/payload shape (`draftToCreate`); the read-only-mode test now
+  asserts on the "Create" button's absence rather than the old
+  placeholder-only quick-add input.
 
 ## See also
 

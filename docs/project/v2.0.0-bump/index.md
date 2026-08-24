@@ -255,6 +255,15 @@ Hue is a native `<input type="range">` (no new dependency) and replaces
 the type-based color on every session tag app-wide (`SessionTypeBadge`),
 not just where the picker is shown — see S14's own page, "Implementation
 notes," for the full list of decisions made during implementation.
+**Same day, S14 follow-up**: the "New session" form originally kept its
+pre-S14 shape (`name`/`type` only), leaving `location`/`notes`/
+`started_at`/`ended_at`/`hue` edit-only despite S14 adding them to the
+schema — closed by extending `SessionCreate` (`POST /sessions`) to
+accept the same fields `SessionPatch` already does, and having the
+create form reuse `SessionEditFields` (the shared component the row and
+archived-dialog edit surfaces already used) instead of two raw inputs.
+No schema/migration change — `started_at`/`ended_at`/`hue` already
+existed as nullable columns on `TSSession` since S14.
 
 ---
 
