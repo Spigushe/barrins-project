@@ -32,6 +32,11 @@ section of the docs site for details.
   history; `CurrentDecklistSection` lists card tests that match no real
   decklist change in a standalone "Card change being considered in
   this version" block.
+- Fix: `src/demo/api/personalDecks.ts` was missing S15's
+  `getDecklistVersionView`/`getDecklistVersionDiff`, failing `tsc -b`
+  and `demoApi.test.ts`'s module-shape check. Demo mode now implements
+  both, mirroring the real backend's `diff_decklist_cards` and version
+  view construction against the in-memory store.
 - Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
   built on the existing `Dialog` primitive, no new dependency — S13):
   deleting a Match journal row, a Card test, a Decklist version, or
