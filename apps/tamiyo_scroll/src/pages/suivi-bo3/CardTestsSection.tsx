@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import {
   useCardTests,
   useCreateCardTest,
@@ -6,8 +6,8 @@ import {
   useUpdateCardTest,
 } from '@/hooks/useCardTests'
 import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
-import { useCurrentUser } from '@/hooks/useAuth'
 import { useActiveDeck } from '@/contexts/active-deck-context'
+import { ApiError } from '@/api/client'
 import type { CardTest, CardTestWrite, MetaDeck } from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
@@ -168,21 +168,27 @@ function MatchupDeckField({
 }
 
 interface Draft {
-  tester: string
-  cardName: string
+  removedCardName: string
+  addedCardName: string
   opponentDeckId: string
   rating: number
   notes: string
 }
 
-function emptyDraft(tester = ''): Draft {
-  return { tester, cardName: '', opponentDeckId: NO_MATCHUP, rating: 3, notes: '' }
+function emptyDraft(): Draft {
+  return {
+    removedCardName: '',
+    addedCardName: '',
+    opponentDeckId: NO_MATCHUP,
+    rating: 3,
+    notes: '',
+  }
 }
 
 function draftFromTest(test: CardTest): Draft {
   return {
-    tester: test.tester,
-    cardName: test.card_name,
+    removedCardName: test.removed_card_name,
+    addedCardName: test.added_card_name,
     opponentDeckId: test.opponent_deck_id ?? NO_MATCHUP,
     rating: test.rating,
     notes: test.notes ?? '',
@@ -192,38 +198,31 @@ function draftFromTest(test: CardTest): Draft {
 function toWrite(deckId: string, draft: Draft): CardTestWrite {
   return {
     personal_deck_id: deckId,
-    tester: draft.tester.trim(),
-    card_name: draft.cardName.trim(),
+    removed_card_name: draft.removedCardName.trim(),
+    added_card_name: draft.addedCardName.trim(),
     opponent_deck_id: draft.opponentDeckId === NO_MATCHUP ? null : draft.opponentDeckId,
     rating: draft.rating,
     notes: draft.notes.trim() || null,
   }
 }
 
+function errorMessage(error: unknown): string | null {
+  if (error instanceof ApiError) return error.message
+  return null
+}
+
 export function CardTestsSection() {
   const { canEdit, activeDeckId } = useActiveDeck()
   const { data: cardTests } = useCardTests(activeDeckId)
   const { data: metaDecks } = useMetaDecks()
-  const { data: currentUser } = useCurrentUser()
   const createTest = useCreateCardTest()
   const updateTest = useUpdateCardTest()
   const deleteTest = useDeleteCardTest()
 
-  const defaultTester = currentUser?.display_name?.trim() || ''
-
-  const [newDraft, setNewDraft] = useState<Draft>(emptyDraft(defaultTester))
+  const [newDraft, setNewDraft] = useState<Draft>(emptyDraft())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Draft>(emptyDraft())
   const [pendingDelete, setPendingDelete] = useState<CardTest | null>(null)
-
-  useEffect(() => {
-    setNewDraft((draft) => {
-      if (draft.tester || !defaultTester) {
-        return draft
-      }
-      return { ...draft, tester: defaultTester }
-    })
-  }, [defaultTester])
 
   const deckOptions = metaDecks ?? []
 
@@ -232,9 +231,9 @@ export function CardTestsSection() {
 
   async function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (!newDraft.tester.trim() || !newDraft.cardName.trim()) return
+    if (!newDraft.removedCardName.trim() || !newDraft.addedCardName.trim()) return
     await createTest.mutateAsync(toWrite(deckId, newDraft))
-    setNewDraft(emptyDraft(defaultTester))
+    setNewDraft(emptyDraft())
   }
 
   function startEdit(test: CardTest) {
@@ -259,23 +258,23 @@ export function CardTestsSection() {
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-tester">Nickname</Label>
+            <Label htmlFor="test-removed-card">Removed Card</Label>
             <Input
-              id="test-tester"
-              value={newDraft.tester}
+              id="test-removed-card"
+              value={newDraft.removedCardName}
               onChange={(event) => {
-                setNewDraft({ ...newDraft, tester: event.target.value })
+                setNewDraft({ ...newDraft, removedCardName: event.target.value })
               }}
               className="w-32"
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="test-card">Card name</Label>
+            <Label htmlFor="test-added-card">Added Card</Label>
             <Input
-              id="test-card"
-              value={newDraft.cardName}
+              id="test-added-card"
+              value={newDraft.addedCardName}
               onChange={(event) => {
-                setNewDraft({ ...newDraft, cardName: event.target.value })
+                setNewDraft({ ...newDraft, addedCardName: event.target.value })
               }}
               className="w-48"
             />
@@ -322,14 +321,19 @@ export function CardTestsSection() {
           <Button type="submit" disabled={createTest.isPending}>
             Add
           </Button>
+          {errorMessage(createTest.error) && (
+            <p className="w-full text-[12.5px] text-destructive">
+              {errorMessage(createTest.error)}
+            </p>
+          )}
         </form>
       )}
 
       <Table className="mt-3">
         <TableHeader>
           <TableRow>
-            <TableHead>Nickname</TableHead>
-            <TableHead>Card</TableHead>
+            <TableHead>Removed Card</TableHead>
+            <TableHead>Added Card</TableHead>
             <TableHead>Match-up</TableHead>
             <TableHead className="w-32">Effectiveness</TableHead>
             <TableHead>Notes</TableHead>
@@ -344,17 +348,20 @@ export function CardTestsSection() {
                 <TableRow key={test.id}>
                   <TableCell>
                     <Input
-                      value={editDraft.tester}
+                      value={editDraft.removedCardName}
                       onChange={(event) => {
-                        setEditDraft({ ...editDraft, tester: event.target.value })
+                        setEditDraft({
+                          ...editDraft,
+                          removedCardName: event.target.value,
+                        })
                       }}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
-                      value={editDraft.cardName}
+                      value={editDraft.addedCardName}
                       onChange={(event) => {
-                        setEditDraft({ ...editDraft, cardName: event.target.value })
+                        setEditDraft({ ...editDraft, addedCardName: event.target.value })
                       }}
                     />
                   </TableCell>
@@ -418,6 +425,11 @@ export function CardTestsSection() {
                     >
                       Cancel
                     </Button>
+                    {errorMessage(updateTest.error) && (
+                      <p className="w-full text-[12.5px] text-destructive">
+                        {errorMessage(updateTest.error)}
+                      </p>
+                    )}
                   </TableCell>
                 </TableRow>
               )
@@ -426,8 +438,8 @@ export function CardTestsSection() {
             const matchupDeck = resolveMetaDeckOption(deckOptions, test.opponent_deck_id)
             return (
               <TableRow key={test.id}>
-                <TableCell>{test.tester}</TableCell>
-                <TableCell className="font-mono">{test.card_name}</TableCell>
+                <TableCell>{test.removed_card_name}</TableCell>
+                <TableCell className="font-mono">{test.added_card_name}</TableCell>
                 <TableCell>{matchupDeck?.name ?? '—'}</TableCell>
                 <TableCell className={cn('font-semibold', ratingTextClass(test.rating))}>
                   {RATING_LABELS[test.rating]}
@@ -477,7 +489,7 @@ export function CardTestsSection() {
         onOpenChange={(next) => {
           if (!next) setPendingDelete(null)
         }}
-        title={pendingDelete ? `Delete "${pendingDelete.card_name}"?` : ''}
+        title={pendingDelete ? `Delete "${pendingDelete.added_card_name}"?` : ''}
         description="It will disappear from this deck's test feedback. This can't be undone."
         confirmDisabled={deleteTest.isPending}
         onConfirm={() => {

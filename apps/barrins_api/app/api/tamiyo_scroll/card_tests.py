@@ -7,9 +7,21 @@ from sqlalchemy import select
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
-from app.models.tamiyo_scroll import TSCardTest, TSMetaDeck, TSPersonalDeck
+from app.models.tamiyo_scroll import (
+    TSCardTest,
+    TSMetaDeck,
+    TSPersonalDeck,
+    TSPersonalDecklistVersion,
+    TSUserSettings,
+)
 from app.schemas.responses_tamiyo_scroll import ResponseCardTest
 from app.schemas.tamiyo_scroll import CardTestWrite
+from app.services.scripture.card_resolver import (
+    resolve_card_name,
+    resolve_card_name_or_raw,
+)
+from app.services.tamiyo_scroll.card_test_matching import compute_matched_card_test_ids
+from app.services.tamiyo_scroll.decklist_coloring import parse_card_line
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
 
 router = APIRouter()
@@ -63,11 +75,78 @@ async def _validate_personal_deck_ref(
 
 def _apply_payload(test: TSCardTest, payload: CardTestWrite) -> None:
     test.personal_deck_id = payload.personal_deck_id
-    test.tester = payload.tester
-    test.card_name = payload.card_name
+    test.removed_card_name = payload.removed_card_name
+    test.added_card_name = payload.added_card_name
     test.opponent_deck_id = payload.opponent_deck_id
     test.rating = payload.rating
     test.notes = payload.notes
+
+
+async def _validate_removed_card_in_decklist(
+    session: DatabaseSession, personal_deck_id: uuid.UUID, removed_card_name: str
+) -> None:
+    """S16: `removed_card_name` must match a card present in the deck's
+    *current* (latest) decklist content, canonicalized through
+    `resolve_card_name_or_raw` on both sides."""
+    latest_result = await session.execute(
+        select(TSPersonalDecklistVersion)
+        .where(TSPersonalDecklistVersion.personal_deck_id == personal_deck_id)
+        .order_by(TSPersonalDecklistVersion.version.desc())
+        .limit(1)
+    )
+    latest = latest_result.scalar_one_or_none()
+    target = await resolve_card_name_or_raw(session, removed_card_name)
+    if latest is not None:
+        for line in latest.content.splitlines():
+            parsed = parse_card_line(line)
+            if parsed is None:
+                continue
+            _, name = parsed
+            canonical = await resolve_card_name_or_raw(session, name)
+            if canonical == target:
+                return
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Removed card is not present in the deck's current decklist.",
+    )
+
+
+async def _validate_added_card_exists(
+    session: DatabaseSession, added_card_name: str
+) -> None:
+    """S16: `added_card_name` must resolve against `mj_cards` -- Magic:
+    The Gathering only, so this is opt-in and should stay off for
+    non-Magic decks (it would reject every card name)."""
+    if await resolve_card_name(session, added_card_name) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Added card does not resolve to a known card.",
+        )
+
+
+async def _run_write_validations(
+    session: DatabaseSession, owner_id: uuid.UUID, payload: CardTestWrite
+) -> None:
+    """When no `TSUserSettings` row exists yet (the owner has never hit
+    GET/PATCH /me/settings), fall back to the column defaults rather than
+    treating "no row" as "everything off" -- `validate_removed_card_in_decklist`
+    defaults on, so a brand-new account must still get it enforced."""
+    settings_result = await session.execute(
+        select(TSUserSettings).where(TSUserSettings.user_id == owner_id)
+    )
+    settings = settings_result.scalar_one_or_none()
+    validate_removed = (
+        settings.validate_removed_card_in_decklist if settings is not None else True
+    )
+    validate_added = (
+        settings.validate_added_card_exists if settings is not None else False
+    )
+    if validate_removed:
+        await _validate_removed_card_in_decklist(
+            session, payload.personal_deck_id, payload.removed_card_name
+        )
+    if validate_added:
+        await _validate_added_card_exists(session, payload.added_card_name)
 
 
 @router.get("/card-tests", response_model=list[ResponseCardTest])
@@ -90,6 +169,34 @@ async def list_card_tests(
     return [ResponseCardTest.model_validate(t) for t in result.scalars().all()]
 
 
+@router.get("/card-tests/change-log", response_model=list[ResponseCardTest])
+async def list_card_test_change_log(
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+    personal_deck_id: uuid.UUID,
+) -> list[ResponseCardTest]:
+    """S16: `personal_deck_id`'s card-test entries that don't match any
+    real decklist change anywhere in the deck's version history — the
+    complement to the matched-card-test comments shown inline on
+    `GET .../versions/{id}/diff`."""
+    await _validate_personal_deck_ref(session, owner.id, personal_deck_id)
+    matched_ids = await compute_matched_card_test_ids(session, personal_deck_id)
+    stmt = (
+        select(TSCardTest)
+        .where(
+            TSCardTest.owner_id == owner.id,
+            TSCardTest.personal_deck_id == personal_deck_id,
+        )
+        .order_by(TSCardTest.created_at.desc())
+    )
+    result = await session.execute(stmt)
+    return [
+        ResponseCardTest.model_validate(t)
+        for t in result.scalars().all()
+        if t.id not in matched_ids
+    ]
+
+
 @router.post(
     "/card-tests", response_model=ResponseCardTest, status_code=status.HTTP_201_CREATED
 )
@@ -102,6 +209,7 @@ async def create_card_test(
         session, current_user.id, payload.personal_deck_id
     )
     await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
+    await _run_write_validations(session, current_user.id, payload)
     test = TSCardTest(owner_id=current_user.id)
     _apply_payload(test, payload)
     session.add(test)
@@ -122,6 +230,7 @@ async def update_card_test(
         session, current_user.id, payload.personal_deck_id
     )
     await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
+    await _run_write_validations(session, current_user.id, payload)
     _apply_payload(test, payload)
     session.add(test)
     await session.commit()

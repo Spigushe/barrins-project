@@ -1,17 +1,27 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/api/client'
 import { CardTestsSection } from './CardTestsSection'
 
 const createTestMutateAsync = vi.fn()
 const updateTestMutateAsync = vi.fn()
 const deleteTestMutateAsync = vi.fn()
+let createTestError: unknown = null
 
 vi.mock('@/hooks/useCardTests', () => ({
   useCardTests: () => ({ data: cardTests }),
-  useCreateCardTest: () => ({ mutateAsync: createTestMutateAsync, isPending: false }),
+  useCreateCardTest: () => ({
+    mutateAsync: createTestMutateAsync,
+    isPending: false,
+    error: createTestError,
+  }),
   useDeleteCardTest: () => ({ mutateAsync: deleteTestMutateAsync, isPending: false }),
-  useUpdateCardTest: () => ({ mutateAsync: updateTestMutateAsync, isPending: false }),
+  useUpdateCardTest: () => ({
+    mutateAsync: updateTestMutateAsync,
+    isPending: false,
+    error: null,
+  }),
 }))
 
 const metaDecks = [
@@ -20,8 +30,8 @@ const metaDecks = [
 ]
 let cardTests: {
   id: string
-  tester: string
-  card_name: string
+  removed_card_name: string
+  added_card_name: string
   opponent_deck_id: string | null
   rating: number
   notes: string | null
@@ -35,20 +45,37 @@ vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
   }
 })
 
-vi.mock('@/hooks/useAuth', () => ({
-  useCurrentUser: () => ({ data: { display_name: 'Alice', email: 'alice@example.com' } }),
-}))
-
 vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-1', canEdit: true }),
 }))
 
 describe('CardTestsSection', () => {
-  it('prefills the tester input with the current user display name', () => {
+  beforeEach(() => {
     cardTests = []
+    createTestError = null
+  })
+
+  it('labels the table headers and create-form fields consistently', () => {
     render(<CardTestsSection />)
 
-    expect(screen.getByLabelText('Nickname')).toHaveValue('Alice')
+    const headerRow = screen.getAllByRole('columnheader')
+    expect(headerRow.map((cell) => cell.textContent)).toEqual(
+      expect.arrayContaining(['Removed Card', 'Added Card']),
+    )
+    expect(screen.getByLabelText('Removed Card')).toBeInTheDocument()
+    expect(screen.getByLabelText('Added Card')).toBeInTheDocument()
+  })
+
+  it('shows the backend error message inline after a failed create', () => {
+    createTestError = new ApiError(
+      400,
+      "Removed card is not present in the deck's current decklist.",
+    )
+    render(<CardTestsSection />)
+
+    expect(
+      screen.getByText("Removed card is not present in the deck's current decklist."),
+    ).toBeInTheDocument()
   })
 })
 
@@ -57,8 +84,8 @@ describe('CardTestsSection — delete confirmation', () => {
     cardTests = [
       {
         id: 'test-1',
-        tester: 'Alice',
-        card_name: 'Lightning Bolt',
+        removed_card_name: 'Duress',
+        added_card_name: 'Lightning Bolt',
         opponent_deck_id: null,
         rating: 3,
         notes: null,
@@ -118,9 +145,7 @@ describe('CardTestsSection — Match-up combobox parity', () => {
 
     await user.click(screen.getByRole('button', { name: 'Match-up' }))
 
-    expect(
-      screen.getByText('shared — tap to add to your roster'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('shared — tap to add to your roster')).toBeInTheDocument()
     expect(screen.queryByText(/^Create "/)).not.toBeInTheDocument()
   })
 
@@ -128,8 +153,8 @@ describe('CardTestsSection — Match-up combobox parity', () => {
     cardTests = [
       {
         id: 'test-1',
-        tester: 'Alice',
-        card_name: 'Lightning Bolt',
+        removed_card_name: 'Duress',
+        added_card_name: 'Lightning Bolt',
         opponent_deck_id: 'deck-a',
         rating: 3,
         notes: null,

@@ -55,6 +55,10 @@ function useInvalidateDecklist() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['decklist-versions'] })
     void queryClient.invalidateQueries({ queryKey: ['decklist-view'] })
+    // S16: which card tests match a real decklist change depends on the
+    // deck's whole version history, so it can shift when a version is
+    // added or removed.
+    void queryClient.invalidateQueries({ queryKey: ['card-tests-change-log'] })
   }
 }
 

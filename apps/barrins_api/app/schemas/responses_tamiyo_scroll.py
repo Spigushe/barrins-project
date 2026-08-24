@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import computed_field
+from pydantic import Field, computed_field
 
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
@@ -28,6 +28,9 @@ class ResponseUserSettings(BaseResponse):
     auto_archive_stale_sessions: bool
     auto_archive_decklist_version_gap: int
     show_decklist_version_diff: bool
+    validate_removed_card_in_decklist: bool
+    validate_added_card_exists: bool
+    show_decklist_change_log: bool
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -117,8 +120,8 @@ class ResponseMatch(BaseResponse):
 class ResponseCardTest(BaseResponse):
     id: uuid.UUID
     personal_deck_id: uuid.UUID | None
-    tester: str
-    card_name: str
+    removed_card_name: str
+    added_card_name: str
     opponent_deck_id: uuid.UUID | None
     rating: int
     notes: str | None
@@ -177,13 +180,20 @@ class ResponseDecklistView(BaseResponse):
 class ResponseDecklistCardDiff(BaseResponse):
     """One card's quantity change between two decklist versions --
     matched by name (not by line), so pure reordering never shows up as
-    a spurious added+removed pair (S15)."""
+    a spurious added+removed pair (S15).
+
+    `card_test_notes` (S16): notes from any `TSCardTest` whose
+    `removed_card_name`/`added_card_name` matches this line (only ever
+    populated for `status in {"added", "removed"}`) -- always computed,
+    the frontend decides whether to render it based on the user's
+    `show_decklist_change_log` setting."""
 
     name: str
     status: Literal["added", "removed", "unchanged", "quantity_changed"]
     old_qty: int | None
     new_qty: int | None
     is_commander: bool
+    card_test_notes: list[str] = Field(default_factory=list)
 
 
 class ResponseDecklistLineDiff(BaseResponse):

@@ -27,6 +27,9 @@ class UserSettingsUpdate(BaseModel):
     auto_archive_stale_sessions: bool | None = None
     auto_archive_decklist_version_gap: int | None = Field(default=None, ge=1)
     show_decklist_version_diff: bool | None = None
+    validate_removed_card_in_decklist: bool | None = None
+    validate_added_card_exists: bool | None = None
+    show_decklist_change_log: bool | None = None
 
 
 class PersonalDeckCreate(BaseModel):
@@ -176,8 +179,8 @@ class CardTestWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     personal_deck_id: uuid.UUID
-    tester: str = Field(min_length=1, max_length=120)
-    card_name: str = Field(min_length=1, max_length=255)
+    removed_card_name: str = Field(min_length=1, max_length=255)
+    added_card_name: str = Field(min_length=1, max_length=255)
     opponent_deck_id: uuid.UUID | None = None
     rating: int = Field(ge=1, le=5)
     notes: str | None = None

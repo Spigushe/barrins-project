@@ -13,6 +13,9 @@ export function updateMySettings(payload: {
   auto_archive_stale_sessions?: boolean
   auto_archive_decklist_version_gap?: number
   show_decklist_version_diff?: boolean
+  validate_removed_card_in_decklist?: boolean
+  validate_added_card_exists?: boolean
+  show_decklist_change_log?: boolean
 }) {
   return apiRequest('/bff/tamiyo-scroll/me/settings', userSettingsSchema, {
     method: 'PATCH',

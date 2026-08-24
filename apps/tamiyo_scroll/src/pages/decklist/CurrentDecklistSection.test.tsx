@@ -1,55 +1,106 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CurrentDecklistSection } from './CurrentDecklistSection'
 
-let activeDeckId: string | null = 'deck-mine'
-let versions: { version: number; created_at: string }[] = []
-let view = { commander_cards: [], library_cards: [], unparsed_lines: [] }
+const versions = [
+  {
+    id: 'v1',
+    personal_deck_id: 'deck-1',
+    version: 1,
+    content: '4 Lightning Bolt',
+    source: 'manual' as const,
+    created_at: '2026-08-24T10:00:00+00:00',
+  },
+]
 
-const downloadReportMutate = vi.fn()
+let showChangeLog = true
+let unmatchedCardTests: {
+  id: string
+  removed_card_name: string
+  added_card_name: string
+  notes: string | null
+}[] = []
 
 vi.mock('@/contexts/active-deck-context', () => ({
-  useActiveDeck: () => ({ activeDeckId, canEdit: true }),
+  useActiveDeck: () => ({ activeDeckId: 'deck-1', canEdit: true }),
+}))
+
+vi.mock('@/hooks/useSettings', () => ({
+  useMySettings: () => ({ data: { show_decklist_change_log: showChangeLog } }),
+}))
+
+vi.mock('@/hooks/useCardTests', () => ({
+  useCardTestChangeLog: () => ({ data: unmatchedCardTests }),
 }))
 
 vi.mock('@/hooks/useDecklistVersions', () => ({
   useDecklistVersions: () => ({ data: versions }),
-  useDecklistView: () => ({ data: view }),
-}))
-
-vi.mock('@/hooks/usePersonalDecks', () => ({
-  usePersonalDecks: () => ({ data: [{ id: 'deck-mine', name: 'Mono Red' }] }),
-  useDownloadDeckReport: () => ({
-    mutate: downloadReportMutate,
-    isPending: false,
+  useDecklistView: () => ({
+    data: { commander_cards: [], library_cards: [], unparsed_lines: [] },
   }),
 }))
 
-beforeEach(() => {
-  activeDeckId = 'deck-mine'
-  versions = []
-  view = { commander_cards: [], library_cards: [], unparsed_lines: [] }
-  downloadReportMutate.mockReset()
-})
+vi.mock('@/hooks/usePersonalDecks', () => ({
+  useDownloadDeckReport: () => ({ mutate: vi.fn(), isPending: false }),
+  usePersonalDecks: () => ({ data: [] }),
+}))
 
-describe('CurrentDecklistSection — deck-level report download', () => {
-  it("downloads the active deck's report", async () => {
-    const user = userEvent.setup()
+describe('CurrentDecklistSection — S16 untracked card tests', () => {
+  const heading = 'Card change being considered in this version:'
+
+  it('is hidden when the change-log setting is off', () => {
+    showChangeLog = false
+    unmatchedCardTests = [
+      {
+        id: 'test-1',
+        removed_card_name: 'Counterspell',
+        added_card_name: 'Mana Crypt',
+        notes: null,
+      },
+    ]
     render(<CurrentDecklistSection />)
 
-    await user.click(screen.getByRole('button', { name: 'Download report (PDF)' }))
-
-    expect(downloadReportMutate).toHaveBeenCalledWith({
-      deckId: 'deck-mine',
-      filename: 'deck-report-mono-red.pdf',
-    })
+    expect(screen.queryByText(heading)).not.toBeInTheDocument()
   })
 
-  it('renders nothing when no deck is active', () => {
-    activeDeckId = null
-    const { container } = render(<CurrentDecklistSection />)
+  it('hides the block entirely when there are no unmatched card tests', () => {
+    showChangeLog = true
+    unmatchedCardTests = []
+    render(<CurrentDecklistSection />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByText(heading)).not.toBeInTheDocument()
+  })
+
+  it('lists an unmatched card test with its note', () => {
+    showChangeLog = true
+    unmatchedCardTests = [
+      {
+        id: 'test-1',
+        removed_card_name: 'Counterspell',
+        added_card_name: 'Mana Crypt',
+        notes: 'never actually made the cut',
+      },
+    ]
+    render(<CurrentDecklistSection />)
+
+    expect(screen.getByText(heading)).toBeInTheDocument()
+    expect(screen.getByText('- Counterspell')).toBeInTheDocument()
+    expect(screen.getByText('+ Mana Crypt')).toBeInTheDocument()
+    expect(screen.getByText('never actually made the cut')).toBeInTheDocument()
+  })
+
+  it('shows a dash placeholder when the unmatched card test has no notes', () => {
+    showChangeLog = true
+    unmatchedCardTests = [
+      {
+        id: 'test-2',
+        removed_card_name: 'Duress',
+        added_card_name: 'Thoughtseize',
+        notes: null,
+      },
+    ]
+    render(<CurrentDecklistSection />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
   })
 })

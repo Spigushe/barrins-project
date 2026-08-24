@@ -76,6 +76,21 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [showVersionDiff, setShowVersionDiff] = useState(
     () => settings?.show_decklist_version_diff ?? true,
   )
+  // S16: write-time validations for card tests. Removed-card defaults on
+  // (matches show_decklist_version_diff's opt-out convention); added-card
+  // stays opt-in since an unresolvable-but-legitimate name is a more
+  // likely false positive.
+  const [validateRemovedCardInDecklist, setValidateRemovedCardInDecklist] = useState(
+    () => settings?.validate_removed_card_in_decklist ?? true,
+  )
+  const [validateAddedCardExists, setValidateAddedCardExists] = useState(
+    () => settings?.validate_added_card_exists ?? false,
+  )
+  // S16: gates both the matched-card-test comments on decklist diffs and
+  // the standalone unmatched-entries list on the current decklist.
+  const [showChangeLog, setShowChangeLog] = useState(
+    () => settings?.show_decklist_change_log ?? false,
+  )
 
   // S12 items 8-11: four purely-visual toggles, `localStorage`-backed
   // (not part of the Save/Cancel form above — they apply immediately,
@@ -111,6 +126,9 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
           Number.parseInt(autoArchiveGapText, 10) || 1,
         ),
         show_decklist_version_diff: showVersionDiff,
+        validate_removed_card_in_decklist: validateRemovedCardInDecklist,
+        validate_added_card_exists: validateAddedCardExists,
+        show_decklist_change_log: showChangeLog,
       }),
     ])
     onClose()
@@ -258,6 +276,59 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
               checked={showVersionDiff}
               onCheckedChange={setShowVersionDiff}
               label="Decklist version diff"
+            />
+          </div>
+        </div>
+
+        <div role="separator" className="h-px bg-accent" />
+
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Validate removed card is in decklist
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reject a card test's Removed Card unless it's present in the deck's
+                current decklist.
+              </p>
+            </div>
+            <Switch
+              checked={validateRemovedCardInDecklist}
+              onCheckedChange={setValidateRemovedCardInDecklist}
+              label="Validate removed card is in decklist"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Validate added card exists
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reject a card test's Added Card unless it resolves to a known card. Magic:
+                The Gathering only — non-Magic decks should leave this off.
+              </p>
+            </div>
+            <Switch
+              checked={validateAddedCardExists}
+              onCheckedChange={setValidateAddedCardExists}
+              label="Validate added card exists"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Show decklist change log
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Show a card test's note as a comment on the decklist diff it matches, and
+                list unmatched card tests on the current decklist.
+              </p>
+            </div>
+            <Switch
+              checked={showChangeLog}
+              onCheckedChange={setShowChangeLog}
+              label="Show decklist change log"
             />
           </div>
         </div>

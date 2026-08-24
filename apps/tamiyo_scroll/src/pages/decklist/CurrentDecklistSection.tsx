@@ -1,6 +1,8 @@
 import { useActiveDeck } from '@/contexts/active-deck-context'
+import { useCardTestChangeLog } from '@/hooks/useCardTests'
 import { useDecklistVersions, useDecklistView } from '@/hooks/useDecklistVersions'
 import { useDownloadDeckReport, usePersonalDecks } from '@/hooks/usePersonalDecks'
+import { useMySettings } from '@/hooks/useSettings'
 import {
   DECKLIST_LINE_STATUS_BG_CLASS,
   DECKLIST_LINE_STATUS_LABELS,
@@ -20,6 +22,9 @@ export function CurrentDecklistSection() {
   const { data: versions } = useDecklistVersions(activeDeckId)
   const { data: view } = useDecklistView(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
+  const { data: settings } = useMySettings()
+  const showChangeLog = settings?.show_decklist_change_log ?? false
+  const { data: unmatchedCardTests } = useCardTestChangeLog(activeDeckId, showChangeLog)
   const downloadReport = useDownloadDeckReport()
 
   if (activeDeckId === null) return null
@@ -70,6 +75,23 @@ export function CurrentDecklistSection() {
           </Button>
         </div>
       </div>
+
+      {showChangeLog && !((unmatchedCardTests?.length ?? 0) === 0) && (
+        <div className="mt-4 rounded-(--radius-input) border border-border bg-input-inline p-4">
+          <p className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            Card change being considered in this version:
+          </p>
+          <div className="mt-1 flex flex-col gap-1.5 font-mono text-[13px]">
+            {unmatchedCardTests?.map((test) => (
+              <div key={test.id}>
+                <p className="font-sans text-muted-foreground">{test.notes ?? '—'}</p>
+                <p className="text-destructive">- {test.removed_card_name}</p>
+                <p className="text-success">+ {test.added_card_name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!latest && (
         <p className="mt-4 text-muted-foreground">No version saved for this deck.</p>

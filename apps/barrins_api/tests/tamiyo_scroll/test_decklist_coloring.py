@@ -11,9 +11,12 @@ from app.services.tamiyo_scroll.decklist_coloring import (
 )
 
 
-def _card_test(card_name: str, rating: int) -> TSCardTest:
+def _card_test(added_card_name: str, rating: int) -> TSCardTest:
     return TSCardTest(
-        owner_id=uuid.uuid4(), tester="Alice", card_name=card_name, rating=rating
+        owner_id=uuid.uuid4(),
+        removed_card_name="Duress",
+        added_card_name=added_card_name,
+        rating=rating,
     )
 
 

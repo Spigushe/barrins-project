@@ -65,6 +65,17 @@ async def update_my_settings(
     if payload.show_decklist_version_diff is not None:
         user_settings.show_decklist_version_diff = payload.show_decklist_version_diff
 
+    if payload.validate_removed_card_in_decklist is not None:
+        user_settings.validate_removed_card_in_decklist = (
+            payload.validate_removed_card_in_decklist
+        )
+
+    if payload.validate_added_card_exists is not None:
+        user_settings.validate_added_card_exists = payload.validate_added_card_exists
+
+    if payload.show_decklist_change_log is not None:
+        user_settings.show_decklist_change_log = payload.show_decklist_change_log
+
     if user_settings.receive_shared_data and not user_settings.data_shared:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

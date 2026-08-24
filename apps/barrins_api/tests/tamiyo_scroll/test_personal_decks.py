@@ -646,8 +646,8 @@ class TestDecklistView:
             f"{BASE}/card-tests",
             json={
                 "personal_deck_id": deck_id,
-                "tester": "Alice",
-                "card_name": "Lightning Bolt",
+                "removed_card_name": "Duress",
+                "added_card_name": "Lightning Bolt",
                 "rating": 5,
             },
             headers=headers,
@@ -656,8 +656,8 @@ class TestDecklistView:
             f"{BASE}/card-tests",
             json={
                 "personal_deck_id": deck_id,
-                "tester": "Bob",
-                "card_name": "Duress",
+                "removed_card_name": "Lightning Bolt",
+                "added_card_name": "Duress",
                 "rating": 1,
             },
             headers=headers,
@@ -686,12 +686,17 @@ class TestDecklistView:
             json={"content": "4 Lightning Bolt"},
             headers=headers,
         )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
         await client.post(
             f"{BASE}/card-tests",
             json={
                 "personal_deck_id": other_deck_id,
-                "tester": "Alice",
-                "card_name": "Lightning Bolt",
+                "removed_card_name": "Duress",
+                "added_card_name": "Lightning Bolt",
                 "rating": 5,
             },
             headers=headers,
@@ -963,6 +968,62 @@ class TestDecklistVersionDiff:
             ("Duress", "removed", 2, None),
             ("Sol Ring", "added", None, 1),
         }
+
+    async def test_annotates_matching_card_test_notes(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S16: a card test whose removed/added names match this diff's
+        removed/added cards has its note attached to that line."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n1 Sol Ring"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/card-tests",
+            json={
+                "personal_deck_id": deck_id,
+                "removed_card_name": "Duress",
+                "added_card_name": "Sol Ring",
+                "rating": 4,
+                "notes": "great swap into the control matchup",
+            },
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/card-tests",
+            json={
+                "personal_deck_id": deck_id,
+                "removed_card_name": "Not In This Diff",
+                "added_card_name": "Also Not In This Diff",
+                "rating": 4,
+                "notes": "unrelated card test",
+            },
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        cards = {c["name"]: c["card_test_notes"] for c in resp.json()["cards"]}
+        assert cards["Duress"] == ["great swap into the control matchup"]
+        assert cards["Sol Ring"] == ["great swap into the control matchup"]
+        assert cards["Lightning Bolt"] == []
 
     async def test_skips_deleted_version_when_finding_prior(
         self, client: AsyncClient, owner_user: User

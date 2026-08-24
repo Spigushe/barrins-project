@@ -103,11 +103,22 @@ _game_result_column = Enum(GameResult, name="ts_game_result")
 
 
 class TSCardTest(Base):
-    """Individual feedback on a tested card (`cardTests[]` in the design).
+    """A logged decklist swap: one card removed, one card added, with
+    feedback (`cardTests[]` in the design) (S16, GitHub issue #82).
 
-    `tester` is a free-text string (no FK to `users`) — allows crediting
-    a teammate without a Barrin account, cf.
-    docs/tamiyo_scroll_tracker/00_plan_general.md, Option E.
+    `removed_card_name`/`added_card_name` are free-text strings (no FK
+    into `mj_cards`) — optionally validated at write time against the
+    deck's current decklist / the card database, via
+    `TSUserSettings.validate_removed_card_in_decklist`/
+    `validate_added_card_exists` (both opt-in, default off).
+
+    S16 pivot: this table was originally "who tested which card"
+    (`tester`, `card_name`, cf.
+    docs/tamiyo_scroll_tracker/00_plan_general.md, Option E). Rows
+    created before the pivot keep their original values under the new
+    column names — per the accepted migration artifact, they are not
+    reinterpreted as "removed/added card" data.
+
     `opponent_deck_id` is nullable: the matchup is optional.
     """
 
@@ -131,8 +142,8 @@ class TSCardTest(Base):
         ForeignKey("ts_personal_decks.id", ondelete="CASCADE"),
         nullable=True,
     )
-    tester: Mapped[str] = mapped_column(String(120), nullable=False)
-    card_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    removed_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    added_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
     opponent_deck_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("ts_meta_decks.id", ondelete="SET NULL"),
@@ -452,6 +463,34 @@ class TSUserSettings(Base):
         nullable=False,
         default=True,
         server_default="true",
+    )
+    # S16: enforced at write time in app/api/tamiyo_scroll/card_tests.py.
+    # `validate_removed_card_in_decklist` defaults on (2026-08-24 decision,
+    # matching `show_decklist_version_diff`'s opt-out convention above) --
+    # `validate_added_card_exists` stays opt-in (default off): it resolves
+    # against `mj_cards` (Magic: The Gathering only, via
+    # `resolve_card_name`), so it would reject every card name for a
+    # non-Magic deck if it defaulted on.
+    validate_removed_card_in_decklist: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    validate_added_card_exists: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    # S16: gates both the matched-card-test comments on decklist diffs
+    # (VersionHistorySection) and the standalone unmatched-entries list
+    # on the current decklist (CurrentDecklistSection).
+    show_decklist_change_log: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
     )
 
 
