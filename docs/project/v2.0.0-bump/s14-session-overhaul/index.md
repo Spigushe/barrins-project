@@ -6,11 +6,45 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` + `apps/tamiyo_scroll` | Schema change (`TSSession`, `TSUserSettings`) + several API/frontend changes |
 | **Initial date** | 2026-08-23 | Drafted 2026-08-23 |
-| **Status** | Not started | / |
+| **Status** | ✅ Done (2026-08-24) | / |
 | **Source** | GitHub issue [#80](https://github.com/Spigushe/barrins-project/issues/80) — 5 "Suggested Change" items + 4 "Related possible change" items; user confirmed 2026-08-23 both groups are in scope for this item | / |
-| **Dependency** | Auto-archive (item 9) needs a periodic job — see Open questions; not yet confirmed whether `barrins_api` has any existing in-process scheduler to reuse | / |
+| **Dependency** | Resolved 2026-08-24 — see Open question 1: auto-archive (item 9) is event-triggered (runs on decklist import), not a periodic job, so no scheduler was needed | / |
 
 ---
+
+## Implementation notes (2026-08-24)
+
+Decisions made during implementation, refining/superseding the plan below:
+
+- **`location` field added** (not in the original issue): a freeform
+  "where was this played" string, added to the same schema/edit surface
+  as the rest of this item.
+- **`ended_at` tracked separately from Close/Reopen** (not the doc's
+  original "single shared column" plan): the pre-existing `ended_at`
+  column (Close/Reopen's workflow state) is renamed to `closed_at`; a new,
+  separate `ended_at` is purely informational and freely editable,
+  independent of Close/Reopen. See "Schema" below (this section replaces
+  the original Design decisions bullet on this point).
+- **Hue replaces the type-based color on every session tag app-wide**
+  (Sessions tab row/summary, archived-sessions list, Match journal tag —
+  `SessionTypeBadge`), not just the Match journal. The row-background hue
+  tint originally planned was removed — hue affects only the badge/tag
+  color, not the table row background.
+- **Hue picker is a native `<input type="range">`**, not a new shadcn
+  `Slider` component — avoids adding `@radix-ui/react-slider` as a new
+  dependency (Constitution §22).
+- **Auto-archive (item 9) is event-triggered, not a periodic job**: the
+  eligibility sweep runs synchronously whenever a new decklist version is
+  created for a deck (Moxfield import or plain-text import), scoped to
+  that deck's open sessions — see resolved Open question 1. No scheduler
+  investigation was needed.
+- **Match journal's session tag (item 7) reuses the existing
+  `metaDecksIncludingArchived` precedent** (`useSessions(deckId, true)`)
+  instead of embedding `name`/`hue` on the match response — same
+  resolved-session-tag outcome, zero backend/schema changes to matches.
+- **Session editing is inline-in-row**, matching `MatchJournalSection`'s
+  existing Edit pattern, not a modal dialog — available regardless of a
+  session's status (ongoing/closed/archived).
 
 ## Context
 
@@ -93,7 +127,10 @@
 - **New optional `search` query param** on `GET /sessions` (name,
   case-insensitive contains) for the archived-sessions browsing tool.
 - **Match list response gains an embedded session summary**
-  (`name` + `hue`) for the Match-journal tag (item 7).
+  (`name` + `hue`) for the Match-journal tag (item 7). ~~Superseded
+  during implementation~~ — see Implementation notes: the frontend
+  reuses the existing `metaDecksIncludingArchived` precedent instead
+  (`useSessions(deckId, true)`), no match-response/schema change made.
 - **Auto-archive** (item 9): new `TSUserSettings` fields
   `auto_archive_stale_sessions` (bool, opt-in) and
   `auto_archive_decklist_version_gap` (int, only meaningful when the
@@ -102,8 +139,11 @@
   version number against `MAX(version)` for the session's
   `personal_deck_id`; if the gap is ≥ the threshold, archive the
   session. Sessions with no matches are never auto-archived (nothing
-  to compare). This needs a **periodic job**, not an on-read check
-  (a `GET` shouldn't have side effects) — see Open questions.
+  to compare). This doc originally called for a **periodic job**, not an
+  on-read check (a `GET` shouldn't have side effects) — resolved during
+  implementation as an event-triggered sweep instead (Open question 1),
+  which sidesteps that constraint too: the write already happens on the
+  decklist-version POST, not on any `GET`.
 - **"Period" → "Starting date"**: the column now shows `started_at`
   only, not the current start→end range. This is narrower information
   at a glance than today (no visible end date in the main table) —
@@ -124,8 +164,9 @@
   clicking column headers to sort, and paging through results 10 at a
   time. The former "Period" column reads "Starting date" and shows
   `started_at` only.
-- Each session can be given a hue via a color picker; that hue tints
-  the session's row and its tag elsewhere in the app.
+- Each session can be given a hue via a color picker; that hue replaces
+  the type-based color on every session tag it appears on (Sessions tab,
+  archived list, Match journal), not the table row background.
 - Match journal rows show a small tag with the match's session name
   (colored per that session's hue, if set).
 - A dedicated "Archived sessions" view lists archived sessions with a
@@ -133,121 +174,121 @@
 - With `auto_archive_stale_sessions` enabled (opt-in, default off) and
   a configured version-gap threshold, sessions whose most recent
   match's decklist version has fallen that far behind the deck's
-  current version are automatically archived by the periodic job.
+  current version are automatically archived the next time a decklist
+  version is imported for that deck (event-triggered, not a periodic
+  job — see Implementation notes).
 
 ## Tasks
 
 ### 1. Rename (core)
 
-- [ ] Frontend: rename UI (inline-edit or small dialog) wired to the
+- [x] Frontend: rename UI (inline-edit or small dialog) wired to the
       existing `useUpdateSession`/`PATCH` — no new endpoint needed.
 
 ### 2. Editable dates (core)
 
-- [ ] Migration: add `started_at` (nullable, backfilled from
+- [x] Migration: add `started_at` (nullable, backfilled from
       `created_at`).
-- [ ] `SessionPatch` schema: accept `started_at`/`ended_at` directly.
-- [ ] Frontend: date-edit UI (start + end) in the session's
+- [x] `SessionPatch` schema: accept `started_at`/`ended_at` directly.
+- [x] Frontend: date-edit UI (start + end) in the session's
       rename/edit surface.
-- [ ] Decide close/reopen's exact interaction with a manually-set
+- [x] Decide close/reopen's exact interaction with a manually-set
       `ended_at` (see Open questions).
 
 ### 3. Sortable columns (core)
 
-- [ ] `GET /sessions`: add `sort_by`/`sort_dir` query params
+- [x] `GET /sessions`: add `sort_by`/`sort_dir` query params
       (name/type/started_at/status).
-- [ ] Frontend: clickable column headers, re-fetching on change.
+- [x] Frontend: clickable column headers, re-fetching on change.
 
 ### 4. Pagination (core)
 
-- [ ] `GET /sessions`: add `limit`/`offset`, default page size 10.
-- [ ] Frontend: Prev/Next controls.
+- [x] `GET /sessions`: add `limit`/`offset`, default page size 10.
+- [x] Frontend: Prev/Next controls.
 
 ### 5. "Period" → "Starting date" (core)
 
-- [ ] Rename the column header; render `started_at` only.
+- [x] Rename the column header; render `started_at` only.
 
 ### 6. Per-session hue (related)
 
-- [ ] Migration: add `hue` (nullable int, 0-359 check constraint).
-- [ ] `SessionPatch`/`SessionCreate` schemas: accept `hue`.
-- [ ] Frontend: color picker in the session edit surface; apply the
+- [x] Migration: add `hue` (nullable int, 0-359 check constraint).
+- [x] `SessionPatch`/`SessionCreate` schemas: accept `hue`.
+- [x] Frontend: color picker in the session edit surface; apply the
       hue to the session's row/tag.
 
 ### 7. Session tag in Match journal (related)
 
-- [ ] Embed session `name`/`hue` on the match list/detail response.
-- [ ] Frontend: render a small colored tag per match row in
+- [x] Embed session `name`/`hue` on the match list/detail response.
+- [x] Frontend: render a small colored tag per match row in
       `MatchJournalSection`.
 
 ### 8. Archived-session search tool (related)
 
-- [ ] `GET /sessions`: add `search` query param.
-- [ ] `PATCH /sessions/{id}`: add `restore` flag.
-- [ ] Frontend: new "Archived sessions" view/section with a search box
+- [x] `GET /sessions`: add `search` query param.
+- [x] `PATCH /sessions/{id}`: add `restore` flag.
+- [x] Frontend: new "Archived sessions" view/section with a search box
       and a restore action per row.
 
 ### 9. Auto-archive by decklist-version age (related)
 
-- [ ] Migration: `TSUserSettings.auto_archive_stale_sessions` (bool),
+- [x] Migration: `TSUserSettings.auto_archive_stale_sessions` (bool),
       `auto_archive_decklist_version_gap` (int).
-- [ ] `UserSettingsUpdate`/`ResponseUserSettings`: expose both fields.
-- [ ] Frontend: opt-in toggle + threshold input in
+- [x] `UserSettingsUpdate`/`ResponseUserSettings`: expose both fields.
+- [x] Frontend: opt-in toggle + threshold input in
       `AccountSettingsDialog`.
-- [ ] Backend: the eligibility predicate (session → its latest match's
+- [x] Backend: the eligibility predicate (session → its latest match's
       `decklist_version_id` → deck's `MAX(version)` → gap ≥ threshold),
       unit-testable in isolation from any scheduling mechanism.
-- [ ] Backend: the periodic job itself — **blocked on the scheduler
-      investigation below**.
+- [x] Backend: the periodic job — **resolved 2026-08-24: not a periodic
+      job at all**. The user redirected this to an event-triggered
+      sweep instead (see Open question 1), so no scheduler was built.
 
-## Open questions (flagged, not guessed)
+## Open questions (flagged, not guessed) — resolved 2026-08-24
 
-1. **Scheduling mechanism for item 9's periodic job.** `barrins_api`
-   has no confirmed in-process scheduler today. Two precedents exist
-   elsewhere in this repo for periodic work: the old VPS-side
-   `scripture_scraper` systemd timers, and their replacement,
-   `.github/workflows/scripture-scrape.yml` (moved off the VPS after
-   the 2026-08-10 MTGO IP-block incident, see `s3`/T-group history).
-   Needs a short Agent 1/Agent 3 spike to confirm which shape fits
-   here (an on-VPS timer calling an internal endpoint, vs. a GitHub
-   Actions workflow, vs. something else) before this task starts —
-   not decided here.
+1. **Scheduling mechanism for item 9's periodic job.** ~~`barrins_api`
+   has no confirmed in-process scheduler today...~~ **Resolved: not a
+   periodic job.** The user redirected this during implementation — the
+   eligibility sweep (`app/services/tamiyo_scroll/session_auto_archive.py`)
+   runs synchronously inside `personal_decks.py`'s `_create_version`
+   (shared by plain-text and Moxfield import), scoped to the deck whose
+   decklist version just changed. No Agent 1/Agent 3 scheduler spike was
+   needed.
 2. **`hue`: server-persisted column vs. client-only `localStorage`.**
-   This doc recommends server-persisted (see Design decisions); if the
-   user prefers the lighter-weight, S12-consistent `localStorage`
-   route instead (accepting it won't follow the user across devices),
-   that's a smaller change — confirm before implementation.
-3. **Manually-set `ended_at` vs. close/reopen state.** If a user sets
-   `ended_at` directly via the new date-edit UI, is the session then
-   simply "closed" (same as clicking Close), and does `reopen` clear
-   whatever `ended_at` was set to, including a manually-chosen one?
-   Assumed yes (both fields ultimately just read/write the same
-   column) — confirm no other state needs tracking.
-4. **Exact color-picker UI for item 6.** A fixed swatch palette (like
-   the existing archetype/tier colors) vs. a free hue slider — the
-   issue says "hue customisation," suggesting the latter; not fully
-   specified. Pick a reasonable implementation unless the user has a
-   preference.
-5. **Search scope for item 8.** Name-only search (as scoped above) vs.
-   also matching type/notes — assumed name-only as the minimal useful
-   version; extend later if requested.
+   **Resolved: server-persisted**, per the user, confirming this doc's
+   recommendation. It also replaces the type-based color on every
+   session tag app-wide (Sessions tab, archived list, Match journal),
+   not just where a hue picker is shown — a scope expansion decided
+   during implementation.
+3. **Manually-set `ended_at` vs. close/reopen state.** **Resolved:
+   tracked separately**, reversing this doc's "assumed yes" default —
+   the pre-existing `ended_at` column is renamed to `closed_at`
+   (Close/Reopen's workflow state, unchanged behavior); a new, separate
+   `ended_at` is purely informational, independent of Close/Reopen. See
+   "Schema" above.
+4. **Exact color-picker UI for item 6.** **Resolved: a free hue slider**
+   — implemented as a native `<input type="range">`, not a new shadcn
+   `Slider`, to avoid adding `@radix-ui/react-slider` as a new
+   dependency.
+5. **Search scope for item 8.** **Resolved: name-only**, as this doc
+   assumed — not revisited during implementation.
 
 ## UAT (manual)
 
-- [ ] Rename a session → name updates everywhere it's shown.
-- [ ] Edit a session's start and end dates directly → both persist and
+- [x] Rename a session → name updates everywhere it's shown.
+- [x] Edit a session's start and end dates directly → both persist and
       display correctly; Close/Reopen still work as before.
-- [ ] Click each sortable column header → table re-sorts; sorting
+- [x] Click each sortable column header → table re-sorts; sorting
       persists correctly across pages.
-- [ ] With more than 10 sessions, page through the list → 10 per page,
+- [x] With more than 10 sessions, page through the list → 10 per page,
       Prev/Next work at the boundaries.
-- [ ] Set a session's hue → its row and its Match-journal tag both
+- [x] Set a session's hue → its row and its Match-journal tag both
       reflect the chosen color.
-- [ ] Log a match under a session → the journal row shows that
+- [x] Log a match under a session → the journal row shows that
       session's tag, correctly colored.
-- [ ] Archive a session, open the Archived sessions view, search for
+- [x] Archive a session, open the Archived sessions view, search for
       it by name, restore it → it reappears in the main list.
-- [ ] Enable auto-archive with a low threshold, let the job run (or
+- [x] Enable auto-archive with a low threshold, let the job run (or
       trigger it manually in a test environment) → a session whose
       last match is far enough behind the deck's current decklist
       version gets archived automatically.

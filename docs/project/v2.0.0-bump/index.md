@@ -240,6 +240,21 @@ an earlier same-day commit (`631e868`) had a docs-only diff (the `s13`–
 S13-S16 as already implemented — verified false before starting this
 work; see S13's own page, "Implementation note," for detail. 232 → 248
 `apps/tamiyo_scroll` tests, `tsc -b`/`oxlint` clean.
+**2026-08-24, S14 shipped**: all 9 items — `ts_sessions` gains
+`started_at`, a separate freely-editable `ended_at`, `hue`, and
+`location`; the pre-existing `ended_at` (Close/Reopen's workflow state)
+is renamed `closed_at` (tracked separately from the new `ended_at`, per
+the user, reversing this doc's original single-column plan); `GET
+/sessions` gains `sort_by`/`sort_dir`/`limit`/`offset`/`search`; a `PATCH
+.../restore` flag backs a new "Archived sessions" dialog. Auto-archive
+(item 9) turned out not to need a periodic job at all — the user
+redirected it to an event-triggered sweep (runs inside
+`personal_decks.py`'s decklist-version creation, both Moxfield and
+plain-text import), sidestepping the scheduler open question entirely.
+Hue is a native `<input type="range">` (no new dependency) and replaces
+the type-based color on every session tag app-wide (`SessionTypeBadge`),
+not just where the picker is shown — see S14's own page, "Implementation
+notes," for the full list of decisions made during implementation.
 
 ---
 
@@ -1276,7 +1291,7 @@ R5 turning each into a real ADR.
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
 | S12 | UI/UX polish bundle — four small frontend fixes brought into v2.0.0 from the feature-roadmap backlog (`docs/content/front/tamiyo_scroll/roadmap.md`, "v2.0.0 candidates" section), added 2026-07-30 | — | All four are frontend-only (`apps/tamiyo_scroll`), no schema/API change: personal-deck creation affordance gets a green `[new]` text label (no icon library needed — `apps/tamiyo_scroll` has none today); the "tested cards" matchup select is rebuilt on the same combobox pattern as the BO3 opponent select; "Final turn" label renamed; matchup-summary "Games" column (already counting `match_count`) relabelled "Matches" | [s12-uiux-polish/](s12-uiux-polish/index.md) |
 | S13 | Confirmation dialog before every deletion — 4 of 7 delete actions (Match, Card test, Decklist version, Session) have none today; added 2026-08-23 from GitHub issue #79 | — | ✅ **Done (2026-08-23)**. Frontend-only, no new dependency — `components/ui/confirm-dialog.tsx` extracts a shared `ConfirmDialog` off the existing `Dialog` primitive; wired into the 4 unprotected spots and refactored onto by the 3 already-protected ones (roster deck, personal deck, team — team's two-step invite-code-retype flow preserved). 232 → 248 frontend tests | [s13-delete-confirmation/](s13-delete-confirmation/index.md) |
-| S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | Not started. Schema: new `TSSession.started_at`/`hue`, new `TSUserSettings` auto-archive fields. Auto-archive's periodic-job mechanism is an open spike (Agent 1/Agent 3), not yet chosen | [s14-session-overhaul/](s14-session-overhaul/index.md) |
+| S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version, plus a `location` field added during implementation — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | ✅ Done (2026-08-24). `TSSession.ended_at` renamed `closed_at`; new `started_at`/`ended_at`/`hue`/`location`. Auto-archive is event-triggered (on decklist import), not a periodic job — no scheduler spike needed | [s14-session-overhaul/](s14-session-overhaul/index.md) |
 | S15 | Decklist version history — view a past version's full content (default-on) + line-level diff against the prior version (opt-in) — added 2026-08-23 from GitHub issue #81 | S4 (reuses `ResponseDecklistView`) | Not started. Diff computed server-side via stdlib `difflib` — no new dependency | [s15-decklist-version-diff/](s15-decklist-version-diff/index.md) |
 | S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus opt-in validation (removed card must be in decklist, added card must exist) and an opt-in inline change-log display in the decklist view — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (UI pattern reuse) | **Blocked on an unresolved data question** — existing `ts_card_tests` rows predate this semantic pivot; keep them mislabeled or clear the table on migration is not yet decided, see the page's Open question 1 | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
 

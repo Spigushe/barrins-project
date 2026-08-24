@@ -22,6 +22,21 @@ section of the docs site for details.
   `components/ui/hover-card.tsx`) via the backend's new Scryfall image
   proxy. Replaces the old flat colored-text-line rendering; any
   unparsable line still renders as before, in its own section.
+- Session overhaul (S14): a session gains a `location` field and an
+  inline-editable `started_at`/`ended_at` date pair (independent of
+  Close/Reopen — see Changed), a freeform 0-359 hue (native range
+  slider, server-persisted, replaces the type-based color on every
+  session tag app-wide — `SessionTypeBadge`), and `GET /sessions` gains
+  `sort_by`/`sort_dir`/`limit`/`offset`/`search`. The Sessions tab table
+  supports sortable columns, 10-per-page pagination, and inline editing
+  (name/location/notes/dates/hue) regardless of a session's status. A
+  "See archived" dialog lists archived sessions with a name search and a
+  restore action (`PATCH .../restore`). Auto-archive (opt-in,
+  `AccountSettingsDialog`): once a session's most recent match's
+  decklist version falls a configurable number of versions behind, it's
+  archived automatically the next time a new decklist version is
+  imported for that deck (Moxfield or plain-text) — event-triggered, not
+  a periodic job.
 
 ### Changed
 
@@ -34,6 +49,11 @@ section of the docs site for details.
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
   client-side (no `mj_cards` in the browser, so demo cards always
   categorize as "other").
+- `TSSession.ended_at` (the Close/Reopen workflow field) is renamed to
+  `closed_at` (S14) — the Status ("Ongoing"/"Closed") badge and the
+  match-logging session picker now read `closed_at`. A new, separate
+  `ended_at` is purely informational and freely editable, independent
+  of Close/Reopen.
 
 ## [2.0.0-alpha] - 2026-08-03
 
