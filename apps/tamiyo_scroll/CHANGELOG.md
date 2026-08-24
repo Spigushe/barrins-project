@@ -7,6 +7,15 @@ section of the docs site for details.
 
 ### Added
 
+- Decklist version history — view past content + diff (S15):
+  `VersionHistorySection` becomes expand-in-place — clicking a version
+  shows its full structured content (new shared `DecklistViewContent`,
+  extracted from `CurrentDecklistSection` so the two never drift) or,
+  when the new "Decklist version diff" setting is on (default,
+  `AccountSettingsDialog`), a card-aware diff against the immediately
+  prior version instead — the two are mutually exclusive, not shown
+  together. The first version shows an explicit "no prior version"
+  message rather than an empty-looking diff.
 - Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
   built on the existing `Dialog` primitive, no new dependency — S13):
   deleting a Match journal row, a Card test, a Decklist version, or

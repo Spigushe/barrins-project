@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` + `apps/tamiyo_scroll` | New read endpoints, no write-path change |
 | **Initial date** | 2026-08-23 | Drafted 2026-08-23 |
-| **Status** | Not started | / |
+| **Status** | Done | / |
 | **Source** | GitHub issue [#81](https://github.com/Spigushe/barrins-project/issues/81) — "Decklists are versioned but history can't be accessed and no diff is displayed" | / |
 | **Dependency** | None. [S16](../s16-tested-card-changelog/index.md) reuses this item's UI patterns for its own inline history display | / |
 
@@ -54,10 +54,14 @@
   No new dependency in either app (§4.7/§22) — the frontend only
   renders a structured added/removed/unchanged payload the backend
   already computed.
-- **Item 2 (view past content) ships default-on; item 1 (diff) is
-  opt-in** — new `TSUserSettings.show_decklist_version_diff` (bool,
-  default `false`), matching the issue's own item-3 framing ("1 as an
-  opt-in setting, 2 is default behaviour").
+- **Item 2 (view past content) ships default-on; item 1 (diff) is a
+  setting** — new `TSUserSettings.show_decklist_version_diff` (bool).
+  Amended 2026-08-24 (implementation-time decision, overriding the
+  issue's own item-3 framing of "1 as an opt-in setting"): defaults
+  **`true`** for every account, not `false`. When on, expanding a
+  version in `VersionHistorySection` shows its diff against the prior
+  version *instead of* its full content (not alongside it) — toggling
+  the setting off switches back to always showing full content.
 
 ## Done statement
 
@@ -69,9 +73,11 @@
   structured line-level diff against the immediately-prior version.
 - `TSUserSettings.show_decklist_version_diff` is exposed via `GET`/
   `PATCH /me/settings` and toggleable from `AccountSettingsDialog`.
+  Defaults `true` (2026-08-24 decision).
 - Clicking a version in `VersionHistorySection` expands it to show its
-  full content; with the new setting enabled, a diff view against the
-  prior version is also available.
+  full content when the setting is off, or a diff against the prior
+  version when the setting is on — the two are mutually exclusive, not
+  shown together.
 
 ## Tasks
 
@@ -93,49 +99,47 @@
 - [ ] Unit tests for the diff algorithm: added/removed/unchanged
       lines, identical content, no-prior-version case.
 
-### 3. Backend — opt-in setting
+### 3. Backend — setting
 
-- [ ] Migration: `TSUserSettings.show_decklist_version_diff` (bool,
-      default `false`).
-- [ ] `UserSettingsUpdate`/`ResponseUserSettings`: expose the field.
+- [x] Migration: `TSUserSettings.show_decklist_version_diff` (bool,
+      default `true` — amended 2026-08-24, see Design decisions).
+- [x] `UserSettingsUpdate`/`ResponseUserSettings`: expose the field.
 
 ### 4. Frontend
 
-- [ ] `VersionHistorySection`: clicking a version expands it to show
-      full content (always available).
-- [ ] When the opt-in setting is enabled, add a diff view against the
-      prior version.
-- [ ] `AccountSettingsDialog`: new Switch for the setting.
+- [x] `VersionHistorySection`: clicking a version expands it to show
+      full content, or a diff against the prior version when the
+      setting is on (mutually exclusive — see Design decisions).
+- [x] `AccountSettingsDialog`: new Switch for the setting.
 
-## Open questions (flagged, not guessed)
+## Open questions (flagged, not guessed) — resolved 2026-08-24
 
 1. **Diff granularity: line-level text diff vs. card-level structured
-   diff.** `content` is free-text (one card per line, typically), so a
-   plain `difflib`-style line diff is the cheapest correct
-   implementation; a card-aware diff (matching by card name across
-   lines, ignoring pure reordering) would read better but is more
-   work and a separate design decision. Default assumption: line-level
-   text diff for v1 — confirm before implementation if card-level is
-   actually wanted instead.
+   diff.** Resolved: **card-level**, matching by card name so pure
+   reordering doesn't appear as added+removed. Card lines are matched
+   by name (`app/services/tamiyo_scroll/decklist_diff.py`); lines that
+   aren't a `"<qty> <name>"` card line fall back to a plain line-level
+   diff, mirroring `decklist_view.py`'s `unparsed_lines`.
 2. **UI placement: expand-in-place vs. modal vs. separate page.**
-   Assumed expand-in-place within `VersionHistorySection` (cheapest,
-   keeps context) — confirm if a dedicated comparison view is
-   preferred instead.
+   Resolved: **expand-in-place** within `VersionHistorySection`, as
+   assumed.
 3. **Comparing to something other than the immediately-prior
-   version.** The issue only asks for "diff with the prior version" —
-   comparing two arbitrary versions is out of scope for this item
-   unless requested.
+   version.** Out of scope, as assumed — not built.
 
 ## UAT (manual)
 
 - [ ] Open a decklist's version history, click an older version → its
-      full content displays (structured, card-resolved).
-- [ ] With the diff setting off (default) → no diff UI is shown.
-- [ ] Enable the diff setting → the same version now also shows a
-      diff against the immediately-prior version, correctly marking
-      added/removed lines.
-- [ ] View the very first version → content displays; diff view (if
-      enabled) clearly indicates there's no prior version to compare.
+      full content displays (structured, card-resolved) when the diff
+      setting is off.
+- [ ] With the diff setting on (default) → the same version instead
+      shows a diff against the immediately-prior version, correctly
+      marking added/removed/quantity-changed cards (matched by name,
+      not by line position).
+- [ ] View the very first version with the diff setting on → clearly
+      indicates there's no prior version to compare, rather than an
+      error or an empty-looking diff.
+- [ ] Toggle the setting off in `AccountSettingsDialog` → expanded
+      versions go back to showing full content only.
 
 ## Non-regression tests
 

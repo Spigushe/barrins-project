@@ -7,6 +7,20 @@ section of the docs site for details.
 
 ### Added
 
+- Decklist version history — view past content + diff (S15):
+  `GET .../personal-decks/{id}/versions/{version_id}` returns the same
+  structured `ResponseDecklistView` as the existing latest-version
+  `decklist-view` route, for one specific past version. New `GET
+  .../versions/{version_id}/diff` (`app/services/tamiyo_scroll/
+  decklist_diff.py`) returns a card-level diff (added/removed/
+  unchanged/quantity_changed, matched by card name so reordering isn't
+  a spurious added+removed pair) against the immediately-prior version
+  by `version` number — correctly skips over any version deleted in
+  between. Non-card lines fall back to a plain `difflib` line diff, no
+  new dependency. The very first version returns an explicit
+  `compared_to_version: null` rather than a 404. New
+  `TSUserSettings.show_decklist_version_diff` (defaults `true`) gates
+  the frontend's diff display, exposed via `GET`/`PATCH /me/settings`.
 - Structured Commander/Library decklist view (S4):
   `GET .../personal-decks/{id}/decklist-view` now returns a
   `ResponseDecklistView` (`commander_cards`/`library_cards`/
