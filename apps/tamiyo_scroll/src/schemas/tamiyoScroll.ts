@@ -47,7 +47,7 @@ export const userSettingsSchema = z.object({
   receive_shared_data: z.boolean(),
   active_personal_deck_id: z.uuid().nullable(),
   metagame_roster_scope: metagameRosterScopeSchema,
-  // S14 item 9: opt-in (default off) auto-archiving of stale sessions.
+  // S14 item 9: auto-archiving of stale sessions, opted-in by default.
   auto_archive_stale_sessions: z.boolean(),
   auto_archive_decklist_version_gap: z.number().int(),
 })

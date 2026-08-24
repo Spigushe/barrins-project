@@ -426,20 +426,22 @@ class TSUserSettings(Base):
         default=MetagameRosterScope.game,
         server_default=MetagameRosterScope.game.value,
     )
-    # S14 item 9: opt-in, off by default. `auto_archive_decklist_version_gap`
+    # S14 item 9: opted-in by default (new rows only — existing rows keep
+    # whatever explicit value they already have, same non-retroactive
+    # pattern as `data_shared` above). `auto_archive_decklist_version_gap`
     # is only meaningful when the bool is true — see
     # `services/tamiyo_scroll/session_auto_archive.py`.
     auto_archive_stale_sessions: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        default=False,
-        server_default="false",
+        default=True,
+        server_default="true",
     )
     auto_archive_decklist_version_gap: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=3,
-        server_default="3",
+        default=2,
+        server_default="2",
     )
 
 
