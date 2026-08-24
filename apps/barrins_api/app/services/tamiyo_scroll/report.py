@@ -25,7 +25,11 @@ from html import escape
 
 from weasyprint import HTML
 
-from app.models.tamiyo_scroll import TSCardTest, TSPersonalDecklistVersion
+from app.models.tamiyo_scroll import (
+    TSCardTest,
+    TSCardTestEvaluation,
+    TSPersonalDecklistVersion,
+)
 from app.services.tamiyo_scroll.decklist_coloring import ColoredLine
 from app.services.tamiyo_scroll.stats import MatchLike, MatchupRow
 
@@ -144,17 +148,26 @@ def _matchup_table_html(
     )
 
 
-def _card_tests_table_html(card_tests: Sequence[TSCardTest]) -> str:
-    if not card_tests:
+def _card_tests_table_html(
+    card_tests: Sequence[TSCardTest], evaluations: Sequence[TSCardTestEvaluation]
+) -> str:
+    """One row per evaluation (S17) -- a card log with no evaluation yet
+    has no rating to report, so it doesn't appear here; its own overall
+    `notes` isn't "feedback" in the rating sense this table reports."""
+    if not evaluations:
         return "<p><em>No card feedback logged during this period.</em></p>"
+    test_by_id = {test.id: test for test in card_tests}
     body_rows = []
-    for test in card_tests:
+    for evaluation in evaluations:
+        test = test_by_id.get(evaluation.test_id)
+        if test is None:
+            continue
         body_rows.append(
             "<tr>"
             f"<td>{escape(test.removed_card_name)}</td>"
             f"<td>{escape(test.added_card_name)}</td>"
-            f"<td>{test.rating}/5</td>"
-            f"<td>{escape(test.notes or '—')}</td>"
+            f"<td>{evaluation.rating}/5</td>"
+            f"<td>{escape(evaluation.notes or '—')}</td>"
             "</tr>"
         )
     header = (
@@ -193,6 +206,7 @@ th { background: #f2f2f2; }
 .status-rejected { color: #b02a37; }
 .status-in_test { color: #997404; }
 .status-neutral { color: #1a1a1a; }
+.status-pending { color: #0b5ed7; }
 """
 
 
@@ -211,6 +225,7 @@ def render_session_report_pdf(
     period_matchup_rows: Sequence[MatchupRow],
     baseline_matchup_rows: Sequence[MatchupRow],
     card_tests: Sequence[TSCardTest],
+    evaluations: Sequence[TSCardTestEvaluation],
 ) -> bytes:
     """Render a session or rolling-period report to PDF bytes.
 
@@ -254,7 +269,7 @@ def render_session_report_pdf(
   {matchup_section}
 
   <h2>Card feedback during this period</h2>
-  {_card_tests_table_html(card_tests)}
+  {_card_tests_table_html(card_tests, evaluations)}
 
   <h2>Decklist used</h2>
   {_decklist_section_html(decklist_version_label, colored_lines)}

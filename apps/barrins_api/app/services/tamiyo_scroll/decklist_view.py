@@ -12,7 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.mtgjson import Card
-from app.models.tamiyo_scroll import TSCardTest
+from app.models.tamiyo_scroll import TSCardTest, TSCardTestEvaluation
 from app.schemas.responses_tamiyo_scroll import (
     ResponseDecklistCard,
     ResponseDecklistLine,
@@ -69,7 +69,12 @@ async def _resolved_by_name(
 
 
 def _as_decklist_card(
-    qty: int, name: str, status: LineStatus, resolved: Card | None
+    qty: int,
+    name: str,
+    status: LineStatus,
+    resolved: Card | None,
+    pending_added_card_name: str | None = None,
+    pending_added_card_scryfall_id: str | None = None,
 ) -> ResponseDecklistCard:
     return ResponseDecklistCard(
         qty=qty,
@@ -80,14 +85,36 @@ def _as_decklist_card(
         text=resolved.text if resolved is not None else None,
         keywords=resolved.keywords if resolved is not None else [],
         scryfall_id=resolved.scryfall_id if resolved is not None else None,
+        pending_added_card_name=pending_added_card_name,
+        pending_added_card_scryfall_id=pending_added_card_scryfall_id,
     )
 
 
+def _pending_target_test(
+    line_lower: str, card_tests: Sequence[TSCardTest]
+) -> TSCardTest | None:
+    """Which card log's `removed_card_name` made this line "pending" —
+    same longest-name-first substring rule `color_decklist` uses to
+    decide the status in the first place, re-applied here to recover
+    *which* log so its `added_card_name` can be resolved for the hover
+    preview. Ties (two logs targeting the same removed name) break on the
+    longest name, then most recent — arbitrary but deterministic."""
+    candidates = sorted(
+        (t for t in card_tests if t.removed_card_name.lower() in line_lower),
+        key=lambda t: (len(t.removed_card_name), t.created_at),
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
 async def build_decklist_view(
-    session: AsyncSession, content: str, card_tests: Sequence[TSCardTest]
+    session: AsyncSession,
+    content: str,
+    card_tests: Sequence[TSCardTest],
+    evaluations: Sequence[TSCardTestEvaluation],
 ) -> ResponseDecklistView:
     lines = content.splitlines()
-    colored = color_decklist(content, card_tests)  # same order/length as `lines`
+    colored = color_decklist(content, card_tests, evaluations)  # same order as `lines`
     commander_idx = commander_section_indices(lines)
 
     parsed: list[tuple[int, int, str, LineStatus]] = []  # (idx, qty, name, status)
@@ -106,11 +133,34 @@ async def build_decklist_view(
 
     resolved_by_name = await _resolved_by_name(session, [p[2] for p in parsed])
 
+    pending_targets = {
+        i: target
+        for i, _, _, status in parsed
+        if status == "pending"
+        and (target := _pending_target_test(lines[i].lower(), card_tests)) is not None
+    }
+    pending_added_resolved = await _resolved_by_name(
+        session, [t.added_card_name for t in pending_targets.values()]
+    )
+
     commander_cards: list[tuple[ResponseDecklistCard, Card | None]] = []
     library_cards: list[tuple[ResponseDecklistCard, Card | None]] = []
     for i, qty, name, status in parsed:
         resolved = resolved_by_name.get(name)
-        card = _as_decklist_card(qty, name, status, resolved)
+        pending_target = pending_targets.get(i)
+        pending_added_name = None
+        pending_added_scryfall_id = None
+        if pending_target is not None:
+            pending_added_name = pending_target.added_card_name
+            pending_resolved = pending_added_resolved.get(
+                pending_target.added_card_name
+            )
+            pending_added_scryfall_id = (
+                pending_resolved.scryfall_id if pending_resolved is not None else None
+            )
+        card = _as_decklist_card(
+            qty, name, status, resolved, pending_added_name, pending_added_scryfall_id
+        )
         (commander_cards if i in commander_idx else library_cards).append(
             (card, resolved)
         )

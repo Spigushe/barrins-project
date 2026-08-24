@@ -11,6 +11,7 @@ from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import (
     TSCardTest,
+    TSCardTestEvaluation,
     TSMatch,
     TSMetaDeck,
     TSPersonalDeck,
@@ -315,10 +316,22 @@ async def get_session_report(
         select(TSCardTest).where(
             TSCardTest.owner_id == current_user.id,
             TSCardTest.personal_deck_id == ts_session.personal_deck_id,
+            TSCardTest.archived_at.is_(None),
         )
     )
     all_card_tests = list(all_card_tests_result.scalars().all())
-    colored_lines = color_decklist(version.content, all_card_tests) if version else []
+    all_evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in all_card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    all_evaluations = list(all_evaluations_result.scalars().all())
+    colored_lines = (
+        color_decklist(version.content, all_card_tests, all_evaluations)
+        if version
+        else []
+    )
     version_label = (
         f"Version {version.version} ({version.source.value})"
         if version
@@ -335,6 +348,12 @@ async def get_session_report(
         for t in all_card_tests
         if t.created_at >= ts_session.created_at
         and (ts_session.closed_at is None or t.created_at <= ts_session.closed_at)
+    ]
+    period_evaluations = [
+        e
+        for e in all_evaluations
+        if e.created_at >= ts_session.created_at
+        and (ts_session.closed_at is None or e.created_at <= ts_session.closed_at)
     ]
 
     subtitle = (
@@ -355,6 +374,7 @@ async def get_session_report(
         period_matchup_rows=stats.current_matchup_rows,
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
+        evaluations=period_evaluations,
     )
 
     filename = f"session-report-{ts_session.id}.pdf"

@@ -12,6 +12,7 @@ from app.models._types import JsonValue
 from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     TSCardTest,
+    TSCardTestEvaluation,
     TSMatch,
     TSMetaDeck,
     TSPersonalDeck,
@@ -426,11 +427,20 @@ async def _decklist_view_for_content(
 ) -> ResponseDecklistView:
     tests_result = await session.execute(
         select(TSCardTest).where(
-            TSCardTest.owner_id == owner_id, TSCardTest.personal_deck_id == deck_id
+            TSCardTest.owner_id == owner_id,
+            TSCardTest.personal_deck_id == deck_id,
+            TSCardTest.archived_at.is_(None),
         )
     )
     card_tests = tests_result.scalars().all()
-    return await build_decklist_view(session, content, card_tests)
+    evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    evaluations = evaluations_result.scalars().all()
+    return await build_decklist_view(session, content, card_tests, evaluations)
 
 
 @router.get(
@@ -514,7 +524,9 @@ async def get_decklist_version_diff(
 
     cards = diff_decklist_cards(prior.content, version.content)
     card_tests_result = await session.execute(
-        select(TSCardTest).where(TSCardTest.personal_deck_id == deck.id)
+        select(TSCardTest).where(
+            TSCardTest.personal_deck_id == deck.id, TSCardTest.archived_at.is_(None)
+        )
     )
     card_tests = card_tests_result.scalars().all()
     annotated_cards, _ = await annotate_diff_cards_with_card_tests(
@@ -590,16 +602,29 @@ async def get_deck_period_report(
         select(TSCardTest).where(
             TSCardTest.owner_id == deck.owner_id,
             TSCardTest.personal_deck_id == deck.id,
+            TSCardTest.archived_at.is_(None),
         )
     )
     all_card_tests = list(all_card_tests_result.scalars().all())
-    colored_lines = color_decklist(version.content, all_card_tests) if version else []
+    all_evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in all_card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    all_evaluations = list(all_evaluations_result.scalars().all())
+    colored_lines = (
+        color_decklist(version.content, all_card_tests, all_evaluations)
+        if version
+        else []
+    )
     version_label = (
         f"Version {version.version} ({version.source.value})"
         if version
         else "No version yet"
     )
     period_card_tests = [t for t in all_card_tests if t.created_at >= period_start]
+    period_evaluations = [e for e in all_evaluations if e.created_at >= period_start]
 
     pdf_bytes = render_session_report_pdf(
         title=deck.name,
@@ -615,6 +640,7 @@ async def get_deck_period_report(
         period_matchup_rows=stats.current_matchup_rows,
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
+        evaluations=period_evaluations,
     )
 
     filename = f"deck-report-{deck.id}.pdf"
