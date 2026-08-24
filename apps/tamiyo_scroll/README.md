@@ -22,11 +22,16 @@ cp .env.example .env   # adjust VITE_API_BASE_URL if the backend runs elsewhere
 npm run dev        # Vite dev server, http://localhost:5173
 ```
 
-Log in, then the 3 tabs are under `/app/*`:
+Log in, then the tabs are top-level routes:
 
-- `/app/metagame` — roster, expected metagame, personal decklist import, archetype summary
-- `/app/tracker` — new match, match log, tested cards
-- `/app/decklist` — current decklist + version history
+- `/metagame` — roster, expected metagame, personal decklist import, archetype summary
+- `/tracker` — new match, match log, tested cards
+- `/decklist` — current decklist + version history
+- `/sessions` — tournament/practice sessions
+- `/team` — team decks and threads
+- `/admin/metrics` — admin only
+
+Old `/app/*` links still resolve (redirected to the flattened path).
 
 ## CLI commands for writing code
 

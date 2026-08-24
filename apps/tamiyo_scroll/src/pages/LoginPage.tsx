@@ -43,11 +43,11 @@ export function LoginPage() {
         if (result.verification_required) {
           navigate(`/verify-email?email=${encodeURIComponent(email)}`)
         } else {
-          navigate('/app/tracker')
+          navigate('/tracker')
         }
       } else {
         await login.mutateAsync({ email, password })
-        navigate('/app/tracker')
+        navigate('/tracker')
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')

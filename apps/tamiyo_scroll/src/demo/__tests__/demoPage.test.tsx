@@ -32,7 +32,7 @@ describe('DemoPage tabs', () => {
     await user.click(screen.getByRole('tab', { name: 'Sessions' }))
     await screen.findByText('Store Championship')
 
-    // Regression test: `TeamsTab`/`TeamPage` navigate via `/app/team/*`
+    // Regression test: `TeamsTab`/`TeamPage` navigate via `/team/*`
     // routes wrapped in `ProtectedRoute`, which bounce an unauthenticated
     // visitor to `/login`. `DemoTeamsSection` must render the same content
     // via local state instead — this must NOT redirect away from /demo.
