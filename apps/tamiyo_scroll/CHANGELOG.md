@@ -7,6 +7,41 @@ section of the docs site for details.
 
 ### Added
 
+- Decklist version history — view past content + diff (S15):
+  `VersionHistorySection` becomes expand-in-place — clicking a version
+  shows its full structured content (new shared `DecklistViewContent`,
+  extracted from `CurrentDecklistSection` so the two never drift) or,
+  when the new "Decklist version diff" setting is on (default,
+  `AccountSettingsDialog`), a card-aware diff against the immediately
+  prior version instead — the two are mutually exclusive, not shown
+  together. The first version shows an explicit "no prior version"
+  message rather than an empty-looking diff.
+- **Breaking**: Tested Cards → decklist change log (S16).
+  `CardTestsSection`'s "Nickname"/"Card" table columns and create-form
+  fields are relabeled "Removed Card"/"Added Card" (also fixing the
+  pre-existing "Card"/"Card name" label mismatch between the table and
+  the form); the stale autofill that prefilled the removed-card field
+  with the current user's display name (a leftover from the old
+  "who's testing" semantics) is removed. Failed validation on create/
+  update now shows the backend's error message inline. Three new
+  `AccountSettingsDialog` switches: "Validate removed card is in
+  decklist" (on by default), "Validate added card exists" (off,
+  Magic-only), "Show decklist change log" (off). With the change-log
+  setting on: `VersionHistorySection`'s diff view shows a matched card
+  test's note as a comment under its `+`/`-` line, anywhere in version
+  history; `CurrentDecklistSection` lists card tests that match no real
+  decklist change in a standalone "Card change being considered in
+  this version" block.
+- Fix: `src/demo/api/personalDecks.ts` was missing S15's
+  `getDecklistVersionView`/`getDecklistVersionDiff`, failing `tsc -b`
+  and `demoApi.test.ts`'s module-shape check. Demo mode now implements
+  both, mirroring the real backend's `diff_decklist_cards` and version
+  view construction against the in-memory store.
+- Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
+  built on the existing `Dialog` primitive, no new dependency — S13):
+  deleting a Match journal row, a Card test, a Decklist version, or
+  archiving a Session now opens a confirmation dialog naming the target
+  instead of firing the mutation immediately on click.
 - Decklist view (`CurrentDecklistSection`) rebuilt around the backend's
   new structured `ResponseDecklistView` (S4): a Commander table (when
   the decklist has one) plus one table per card-type section
