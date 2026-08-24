@@ -1,6 +1,7 @@
-"""Routes /card-tests (feedback on tested cards, CRUD)."""
+"""Routes /card-tests (card logs, CRUD) and their evaluations (S17)."""
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -9,13 +10,17 @@ from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import (
     TSCardTest,
+    TSCardTestEvaluation,
     TSMetaDeck,
     TSPersonalDeck,
     TSPersonalDecklistVersion,
     TSUserSettings,
 )
-from app.schemas.responses_tamiyo_scroll import ResponseCardTest
-from app.schemas.tamiyo_scroll import CardTestWrite
+from app.schemas.responses_tamiyo_scroll import (
+    ResponseCardTest,
+    ResponseCardTestEvaluation,
+)
+from app.schemas.tamiyo_scroll import CardTestEvaluationWrite, CardTestWrite
 from app.services.scripture.card_resolver import (
     resolve_card_name,
     resolve_card_name_or_raw,
@@ -41,6 +46,24 @@ async def _get_owned_card_test(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card feedback not found."
         )
     return test
+
+
+async def _get_owned_evaluation(
+    session: DatabaseSession, test: TSCardTest, evaluation_id: uuid.UUID
+) -> TSCardTestEvaluation:
+    """`test` must already be ownership-checked via `_get_owned_card_test`."""
+    result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.id == evaluation_id,
+            TSCardTestEvaluation.test_id == test.id,
+        )
+    )
+    evaluation = result.scalar_one_or_none()
+    if evaluation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found."
+        )
+    return evaluation
 
 
 async def _validate_opponent_ref(
@@ -77,9 +100,52 @@ def _apply_payload(test: TSCardTest, payload: CardTestWrite) -> None:
     test.personal_deck_id = payload.personal_deck_id
     test.removed_card_name = payload.removed_card_name
     test.added_card_name = payload.added_card_name
-    test.opponent_deck_id = payload.opponent_deck_id
-    test.rating = payload.rating
     test.notes = payload.notes
+
+
+def _apply_evaluation_payload(
+    evaluation: TSCardTestEvaluation, payload: CardTestEvaluationWrite
+) -> None:
+    evaluation.opponent_deck_id = payload.opponent_deck_id
+    evaluation.rating = payload.rating
+    evaluation.notes = payload.notes
+
+
+async def _evaluations_by_test_id(
+    session: DatabaseSession, test_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[TSCardTestEvaluation]]:
+    """Batched fetch, grouped by parent log — avoids one query per card
+    log when building a `ResponseCardTest` list (`evaluations` is
+    embedded rather than requiring a separate per-log GET, matching this
+    BFF's "aggregate to reduce frontend complexity" convention). Archived
+    evaluations (Constitution §11.8) are excluded, same as archived logs."""
+    result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_(test_ids),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    by_test_id: dict[uuid.UUID, list[TSCardTestEvaluation]] = {}
+    for evaluation in result.scalars().all():
+        by_test_id.setdefault(evaluation.test_id, []).append(evaluation)
+    return by_test_id
+
+
+def _response_card_test(
+    test: TSCardTest, evaluations: list[TSCardTestEvaluation]
+) -> ResponseCardTest:
+    """`evaluations` has no ORM relationship to validate `from_attributes`
+    against (every `TS*` model in this file is FK-only), so the response
+    is built explicitly rather than via `model_validate(test)`."""
+    return ResponseCardTest(
+        id=test.id,
+        personal_deck_id=test.personal_deck_id,
+        removed_card_name=test.removed_card_name,
+        added_card_name=test.added_card_name,
+        notes=test.notes,
+        created_at=test.created_at,
+        evaluations=[ResponseCardTestEvaluation.model_validate(e) for e in evaluations],
+    )
 
 
 async def _validate_removed_card_in_decklist(
@@ -159,14 +225,19 @@ async def list_card_tests(
 
     `personal_deck_id` filters on the deck being viewed; rows created before
     this column was added (personal_deck_id NULL) don't match any filter
-    and stay invisible, cf. migration a3f8c1d9e2b7.
+    and stay invisible, cf. migration a3f8c1d9e2b7. Archived logs
+    (Constitution §11.8) are excluded — no `include_archived` toggle yet.
     """
-    stmt = select(TSCardTest).where(TSCardTest.owner_id == owner.id)
+    stmt = select(TSCardTest).where(
+        TSCardTest.owner_id == owner.id, TSCardTest.archived_at.is_(None)
+    )
     if personal_deck_id is not None:
         stmt = stmt.where(TSCardTest.personal_deck_id == personal_deck_id)
     stmt = stmt.order_by(TSCardTest.created_at.desc())
     result = await session.execute(stmt)
-    return [ResponseCardTest.model_validate(t) for t in result.scalars().all()]
+    tests = list(result.scalars().all())
+    evaluations_by_test = await _evaluations_by_test_id(session, [t.id for t in tests])
+    return [_response_card_test(t, evaluations_by_test.get(t.id, [])) for t in tests]
 
 
 @router.get("/card-tests/change-log", response_model=list[ResponseCardTest])
@@ -186,15 +257,14 @@ async def list_card_test_change_log(
         .where(
             TSCardTest.owner_id == owner.id,
             TSCardTest.personal_deck_id == personal_deck_id,
+            TSCardTest.archived_at.is_(None),
         )
         .order_by(TSCardTest.created_at.desc())
     )
     result = await session.execute(stmt)
-    return [
-        ResponseCardTest.model_validate(t)
-        for t in result.scalars().all()
-        if t.id not in matched_ids
-    ]
+    tests = [t for t in result.scalars().all() if t.id not in matched_ids]
+    evaluations_by_test = await _evaluations_by_test_id(session, [t.id for t in tests])
+    return [_response_card_test(t, evaluations_by_test.get(t.id, [])) for t in tests]
 
 
 @router.post(
@@ -208,14 +278,13 @@ async def create_card_test(
     await _validate_personal_deck_ref(
         session, current_user.id, payload.personal_deck_id
     )
-    await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
     await _run_write_validations(session, current_user.id, payload)
     test = TSCardTest(owner_id=current_user.id)
     _apply_payload(test, payload)
     session.add(test)
     await session.commit()
     await session.refresh(test)
-    return ResponseCardTest.model_validate(test)
+    return _response_card_test(test, [])  # a new log starts with no evaluations
 
 
 @router.put("/card-tests/{test_id}", response_model=ResponseCardTest)
@@ -229,13 +298,13 @@ async def update_card_test(
     await _validate_personal_deck_ref(
         session, current_user.id, payload.personal_deck_id
     )
-    await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
     await _run_write_validations(session, current_user.id, payload)
     _apply_payload(test, payload)
     session.add(test)
     await session.commit()
     await session.refresh(test)
-    return ResponseCardTest.model_validate(test)
+    evaluations_by_test = await _evaluations_by_test_id(session, [test.id])
+    return _response_card_test(test, evaluations_by_test.get(test.id, []))
 
 
 @router.delete("/card-tests/{test_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -244,6 +313,70 @@ async def delete_card_test(
     session: DatabaseSession,
     current_user: CurrentUser,
 ) -> None:
+    """Archive the log (`archived_at`) — never a SQL DELETE, Constitution
+    §11.8. Its evaluations stay in the database too (only hidden from
+    reads by `_evaluations_by_test_id`'s own filter), not cascade-deleted."""
     test = await _get_owned_card_test(session, test_id, current_user.id)
-    await session.delete(test)
+    test.archived_at = datetime.now(UTC)
+    session.add(test)
+    await session.commit()
+
+
+@router.post(
+    "/card-tests/{test_id}/evaluations",
+    response_model=ResponseCardTestEvaluation,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_card_test_evaluation(
+    test_id: uuid.UUID,
+    payload: CardTestEvaluationWrite,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> ResponseCardTestEvaluation:
+    test = await _get_owned_card_test(session, test_id, current_user.id)
+    await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
+    evaluation = TSCardTestEvaluation(test_id=test.id)
+    _apply_evaluation_payload(evaluation, payload)
+    session.add(evaluation)
+    await session.commit()
+    await session.refresh(evaluation)
+    return ResponseCardTestEvaluation.model_validate(evaluation)
+
+
+@router.put(
+    "/card-tests/{test_id}/evaluations/{evaluation_id}",
+    response_model=ResponseCardTestEvaluation,
+)
+async def update_card_test_evaluation(
+    test_id: uuid.UUID,
+    evaluation_id: uuid.UUID,
+    payload: CardTestEvaluationWrite,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> ResponseCardTestEvaluation:
+    test = await _get_owned_card_test(session, test_id, current_user.id)
+    evaluation = await _get_owned_evaluation(session, test, evaluation_id)
+    await _validate_opponent_ref(session, current_user.id, payload.opponent_deck_id)
+    _apply_evaluation_payload(evaluation, payload)
+    session.add(evaluation)
+    await session.commit()
+    await session.refresh(evaluation)
+    return ResponseCardTestEvaluation.model_validate(evaluation)
+
+
+@router.delete(
+    "/card-tests/{test_id}/evaluations/{evaluation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_card_test_evaluation(
+    test_id: uuid.UUID,
+    evaluation_id: uuid.UUID,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+) -> None:
+    """Archive the evaluation — never a SQL DELETE, Constitution §11.8."""
+    test = await _get_owned_card_test(session, test_id, current_user.id)
+    evaluation = await _get_owned_evaluation(session, test, evaluation_id)
+    evaluation.archived_at = datetime.now(UTC)
+    session.add(evaluation)
     await session.commit()

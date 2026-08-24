@@ -1,11 +1,13 @@
-"""Tests for /bff/tamiyo-scroll/card-tests."""
+"""Tests for /bff/tamiyo-scroll/card-tests and their evaluations (S17)."""
 
 import uuid
 from datetime import date
 
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.models.mtgjson import Card, MTGSet
+from app.models.tamiyo_scroll import TSCardTest, TSCardTestEvaluation
 from app.models.user import User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
@@ -79,63 +81,46 @@ async def _seed_card(db_session, name: str) -> Card:
     return card
 
 
+async def _create_card_log(
+    client: AsyncClient,
+    user: User,
+    personal_id: str,
+    *,
+    removed_card_name: str = "Duress",
+    added_card_name: str = "Bolt",
+    notes: str | None = None,
+):
+    return await client.post(
+        f"{BASE}/card-tests",
+        json={
+            "personal_deck_id": personal_id,
+            "removed_card_name": removed_card_name,
+            "added_card_name": added_card_name,
+            "notes": notes,
+        },
+        headers=auth_headers(user),
+    )
+
+
 class TestCreateCardTest:
-    async def test_creates_test_without_matchup(
-        self, client: AsyncClient, owner_user: User
-    ):
+    async def test_creates_card_log(self, client: AsyncClient, owner_user: User):
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 4,
-            },
-            headers=auth_headers(owner_user),
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Duress",
+            added_card_name="Lightning Bolt",
         )
         assert resp.status_code == 201
         body = resp.json()
-        assert body["opponent_deck_id"] is None
         assert body["personal_deck_id"] == personal_id
-
-    async def test_creates_test_with_matchup(
-        self, client: AsyncClient, owner_user: User
-    ):
-        personal_id = await _create_personal_deck(client, owner_user)
-        await _disable_removed_card_validation(client, owner_user)
-        meta_id = await _create_meta_deck(client, owner_user, personal_id)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 4,
-                "opponent_deck_id": meta_id,
-            },
-            headers=auth_headers(owner_user),
-        )
-        assert resp.status_code == 201
-        assert resp.json()["opponent_deck_id"] == meta_id
-
-    async def test_unknown_matchup_returns_404(
-        self, client: AsyncClient, owner_user: User
-    ):
-        personal_id = await _create_personal_deck(client, owner_user)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 4,
-                "opponent_deck_id": "00000000-0000-0000-0000-000000000000",
-            },
-            headers=auth_headers(owner_user),
-        )
-        assert resp.status_code == 404
+        assert body["removed_card_name"] == "Duress"
+        assert body["added_card_name"] == "Lightning Bolt"
+        # S17: matchup/rating no longer live on the card log itself.
+        assert "opponent_deck_id" not in body
+        assert "rating" not in body
 
     async def test_unknown_personal_deck_returns_404(
         self, client: AsyncClient, owner_user: User
@@ -146,7 +131,6 @@ class TestCreateCardTest:
                 "personal_deck_id": "00000000-0000-0000-0000-000000000000",
                 "removed_card_name": "Duress",
                 "added_card_name": "Lightning Bolt",
-                "rating": 4,
             },
             headers=auth_headers(owner_user),
         )
@@ -156,50 +140,16 @@ class TestCreateCardTest:
         self, client: AsyncClient, owner_user: User, other_user: User
     ):
         other_personal_id = await _create_personal_deck(client, other_user)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": other_personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 4,
-            },
-            headers=auth_headers(owner_user),
-        )
+        resp = await _create_card_log(client, owner_user, other_personal_id)
         assert resp.status_code == 404
-
-    async def test_rating_out_of_range_returns_422(
-        self, client: AsyncClient, owner_user: User
-    ):
-        personal_id = await _create_personal_deck(client, owner_user)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 6,
-            },
-            headers=auth_headers(owner_user),
-        )
-        assert resp.status_code == 422
 
 
 class TestUpdateCardTest:
-    async def test_updates_rating(self, client: AsyncClient, owner_user: User):
+    async def test_updates_notes(self, client: AsyncClient, owner_user: User):
         headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        create_resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
-        )
+        create_resp = await _create_card_log(client, owner_user, personal_id)
         test_id = create_resp.json()["id"]
 
         resp = await client.put(
@@ -208,29 +158,19 @@ class TestUpdateCardTest:
                 "personal_deck_id": personal_id,
                 "removed_card_name": "Duress",
                 "added_card_name": "Bolt",
-                "rating": 2,
+                "notes": "Swap looks promising",
             },
             headers=headers,
         )
         assert resp.status_code == 200
-        assert resp.json()["rating"] == 2
+        assert resp.json()["notes"] == "Swap looks promising"
 
     async def test_foreign_card_test_returns_404(
         self, client: AsyncClient, owner_user: User, other_user: User
     ):
-        headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        create_resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
-        )
+        create_resp = await _create_card_log(client, owner_user, personal_id)
         test_id = create_resp.json()["id"]
 
         resp = await client.put(
@@ -239,7 +179,7 @@ class TestUpdateCardTest:
                 "personal_deck_id": personal_id,
                 "removed_card_name": "Duress",
                 "added_card_name": "Bolt",
-                "rating": 2,
+                "notes": None,
             },
             headers=auth_headers(other_user),
         )
@@ -251,16 +191,7 @@ class TestDeleteCardTest:
         headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        create_resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
-        )
+        create_resp = await _create_card_log(client, owner_user, personal_id)
         test_id = create_resp.json()["id"]
 
         resp = await client.delete(f"{BASE}/card-tests/{test_id}", headers=headers)
@@ -268,6 +199,28 @@ class TestDeleteCardTest:
 
         list_resp = await client.get(f"{BASE}/card-tests", headers=headers)
         assert list_resp.json() == []
+
+    async def test_archives_rather_than_hard_deletes(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """Constitution §11.8: deletion defaults to archive, never a SQL
+        DELETE -- the row and its data must still exist in the database
+        after a "delete", just hidden from active reads."""
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        create_resp = await _create_card_log(client, owner_user, personal_id)
+        test_id = create_resp.json()["id"]
+
+        resp = await client.delete(f"{BASE}/card-tests/{test_id}", headers=headers)
+        assert resp.status_code == 204
+
+        result = await db_session.execute(
+            select(TSCardTest).where(TSCardTest.id == uuid.UUID(test_id))
+        )
+        test = result.scalar_one()
+        assert test.archived_at is not None
+        assert test.removed_card_name == "Duress"
 
     async def test_unknown_test_returns_404(
         self, client: AsyncClient, owner_user: User
@@ -284,16 +237,7 @@ class TestListCardTests:
         headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
-        )
+        await _create_card_log(client, owner_user, personal_id)
         resp = await client.get(f"{BASE}/card-tests", headers=headers)
         assert len(resp.json()) == 1
 
@@ -304,25 +248,9 @@ class TestListCardTests:
         deck_a = await _create_personal_deck(client, owner_user, name="Deck A")
         deck_b = await _create_personal_deck(client, owner_user, name="Deck B")
         await _disable_removed_card_validation(client, owner_user)
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_a,
-                "removed_card_name": "Duress",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
-        )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_b,
-                "removed_card_name": "Duress",
-                "added_card_name": "Counterspell",
-                "rating": 3,
-            },
-            headers=headers,
+        await _create_card_log(client, owner_user, deck_a, added_card_name="Bolt")
+        await _create_card_log(
+            client, owner_user, deck_b, added_card_name="Counterspell"
         )
 
         resp = await client.get(
@@ -351,15 +279,12 @@ class TestValidateRemovedCardInDecklist:
             headers=headers,
         )
 
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Counterspell",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Counterspell",
+            added_card_name="Bolt",
         )
         assert resp.status_code == 400
 
@@ -374,34 +299,27 @@ class TestValidateRemovedCardInDecklist:
             headers=headers,
         )
 
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Sol Ring",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Sol Ring",
+            added_card_name="Bolt",
         )
         assert resp.status_code == 201
 
     async def test_off_accepts_anything_when_disabled(
         self, client: AsyncClient, owner_user: User
     ):
-        headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
 
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Not In Deck At All",
-                "added_card_name": "Bolt",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Not In Deck At All",
+            added_card_name="Bolt",
         )
         assert resp.status_code == 201
 
@@ -410,18 +328,13 @@ class TestValidateAddedCardExists:
     async def test_off_by_default_accepts_anything(
         self, client: AsyncClient, owner_user: User
     ):
-        headers = auth_headers(owner_user)
         personal_id = await _create_personal_deck(client, owner_user)
         await _disable_removed_card_validation(client, owner_user)
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Not A Real Card XYZ",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            added_card_name="Not A Real Card XYZ",
         )
         assert resp.status_code == 201
 
@@ -441,15 +354,11 @@ class TestValidateAddedCardExists:
             headers=headers,
         )
 
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Not A Real Card XYZ",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            added_card_name="Not A Real Card XYZ",
         )
         assert resp.status_code == 400
 
@@ -469,15 +378,8 @@ class TestValidateAddedCardExists:
             headers=headers,
         )
 
-        resp = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Ambush Viper",
-                "rating": 4,
-            },
-            headers=headers,
+        resp = await _create_card_log(
+            client, owner_user, personal_id, added_card_name="Ambush Viper"
         )
         assert resp.status_code == 201
 
@@ -500,25 +402,19 @@ class TestCardTestChangeLog:
             headers=headers,
         )
 
-        matched = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Sol Ring",
-                "rating": 4,
-            },
-            headers=headers,
+        matched = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Duress",
+            added_card_name="Sol Ring",
         )
-        unmatched = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Counterspell",
-                "added_card_name": "Mana Crypt",
-                "rating": 4,
-            },
-            headers=headers,
+        unmatched = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Counterspell",
+            added_card_name="Mana Crypt",
         )
 
         resp = await client.get(
@@ -549,15 +445,12 @@ class TestCardTestChangeLog:
             headers=headers,
         )
 
-        partially_matched = await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": personal_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Something Never Actually Added",
-                "rating": 4,
-            },
-            headers=headers,
+        partially_matched = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Duress",
+            added_card_name="Something Never Actually Added",
         )
 
         resp = await client.get(
@@ -574,5 +467,258 @@ class TestCardTestChangeLog:
             f"{BASE}/card-tests/change-log"
             "?personal_deck_id=00000000-0000-0000-0000-000000000000",
             headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+
+class TestCreateCardTestEvaluation:
+    async def test_creates_evaluation(self, client: AsyncClient, owner_user: User):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4, "notes": "Good matchup"},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["test_id"] == test_id
+        assert body["opponent_deck_id"] == meta_id
+        assert body["rating"] == 4
+        assert body["notes"] == "Good matchup"
+
+    async def test_missing_opponent_deck_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """Unlike the pre-S17 flat field, `opponent_deck_id` is required
+        on an evaluation — an evaluation is specifically a match-up."""
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"rating": 4},
+            headers=headers,
+        )
+        assert resp.status_code == 422
+
+    async def test_unknown_opponent_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={
+                "opponent_deck_id": "00000000-0000-0000-0000-000000000000",
+                "rating": 4,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    async def test_unknown_card_test_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id = await _create_personal_deck(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        resp = await client.post(
+            f"{BASE}/card-tests/00000000-0000-0000-0000-000000000000/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_foreign_card_test_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_rating_out_of_range_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 6},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
+    async def test_two_evaluations_attach_to_same_log(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_a = await _create_meta_deck(client, owner_user, personal_id)
+        meta_b = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_a, "rating": 4},
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_b, "rating": 2},
+            headers=headers,
+        )
+        list_resp = await client.get(f"{BASE}/card-tests", headers=headers)
+        assert len(list_resp.json()) == 1
+
+
+class TestUpdateCardTestEvaluation:
+    async def test_updates_rating_and_notes(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+        create_resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=headers,
+        )
+        evaluation_id = create_resp.json()["id"]
+
+        resp = await client.put(
+            f"{BASE}/card-tests/{test_id}/evaluations/{evaluation_id}",
+            json={"opponent_deck_id": meta_id, "rating": 2, "notes": "Reconsidered"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["rating"] == 2
+        assert body["notes"] == "Reconsidered"
+
+    async def test_unknown_evaluation_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.put(
+            f"{BASE}/card-tests/{test_id}/evaluations/"
+            "00000000-0000-0000-0000-000000000000",
+            json={"opponent_deck_id": meta_id, "rating": 2},
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    async def test_foreign_card_test_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+        create_resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=headers,
+        )
+        evaluation_id = create_resp.json()["id"]
+
+        resp = await client.put(
+            f"{BASE}/card-tests/{test_id}/evaluations/{evaluation_id}",
+            json={"opponent_deck_id": meta_id, "rating": 2},
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+
+class TestDeleteCardTestEvaluation:
+    async def test_deletes_own_evaluation(self, client: AsyncClient, owner_user: User):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+        create_resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=headers,
+        )
+        evaluation_id = create_resp.json()["id"]
+
+        resp = await client.delete(
+            f"{BASE}/card-tests/{test_id}/evaluations/{evaluation_id}",
+            headers=headers,
+        )
+        assert resp.status_code == 204
+
+    async def test_archives_rather_than_hard_deletes(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        meta_id = await _create_meta_deck(client, owner_user, personal_id)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+        create_resp = await client.post(
+            f"{BASE}/card-tests/{test_id}/evaluations",
+            json={"opponent_deck_id": meta_id, "rating": 4},
+            headers=headers,
+        )
+        evaluation_id = create_resp.json()["id"]
+
+        resp = await client.delete(
+            f"{BASE}/card-tests/{test_id}/evaluations/{evaluation_id}",
+            headers=headers,
+        )
+        assert resp.status_code == 204
+
+        result = await db_session.execute(
+            select(TSCardTestEvaluation).where(
+                TSCardTestEvaluation.id == uuid.UUID(evaluation_id)
+            )
+        )
+        evaluation = result.scalar_one()
+        assert evaluation.archived_at is not None
+        assert evaluation.rating == 4
+
+    async def test_unknown_evaluation_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await _disable_removed_card_validation(client, owner_user)
+        test_id = (await _create_card_log(client, owner_user, personal_id)).json()["id"]
+
+        resp = await client.delete(
+            f"{BASE}/card-tests/{test_id}/evaluations/"
+            "00000000-0000-0000-0000-000000000000",
+            headers=headers,
         )
         assert resp.status_code == 404
