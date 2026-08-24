@@ -8,6 +8,7 @@ import * as realStatsApi from '@/api/stats'
 import * as realTeamsApi from '@/api/teams'
 import {
   archetypeSummarySchema,
+  cardTestEvaluationSchema,
   cardTestSchema,
   decklistVersionSchema,
   decklistViewSchema,
@@ -35,6 +36,7 @@ import * as demoTeamsApi from '../teams'
 
 const DECK_ID = fixtures.personalDecks[0].id
 const TEAM_ID = fixtures.teams[0].id
+const OPPONENT_DECK_ID = fixtures.metaDecks[0].id
 
 // The compile-time proof lives in `../types.ts` + `../_typecheck.ts` (`tsc
 // -b`, run by `npm run build`, fails if a signature drifts). This is the
@@ -259,25 +261,51 @@ describe('demo cardTests api', () => {
       personal_deck_id: DECK_ID,
       removed_card_name: 'Removed Test Card',
       added_card_name: 'Added Test Card',
-      opponent_deck_id: null,
-      rating: 3,
       notes: null,
     })
     cardTestSchema.parse(created)
+    expect(created.evaluations).toEqual([])
 
     const updated = await demoCardTestsApi.updateCardTest(created.id, {
       personal_deck_id: DECK_ID,
       removed_card_name: 'Removed Test Card',
       added_card_name: 'Added Test Card',
-      opponent_deck_id: null,
-      rating: 5,
       notes: 'Now excellent',
     })
-    expect(updated.rating).toBe(5)
+    expect(updated.notes).toBe('Now excellent')
 
     await demoCardTestsApi.deleteCardTest(created.id)
     const after = await demoCardTestsApi.listCardTests({ personalDeckId: DECK_ID })
     expect(after.find((test) => test.id === created.id)).toBeUndefined()
+  })
+
+  it('creates, updates and deletes a card test evaluation', async () => {
+    const created = await demoCardTestsApi.createCardTest({
+      personal_deck_id: DECK_ID,
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
+      notes: null,
+    })
+
+    const evaluation = await demoCardTestsApi.createCardTestEvaluation(created.id, {
+      opponent_deck_id: OPPONENT_DECK_ID,
+      rating: 3,
+      notes: null,
+    })
+    cardTestEvaluationSchema.parse(evaluation)
+
+    const updatedEvaluation = await demoCardTestsApi.updateCardTestEvaluation(
+      created.id,
+      evaluation.id,
+      { opponent_deck_id: OPPONENT_DECK_ID, rating: 5, notes: 'Now excellent' },
+    )
+    expect(updatedEvaluation.rating).toBe(5)
+
+    await demoCardTestsApi.deleteCardTestEvaluation(created.id, evaluation.id)
+    const [after] = await demoCardTestsApi.listCardTests({ personalDeckId: DECK_ID })
+    expect(
+      after?.evaluations.find((candidate) => candidate.id === evaluation.id),
+    ).toBeUndefined()
   })
 })
 

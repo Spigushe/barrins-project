@@ -36,6 +36,7 @@ export const decklistLineStatusSchema = z.enum([
   'rejected',
   'in_test',
   'neutral',
+  'pending',
 ])
 export type DecklistLineStatus = z.infer<typeof decklistLineStatusSchema>
 
@@ -138,15 +139,24 @@ export const matchSchema = z.object({
 })
 export type Match = z.infer<typeof matchSchema>
 
+export const cardTestEvaluationSchema = z.object({
+  id: z.uuid(),
+  test_id: z.uuid(),
+  opponent_deck_id: z.uuid(),
+  rating: z.number().int(),
+  notes: z.string().nullable(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export type CardTestEvaluation = z.infer<typeof cardTestEvaluationSchema>
+
 export const cardTestSchema = z.object({
   id: z.uuid(),
   personal_deck_id: z.uuid().nullable(),
   removed_card_name: z.string(),
   added_card_name: z.string(),
-  opponent_deck_id: z.uuid().nullable(),
-  rating: z.number().int(),
   notes: z.string().nullable(),
   created_at: z.iso.datetime({ offset: true }),
+  evaluations: z.array(cardTestEvaluationSchema),
 })
 export type CardTest = z.infer<typeof cardTestSchema>
 
@@ -165,6 +175,8 @@ export const decklistCardSchema = z.object({
   text: z.string().nullable(),
   keywords: z.array(z.string()),
   scryfall_id: z.string().nullable(),
+  pending_added_card_name: z.string().nullable().optional(),
+  pending_added_card_scryfall_id: z.string().nullable().optional(),
 })
 export type DecklistCard = z.infer<typeof decklistCardSchema>
 
@@ -309,11 +321,16 @@ export const cardTestWriteSchema = z.object({
   personal_deck_id: z.uuid(),
   removed_card_name: z.string().min(1).max(255),
   added_card_name: z.string().min(1).max(255),
-  opponent_deck_id: z.uuid().nullable().optional(),
-  rating: z.number().int().min(1).max(5),
   notes: z.string().nullable().optional(),
 })
 export type CardTestWrite = z.infer<typeof cardTestWriteSchema>
+
+export const cardTestEvaluationWriteSchema = z.object({
+  opponent_deck_id: z.uuid(),
+  rating: z.number().int().min(1).max(5),
+  notes: z.string().nullable().optional(),
+})
+export type CardTestEvaluationWrite = z.infer<typeof cardTestEvaluationWriteSchema>
 
 export const sessionSchema = z.object({
   id: z.uuid(),

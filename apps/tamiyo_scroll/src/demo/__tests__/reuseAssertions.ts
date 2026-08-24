@@ -38,5 +38,5 @@ export async function expectDecklistTabRendersFixtureData(
   // Commander/Library view, not one raw "<qty> <name>" text line).
   await view.findByText('Aurelia, the Warleader')
   await view.findByText('Version 2')
-  await view.findByText('Tested cards — individual feedback')
+  await view.findByText('Tested cards — card log')
 }

@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { cardTestSchema, type CardTestWrite } from '@/schemas/tamiyoScroll'
+import {
+  cardTestEvaluationSchema,
+  cardTestSchema,
+  type CardTestEvaluationWrite,
+  type CardTestWrite,
+} from '@/schemas/tamiyoScroll'
 import { apiRequest } from './client'
 
 export function listCardTests(options: { personalDeckId?: string } = {}) {
@@ -37,4 +42,35 @@ export function deleteCardTest(testId: string) {
   return apiRequest(`/bff/tamiyo-scroll/card-tests/${testId}`, z.void(), {
     method: 'DELETE',
   })
+}
+
+export function createCardTestEvaluation(
+  testId: string,
+  payload: CardTestEvaluationWrite,
+) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/card-tests/${testId}/evaluations`,
+    cardTestEvaluationSchema,
+    { method: 'POST', body: payload },
+  )
+}
+
+export function updateCardTestEvaluation(
+  testId: string,
+  evaluationId: string,
+  payload: CardTestEvaluationWrite,
+) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/card-tests/${testId}/evaluations/${evaluationId}`,
+    cardTestEvaluationSchema,
+    { method: 'PUT', body: payload },
+  )
+}
+
+export function deleteCardTestEvaluation(testId: string, evaluationId: string) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/card-tests/${testId}/evaluations/${evaluationId}`,
+    z.void(),
+    { method: 'DELETE' },
+  )
 }

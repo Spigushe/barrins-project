@@ -1,14 +1,23 @@
-import { type FormEvent, useState } from 'react'
+import { Fragment, type FormEvent, useState } from 'react'
 import {
   useCardTests,
   useCreateCardTest,
+  useCreateCardTestEvaluation,
   useDeleteCardTest,
+  useDeleteCardTestEvaluation,
   useUpdateCardTest,
+  useUpdateCardTestEvaluation,
 } from '@/hooks/useCardTests'
 import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { ApiError } from '@/api/client'
-import type { CardTest, CardTestWrite, MetaDeck } from '@/schemas/tamiyoScroll'
+import type {
+  CardTest,
+  CardTestEvaluation,
+  CardTestEvaluationWrite,
+  CardTestWrite,
+  MetaDeck,
+} from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -56,6 +65,10 @@ const RATINGS = [1, 2, 3, 4, 5]
  * opponent field, not adding a new deck-creation path; selecting any
  * option (including a shared one) directly sets the matchup, same as
  * this select's previous plain-`<Select>` behavior.
+ *
+ * Reused for evaluations (S17): an evaluation's `opponent_deck_id` is
+ * required, so `NO_MATCHUP` there means "not yet chosen" rather than a
+ * valid "no matchup" value — callers gate submission on it themselves.
  */
 function MatchupDeckField({
   value,
@@ -170,27 +183,17 @@ function MatchupDeckField({
 interface Draft {
   removedCardName: string
   addedCardName: string
-  opponentDeckId: string
-  rating: number
   notes: string
 }
 
 function emptyDraft(): Draft {
-  return {
-    removedCardName: '',
-    addedCardName: '',
-    opponentDeckId: NO_MATCHUP,
-    rating: 3,
-    notes: '',
-  }
+  return { removedCardName: '', addedCardName: '', notes: '' }
 }
 
 function draftFromTest(test: CardTest): Draft {
   return {
     removedCardName: test.removed_card_name,
     addedCardName: test.added_card_name,
-    opponentDeckId: test.opponent_deck_id ?? NO_MATCHUP,
-    rating: test.rating,
     notes: test.notes ?? '',
   }
 }
@@ -200,7 +203,34 @@ function toWrite(deckId: string, draft: Draft): CardTestWrite {
     personal_deck_id: deckId,
     removed_card_name: draft.removedCardName.trim(),
     added_card_name: draft.addedCardName.trim(),
-    opponent_deck_id: draft.opponentDeckId === NO_MATCHUP ? null : draft.opponentDeckId,
+    notes: draft.notes.trim() || null,
+  }
+}
+
+interface EvalDraft {
+  opponentDeckId: string
+  rating: number
+  notes: string
+}
+
+function emptyEvalDraft(): EvalDraft {
+  return { opponentDeckId: NO_MATCHUP, rating: 3, notes: '' }
+}
+
+function evalDraftFromEvaluation(evaluation: CardTestEvaluation): EvalDraft {
+  return {
+    opponentDeckId: evaluation.opponent_deck_id,
+    rating: evaluation.rating,
+    notes: evaluation.notes ?? '',
+  }
+}
+
+/** `null` while `opponentDeckId` is still the unselected sentinel — an
+ * evaluation's matchup is required, unlike the pre-S17 flat field. */
+function toEvalWrite(draft: EvalDraft): CardTestEvaluationWrite | null {
+  if (draft.opponentDeckId === NO_MATCHUP) return null
+  return {
+    opponent_deck_id: draft.opponentDeckId,
     rating: draft.rating,
     notes: draft.notes.trim() || null,
   }
@@ -218,11 +248,23 @@ export function CardTestsSection() {
   const createTest = useCreateCardTest()
   const updateTest = useUpdateCardTest()
   const deleteTest = useDeleteCardTest()
+  const createEvaluation = useCreateCardTestEvaluation()
+  const updateEvaluation = useUpdateCardTestEvaluation()
+  const deleteEvaluation = useDeleteCardTestEvaluation()
 
   const [newDraft, setNewDraft] = useState<Draft>(emptyDraft())
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Draft>(emptyDraft())
   const [pendingDelete, setPendingDelete] = useState<CardTest | null>(null)
+
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [newEvalDraft, setNewEvalDraft] = useState<EvalDraft>(emptyEvalDraft())
+  const [editingEvalId, setEditingEvalId] = useState<string | null>(null)
+  const [editEvalDraft, setEditEvalDraft] = useState<EvalDraft>(emptyEvalDraft())
+  const [pendingDeleteEval, setPendingDeleteEval] = useState<{
+    testId: string
+    evaluation: CardTestEvaluation
+  } | null>(null)
 
   const deckOptions = metaDecks ?? []
 
@@ -246,9 +288,34 @@ export function CardTestsSection() {
     setEditingId(null)
   }
 
+  function toggleExpand(testId: string) {
+    setExpandedId((current) => (current === testId ? null : testId))
+    setNewEvalDraft(emptyEvalDraft())
+    setEditingEvalId(null)
+  }
+
+  async function handleAddEvaluation(testId: string) {
+    const payload = toEvalWrite(newEvalDraft)
+    if (!payload) return
+    await createEvaluation.mutateAsync({ testId, payload })
+    setNewEvalDraft(emptyEvalDraft())
+  }
+
+  function startEditEval(evaluation: CardTestEvaluation) {
+    setEditingEvalId(evaluation.id)
+    setEditEvalDraft(evalDraftFromEvaluation(evaluation))
+  }
+
+  async function handleSaveEditEval(testId: string, evaluationId: string) {
+    const payload = toEvalWrite(editEvalDraft)
+    if (!payload) return
+    await updateEvaluation.mutateAsync({ testId, evaluationId, payload })
+    setEditingEvalId(null)
+  }
+
   return (
     <Card>
-      <CardTitle>Tested cards — individual feedback</CardTitle>
+      <CardTitle>Tested cards — card log</CardTitle>
 
       {canEdit && (
         <form
@@ -279,35 +346,6 @@ export function CardTestsSection() {
               className="w-48"
             />
           </div>
-          <MatchupDeckField
-            value={newDraft.opponentDeckId}
-            onChange={(value) => {
-              setNewDraft({ ...newDraft, opponentDeckId: value })
-            }}
-            options={deckOptions}
-            idPrefix="new-test-matchup"
-            visibleLabel
-          />
-          <div className="flex flex-col gap-1.5">
-            <Label>Effectiveness</Label>
-            <Select
-              value={String(newDraft.rating)}
-              onValueChange={(value) => {
-                setNewDraft({ ...newDraft, rating: Number(value) })
-              }}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RATINGS.map((rating) => (
-                  <SelectItem key={rating} value={String(rating)}>
-                    {RATING_LABELS[rating]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="test-notes">Notes</Label>
             <Input
@@ -334,15 +372,16 @@ export function CardTestsSection() {
           <TableRow>
             <TableHead>Removed Card</TableHead>
             <TableHead>Added Card</TableHead>
-            <TableHead>Match-up</TableHead>
-            <TableHead className="w-32">Effectiveness</TableHead>
             <TableHead>Notes</TableHead>
+            <TableHead className="w-40">Evaluations</TableHead>
             {canEdit && <TableHead className="w-36" />}
           </TableRow>
         </TableHeader>
         <TableBody>
           {cardTests?.map((test) => {
             const isEditing = editingId === test.id
+            const isExpanded = expandedId === test.id
+
             if (isEditing) {
               return (
                 <TableRow key={test.id}>
@@ -366,43 +405,15 @@ export function CardTestsSection() {
                     />
                   </TableCell>
                   <TableCell>
-                    <MatchupDeckField
-                      value={editDraft.opponentDeckId}
-                      onChange={(value) => {
-                        setEditDraft({ ...editDraft, opponentDeckId: value })
-                      }}
-                      options={deckOptions}
-                      idPrefix={`edit-test-matchup-${test.id}`}
-                      visibleLabel={false}
-                      triggerClassName="w-full"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={String(editDraft.rating)}
-                      onValueChange={(value) => {
-                        setEditDraft({ ...editDraft, rating: Number(value) })
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RATINGS.map((rating) => (
-                          <SelectItem key={rating} value={String(rating)}>
-                            {RATING_LABELS[rating]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
                     <Input
                       value={editDraft.notes}
                       onChange={(event) => {
                         setEditDraft({ ...editDraft, notes: event.target.value })
                       }}
                     />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {test.evaluations.length}
                   </TableCell>
                   <TableCell className="flex gap-2">
                     <Button
@@ -435,48 +446,272 @@ export function CardTestsSection() {
               )
             }
 
-            const matchupDeck = resolveMetaDeckOption(deckOptions, test.opponent_deck_id)
             return (
-              <TableRow key={test.id}>
-                <TableCell>{test.removed_card_name}</TableCell>
-                <TableCell className="font-mono">{test.added_card_name}</TableCell>
-                <TableCell>{matchupDeck?.name ?? '—'}</TableCell>
-                <TableCell className={cn('font-semibold', ratingTextClass(test.rating))}>
-                  {RATING_LABELS[test.rating]}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {test.notes ?? '—'}
-                </TableCell>
-                {canEdit && (
-                  <TableCell className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        startEdit(test)
-                      }}
-                    >
-                      Edit
-                    </Button>
+              <Fragment key={test.id}>
+                <TableRow>
+                  <TableCell>{test.removed_card_name}</TableCell>
+                  <TableCell className="font-mono">{test.added_card_name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {test.notes ?? '—'}
+                  </TableCell>
+                  <TableCell>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        setPendingDelete(test)
+                        toggleExpand(test.id)
                       }}
                     >
-                      ✕
+                      {test.evaluations.length} {isExpanded ? '▾' : '▸'}
                     </Button>
                   </TableCell>
+                  {canEdit && (
+                    <TableCell className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          startEdit(test)
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setPendingDelete(test)
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+                {isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={canEdit ? 5 : 4} className="bg-input-inline">
+                      <div className="flex flex-col gap-2 py-1">
+                        {test.evaluations.map((evaluation) => {
+                          const isEditingEval = editingEvalId === evaluation.id
+                          const matchupDeck = resolveMetaDeckOption(
+                            deckOptions,
+                            evaluation.opponent_deck_id,
+                          )
+                          if (isEditingEval) {
+                            return (
+                              <div
+                                key={evaluation.id}
+                                className="flex flex-wrap items-end gap-2"
+                              >
+                                <MatchupDeckField
+                                  value={editEvalDraft.opponentDeckId}
+                                  onChange={(value) => {
+                                    setEditEvalDraft({
+                                      ...editEvalDraft,
+                                      opponentDeckId: value,
+                                    })
+                                  }}
+                                  options={deckOptions}
+                                  idPrefix={`edit-eval-matchup-${evaluation.id}`}
+                                  visibleLabel={false}
+                                />
+                                <Select
+                                  value={String(editEvalDraft.rating)}
+                                  onValueChange={(value) => {
+                                    setEditEvalDraft({
+                                      ...editEvalDraft,
+                                      rating: Number(value),
+                                    })
+                                  }}
+                                >
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {RATINGS.map((rating) => (
+                                      <SelectItem key={rating} value={String(rating)}>
+                                        {RATING_LABELS[rating]}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  className="flex-1"
+                                  value={editEvalDraft.notes}
+                                  onChange={(event) => {
+                                    setEditEvalDraft({
+                                      ...editEvalDraft,
+                                      notes: event.target.value,
+                                    })
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={
+                                    updateEvaluation.isPending ||
+                                    editEvalDraft.opponentDeckId === NO_MATCHUP
+                                  }
+                                  onClick={() => {
+                                    void handleSaveEditEval(test.id, evaluation.id)
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingEvalId(null)
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                {errorMessage(updateEvaluation.error) && (
+                                  <p className="w-full text-[12.5px] text-destructive">
+                                    {errorMessage(updateEvaluation.error)}
+                                  </p>
+                                )}
+                              </div>
+                            )
+                          }
+                          return (
+                            <div
+                              key={evaluation.id}
+                              className="flex flex-wrap items-center gap-3"
+                            >
+                              <span className="w-44 truncate">
+                                {matchupDeck?.name ?? '—'}
+                              </span>
+                              <span
+                                className={cn(
+                                  'w-32 font-semibold',
+                                  ratingTextClass(evaluation.rating),
+                                )}
+                              >
+                                {RATING_LABELS[evaluation.rating]}
+                              </span>
+                              <span className="flex-1 text-muted-foreground">
+                                {evaluation.notes ?? '—'}
+                              </span>
+                              {canEdit && (
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      startEditEval(evaluation)
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setPendingDeleteEval({ testId: test.id, evaluation })
+                                    }}
+                                  >
+                                    ✕
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {test.evaluations.length === 0 && (
+                          <p className="text-[12.5px] text-muted-foreground">
+                            No evaluations yet.
+                          </p>
+                        )}
+
+                        {canEdit && (
+                          <div className="mt-1 flex flex-wrap items-end gap-2 border-t border-border-dashed pt-2">
+                            <MatchupDeckField
+                              value={newEvalDraft.opponentDeckId}
+                              onChange={(value) => {
+                                setNewEvalDraft({ ...newEvalDraft, opponentDeckId: value })
+                              }}
+                              options={deckOptions}
+                              idPrefix={`new-eval-matchup-${test.id}`}
+                              visibleLabel
+                            />
+                            <div className="flex flex-col gap-1.5">
+                              <Label>Effectiveness</Label>
+                              <Select
+                                value={String(newEvalDraft.rating)}
+                                onValueChange={(value) => {
+                                  setNewEvalDraft({
+                                    ...newEvalDraft,
+                                    rating: Number(value),
+                                  })
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {RATINGS.map((rating) => (
+                                    <SelectItem key={rating} value={String(rating)}>
+                                      {RATING_LABELS[rating]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex flex-1 flex-col gap-1.5">
+                              <Label htmlFor={`new-eval-notes-${test.id}`}>Notes</Label>
+                              <Input
+                                id={`new-eval-notes-${test.id}`}
+                                value={newEvalDraft.notes}
+                                onChange={(event) => {
+                                  setNewEvalDraft({
+                                    ...newEvalDraft,
+                                    notes: event.target.value,
+                                  })
+                                }}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={
+                                createEvaluation.isPending ||
+                                newEvalDraft.opponentDeckId === NO_MATCHUP
+                              }
+                              onClick={() => {
+                                void handleAddEvaluation(test.id)
+                              }}
+                            >
+                              Add evaluation
+                            </Button>
+                            {errorMessage(createEvaluation.error) && (
+                              <p className="w-full text-[12.5px] text-destructive">
+                                {errorMessage(createEvaluation.error)}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </TableRow>
+              </Fragment>
             )
           })}
           {(cardTests?.length ?? 0) === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
+              <TableCell
+                colSpan={canEdit ? 5 : 4}
+                className="text-center text-muted-foreground"
+              >
                 No test feedback.
               </TableCell>
             </TableRow>
@@ -490,12 +725,30 @@ export function CardTestsSection() {
           if (!next) setPendingDelete(null)
         }}
         title={pendingDelete ? `Delete "${pendingDelete.added_card_name}"?` : ''}
-        description="It will disappear from this deck's test feedback. This can't be undone."
+        description="It will disappear from this deck's test feedback, along with any evaluations logged against it."
         confirmDisabled={deleteTest.isPending}
         onConfirm={() => {
           if (!pendingDelete) return
           void deleteTest.mutateAsync(pendingDelete.id)
           setPendingDelete(null)
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteEval !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDeleteEval(null)
+        }}
+        title="Delete this evaluation?"
+        description="It will disappear from this card log's evaluations."
+        confirmDisabled={deleteEvaluation.isPending}
+        onConfirm={() => {
+          if (!pendingDeleteEval) return
+          void deleteEvaluation.mutateAsync({
+            testId: pendingDeleteEval.testId,
+            evaluationId: pendingDeleteEval.evaluation.id,
+          })
+          setPendingDeleteEval(null)
         }}
       />
     </Card>

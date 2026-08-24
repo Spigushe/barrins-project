@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as cardTestsApi from '@/api/cardTests'
-import type { CardTestWrite } from '@/schemas/tamiyoScroll'
+import type { CardTestEvaluationWrite, CardTestWrite } from '@/schemas/tamiyoScroll'
 import { useViewingOwner } from './useViewingOwner'
 
 export function useCardTests(personalDeckId: string | null) {
@@ -59,6 +59,45 @@ export function useDeleteCardTest() {
   const invalidate = useInvalidateCardTests()
   return useMutation({
     mutationFn: (testId: string) => cardTestsApi.deleteCardTest(testId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useCreateCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({
+      testId,
+      payload,
+    }: {
+      testId: string
+      payload: CardTestEvaluationWrite
+    }) => cardTestsApi.createCardTestEvaluation(testId, payload),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({
+      testId,
+      evaluationId,
+      payload,
+    }: {
+      testId: string
+      evaluationId: string
+      payload: CardTestEvaluationWrite
+    }) => cardTestsApi.updateCardTestEvaluation(testId, evaluationId, payload),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({ testId, evaluationId }: { testId: string; evaluationId: string }) =>
+      cardTestsApi.deleteCardTestEvaluation(testId, evaluationId),
     onSuccess: invalidate,
   })
 }

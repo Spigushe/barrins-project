@@ -195,6 +195,7 @@ export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   rejected: 'Rejected',
   in_test: 'In test',
   neutral: 'Neutral',
+  pending: 'Pending',
 }
 
 export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string> = {
@@ -202,6 +203,7 @@ export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string>
   rejected: 'text-destructive',
   in_test: 'text-warning',
   neutral: 'text-foreground',
+  pending: 'text-info',
 }
 
 /**
@@ -215,6 +217,7 @@ export const DECKLIST_LINE_STATUS_BG_CLASS: Record<DecklistLineStatus, string> =
   rejected: 'bg-destructive',
   in_test: 'bg-warning',
   neutral: 'bg-foreground',
+  pending: 'bg-info',
 }
 
 /** Section header labels for a decklist's type-grouped card list (e.g. "Creatures (14)" — the count is appended by the component, not here). */
