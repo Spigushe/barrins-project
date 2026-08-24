@@ -73,8 +73,8 @@ def _as_decklist_card(
     name: str,
     status: LineStatus,
     resolved: Card | None,
-    pending_added_card_name: str | None = None,
-    pending_added_card_scryfall_id: str | None = None,
+    pending_target: TSCardTest | None = None,
+    pending_added_resolved: Card | None = None,
 ) -> ResponseDecklistCard:
     return ResponseDecklistCard(
         qty=qty,
@@ -85,8 +85,30 @@ def _as_decklist_card(
         text=resolved.text if resolved is not None else None,
         keywords=resolved.keywords if resolved is not None else [],
         scryfall_id=resolved.scryfall_id if resolved is not None else None,
-        pending_added_card_name=pending_added_card_name,
-        pending_added_card_scryfall_id=pending_added_card_scryfall_id,
+        pending_added_card_name=(
+            pending_target.added_card_name if pending_target is not None else None
+        ),
+        pending_added_card_scryfall_id=(
+            pending_added_resolved.scryfall_id
+            if pending_added_resolved is not None
+            else None
+        ),
+        pending_added_card_mana_cost=(
+            pending_added_resolved.mana_cost
+            if pending_added_resolved is not None
+            else None
+        ),
+        pending_added_card_text=(
+            pending_added_resolved.text if pending_added_resolved is not None else None
+        ),
+        pending_added_card_keywords=(
+            pending_added_resolved.keywords
+            if pending_added_resolved is not None
+            else []
+        ),
+        pending_card_test_id=(
+            pending_target.id if pending_target is not None else None
+        ),
     )
 
 
@@ -148,18 +170,13 @@ async def build_decklist_view(
     for i, qty, name, status in parsed:
         resolved = resolved_by_name.get(name)
         pending_target = pending_targets.get(i)
-        pending_added_name = None
-        pending_added_scryfall_id = None
-        if pending_target is not None:
-            pending_added_name = pending_target.added_card_name
-            pending_resolved = pending_added_resolved.get(
-                pending_target.added_card_name
-            )
-            pending_added_scryfall_id = (
-                pending_resolved.scryfall_id if pending_resolved is not None else None
-            )
+        pending_resolved = (
+            pending_added_resolved.get(pending_target.added_card_name)
+            if pending_target is not None
+            else None
+        )
         card = _as_decklist_card(
-            qty, name, status, resolved, pending_added_name, pending_added_scryfall_id
+            qty, name, status, resolved, pending_target, pending_resolved
         )
         (commander_cards if i in commander_idx else library_cards).append(
             (card, resolved)

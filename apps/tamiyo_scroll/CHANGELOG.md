@@ -52,6 +52,42 @@ section of the docs site for details.
   `components/ui/hover-card.tsx`) via the backend's new Scryfall image
   proxy. Replaces the old flat colored-text-line rendering; any
   unparsable line still renders as before, in its own section.
+- Session overhaul (S14): a session gains a `location` field and an
+  inline-editable `started_at`/`ended_at` date pair (independent of
+  Close/Reopen — see Changed), a freeform 0-359 hue (native range
+  slider, server-persisted, replaces the type-based color on every
+  session tag app-wide — `SessionTypeBadge`), and `GET /sessions` gains
+  `sort_by`/`sort_dir`/`limit`/`offset`/`search`. The Sessions tab table
+  supports sortable columns, 10-per-page pagination, and inline editing
+  (name/location/notes/dates/hue) regardless of a session's status. A
+  "See archived" dialog lists archived sessions with a name search and a
+  restore action (`PATCH .../restore`). Auto-archive (opt-in,
+  `AccountSettingsDialog`): once a session's most recent match's
+  decklist version falls a configurable number of versions behind, it's
+  archived automatically the next time a new decklist version is
+  imported for that deck (Moxfield or plain-text) — event-triggered, not
+  a periodic job.
+- Session creation (S14 follow-up): the "New session" form now reuses
+  `SessionEditFields` — the same location/notes/started_at/ended_at/hue
+  fields used to edit a session — instead of just name/type, so a
+  session can be fully filled in at creation rather than requiring an
+  immediate follow-up edit.
+- **Breaking**: card log / match-up evaluation split (S17). Tested
+  cards' creation form only collects Removed Card, Added Card, and
+  Notes now — match-up (opponent deck) and effectiveness rating moved
+  to an expandable evaluations sub-list on each card log, added from
+  the edit row (one card log, many evaluations). Removed-Card suggests
+  from the current decklist as you type; Added-Card suggests from a
+  live, debounced card-name search (3-character minimum), with a "not
+  found" hint when nothing matches — free text stays valid either way.
+  A decklist line whose card is still present but targeted by a card
+  log's `removed_card_name` renders inline as **pending** (blue): the
+  removed name struck through, an arrow, then the added name, same
+  row — replacing the old separate "Card change being considered"
+  block for changes reflected this way (that block still lists changes
+  not yet reflected in the current decklist). Hovering either name in
+  a pending row, or either name in the "Tested cards" block itself,
+  shows that card's image.
 
 ### Changed
 

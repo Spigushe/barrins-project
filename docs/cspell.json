@@ -58,6 +58,7 @@
         "Historique",
         "HSTS",
         "httpx",
+        "ILIKE",
         "inlines",
         "isready",
         "journalctl",

@@ -768,7 +768,7 @@ class TestDecklistView:
             json={"validate_removed_card_in_decklist": False},
             headers=headers,
         )
-        await _create_card_log(
+        test_id = await _create_card_log(
             client,
             owner_user,
             deck_id,
@@ -783,7 +783,82 @@ class TestDecklistView:
         cards = {c["name"]: c for c in _flatten_library(resp.json())}
         assert cards["Duress"]["status"] == "pending"
         assert cards["Duress"]["pending_added_card_name"] == "Not A Real Card XYZ"
+        assert cards["Duress"]["pending_card_test_id"] == test_id
+        # unresolvable added-card name -- no mj_cards row to surface pips from.
+        assert cards["Duress"]["pending_added_card_mana_cost"] is None
         assert cards["Lightning Bolt"]["status"] == "neutral"
+        assert cards["Lightning Bolt"]["pending_card_test_id"] is None
+
+    async def test_pending_pips_and_popover_reflect_added_card(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """S17 item 3/4: a pending line's `mana_cost`/`text`/`keywords`
+        (fed to the row's pips + info popover) come from the *added*
+        card, resolved against `mj_cards` the same way the line's own
+        (removed) name is -- not the removed card's own data."""
+        mtg_set = MTGSet(
+            code="PND",
+            name="Pending Test Set",
+            release_date=date(2026, 1, 1),
+            type="expansion",
+            base_set_size=1,
+            total_set_size=1,
+            keyrune_code="pnd",
+        )
+        db_session.add(mtg_set)
+        await db_session.flush()
+        db_session.add(
+            Card(
+                id=uuid.uuid4(),
+                set_code="PND",
+                name="Swords to Plowshares",
+                type_line="Instant",
+                mana_cost="{W}",
+                mana_value=1,
+                color_identity=["W"],
+                rarity="uncommon",
+                number="1",
+                scryfall_id="swords-scryfall-id",
+                text="Exile target creature.",
+                keywords=["Exile"],
+            )
+        )
+        await db_session.commit()
+
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "2 Duress"},
+            headers=headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Duress",
+            added_card_name="Swords to Plowshares",
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        card = _flatten_library(resp.json())[0]
+        assert card["status"] == "pending"
+        assert card["pending_card_test_id"] == test_id
+        assert card["pending_added_card_scryfall_id"] == "swords-scryfall-id"
+        assert card["pending_added_card_mana_cost"] == "{W}"
+        assert card["pending_added_card_text"] == "Exile target creature."
+        assert card["pending_added_card_keywords"] == ["Exile"]
+        # the line's own (removed card's) data is untouched by the above.
+        assert card["name"] == "Duress"
+        assert card["mana_cost"] is None
 
     async def test_uses_latest_version_only(
         self, client: AsyncClient, owner_user: User

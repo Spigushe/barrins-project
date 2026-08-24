@@ -49,6 +49,8 @@ let cardTests: {
   id: string
   removed_card_name: string
   added_card_name: string
+  removed_card_scryfall_id?: string | null
+  added_card_scryfall_id?: string | null
   notes: string | null
   evaluations: {
     id: string
@@ -70,10 +72,32 @@ vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-1', canEdit: true }),
 }))
 
+let decklistView: {
+  commander_cards: { name: string }[]
+  library_cards: { cards: { name: string }[] }[]
+  unparsed_lines: unknown[]
+} = { commander_cards: [], library_cards: [], unparsed_lines: [] }
+
+vi.mock('@/hooks/useDecklistVersions', () => ({
+  useDecklistView: () => ({ data: decklistView }),
+}))
+
+let addedCardSearchResult: { data: string[]; isFetching: boolean } = {
+  data: [],
+  isFetching: false,
+}
+
+vi.mock('@/hooks/useCards', () => ({
+  CARD_NAME_SEARCH_MIN_LENGTH: 3,
+  useCardNameSearch: () => addedCardSearchResult,
+}))
+
 describe('CardTestsSection', () => {
   beforeEach(() => {
     cardTests = []
     createTestError = null
+    decklistView = { commander_cards: [], library_cards: [], unparsed_lines: [] }
+    addedCardSearchResult = { data: [], isFetching: false }
   })
 
   it('labels the table headers and create-form fields consistently', () => {
@@ -248,5 +272,115 @@ describe('CardTestsSection — evaluations panel', () => {
       evaluationId: 'eval-1',
       payload: { opponent_deck_id: 'deck-a', rating: 3, notes: null },
     })
+  })
+})
+
+// S17 item 3 follow-up: the card log's own Removed/Added Card cells
+// hover-preview an image the same way a pending decklist line does.
+describe('CardTestsSection — card name hover previews', () => {
+  beforeEach(() => {
+    createTestError = null
+    decklistView = { commander_cards: [], library_cards: [], unparsed_lines: [] }
+    addedCardSearchResult = { data: [], isFetching: false }
+  })
+
+  it('shows the added card image on hover when its scryfall id resolved', async () => {
+    cardTests = [
+      {
+        id: 'test-1',
+        removed_card_name: 'Duress',
+        added_card_name: 'Lightning Bolt',
+        removed_card_scryfall_id: null,
+        added_card_scryfall_id: 'bolt-scryfall-id',
+        notes: null,
+        evaluations: [],
+      },
+    ]
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.hover(screen.getByText('Lightning Bolt'))
+    expect(await screen.findByAltText('Lightning Bolt')).toBeInTheDocument()
+  })
+
+  it('renders a plain name with no hover preview when unresolved', () => {
+    cardTests = [
+      {
+        id: 'test-1',
+        removed_card_name: 'Some Homebrew Card',
+        added_card_name: 'Lightning Bolt',
+        removed_card_scryfall_id: null,
+        added_card_scryfall_id: null,
+        notes: null,
+        evaluations: [],
+      },
+    ]
+    render(<CardTestsSection />)
+
+    const name = screen.getByText('Some Homebrew Card')
+    expect(name).not.toHaveClass('underline')
+  })
+})
+
+// S17 item 2: name-validation UX -- Removed-Card suggests from the
+// already-fetched current decklist, Added-Card suggests from the new
+// partial-match search endpoint, and free text stays valid either way.
+describe('CardTestsSection — name dropdowns', () => {
+  beforeEach(() => {
+    cardTests = []
+    createTestError = null
+  })
+
+  it('suggests a removed-card name from the current decklist and fills it in on selection', async () => {
+    decklistView = {
+      commander_cards: [],
+      library_cards: [{ cards: [{ name: 'Lightning Bolt' }, { name: 'Duress' }] }],
+      unparsed_lines: [],
+    }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Removed Card'), 'light')
+    await user.click(screen.getByText('Lightning Bolt'))
+
+    expect(screen.getByLabelText('Removed Card')).toHaveValue('Lightning Bolt')
+  })
+
+  it('keeps free-text entry valid when the removed card has no matching suggestion', async () => {
+    decklistView = {
+      commander_cards: [],
+      library_cards: [{ cards: [{ name: 'Lightning Bolt' }] }],
+      unparsed_lines: [],
+    }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Removed Card'), 'Some Custom Card')
+
+    expect(screen.getByLabelText('Removed Card')).toHaveValue('Some Custom Card')
+    expect(screen.queryByText('Lightning Bolt')).not.toBeInTheDocument()
+  })
+
+  it('suggests an added-card name from the search endpoint and fills it in on selection', async () => {
+    addedCardSearchResult = { data: ['Thoughtseize'], isFetching: false }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'thou')
+    await user.click(screen.getByText('Thoughtseize'))
+
+    expect(screen.getByLabelText('Added Card')).toHaveValue('Thoughtseize')
+  })
+
+  it('shows a not-found hint once the added-card search comes back empty', async () => {
+    addedCardSearchResult = { data: [], isFetching: false }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'xyz')
+
+    expect(
+      await screen.findByText('No matching card found — you can still save this name.'),
+    ).toBeInTheDocument()
   })
 })

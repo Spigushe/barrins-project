@@ -59,6 +59,33 @@ section of the docs site for details.
   can shift/disappear on refresh). New `SCRYFALL_USER_AGENT`/
   `CARD_IMAGE_CACHE_DIR` settings; a placeholder-image console client is
   used when unset outside production.
+- `SessionCreate` (`POST /sessions`, S14 follow-up) now accepts
+  `started_at`/`ended_at`/`hue` alongside the existing `name`/`type`/
+  `personal_deck_id`/`notes`/`location` — the same fields `SessionPatch`
+  already exposed for editing — so a session can be fully filled in at
+  creation instead of requiring an immediate `PATCH`.
+- **Breaking**: card log / match-up evaluation split (S17). `TSCardTest`
+  becomes a pure removed/added-name identity (plus its own overall
+  `notes`); new `TSCardTestEvaluation` table (FK to `ts_card_tests.id`)
+  carries `opponent_deck_id` (required), `rating`, and its own optional
+  `notes` — many evaluations per card log. Backfill: one evaluation per
+  existing `ts_card_tests` row, carrying its old `opponent_deck_id`/
+  `rating`. New `POST`/`PUT`/`DELETE /card-tests/{id}/evaluations[/{id}]`
+  routes. `color_decklist()` gains a new independent **pending** pass:
+  a decklist line matching a card log's `removed_card_name` still
+  present in the current decklist renders `pending`, on top of the
+  existing evaluation-majority pass (now pooling `TSCardTestEvaluation`
+  rows instead of flat `TSCardTest` ratings) — new `pending` value on
+  `LineStatus`/`ResponseDecklistLine`. `ResponseDecklistCard` gains
+  `pending_added_card_name`/`_scryfall_id`/`_mana_cost`/`_text`/
+  `_keywords` and `pending_card_test_id`, resolved against `mj_cards`
+  the same way the line's own card is, so the frontend can render the
+  pending swap and its hover/pips/popover data without a second lookup.
+  New `GET /cards/search-by-name-prefix?q=` (substring `ILIKE` over
+  `Card.name`, 20-result cap) backs the frontend's on-the-fly Added-Card
+  dropdown. `ResponseCardTest` also gains `removed_card_scryfall_id`/
+  `added_card_scryfall_id` so the "Tested cards" list can hover-preview
+  either card's image the same way a pending decklist line does.
 
 ## [2.0.0-alpha] - 2026-08-03
 
