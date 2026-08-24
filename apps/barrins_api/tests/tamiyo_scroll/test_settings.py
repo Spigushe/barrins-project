@@ -22,6 +22,7 @@ class TestGetMySettings:
         assert body["metagame_roster_scope"] == "game"
         assert body["auto_archive_stale_sessions"] is True
         assert body["auto_archive_decklist_version_gap"] == 2
+        assert body["show_decklist_version_diff"] is True
 
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.get(f"{BASE}/me/settings")
@@ -212,6 +213,23 @@ class TestUpdateMySettings:
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 422
+
+    async def test_sets_show_decklist_version_diff(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """Defaults True (2026-08-24 decision) -- this exercises turning
+        it off, since turning it on wouldn't prove the update path works."""
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"show_decklist_version_diff": False},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["show_decklist_version_diff"] is False
+
+        resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
+        assert resp.json()["show_decklist_version_diff"] is False
 
     async def test_extra_field_returns_422(self, client: AsyncClient, owner_user: User):
         resp = await client.patch(

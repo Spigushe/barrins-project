@@ -20,6 +20,7 @@ from app.models.tamiyo_scroll import (
 from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
     ResponseDecklistVersion,
+    ResponseDecklistVersionDiff,
     ResponseDecklistView,
     ResponsePersonalDeck,
 )
@@ -31,6 +32,10 @@ from app.schemas.tamiyo_scroll import (
 )
 from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
+from app.services.tamiyo_scroll.decklist_diff import (
+    diff_decklist_cards,
+    diff_decklist_unparsed_lines,
+)
 from app.services.tamiyo_scroll.decklist_view import build_decklist_view
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
 from app.services.tamiyo_scroll.report import (
@@ -396,6 +401,35 @@ async def delete_decklist_version(
     await session.commit()
 
 
+async def _get_deck_version(
+    session: DatabaseSession, deck: TSPersonalDeck, version_id: uuid.UUID
+) -> TSPersonalDecklistVersion:
+    result = await session.execute(
+        select(TSPersonalDecklistVersion).where(
+            TSPersonalDecklistVersion.id == version_id,
+            TSPersonalDecklistVersion.personal_deck_id == deck.id,
+        )
+    )
+    version = result.scalar_one_or_none()
+    if version is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Version not found."
+        )
+    return version
+
+
+async def _decklist_view_for_content(
+    session: DatabaseSession, owner_id: uuid.UUID, deck_id: uuid.UUID, content: str
+) -> ResponseDecklistView:
+    tests_result = await session.execute(
+        select(TSCardTest).where(
+            TSCardTest.owner_id == owner_id, TSCardTest.personal_deck_id == deck_id
+        )
+    )
+    card_tests = tests_result.scalars().all()
+    return await build_decklist_view(session, content, card_tests)
+
+
 @router.get(
     "/personal-decks/{deck_id}/decklist-view", response_model=ResponseDecklistView
 )
@@ -416,14 +450,73 @@ async def get_decklist_view(
         return ResponseDecklistView(
             commander_cards=[], library_cards=[], unparsed_lines=[]
         )
+    return await _decklist_view_for_content(session, owner.id, deck_id, latest.content)
 
-    tests_result = await session.execute(
-        select(TSCardTest).where(
-            TSCardTest.owner_id == owner.id, TSCardTest.personal_deck_id == deck_id
+
+@router.get(
+    "/personal-decks/{deck_id}/versions/{version_id}",
+    response_model=ResponseDecklistView,
+)
+async def get_decklist_version_view(
+    deck_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+) -> ResponseDecklistView:
+    """S15: the same structured Commander/Library view as `decklist-view`,
+    for one specific past version instead of always the latest."""
+    deck = await _get_owned_personal_deck(session, deck_id, owner.id)
+    version = await _get_deck_version(session, deck, version_id)
+    return await _decklist_view_for_content(session, owner.id, deck_id, version.content)
+
+
+@router.get(
+    "/personal-decks/{deck_id}/versions/{version_id}/diff",
+    response_model=ResponseDecklistVersionDiff,
+)
+async def get_decklist_version_diff(
+    deck_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+) -> ResponseDecklistVersionDiff:
+    """S15: card-aware diff of `version_id` against the immediately-prior
+    version (by `version` number, skipping any version deleted in
+    between). No prior version (the deck's first version) is returned
+    as an empty diff with `compared_to_version=None`, not a 404 --
+    handled explicitly rather than as an error, per the item's Done
+    statement."""
+    deck = await _get_owned_personal_deck(session, deck_id, owner.id)
+    version = await _get_deck_version(session, deck, version_id)
+
+    prior_result = await session.execute(
+        select(TSPersonalDecklistVersion)
+        .where(
+            TSPersonalDecklistVersion.personal_deck_id == deck.id,
+            TSPersonalDecklistVersion.version < version.version,
         )
+        .order_by(TSPersonalDecklistVersion.version.desc())
+        .limit(1)
     )
-    card_tests = tests_result.scalars().all()
-    return await build_decklist_view(session, latest.content, card_tests)
+    prior = prior_result.scalar_one_or_none()
+    if prior is None:
+        return ResponseDecklistVersionDiff(
+            version_id=version.id,
+            version=version.version,
+            compared_to_version_id=None,
+            compared_to_version=None,
+            cards=[],
+            unparsed_lines=[],
+        )
+
+    return ResponseDecklistVersionDiff(
+        version_id=version.id,
+        version=version.version,
+        compared_to_version_id=prior.id,
+        compared_to_version=prior.version,
+        cards=diff_decklist_cards(prior.content, version.content),
+        unparsed_lines=diff_decklist_unparsed_lines(prior.content, version.content),
+    )
 
 
 @router.get("/personal-decks/{deck_id}/report.pdf")

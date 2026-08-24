@@ -70,6 +70,12 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [autoArchiveGapText, setAutoArchiveGapText] = useState(() =>
     String(settings?.auto_archive_decklist_version_gap ?? 2),
   )
+  // S15: defaults on (2026-08-24), server-persisted — when on, expanding a
+  // version in VersionHistorySection shows its diff against the prior
+  // version instead of its full content.
+  const [showVersionDiff, setShowVersionDiff] = useState(
+    () => settings?.show_decklist_version_diff ?? true,
+  )
 
   // S12 items 8-11: four purely-visual toggles, `localStorage`-backed
   // (not part of the Save/Cancel form above — they apply immediately,
@@ -104,6 +110,7 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
           1,
           Number.parseInt(autoArchiveGapText, 10) || 1,
         ),
+        show_decklist_version_diff: showVersionDiff,
       }),
     ])
     onClose()
@@ -232,6 +239,27 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
               />
             </div>
           )}
+        </div>
+
+        <div role="separator" className="h-px bg-accent" />
+
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Decklist version diff
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Show a diff against the prior version when you expand a version in the
+                deck's version history.
+              </p>
+            </div>
+            <Switch
+              checked={showVersionDiff}
+              onCheckedChange={setShowVersionDiff}
+              label="Decklist version diff"
+            />
+          </div>
         </div>
 
         <div role="separator" className="h-px bg-accent" />

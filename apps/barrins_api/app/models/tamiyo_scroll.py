@@ -443,6 +443,16 @@ class TSUserSettings(Base):
         default=2,
         server_default="2",
     )
+    # S15: defaults on for every account (2026-08-24 decision) — gates
+    # whether an expanded version shows its diff against the prior
+    # version instead of its full content (see
+    # services/tamiyo_scroll/decklist_diff.py).
+    show_decklist_version_diff: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
 
 
 class TSSession(Base):

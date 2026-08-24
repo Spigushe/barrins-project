@@ -27,6 +27,7 @@ class ResponseUserSettings(BaseResponse):
     metagame_roster_scope: MetagameRosterScope
     auto_archive_stale_sessions: bool
     auto_archive_decklist_version_gap: int
+    show_decklist_version_diff: bool
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -171,6 +172,44 @@ class ResponseDecklistView(BaseResponse):
     commander_cards: list[ResponseDecklistCard]
     library_cards: list[ResponseDecklistTypeGroup]
     unparsed_lines: list[ResponseDecklistLine]
+
+
+class ResponseDecklistCardDiff(BaseResponse):
+    """One card's quantity change between two decklist versions --
+    matched by name (not by line), so pure reordering never shows up as
+    a spurious added+removed pair (S15)."""
+
+    name: str
+    status: Literal["added", "removed", "unchanged", "quantity_changed"]
+    old_qty: int | None
+    new_qty: int | None
+    is_commander: bool
+
+
+class ResponseDecklistLineDiff(BaseResponse):
+    """One non-card (unparsed) line's change between two decklist
+    versions -- plain line-level diff, since free-text lines can't be
+    matched by card name."""
+
+    line: str
+    status: Literal["added", "removed", "unchanged"]
+
+
+class ResponseDecklistVersionDiff(BaseResponse):
+    """Card-aware diff of one decklist version against the
+    immediately-prior version (by `version` number, skipping any
+    deleted versions in between). `compared_to_version`/
+    `compared_to_version_id` are None for the very first version -- no
+    prior version to diff against -- in which case `cards`/
+    `unparsed_lines` are empty rather than listing everything as
+    added."""
+
+    version_id: uuid.UUID
+    version: int
+    compared_to_version_id: uuid.UUID | None
+    compared_to_version: int | None
+    cards: list[ResponseDecklistCardDiff]
+    unparsed_lines: list[ResponseDecklistLineDiff]
 
 
 class ResponseDeckWinrate(BaseResponse):

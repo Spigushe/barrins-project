@@ -2,10 +2,8 @@ import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useDecklistVersions, useDecklistView } from '@/hooks/useDecklistVersions'
 import { useDownloadDeckReport, usePersonalDecks } from '@/hooks/usePersonalDecks'
 import {
-  DECKLIST_CARD_CATEGORY_LABELS,
   DECKLIST_LINE_STATUS_BG_CLASS,
   DECKLIST_LINE_STATUS_LABELS,
-  DECKLIST_LINE_STATUS_TEXT_CLASS,
   deckReportFilename,
   formatDateTime,
 } from '@/lib/mtg-format'
@@ -13,8 +11,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableHeader, TableRow, TableHead } from '@/components/ui/table'
-import { DecklistCardRow } from './DecklistCardRow'
+import { DecklistViewContent } from './DecklistViewContent'
 
 const LEGEND_STATUSES = ['in_test', 'validated', 'rejected'] as const
 
@@ -80,72 +77,7 @@ export function CurrentDecklistSection() {
 
       {latest && (
         <div className="mt-4 rounded-(--radius-input) border border-border bg-input-inline p-4">
-          {view && view.commander_cards.length > 0 && (
-            <div className="mb-4">
-              <p className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                Commander ({view.commander_cards.length})
-              </p>
-              <Table className="table-fixed">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Qty</TableHead>
-                    <TableHead className="w-64">Name</TableHead>
-                    <TableHead className="w-16">Color pips</TableHead>
-                    <TableHead className="w-16">Popover</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {view.commander_cards.map((card) => (
-                    <DecklistCardRow key={card.name} card={card} />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          {view &&
-            view.library_cards.map((group) => (
-              <div key={group.category} className="mb-4 last:mb-0">
-                <p className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-                  {DECKLIST_CARD_CATEGORY_LABELS[group.category]} ({group.count})
-                </p>
-                <Table className="table-fixed">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">Qty</TableHead>
-                      <TableHead className="w-64">Name</TableHead>
-                      <TableHead className="w-16">Color pips</TableHead>
-                      <TableHead className="w-16">Popover</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {group.cards.map((card) => (
-                      <DecklistCardRow key={card.name} card={card} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ))}
-
-          {view && view.unparsed_lines.length > 0 && (
-            <div className="mt-4 font-mono text-[13px]">
-              {view.unparsed_lines.map((line, index) => (
-                <p
-                  key={`${String(index)}-${line.line}`}
-                  className={DECKLIST_LINE_STATUS_TEXT_CLASS[line.status]}
-                >
-                  {line.line}
-                </p>
-              ))}
-            </div>
-          )}
-
-          {view &&
-            view.commander_cards.length === 0 &&
-            view.library_cards.length === 0 &&
-            view.unparsed_lines.length === 0 && (
-              <p className="text-muted-foreground">Empty version.</p>
-            )}
+          {view && <DecklistViewContent view={view} />}
         </div>
       )}
     </Card>

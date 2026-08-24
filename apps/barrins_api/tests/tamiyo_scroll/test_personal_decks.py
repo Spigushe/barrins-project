@@ -851,3 +851,191 @@ class TestDecklistView:
             "Enchant Test",  # enchantment
             "Land Test",  # land
         ]
+
+
+class TestDecklistVersionView:
+    async def test_returns_specific_past_version_not_latest(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        v1_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        v1_id = v1_resp.json()["id"]
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "2 Duress"},
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v1_id}", headers=headers
+        )
+        assert resp.status_code == 200
+        assert [(c["qty"], c["name"]) for c in _flatten_library(resp.json())] == [
+            (4, "Lightning Bolt")
+        ]
+
+    async def test_unknown_version_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/"
+            "00000000-0000-0000-0000-000000000000",
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_foreign_deck_version_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        version_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        version_id = version_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{version_id}",
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+
+class TestDecklistVersionDiff:
+    async def test_first_version_has_no_prior_version(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        v1_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        v1_id = v1_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v1_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] is None
+        assert body["compared_to_version_id"] is None
+        assert body["cards"] == []
+        assert body["unparsed_lines"] == []
+
+    async def test_diffs_against_immediately_prior_version(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n1 Sol Ring"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] == 1
+        cards = {
+            (c["name"], c["status"], c["old_qty"], c["new_qty"]) for c in body["cards"]
+        }
+        assert cards == {
+            ("Lightning Bolt", "unchanged", 4, 4),
+            ("Duress", "removed", 2, None),
+            ("Sol Ring", "added", None, 1),
+        }
+
+    async def test_skips_deleted_version_when_finding_prior(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """The "immediately prior" version is resolved by `version`
+        number among rows that still exist, not literally `version - 1`
+        -- deleting version 2 must make version 3 diff against version 1."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring\n1 Mana Crypt"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+        v3_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring\n1 Duress"},
+            headers=headers,
+        )
+        v3_id = v3_resp.json()["id"]
+
+        await client.delete(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}", headers=headers
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v3_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] == 1
+        cards = {(c["name"], c["status"]) for c in body["cards"]}
+        assert cards == {("Sol Ring", "unchanged"), ("Duress", "added")}
+
+    async def test_diffs_unparsed_lines(self, client: AsyncClient, owner_user: User):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "old free-text note"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "new free-text note"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        unparsed_lines = resp.json()["unparsed_lines"]
+        lines = {(line["line"], line["status"]) for line in unparsed_lines}
+        assert lines == {
+            ("old free-text note", "removed"),
+            ("new free-text note", "added"),
+        }
+
+    async def test_unknown_version_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/"
+            "00000000-0000-0000-0000-000000000000/diff",
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404

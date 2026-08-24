@@ -3,6 +3,7 @@ import type {
   ArchetypeCategory,
   CardGame,
   DecklistCardCategory,
+  DecklistCardDiffStatus,
   DecklistLineStatus,
   DecklistVersionSource,
   ExpectedLevel,
@@ -232,4 +233,22 @@ export const DECKLIST_CARD_CATEGORY_LABELS: Record<DecklistCardCategory, string>
 export const DECKLIST_VERSION_SOURCE_LABELS: Record<DecklistVersionSource, string> = {
   manual: 'Manual entry',
   moxfield_import: 'Moxfield import',
+}
+
+/** S15: labels for a card's status in a version-vs-prior-version diff. */
+export const DECKLIST_CARD_DIFF_STATUS_LABELS: Record<DecklistCardDiffStatus, string> = {
+  added: 'Added',
+  removed: 'Removed',
+  unchanged: 'Unchanged',
+  quantity_changed: 'Qty changed',
+}
+
+export const DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS: Record<
+  DecklistCardDiffStatus,
+  string
+> = {
+  added: 'text-success',
+  removed: 'text-destructive',
+  unchanged: 'text-foreground',
+  quantity_changed: 'text-warning',
 }
