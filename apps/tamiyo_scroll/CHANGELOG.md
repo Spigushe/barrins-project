@@ -88,6 +88,11 @@ section of the docs site for details.
   not yet reflected in the current decklist). Hovering either name in
   a pending row, or either name in the "Tested cards" block itself,
   shows that card's image.
+- Route paths dropped their `/app` prefix (`/app/tracker` → `/tracker`,
+  same for `/metagame`/`/decklist`/`/sessions`/`/team`/`/admin/metrics`)
+  — old `/app/*` links still resolve, redirected to the flattened path.
+  The post-login/first-access landing tab is now Tracker (BO3 Tracking),
+  not Metagame.
 
 ### Changed
 

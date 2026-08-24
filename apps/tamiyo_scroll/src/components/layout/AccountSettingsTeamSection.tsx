@@ -90,7 +90,7 @@ function TeamBanner({
     <div className="flex flex-col gap-3.5 border-t border-border pt-[18px]">
       <div className="flex items-center justify-between gap-3">
         <Link
-          to={`/app/team/${team.id}`}
+          to={`/team/${team.id}`}
           onClick={onClose}
           className="text-sm font-bold text-foreground hover:underline"
         >

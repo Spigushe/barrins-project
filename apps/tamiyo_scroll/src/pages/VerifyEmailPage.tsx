@@ -42,7 +42,7 @@ export function VerifyEmailPage() {
 
     try {
       await verify.mutateAsync({ email, code })
-      navigate('/app/tracker')
+      navigate('/tracker')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
