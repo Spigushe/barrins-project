@@ -27,6 +27,7 @@ vi.mock('@/hooks/useSettings', () => ({
       metagame_roster_scope: 'game',
       auto_archive_stale_sessions: false,
       auto_archive_decklist_version_gap: 3,
+      show_decklist_version_diff: true,
     },
   }),
   useUpdateMySettings: () => ({
@@ -68,10 +69,11 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders separators between the display name, sharing, roster scope, auto-archive and display sections', () => {
+  it('renders separators between the display name, sharing, roster scope, auto-archive, version diff and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Display name / Share my data / Roster scope (F10) / Auto-archive (S14) / Display (S12).
-    expect(screen.getAllByRole('separator')).toHaveLength(4)
+    // Display name / Share my data / Roster scope (F10) / Auto-archive (S14) /
+    // Version diff (S15) / Display (S12).
+    expect(screen.getAllByRole('separator')).toHaveLength(5)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -119,6 +121,7 @@ describe('AccountSettingsDialog', () => {
       metagame_roster_scope: 'game',
       auto_archive_stale_sessions: false,
       auto_archive_decklist_version_gap: 3,
+      show_decklist_version_diff: true,
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -138,6 +141,26 @@ describe('AccountSettingsDialog', () => {
         auto_archive_stale_sessions: true,
         auto_archive_decklist_version_gap: 5,
       }),
+    )
+  })
+
+  it('pre-fills the version diff toggle from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(screen.getByRole('switch', { name: 'Decklist version diff' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+  })
+
+  it('saves the version diff toggle', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: 'Decklist version diff' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ show_decklist_version_diff: false }),
     )
   })
 

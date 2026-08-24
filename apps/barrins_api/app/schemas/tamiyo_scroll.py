@@ -26,6 +26,7 @@ class UserSettingsUpdate(BaseModel):
     metagame_roster_scope: MetagameRosterScope | None = None
     auto_archive_stale_sessions: bool | None = None
     auto_archive_decklist_version_gap: int | None = Field(default=None, ge=1)
+    show_decklist_version_diff: bool | None = None
 
 
 class PersonalDeckCreate(BaseModel):

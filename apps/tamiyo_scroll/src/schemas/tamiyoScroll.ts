@@ -50,6 +50,10 @@ export const userSettingsSchema = z.object({
   // S14 item 9: auto-archiving of stale sessions, opted-in by default.
   auto_archive_stale_sessions: z.boolean(),
   auto_archive_decklist_version_gap: z.number().int(),
+  // S15: defaults true — when on, expanding a version in
+  // VersionHistorySection shows its diff against the prior version
+  // instead of its full content.
+  show_decklist_version_diff: z.boolean(),
 })
 export type UserSettings = z.infer<typeof userSettingsSchema>
 
@@ -184,6 +188,42 @@ export const decklistViewSchema = z.object({
   unparsed_lines: z.array(decklistLineSchema),
 })
 export type DecklistView = z.infer<typeof decklistViewSchema>
+
+export const decklistCardDiffStatusSchema = z.enum([
+  'added',
+  'removed',
+  'unchanged',
+  'quantity_changed',
+])
+export type DecklistCardDiffStatus = z.infer<typeof decklistCardDiffStatusSchema>
+
+export const decklistCardDiffSchema = z.object({
+  name: z.string(),
+  status: decklistCardDiffStatusSchema,
+  old_qty: z.number().int().nullable(),
+  new_qty: z.number().int().nullable(),
+  is_commander: z.boolean(),
+})
+export type DecklistCardDiff = z.infer<typeof decklistCardDiffSchema>
+
+export const decklistLineDiffSchema = z.object({
+  line: z.string(),
+  status: z.enum(['added', 'removed', 'unchanged']),
+})
+export type DecklistLineDiff = z.infer<typeof decklistLineDiffSchema>
+
+// S15: card-aware diff of one decklist version against the immediately-prior
+// one. `compared_to_version` is null for the deck's first version — no
+// prior version exists to diff against.
+export const decklistVersionDiffSchema = z.object({
+  version_id: z.uuid(),
+  version: z.number().int(),
+  compared_to_version_id: z.uuid().nullable(),
+  compared_to_version: z.number().int().nullable(),
+  cards: z.array(decklistCardDiffSchema),
+  unparsed_lines: z.array(decklistLineDiffSchema),
+})
+export type DecklistVersionDiff = z.infer<typeof decklistVersionDiffSchema>
 
 export const deckWinrateSchema = z.object({
   id: z.uuid(),

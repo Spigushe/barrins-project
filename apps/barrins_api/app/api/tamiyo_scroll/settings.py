@@ -62,6 +62,9 @@ async def update_my_settings(
             payload.auto_archive_decklist_version_gap
         )
 
+    if payload.show_decklist_version_diff is not None:
+        user_settings.show_decklist_version_diff = payload.show_decklist_version_diff
+
     if user_settings.receive_shared_data and not user_settings.data_shared:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
