@@ -734,3 +734,86 @@ class TestSearchCardsByName:
         resp = await client.get(f"{_BASE}/cards/search-by-name/Not A Real Card")
         assert resp.status_code == 200
         assert resp.json() == []
+
+
+# ---------------------------------------------------------------------------
+# GET /cards/search-by-name-prefix -- substring name search for the S17
+# Added-Card dropdown (presentation only, distinct names, no card data).
+# ---------------------------------------------------------------------------
+
+
+class TestSearchCardsByNamePrefix:
+    async def test_matches_substring_case_insensitive(
+        self, client: AsyncClient, db_session
+    ):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "Lightning Bolt", "LEA", "Limited Edition Alpha", "1993-08-05"
+                )
+            ),
+        )
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "Lightning Helix", "RAV", "Ravnica", "2005-10-07"
+                )
+            ),
+        )
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "Counterspell", "LEA", "Limited Edition Alpha", "1993-08-05"
+                )
+            ),
+        )
+
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix?q=lightning")
+
+        assert resp.status_code == 200
+        assert resp.json() == ["Lightning Bolt", "Lightning Helix"]
+
+    async def test_no_match_returns_empty_list(self, client: AsyncClient, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "Lightning Bolt", "LEA", "Limited Edition Alpha", "1993-08-05"
+                )
+            ),
+        )
+
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix?q=zzznotreal")
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_empty_query_returns_422(self, client: AsyncClient):
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix?q=")
+        assert resp.status_code == 422
+
+    async def test_missing_query_returns_422(self, client: AsyncClient):
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix")
+        assert resp.status_code == 422
+
+    async def test_result_count_is_capped(self, client: AsyncClient, db_session):
+        for i in range(25):
+            await import_all_printings(
+                db_session,
+                _FakeScryfallDerivedClient(
+                    _mtgjson_payload_for_normal_card(
+                        f"Bolt Variant {i:02d}",
+                        f"S{i:02d}",
+                        f"Set {i:02d}",
+                        "2026-01-01",
+                    )
+                ),
+            )
+
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix?q=Bolt")
+
+        assert resp.status_code == 200
+        assert len(resp.json()) == 20
