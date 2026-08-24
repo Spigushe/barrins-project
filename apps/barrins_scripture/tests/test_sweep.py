@@ -85,17 +85,6 @@ class TestIterArchiveFiles:
         assert len(found) == 1
 
 
-class TestChunked:
-    def test_splits_into_slices_of_at_most_size(self) -> None:
-        assert list(sweep._chunked([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
-
-    def test_size_larger_than_items_yields_one_chunk(self) -> None:
-        assert list(sweep._chunked([1, 2], 10)) == [[1, 2]]
-
-    def test_empty_items_yields_no_chunks(self) -> None:
-        assert list(sweep._chunked([], 5)) == []
-
-
 class TestSweep:
     def test_posts_every_selected_file_with_source_and_token(
         self, archive: Path

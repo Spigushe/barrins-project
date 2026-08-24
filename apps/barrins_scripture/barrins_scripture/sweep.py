@@ -51,6 +51,13 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from barrins_scripture.utils.progress import (
+    CLEAR_LINE,
+    CURSOR_UP,
+    chunked,
+    render_progress,
+)
+
 logger = logging.getLogger(__name__)
 
 #: apps/barrins_scripture/scraped/ — same default root the scrape CLI
@@ -172,57 +179,6 @@ def _fetch_ingested_urls(api_url: str, headers: dict[str, str]) -> set[str]:
         return set()
 
 
-def _format_eta(seconds: float) -> str:
-    """`H:MM:SS` (or `MM:SS` under an hour) -- `str(timedelta(...))`'s
-    format, minus the microseconds it appends for a non-integer count."""
-    total_seconds = int(seconds)
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
-
-
-def _render_progress(
-    done: int,
-    total: int,
-    failed: int,
-    elapsed: float,
-    prefix: str = "",
-    width: int = 30,
-) -> str:
-    """`\\r`-prefixed single-line bar -- overwrites in place, never scrolls.
-
-    ETA is derived from the observed per-file rate so far (`elapsed /
-    done` extrapolated over what's left) -- accurate once a handful of
-    files have completed, meaningless (and hidden) before that.
-
-    `prefix` distinguishes the chunk-advancement bar from the per-chunk
-    sub-bar when both are on screen at once (see `sweep`).
-    """
-    filled = int(width * done / total) if total else width
-    bar = "#" * filled + "-" * (width - filled)
-    stats = f"{done}/{total} ({failed} failed)"
-    if done:
-        remaining = elapsed / done * (total - done)
-        stats += f" eta {_format_eta(remaining)}"
-    return f"\r{prefix}[{bar}] {stats}"
-
-
-#: Clears the current terminal line and returns the cursor to its start,
-#: and moves the cursor up one line -- used together to drop the finished
-#: chunk's sub-bar and rewrite the chunk-advancement bar in its place, so
-#: at most 2 progress lines are ever on screen (see `sweep`).
-_CLEAR_LINE = "\x1b[2K\r"
-_CURSOR_UP = "\x1b[1A"
-
-
-def _chunked[T](items: list[T], size: int) -> Iterator[list[T]]:
-    """Yields `items` sliced into consecutive lists of at most `size`."""
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
-
-
 def sweep(
     archive_dir: Path,
     api_url: str,
@@ -280,13 +236,13 @@ def sweep(
 
     ingested_urls = _fetch_ingested_urls(api_url, headers) if fast_forward else None
 
-    chunks = list(_chunked(selected, chunk_size))
+    chunks = list(chunked(selected, chunk_size))
     total_chunks = len(chunks)
     start = time.monotonic()
 
     if progress:
         sys.stderr.write(
-            _render_progress(0, total_chunks, 0, 0.0, prefix="chunks ") + "\n"
+            render_progress(0, total_chunks, 0.0, failed=0, prefix="chunks ") + "\n"
         )
         sys.stderr.flush()
 
@@ -343,11 +299,11 @@ def sweep(
                     if progress:
                         elapsed = time.monotonic() - chunk_start
                         sys.stderr.write(
-                            _render_progress(
+                            render_progress(
                                 chunk_done,
                                 chunk_total,
-                                chunk_failed,
                                 elapsed,
+                                failed=chunk_failed,
                                 prefix=f"  chunk {chunk_index}/{total_chunks} ",
                             )
                         )
@@ -356,15 +312,15 @@ def sweep(
         if progress:
             # Drop the finished chunk's sub-bar and advance the chunk bar
             # in its place -- see the `progress` docstring above.
-            sys.stderr.write(_CLEAR_LINE)
-            sys.stderr.write(_CURSOR_UP)
-            sys.stderr.write(_CLEAR_LINE)
+            sys.stderr.write(CLEAR_LINE)
+            sys.stderr.write(CURSOR_UP)
+            sys.stderr.write(CLEAR_LINE)
             sys.stderr.write(
-                _render_progress(
+                render_progress(
                     chunk_index,
                     total_chunks,
-                    failed,
                     time.monotonic() - start,
+                    failed=failed,
                     prefix="chunks ",
                 )
             )
