@@ -3,13 +3,13 @@ import logging
 import sys
 import time
 from collections import defaultdict
-from collections.abc import Iterator
 from pathlib import Path
 from queue import Queue
 from threading import Event, Lock, Thread
 
 from barrins_scripture.services.mtgtop8 import Top8Queue, consumer, producer
 from barrins_scripture.utils import mtgtop8 as mtgtop8_utils
+from barrins_scripture.utils.progress import CLEAR_LINE, chunked, render_progress
 
 logger = logging.getLogger(__name__)
 
@@ -25,47 +25,6 @@ def get_gaps(max_gaps: int | None = 2000) -> list[int]:
         set(range(1, max(scraped_ids) + 1)) - set(scraped_ids), reverse=True
     )
     return missing[:max_gaps] if max_gaps is not None else missing
-
-
-def _format_eta(seconds: float) -> str:
-    """`H:MM:SS` (or `MM:SS` under an hour) -- same format as sweep.py's
-    `_format_eta`, duplicated here rather than shared since these two CLI
-    scripts have no other coupling."""
-    total_seconds = int(seconds)
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
-
-
-def _render_progress(done: int, total: int, elapsed: float, width: int = 30) -> str:
-    """`\\r`-prefixed single-line bar -- overwrites in place, never scrolls.
-
-    Unlike sweep.py's `_render_progress`, there's no per-chunk sub-bar: a
-    chunk here is produced (batches of threads, joined synchronously) and
-    then consumed (retried internally, nothing returned to the caller), so
-    there's no future/result to count success/failure by -- only "chunks
-    completed" is observable from this function's perspective.
-    """
-    filled = int(width * done / total) if total else width
-    bar = "#" * filled + "-" * (width - filled)
-    stats = f"{done}/{total} chunks"
-    if done:
-        remaining = elapsed / done * (total - done)
-        stats += f" eta {_format_eta(remaining)}"
-    return f"\rchunks [{bar}] {stats}"
-
-
-#: Clears the current terminal line and returns the cursor to its start --
-#: same escape code as sweep.py's `_CLEAR_LINE`.
-_CLEAR_LINE = "\x1b[2K\r"
-
-
-def _chunked[T](items: list[T], size: int) -> Iterator[list[T]]:
-    """Yields `items` sliced into consecutive lists of at most `size`."""
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
 
 
 def scrape_gaps(
@@ -94,12 +53,15 @@ def scrape_gaps(
     # re-walking the whole archive tree from scratch.
     scraped_ids = mtgtop8_utils.get_scraped_ids()
 
-    chunks = list(_chunked(missing_ids, chunk_size))
+    chunks = list(chunked(missing_ids, chunk_size))
     total_chunks = len(chunks)
     start = time.monotonic()
 
     if progress:
-        sys.stderr.write(_render_progress(0, total_chunks, 0.0) + "\n")
+        sys.stderr.write(
+            render_progress(0, total_chunks, 0.0, prefix="chunks ", suffix="chunks")
+            + "\n"
+        )
         sys.stderr.flush()
 
     for chunk_index, chunk_ids in enumerate(chunks, start=1):
@@ -137,9 +99,15 @@ def scrape_gaps(
             t.join()
 
         if progress:
-            sys.stderr.write(_CLEAR_LINE)
+            sys.stderr.write(CLEAR_LINE)
             sys.stderr.write(
-                _render_progress(chunk_index, total_chunks, time.monotonic() - start)
+                render_progress(
+                    chunk_index,
+                    total_chunks,
+                    time.monotonic() - start,
+                    prefix="chunks ",
+                    suffix="chunks",
+                )
             )
             sys.stderr.flush()
 
