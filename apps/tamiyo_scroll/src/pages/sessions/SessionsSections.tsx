@@ -570,7 +570,7 @@ export function SessionsOverviewSection() {
 
         {canEdit && (
           <form
-            className="mt-4 flex flex-col gap-3 rounded-(--radius-input) border border-border-dashed p-4"
+            className="mt-4 flex flex-wrap items-end gap-3 rounded-(--radius-input) border border-border-dashed p-4"
             onSubmit={(event) => {
               void handleCreate(event)
             }}
@@ -595,14 +595,40 @@ export function SessionsOverviewSection() {
                 </SelectContent>
               </Select>
             </div>
-            <SessionEditFields
-              draft={newDraft}
-              onChange={setNewDraft}
-              idPrefix="new-session"
-            />
+            <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+              <Label htmlFor="new-session-name">Name</Label>
+              <Input
+                id="new-session-name"
+                value={newDraft.name}
+                onChange={(event) => {
+                  setNewDraft({ ...newDraft, name: event.target.value })
+                }}
+              />
+            </div>
+            <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+              <Label htmlFor="new-session-location">Location</Label>
+              <Input
+                id="new-session-location"
+                placeholder="e.g. Toronto, ON"
+                value={newDraft.location}
+                onChange={(event) => {
+                  setNewDraft({ ...newDraft, location: event.target.value })
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:w-56">
+              <Label htmlFor="new-session-started">Starting date</Label>
+              <Input
+                id="new-session-started"
+                type="datetime-local"
+                value={newDraft.startedAt}
+                onChange={(event) => {
+                  setNewDraft({ ...newDraft, startedAt: event.target.value })
+                }}
+              />
+            </div>
             <Button
               type="submit"
-              className="self-start"
               disabled={!newDraft.name.trim() || createSession.isPending}
             >
               Create
