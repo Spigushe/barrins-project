@@ -66,7 +66,10 @@ class TestCreateSession:
         assert body["type"] == "tournament"
         assert body["personal_deck_id"] == personal_id
         assert body["ended_at"] is None
+        assert body["closed_at"] is None
         assert body["archived_at"] is None
+        assert body["hue"] is None
+        assert body["location"] is None
 
     async def test_unknown_personal_deck_returns_404(
         self, client: AsyncClient, owner_user: User
@@ -170,6 +173,72 @@ class TestListSessions:
         )
         assert len(resp.json()) == 1
 
+    async def test_sorts_by_name(self, client: AsyncClient, owner_user: User):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        for name in ["Charlie", "Alpha", "Bravo"]:
+            await client.post(
+                f"{BASE}/sessions",
+                json={
+                    "name": name,
+                    "type": "training",
+                    "personal_deck_id": personal_id,
+                },
+                headers=headers,
+            )
+
+        resp = await client.get(
+            f"{BASE}/sessions?sort_by=name&sort_dir=asc", headers=headers
+        )
+        assert [s["name"] for s in resp.json()] == ["Alpha", "Bravo", "Charlie"]
+
+    async def test_limit_and_offset_paginate(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        for i in range(3):
+            await client.post(
+                f"{BASE}/sessions",
+                json={
+                    "name": f"S{i}",
+                    "type": "training",
+                    "personal_deck_id": personal_id,
+                },
+                headers=headers,
+            )
+
+        resp = await client.get(
+            f"{BASE}/sessions?sort_by=name&sort_dir=asc&limit=2&offset=0",
+            headers=headers,
+        )
+        assert [s["name"] for s in resp.json()] == ["S0", "S1"]
+
+        resp = await client.get(
+            f"{BASE}/sessions?sort_by=name&sort_dir=asc&limit=2&offset=2",
+            headers=headers,
+        )
+        assert [s["name"] for s in resp.json()] == ["S2"]
+
+    async def test_search_filters_by_name_case_insensitive(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        for name in ["RC Toronto", "Weekly Training"]:
+            await client.post(
+                f"{BASE}/sessions",
+                json={
+                    "name": name,
+                    "type": "training",
+                    "personal_deck_id": personal_id,
+                },
+                headers=headers,
+            )
+
+        resp = await client.get(f"{BASE}/sessions?search=toronto", headers=headers)
+        assert [s["name"] for s in resp.json()] == ["RC Toronto"]
+
 
 class TestUpdateSession:
     async def test_renames_and_updates_notes(
@@ -193,7 +262,7 @@ class TestUpdateSession:
         assert resp.json()["name"] == "Renamed"
         assert resp.json()["notes"] == "Some notes"
 
-    async def test_close_stamps_ended_at(self, client: AsyncClient, owner_user: User):
+    async def test_close_stamps_closed_at(self, client: AsyncClient, owner_user: User):
         personal_id, _ = await _setup_decks(client, owner_user)
         headers = auth_headers(owner_user)
         create_resp = await client.post(
@@ -202,14 +271,14 @@ class TestUpdateSession:
             headers=headers,
         )
         session_id = create_resp.json()["id"]
-        assert create_resp.json()["ended_at"] is None
+        assert create_resp.json()["closed_at"] is None
 
         resp = await client.patch(
             f"{BASE}/sessions/{session_id}", json={"close": True}, headers=headers
         )
-        assert resp.json()["ended_at"] is not None
+        assert resp.json()["closed_at"] is not None
 
-    async def test_reopen_clears_ended_at(self, client: AsyncClient, owner_user: User):
+    async def test_reopen_clears_closed_at(self, client: AsyncClient, owner_user: User):
         personal_id, _ = await _setup_decks(client, owner_user)
         headers = auth_headers(owner_user)
         create_resp = await client.post(
@@ -226,7 +295,103 @@ class TestUpdateSession:
             f"{BASE}/sessions/{session_id}", json={"reopen": True}, headers=headers
         )
         assert resp.status_code == 200
-        assert resp.json()["ended_at"] is None
+        assert resp.json()["closed_at"] is None
+
+    async def test_started_at_and_ended_at_are_independent_of_close_reopen(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}",
+            json={
+                "started_at": "2026-08-01T10:00:00Z",
+                "ended_at": "2026-08-01T18:00:00Z",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["started_at"] == "2026-08-01T10:00:00Z"
+        assert body["ended_at"] == "2026-08-01T18:00:00Z"
+        # Setting ended_at directly must not touch the Close/Reopen state.
+        assert body["closed_at"] is None
+
+        # Closing afterwards must not clear the manually-set dates.
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}", json={"close": True}, headers=headers
+        )
+        body = resp.json()
+        assert body["closed_at"] is not None
+        assert body["started_at"] == "2026-08-01T10:00:00Z"
+        assert body["ended_at"] == "2026-08-01T18:00:00Z"
+
+    async def test_updates_location_and_hue(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}",
+            json={"location": "Toronto, ON", "hue": 210},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["location"] == "Toronto, ON"
+        assert resp.json()["hue"] == 210
+
+    async def test_hue_out_of_range_is_rejected(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}", json={"hue": 360}, headers=headers
+        )
+        assert resp.status_code == 422
+
+    async def test_restore_clears_archived_at(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+        await client.delete(f"{BASE}/sessions/{session_id}", headers=headers)
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}", json={"restore": True}, headers=headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["archived_at"] is None
+
+        list_resp = await client.get(f"{BASE}/sessions", headers=headers)
+        assert [s["id"] for s in list_resp.json()] == [session_id]
 
     async def test_foreign_session_returns_404(
         self, client: AsyncClient, owner_user: User, other_user: User

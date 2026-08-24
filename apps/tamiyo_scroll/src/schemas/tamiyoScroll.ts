@@ -47,6 +47,9 @@ export const userSettingsSchema = z.object({
   receive_shared_data: z.boolean(),
   active_personal_deck_id: z.uuid().nullable(),
   metagame_roster_scope: metagameRosterScopeSchema,
+  // S14 item 9: opt-in (default off) auto-archiving of stale sessions.
+  auto_archive_stale_sessions: z.boolean(),
+  auto_archive_decklist_version_gap: z.number().int(),
 })
 export type UserSettings = z.infer<typeof userSettingsSchema>
 
@@ -231,9 +234,16 @@ export const sessionSchema = z.object({
   name: z.string(),
   type: sessionTypeSchema,
   notes: z.string().nullable(),
+  location: z.string().nullable(),
   created_at: z.iso.datetime({ offset: true }),
+  // S14: freely user-editable, no workflow meaning — see `closed_at`.
+  started_at: z.iso.datetime({ offset: true }).nullable(),
   ended_at: z.iso.datetime({ offset: true }).nullable(),
+  // Close/Reopen workflow state (the pre-S14 `ended_at`) — drives the
+  // Status ("Ongoing"/"Closed") badge.
+  closed_at: z.iso.datetime({ offset: true }).nullable(),
   archived_at: z.iso.datetime({ offset: true }).nullable(),
+  hue: z.number().int().nullable(),
 })
 export type Session = z.infer<typeof sessionSchema>
 
@@ -242,14 +252,20 @@ export const sessionCreateSchema = z.object({
   type: sessionTypeSchema,
   personal_deck_id: z.uuid(),
   notes: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
 })
 export type SessionCreate = z.infer<typeof sessionCreateSchema>
 
 export const sessionPatchSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   notes: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  started_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  ended_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  hue: z.number().int().min(0).max(359).nullable().optional(),
   close: z.boolean().optional(),
   reopen: z.boolean().optional(),
+  restore: z.boolean().optional(),
 })
 export type SessionPatch = z.infer<typeof sessionPatchSchema>
 

@@ -1,6 +1,7 @@
 """Request schemas for the Tamiyo Scroll domain (Competitive MTG Tracking)."""
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +24,8 @@ class UserSettingsUpdate(BaseModel):
     receive_shared_data: bool | None = None
     active_personal_deck_id: uuid.UUID | None = None
     metagame_roster_scope: MetagameRosterScope | None = None
+    auto_archive_stale_sessions: bool | None = None
+    auto_archive_decklist_version_gap: int | None = Field(default=None, ge=1)
 
 
 class PersonalDeckCreate(BaseModel):
@@ -125,24 +128,36 @@ class SessionCreate(BaseModel):
     type: SessionType
     personal_deck_id: uuid.UUID
     notes: str | None = None
+    location: str | None = Field(default=None, max_length=255)
 
 
 class SessionPatch(BaseModel):
     """Payload for PATCH /sessions/{id} — partial update.
 
-    `ended_at` is write-only-as-a-flag: `close`/`reopen` stamp or clear the
-    current time server-side; the field itself isn't client-suppliable as
-    an arbitrary timestamp — see the route. `reopen` wins if both are sent
-    in the same request (not expected from the frontend, which only ever
-    sends one at a time via separate actions).
+    `close`/`reopen` stamp or clear `closed_at` (the Close/Reopen workflow
+    state) with the current server time — that field itself isn't
+    client-suppliable as an arbitrary timestamp. `reopen` wins if both are
+    sent in the same request (not expected from the frontend, which only
+    ever sends one at a time via separate actions).
+
+    `started_at`/`ended_at` are unrelated to `close`/`reopen` (S14,
+    "track separately") — freely client-suppliable timestamps with no
+    workflow meaning, purely "when did this session actually start/end."
+
+    `restore` clears `archived_at`, mirroring `close`/`reopen`'s shape.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
     notes: str | None = None
+    location: str | None = Field(default=None, max_length=255)
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    hue: int | None = Field(default=None, ge=0, le=359)
     close: bool | None = None
     reopen: bool | None = None
+    restore: bool | None = None
 
 
 class CardTestWrite(BaseModel):

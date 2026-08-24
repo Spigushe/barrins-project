@@ -10,6 +10,8 @@ export function updateMySettings(payload: {
   receive_shared_data?: boolean
   active_personal_deck_id?: string | null
   metagame_roster_scope?: 'game' | 'personal_deck'
+  auto_archive_stale_sessions?: boolean
+  auto_archive_decklist_version_gap?: number
 }) {
   return apiRequest('/bff/tamiyo-scroll/me/settings', userSettingsSchema, {
     method: 'PATCH',

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type {
   ArchetypeCategory,
   CardGame,
@@ -38,6 +39,22 @@ export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
 export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'tournament' | 'success'> = {
   tournament: 'tournament',
   training: 'success',
+}
+
+/**
+ * S14 item 6: a session's freeform hue (0-359), when set, replaces
+ * `SESSION_TYPE_BADGE_VARIANT`'s type-based color on every session tag in
+ * the app (Sessions tab row/summary, archived-sessions list, Match
+ * journal tag — see `SessionTypeBadge`). `null` means no override —
+ * callers fall back to the type-based variant.
+ */
+export function sessionHueBadgeStyle(hue: number | null): CSSProperties | undefined {
+  if (hue === null) return undefined
+  return {
+    backgroundColor: `hsl(${hue.toString()} 70% 50% / 0.18)`,
+    borderColor: `hsl(${hue.toString()} 70% 45%)`,
+    color: `hsl(${hue.toString()} 70% 25%)`,
+  }
 }
 
 export const ARCHETYPE_TEXT_CLASS: Record<ArchetypeCategory, string> = {

@@ -328,8 +328,8 @@ function OpponentDeckField({
               <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
               {claimingShared && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  This deck exists via shared data. Confirm its tier and
-                  archetype to add it to your own roster.
+                  This deck exists via shared data. Confirm its tier and archetype to add
+                  it to your own roster.
                 </p>
               )}
             </div>
@@ -430,7 +430,7 @@ function SessionField({
   // A closed session can't be picked for a new/changed match — but if the
   // match is already tied to one (logged before it closed), its name must
   // still resolve correctly rather than falling back to "— none —".
-  const selectableSessions = allSessions.filter((session) => session.ended_at === null)
+  const selectableSessions = allSessions.filter((session) => session.closed_at === null)
   const selected = allSessions.find((session) => session.id === value)
   const trimmedSearch = search.trim()
   const filtered = selectableSessions.filter((session) =>

@@ -348,13 +348,13 @@ describe('demo sessions api', () => {
       personal_deck_id: DECK_ID,
     })
     sessionSchema.parse(created)
-    expect(created.ended_at).toBeNull()
+    expect(created.closed_at).toBeNull()
 
     const closed = await demoSessionsApi.updateSession(created.id, { close: true })
-    expect(closed.ended_at).not.toBeNull()
+    expect(closed.closed_at).not.toBeNull()
 
     const reopened = await demoSessionsApi.updateSession(created.id, { reopen: true })
-    expect(reopened.ended_at).toBeNull()
+    expect(reopened.closed_at).toBeNull()
 
     await demoSessionsApi.archiveSession(created.id)
     const active = await demoSessionsApi.listSessions(DECK_ID)
@@ -373,6 +373,58 @@ describe('demo sessions api', () => {
     const [session] = await demoSessionsApi.listSessions(DECK_ID)
     const blob = await demoSessionsApi.getSessionReportPdf(session.id)
     expect(blob).toBeInstanceOf(Blob)
+  })
+
+  it('updates location/dates/hue independently of close/reopen, then restores', async () => {
+    const created = await demoSessionsApi.createSession({
+      name: 'Regional Qualifier',
+      type: 'tournament',
+      personal_deck_id: DECK_ID,
+    })
+
+    const updated = await demoSessionsApi.updateSession(created.id, {
+      location: 'Montreal, QC',
+      started_at: '2026-08-01T10:00:00Z',
+      ended_at: '2026-08-01T18:00:00Z',
+      hue: 120,
+    })
+    expect(updated.location).toBe('Montreal, QC')
+    expect(updated.ended_at).toBe('2026-08-01T18:00:00Z')
+    expect(updated.closed_at).toBeNull()
+    expect(updated.hue).toBe(120)
+
+    await demoSessionsApi.archiveSession(created.id)
+    const restored = await demoSessionsApi.updateSession(created.id, { restore: true })
+    expect(restored.archived_at).toBeNull()
+  })
+
+  it('sorts and paginates via listSessions options', async () => {
+    for (const name of ['Charlie', 'Alpha', 'Bravo']) {
+      await demoSessionsApi.createSession({
+        name,
+        type: 'training',
+        personal_deck_id: DECK_ID,
+      })
+    }
+
+    const sorted = await demoSessionsApi.listSessions(DECK_ID, false, {
+      sortBy: 'name',
+      sortDir: 'asc',
+    })
+    expect(sorted.map((s) => s.name)).toEqual([
+      'Alpha',
+      'Bravo',
+      'Charlie',
+      'Store Championship',
+    ])
+
+    const page = await demoSessionsApi.listSessions(DECK_ID, false, {
+      sortBy: 'name',
+      sortDir: 'asc',
+      limit: 2,
+      offset: 1,
+    })
+    expect(page.map((s) => s.name)).toEqual(['Bravo', 'Charlie'])
   })
 })
 

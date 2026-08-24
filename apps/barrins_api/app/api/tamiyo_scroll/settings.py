@@ -54,6 +54,14 @@ async def update_my_settings(
     if payload.metagame_roster_scope is not None:
         user_settings.metagame_roster_scope = payload.metagame_roster_scope
 
+    if payload.auto_archive_stale_sessions is not None:
+        user_settings.auto_archive_stale_sessions = payload.auto_archive_stale_sessions
+
+    if payload.auto_archive_decklist_version_gap is not None:
+        user_settings.auto_archive_decklist_version_gap = (
+            payload.auto_archive_decklist_version_gap
+        )
+
     if user_settings.receive_shared_data and not user_settings.data_shared:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

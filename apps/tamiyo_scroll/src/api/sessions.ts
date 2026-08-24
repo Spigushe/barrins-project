@@ -7,11 +7,32 @@ import {
 } from '@/schemas/tamiyoScroll'
 import { apiRequest, apiRequestBlob } from './client'
 
-export function listSessions(personalDeckId: string, includeArchived = false) {
+export interface ListSessionsOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'name' | 'type' | 'started_at' | 'status'
+  sortDir?: 'asc' | 'desc'
+  search?: string
+}
+
+/** `options` are all optional and additive (S14) — omitting them returns
+ * every matching session, unpaginated, exactly as before; the
+ * match-logging session picker and the Match journal's session lookup
+ * both rely on that default. */
+export function listSessions(
+  personalDeckId: string,
+  includeArchived = false,
+  options: ListSessionsOptions = {},
+) {
   return apiRequest('/bff/tamiyo-scroll/sessions', sessionSchema.array(), {
     params: {
       personal_deck_id: personalDeckId,
       include_archived: includeArchived,
+      limit: options.limit,
+      offset: options.offset,
+      sort_by: options.sortBy,
+      sort_dir: options.sortDir,
+      search: options.search,
     },
   })
 }
