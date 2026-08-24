@@ -174,14 +174,31 @@ class SessionPatch(BaseModel):
 
 
 class CardTestWrite(BaseModel):
-    """Payload shared by POST and PUT /card-tests — full replacement."""
+    """Payload shared by POST and PUT /card-tests — full replacement.
+
+    S17: narrowed to the card log's own identity fields — the matchup/
+    rating fields that used to live here moved to
+    `CardTestEvaluationWrite`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     personal_deck_id: uuid.UUID
     removed_card_name: str = Field(min_length=1, max_length=255)
     added_card_name: str = Field(min_length=1, max_length=255)
-    opponent_deck_id: uuid.UUID | None = None
+    notes: str | None = None
+
+
+class CardTestEvaluationWrite(BaseModel):
+    """Payload shared by POST and PUT /card-tests/{test_id}/evaluations —
+    full replacement (S17). `opponent_deck_id` is required here, unlike
+    the pre-S17 flat `CardTestWrite` field it replaces: an evaluation is
+    specifically a match-up.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    opponent_deck_id: uuid.UUID
     rating: int = Field(ge=1, le=5)
     notes: str | None = None
 

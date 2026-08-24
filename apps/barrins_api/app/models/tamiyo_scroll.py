@@ -103,8 +103,8 @@ _game_result_column = Enum(GameResult, name="ts_game_result")
 
 
 class TSCardTest(Base):
-    """A logged decklist swap: one card removed, one card added, with
-    feedback (`cardTests[]` in the design) (S16, GitHub issue #82).
+    """A logged decklist swap: one card removed, one card added
+    (`cardTests[]` in the design) (S16, GitHub issue #82).
 
     `removed_card_name`/`added_card_name` are free-text strings (no FK
     into `mj_cards`) — optionally validated at write time against the
@@ -119,13 +119,21 @@ class TSCardTest(Base):
     column names — per the accepted migration artifact, they are not
     reinterpreted as "removed/added card" data.
 
-    `opponent_deck_id` is nullable: the matchup is optional.
+    S17 split (GitHub-issue-less, user draft note): this used to also
+    carry `opponent_deck_id`/`rating` directly. Those moved to
+    `TSCardTestEvaluation` (one log, many evaluations) — existing rows
+    were backfilled one evaluation each, carrying their old values
+    unchanged. `notes` here is the log's own overall note, independent of
+    any one evaluation's note.
+
+    Deletion = archiving (`archived_at`), never a SQL DELETE — Constitution
+    §11.8 (deletion defaults to archive), same pattern as
+    `TSPersonalDeck`/`TSMetaDeck`. Added after S17 first shipped with a
+    hard delete that cascaded to destroy every evaluation with no way
+    back — corrected the same day.
     """
 
     __tablename__ = "ts_card_tests"
-    __table_args__ = (
-        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_ts_card_tests_rating_range"),
-    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -144,13 +152,58 @@ class TSCardTest(Base):
     )
     removed_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
     added_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    opponent_deck_id: Mapped[uuid.UUID | None] = mapped_column(
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSCardTestEvaluation(Base):
+    """One match-up evaluation against a `TSCardTest` card log (S17).
+
+    Many per card log, addable only from the edit form. Unlike the old
+    flat `TSCardTest.opponent_deck_id` (nullable — the matchup was
+    optional), `opponent_deck_id` here is **required**: an evaluation is
+    specifically a match-up, so one without an opponent deck isn't
+    meaningful. `notes` is this evaluation's own note, independent of the
+    parent card log's overall `notes`.
+
+    Deletion = archiving (`archived_at`), never a SQL DELETE — Constitution
+    §11.8, same correction as `TSCardTest` above and for the same reason.
+    """
+
+    __tablename__ = "ts_card_test_evaluations"
+    __table_args__ = (
+        CheckConstraint(
+            "rating BETWEEN 1 AND 5", name="ck_ts_card_test_evaluations_rating_range"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("ts_meta_decks.id", ondelete="SET NULL"),
-        nullable=True,
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_card_tests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    opponent_deck_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_meta_decks.id", ondelete="CASCADE"),
+        nullable=False,
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

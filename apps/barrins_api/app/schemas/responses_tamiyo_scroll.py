@@ -117,35 +117,52 @@ class ResponseMatch(BaseResponse):
     shared_by: str | None = None
 
 
+class ResponseCardTestEvaluation(BaseResponse):
+    id: uuid.UUID
+    test_id: uuid.UUID
+    opponent_deck_id: uuid.UUID
+    rating: int
+    notes: str | None
+    created_at: datetime
+
+
 class ResponseCardTest(BaseResponse):
     id: uuid.UUID
     personal_deck_id: uuid.UUID | None
     removed_card_name: str
     added_card_name: str
-    opponent_deck_id: uuid.UUID | None
-    rating: int
     notes: str | None
     created_at: datetime
+    evaluations: list[ResponseCardTestEvaluation]
 
 
 class ResponseDecklistLine(BaseResponse):
     """A line of the current decklist, colored based on test feedback."""
 
     line: str
-    status: Literal["validated", "rejected", "in_test", "neutral"]
+    status: Literal["validated", "rejected", "in_test", "neutral", "pending"]
 
 
 class ResponseDecklistCard(BaseResponse):
-    """One resolved card line within a structured decklist-view section."""
+    """One resolved card line within a structured decklist-view section.
+
+    `pending_added_card_name`/`pending_added_card_scryfall_id` (S17) are
+    only populated when `status == "pending"` — the card log's
+    `added_card_name`, resolved against `mj_cards` the same way this
+    line's own name is, so the frontend can show a hover preview for it
+    without a second lookup (it isn't a real decklist line yet).
+    """
 
     qty: int
     name: str
-    status: Literal["validated", "rejected", "in_test", "neutral"]
+    status: Literal["validated", "rejected", "in_test", "neutral", "pending"]
     mana_cost: str | None
     type_line: str | None
     text: str | None
     keywords: list[str]
     scryfall_id: str | None
+    pending_added_card_name: str | None = None
+    pending_added_card_scryfall_id: str | None = None
 
 
 class ResponseDecklistTypeGroup(BaseResponse):
