@@ -9,7 +9,12 @@ import {
   useSessions,
   useUpdateSession,
 } from '@/hooks/useSessions'
-import type { Session, SessionPatch, SessionType } from '@/schemas/tamiyoScroll'
+import type {
+  Session,
+  SessionCreate,
+  SessionPatch,
+  SessionType,
+} from '@/schemas/tamiyoScroll'
 import type { MatchupRow } from '@/schemas/tamiyoScroll'
 import {
   formatDateTime,
@@ -277,6 +282,15 @@ function toDatetimeLocal(iso: string | null): string {
   return `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+const emptyDraft: SessionDraft = {
+  name: '',
+  location: '',
+  notes: '',
+  startedAt: '',
+  endedAt: '',
+  hue: null,
+}
+
 function draftFromSession(session: Session): SessionDraft {
   return {
     name: session.name,
@@ -288,7 +302,11 @@ function draftFromSession(session: Session): SessionDraft {
   }
 }
 
-function draftToPatch(draft: SessionDraft): SessionPatch {
+/** Fields shared by create and edit — `SessionCreate` and `SessionPatch`
+ * agree on name/location/notes/started_at/ended_at/hue (S14/S15: the
+ * create form reuses `SessionEditFields`, so a session can be fully
+ * filled in up front instead of requiring a follow-up edit). */
+function draftToFields(draft: SessionDraft) {
   return {
     name: draft.name.trim(),
     location: draft.location.trim() === '' ? null : draft.location.trim(),
@@ -297,6 +315,18 @@ function draftToPatch(draft: SessionDraft): SessionPatch {
     ended_at: draft.endedAt === '' ? null : new Date(draft.endedAt).toISOString(),
     hue: draft.hue,
   }
+}
+
+function draftToPatch(draft: SessionDraft): SessionPatch {
+  return draftToFields(draft)
+}
+
+function draftToCreate(
+  draft: SessionDraft,
+  type: SessionType,
+  personalDeckId: string,
+): SessionCreate {
+  return { ...draftToFields(draft), type, personal_deck_id: personalDeckId }
 }
 
 /**
@@ -440,7 +470,7 @@ export function SessionsOverviewSection() {
   const archiveSession = useArchiveSession()
   const downloadReport = useDownloadSessionReport()
 
-  const [newName, setNewName] = useState('')
+  const [newDraft, setNewDraft] = useState<SessionDraft>(emptyDraft)
   const [newType, setNewType] = useState<SessionType>('training')
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [pendingArchive, setPendingArchive] = useState<Session | null>(null)
@@ -456,13 +486,11 @@ export function SessionsOverviewSection() {
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
-    if (!newName.trim() || activeDeckId === null) return
-    const created = await createSession.mutateAsync({
-      name: newName.trim(),
-      type: newType,
-      personal_deck_id: activeDeckId,
-    })
-    setNewName('')
+    if (!newDraft.name.trim() || activeDeckId === null) return
+    const created = await createSession.mutateAsync(
+      draftToCreate(newDraft, newType, activeDeckId),
+    )
+    setNewDraft(emptyDraft)
     setNewType('training')
     setSelectedSessionId(created.id)
   }
@@ -542,32 +570,20 @@ export function SessionsOverviewSection() {
 
         {canEdit && (
           <form
-            className="mt-4 flex flex-wrap items-end gap-2 rounded-(--radius-input) border border-border-dashed p-3"
+            className="mt-4 flex flex-col gap-3 rounded-(--radius-input) border border-border-dashed p-4"
             onSubmit={(event) => {
               void handleCreate(event)
             }}
           >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-session-name">Name</Label>
-              <Input
-                id="new-session-name"
-                placeholder="e.g. RC Toronto 2026"
-                value={newName}
-                onChange={(event) => {
-                  setNewName(event.target.value)
-                }}
-                className="w-48"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Type</Label>
+            <div className="flex flex-col gap-1.5 sm:w-40">
+              <Label htmlFor="new-session-type">Type</Label>
               <Select
                 value={newType}
                 onValueChange={(value) => {
                   setNewType(value as SessionType)
                 }}
               >
-                <SelectTrigger className="w-40">
+                <SelectTrigger id="new-session-type" className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -579,7 +595,16 @@ export function SessionsOverviewSection() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" disabled={createSession.isPending}>
+            <SessionEditFields
+              draft={newDraft}
+              onChange={setNewDraft}
+              idPrefix="new-session"
+            />
+            <Button
+              type="submit"
+              className="self-start"
+              disabled={!newDraft.name.trim() || createSession.isPending}
+            >
               Create
             </Button>
           </form>

@@ -253,6 +253,9 @@ export const sessionCreateSchema = z.object({
   personal_deck_id: z.uuid(),
   notes: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
+  started_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  ended_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  hue: z.number().int().min(0).max(359).nullable().optional(),
 })
 export type SessionCreate = z.infer<typeof sessionCreateSchema>
 

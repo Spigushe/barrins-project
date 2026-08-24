@@ -211,27 +211,32 @@ describe('SessionsOverviewSection — merged sessions list', () => {
     sessions = [activeTrainingSession]
     render(<SessionsOverviewSection />)
 
-    expect(screen.queryByPlaceholderText('e.g. RC Toronto 2026')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '✕' })).not.toBeInTheDocument()
     expect(screen.getByText('Weekly Training')).toBeInTheDocument()
   })
 
-  it('creates a session for the active deck', async () => {
+  it('creates a session for the active deck, reusing the edit form fields', async () => {
     createSessionMutateAsync.mockResolvedValue(activeTrainingSession)
     const user = userEvent.setup()
     render(<SessionsOverviewSection />)
 
-    await user.type(
-      screen.getByPlaceholderText('e.g. RC Toronto 2026'),
-      'Weekly Training',
-    )
+    // Nothing is being edited yet, so the "New session" form's fields are
+    // the only ones on screen.
+    await user.type(screen.getByLabelText('Name'), 'Weekly Training')
+    await user.type(screen.getByLabelText('Location'), 'Toronto, ON')
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(createSessionMutateAsync).toHaveBeenCalledWith({
       name: 'Weekly Training',
       type: 'training',
       personal_deck_id: 'deck-mine',
+      location: 'Toronto, ON',
+      notes: null,
+      started_at: null,
+      ended_at: null,
+      hue: null,
     })
   })
 
