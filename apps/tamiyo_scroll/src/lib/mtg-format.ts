@@ -54,7 +54,10 @@ export function sessionHueBadgeStyle(hue: number | null): CSSProperties | undefi
   return {
     backgroundColor: `hsl(${hue.toString()} 70% 50% / 0.18)`,
     borderColor: `hsl(${hue.toString()} 70% 45%)`,
-    color: `hsl(${hue.toString()} 70% 25%)`,
+    // Bright text, not dark: the app is dark-theme-only (index.css), so a
+    // low lightness here (previously 25%) was reading as near-invisible
+    // against the page background regardless of hue.
+    color: `hsl(${hue.toString()} 75% 75%)`,
   }
 }
 
