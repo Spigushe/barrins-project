@@ -105,6 +105,11 @@ section of the docs site for details.
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
   client-side (no `mj_cards` in the browser, so demo cards always
   categorize as "other").
+- `TSSession.ended_at` (the Close/Reopen workflow field) is renamed to
+  `closed_at` (S14) — the Status ("Ongoing"/"Closed") badge and the
+  match-logging session picker now read `closed_at`. A new, separate
+  `ended_at` is purely informational and freely editable, independent
+  of Close/Reopen.
 
 ## [2.0.0-alpha] - 2026-08-03
 
