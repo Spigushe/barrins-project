@@ -59,16 +59,16 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
   const [rosterScope, setRosterScope] = useState<MetagameRosterScope>(
     () => settings?.metagame_roster_scope ?? 'game',
   )
-  // S14 item 9: opt-in (default off), server-persisted — the periodic-job
+  // S14 item 9: opted-in by default, server-persisted — the periodic-job
   // question the doc raised is moot here since the sweep runs on decklist
   // import, not on a schedule.
   const [autoArchiveEnabled, setAutoArchiveEnabled] = useState(
-    () => settings?.auto_archive_stale_sessions ?? false,
+    () => settings?.auto_archive_stale_sessions ?? true,
   )
   // Kept as raw text (not a number) so the field can be freely cleared
   // and retyped — clamping happens once, on save.
   const [autoArchiveGapText, setAutoArchiveGapText] = useState(() =>
-    String(settings?.auto_archive_decklist_version_gap ?? 3),
+    String(settings?.auto_archive_decklist_version_gap ?? 2),
   )
 
   // S12 items 8-11: four purely-visual toggles, `localStorage`-backed

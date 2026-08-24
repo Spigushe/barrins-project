@@ -11,7 +11,8 @@ class TestGetMySettings:
         self, client: AsyncClient, owner_user: User
     ):
         """Sharing is opt-out (defaults True); receiving stays opt-in
-        (defaults False) — decided 2026-07-30."""
+        (defaults False) — decided 2026-07-30. Auto-archive is opted-in by
+        default with a 2-version gap (S14 item 9, revised 2026-08-24)."""
         resp = await client.get(f"{BASE}/me/settings", headers=auth_headers(owner_user))
         assert resp.status_code == 200
         body = resp.json()
@@ -19,6 +20,8 @@ class TestGetMySettings:
         assert body["receive_shared_data"] is False
         assert body["active_personal_deck_id"] is None
         assert body["metagame_roster_scope"] == "game"
+        assert body["auto_archive_stale_sessions"] is True
+        assert body["auto_archive_decklist_version_gap"] == 2
 
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.get(f"{BASE}/me/settings")

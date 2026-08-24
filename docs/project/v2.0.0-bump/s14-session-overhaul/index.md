@@ -147,10 +147,13 @@ Constitution §4.2.
   reuses the existing `metaDecksIncludingArchived` precedent instead
   (`useSessions(deckId, true)`), no match-response/schema change made.
 - **Auto-archive** (item 9): new `TSUserSettings` fields
-  `auto_archive_stale_sessions` (bool, opt-in) and
-  `auto_archive_decklist_version_gap` (int, only meaningful when the
-  bool is true). Algorithm: for each open (non-archived) session, take
-  `decklist_version_id` off its most recent match; compare that
+  `auto_archive_stale_sessions` (bool, opted-in by default — new rows
+  only, not retroactive for existing rows, same pattern as
+  `data_shared`; revised 2026-08-24, was off by default at first
+  implementation) and `auto_archive_decklist_version_gap` (int, default
+  2, only meaningful when the bool is true). Algorithm: for each open
+  (non-archived) session, take `decklist_version_id` off its most
+  recent match; compare that
   version number against `MAX(version)` for the session's
   `personal_deck_id`; if the gap is ≥ the threshold, archive the
   session. Sessions with no matches are never auto-archived (nothing
@@ -186,8 +189,8 @@ Constitution §4.2.
   (colored per that session's hue, if set).
 - A dedicated "Archived sessions" view lists archived sessions with a
   name search and a restore action per row.
-- With `auto_archive_stale_sessions` enabled (opt-in, default off) and
-  a configured version-gap threshold, sessions whose most recent
+- With `auto_archive_stale_sessions` enabled (opted-in by default, a
+  2-version gap threshold), sessions whose most recent
   match's decklist version has fallen that far behind the deck's
   current version are automatically archived the next time a decklist
   version is imported for that deck (event-triggered, not a periodic

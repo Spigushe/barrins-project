@@ -53,7 +53,7 @@ def upgrade() -> None:
             "auto_archive_stale_sessions",
             sa.Boolean(),
             nullable=False,
-            server_default="false",
+            server_default="true",
         ),
     )
     op.add_column(
@@ -62,7 +62,7 @@ def upgrade() -> None:
             "auto_archive_decklist_version_gap",
             sa.Integer(),
             nullable=False,
-            server_default="3",
+            server_default="2",
         ),
     )
 
