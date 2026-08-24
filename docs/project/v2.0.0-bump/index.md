@@ -306,6 +306,64 @@ semantics — is removed outright, not renamed. Full backend suite green,
 `prettier --check` clean on every touched file (one pre-existing,
 unrelated gap: `src/demo/api/personalDecks.ts` never implemented S15's
 `getDecklistVersionView`/`getDecklistVersionDiff`, not fixed here).
+**2026-08-24, new item S17 added**: a further split of the same
+`TSCardTest` table S16 just pivoted — a "card log" (removed/added card
+name only) separated from a new, one-to-many "match-up evaluation" child
+entity (opponent deck + rating), addable only from the edit form, plus a
+new "pending"/blue decklist state for a card log with no evaluations yet,
+on-the-fly name dropdowns on both fields, and an inline removed→added
+row display directly in the decklist (replacing the separate "card change
+being considered" block S16 added). Unlike S13-S16, **not** sourced from a
+GitHub issue — came from a user-authored scratch note
+(`docs/project/v2.0.0-bump/new-s17.md`), formalized into
+`s17-card-log-matchup-evaluations/index.md` and removed. Verified against
+the code before writing the page: `GET /cards/search-by-name/{name}` is,
+despite its name, an exact-match lookup, not the partial/prefix search
+item 2 needs — a new endpoint is required, not a reuse. Four points in the
+draft were genuinely underspecified and recorded as blocking Open
+questions rather than guessed, per Constitution §16.2 and the same
+precedent S15/S16 set for their own open questions. **Resolved the same
+day**: a new `TSCardTestEvaluation` table holds `opponent_deck_id` (now
+required, unlike today's optional field), `rating`, and its own optional
+`notes`, many per card log — `TSCardTest` keeps its own overall `notes`
+plus the removed/added names; existing rows are backfilled one evaluation
+each, carrying over their old `opponent_deck_id`/`rating` unchanged, no
+data lost. Decklist-line coloring keeps today's behavior of pooling
+evaluations across every card log sharing an added-card name (not scoped
+to the single most recent one). The "pending"/blue open question turned
+out to be miscast as a binary choice between the two originally-drafted
+readings — the user's actual answer reframes it: pending has nothing to
+do with evaluation count on the *added* card, it's whether the swap has
+been executed in the decklist yet. A line is pending when its card name
+matches a card log's `removed_card_name` **and** that name is still
+present in the current decklist content — rendered inline as the
+struck-through-name → arrow → new-name row item 3 described. Pending and
+the evaluation-based states (`validated`/`rejected`/`in_test`/`neutral`)
+are independent axes; `in_test` is untouched. Scoping is now complete —
+implementation has not started.
+**Same day, S17 implementation started and surfaced a new, project-wide
+gap**: the first cut of `DELETE /card-tests/{id}` was a real SQL DELETE,
+and because `TSCardTestEvaluation.test_id` cascades, deleting a card log
+silently destroyed every evaluation logged against it. The user's
+correction was general, not S17-specific: **by default, every delete
+action in this application is a disguised archive** — the row leaves the
+user's active view but stays in the database. Recorded as Constitution
+Amendment **Proposal 8**
+(`docs/project/v2.0.0-bump/consitution-amendment.md`), applied the same
+day as the new `§11.8` (unlike Proposals 2-7, which are still awaiting
+their ADR/merge pass). An audit of every delete route in
+`apps/barrins_api` found the same inconsistency already existed
+project-wide: `TSPersonalDeck`/`TSMetaDeck`/`TSSession` already
+soft-delete via `archived_at`, but only `TSSession` can actually be
+restored; `TSCardTest`/`TSCardTestEvaluation`, `TSMatch`, `TSTeam`'s full
+cascade family, and `TSPersonalDecklistVersion` were all real hard
+deletes. `TSCardTest`/`TSCardTestEvaluation` were converted immediately
+as part of finishing S17 (new `archived_at` columns, migration
+`6cf95145f67e`); the rest is tracked as new item **S18**. Two conflicts
+with prior deliberate design decisions were resolved by the user the same
+day: Team deletion converts to archive (dropping its "intentional
+exception" status); decklist version deletion stays a hard-delete
+exception, per the existing Option G rationale.
 
 ---
 
@@ -1345,6 +1403,8 @@ R5 turning each into a real ADR.
 | S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version, plus a `location` field added during implementation — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | ✅ Done (2026-08-24). `TSSession.ended_at` renamed `closed_at`; new `started_at`/`ended_at`/`hue`/`location`. Auto-archive is event-triggered (on decklist import), not a periodic job — no scheduler spike needed | [s14-session-overhaul/](s14-session-overhaul/index.md) |
 | S15 | Decklist version history — view a past version's full content + card-level diff against the prior version, gated by a setting defaulting `true` — added 2026-08-23 from GitHub issue #81 | S4 (reuses `ResponseDecklistView`) | ✅ **Done (2026-08-24)**. Diff computed server-side via stdlib `difflib`, matched by card name (no new dependency) — see index.md's "S15 shipped" entry | [s15-decklist-version-diff/](s15-decklist-version-diff/index.md) |
 | S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus validation (removed card must be in decklist — defaults **on**; added card must exist — opt-in) and a change-log display linking card tests to real decklist diffs — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (`VersionHistorySection`'s diff rendering, extended here) | ✅ **Done (2026-08-24)**. Open question 1 resolved (kept existing rows, documented migration artifact); post-approval addition matches card tests against real decklist diffs anywhere in version history (`card_test_matching.py`, new `GET /card-tests/change-log`) — see index.md's "S16 shipped" entry | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
+| S17 | Split `TSCardTest` into a card log (removed/added name + notes) + many match-up evaluations (opponent deck + rating + own notes, added from the edit form only); new "pending" (blue) decklist state for a removed card still present in the current decklist; on-the-fly name dropdowns (decklist cards for Removed, live DB search for Added); inline removed→added row display in the decklist itself — added 2026-08-24 from a user draft note, not a GitHub issue | S16 (splits the table S16 just pivoted; item 3 reuses `card_test_matching.py`) | 🔶 **In progress (2026-08-24)**. Backend done: schema split (`TSCardTestEvaluation`), decklist-coloring `pending` pass, `pending_added_card_*` fields, prefix name-search endpoint. Frontend: `CardTestsSection.tsx` split form + evaluations sub-list done; `DecklistCardRow` inline pending display and the name-search dropdowns still open. Deletion on both new tables corrected same-day to archive, not hard-delete, per Constitution §11.8 (S18) | [s17-card-log-matchup-evaluations/](s17-card-log-matchup-evaluations/index.md) |
+| S18 | Deletion defaults to archive (soft-delete), not physical removal, project-wide — Constitution §11.8 (Amendment Proposal 8), surfaced while fixing S17's card-log delete cascading to destroy its evaluations. `TSCardTest`/`TSCardTestEvaluation` already converted as part of S17; this item covers the rest: fill the missing restore path on `TSPersonalDeck`/`TSMetaDeck` (only `TSSession` has one today), convert `TSMatch` deletion, and redesign the `TSTeam` cascade family (`TSTeamMember`/`TSTeamDeckFlag`/`TSTeamDeckThread`/`TSTeamDeckMessage`) to archive-alongside-parent instead of relying on `ondelete="CASCADE"` — added 2026-08-24 | S17 (shares the archival pattern just established there) | 🔲 **Not started — scoped 2026-08-24**. `TSPersonalDecklistVersion` deletion confirmed **out of scope**, stays the one hard-delete exception (prior Option G decision) | [s18-deletion-defaults-to-archive/](s18-deletion-defaults-to-archive/index.md) |
 
 ### Group RA — Release wrap for `v2.0.0-alpha` (Tamiyo Scroll only, §1.11)
 

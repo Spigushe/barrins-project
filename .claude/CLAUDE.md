@@ -598,6 +598,40 @@ class UserResponse(UserDatabaseModel):
  pass
 ```
 
+### 11.8 Deletion & archival semantics
+
+By default, every user-triggered delete action is a disguised archive,
+not a physical removal.
+
+A "delete" route must:
+
+- set an archival marker (an `archived_at`-style nullable timestamp
+  column) on the row, rather than issuing a SQL `DELETE`;
+- have every normal read/list query filter that marker out by default,
+  so the row disappears from the user's active view;
+- leave the row, and any child rows reachable from it, intact in the
+  database.
+
+A real hard delete (an actual `session.delete(...)` / SQL `DELETE`) is
+only acceptable as an explicit, documented exception — a code comment or
+docstring stating why archiving doesn't apply — never the unstated
+default.
+
+`ondelete="CASCADE"` foreign keys only express physical deletion. A
+parent row that must archive alongside its children (rather than destroy
+them) cannot rely on a CASCADE constraint for that path — the child rows
+need their own archival marker and application-level cascade-archive
+logic instead.
+
+This does not create a data-retention or purge policy — archived rows
+are kept indefinitely, with no automatic expiry. See §51 for the
+project's (separate, still-open) retention-policy question; this section
+is only about what "delete" means from a user's perspective, not about
+how long data is ultimately kept.
+
+(Constitution Amendment Proposal 8, accepted 2026-08-24 — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
+
 ---
 
 ## 12. Barrin's API BFF Architecture
@@ -2327,6 +2361,15 @@ If/when this needs to align with GDPR (or similar) regulation, that must
 extend this section in place — retention schedules, consent flows,
 data-subject-access handling added on top of what's here — never a
 separate policy document superseding it.
+
+---
+
+§11.8's "deletion defaults to archive" rule does not change any of the
+above — archived rows are still retained indefinitely, not purged, so
+"no automatic data-retention/deletion policy exists" stays true. §11.8 is
+about what a user-facing "delete" does (hide, don't destroy); this
+section is about how long data is ultimately kept, which remains a
+separate, still-open question.
 
 ---
 
