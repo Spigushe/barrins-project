@@ -30,6 +30,14 @@ section of the docs site for details.
   same purpose (renamed from `mtgo_empy_decks`, a typo in the original).
   Invoked directly (`python -m barrins_scripture.scripts.<name>`), same
   as the originals were.
+- `scripts.top8_check_gaps`: `--output-dir` (same meaning as `scrape
+  --output-dir`, for when the archive is checked out outside this
+  monorepo) and `--progress` (a `sweep --progress`-style live stderr
+  bar, off by default). Also fixes two producer/consumer wiring bugs
+  that made every real (non-mocked) `scrape_gaps()` run silently do
+  nothing: the 3rd `producer` arg was the batch's `Lock` instead of the
+  scraped-ids set `we_should_scrape_it()` checks, and `consumer` was
+  missing its required `producers_done` argument entirely.
 - CI: a `scripture` path filter + job in `.github/workflows/CI.yml`
   (mirrors `back`'s shape, no Postgres service — this app has no DB
   access), backed by a new local CI runner
