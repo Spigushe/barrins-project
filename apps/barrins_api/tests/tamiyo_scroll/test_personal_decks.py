@@ -36,6 +36,38 @@ def _flatten_library(body: dict) -> list[dict]:
     return [card for group in body["library_cards"] for card in group["cards"]]
 
 
+async def _create_card_log(
+    client: AsyncClient,
+    user: User,
+    personal_deck_id: str,
+    *,
+    removed_card_name: str,
+    added_card_name: str,
+) -> str:
+    resp = await client.post(
+        f"{BASE}/card-tests",
+        json={
+            "personal_deck_id": personal_deck_id,
+            "removed_card_name": removed_card_name,
+            "added_card_name": added_card_name,
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def _create_evaluation(
+    client: AsyncClient, user: User, test_id: str, opponent_deck_id: str, rating: int
+) -> None:
+    resp = await client.post(
+        f"{BASE}/card-tests/{test_id}/evaluations",
+        json={"opponent_deck_id": opponent_deck_id, "rating": rating},
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+
+
 class TestListPersonalDecks:
     async def test_empty_by_default(self, client: AsyncClient, owner_user: User):
         resp = await client.get(
@@ -635,6 +667,10 @@ class TestDecklistView:
     async def test_colors_cards_from_card_tests(
         self, client: AsyncClient, owner_user: User
     ):
+        """Evaluation-based majority coloring (S17): both card logs'
+        removed names are deliberately *not* in this decklist, so the
+        pending pass never triggers here -- pending has its own tests
+        below."""
         headers = auth_headers(owner_user)
         deck_id = await _create_deck(client, owner_user)
         await client.post(
@@ -642,26 +678,30 @@ class TestDecklistView:
             json={"content": "4 Lightning Bolt\n2 Duress"},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 5,
-            },
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_id,
-                "removed_card_name": "Lightning Bolt",
-                "added_card_name": "Duress",
-                "rating": 1,
-            },
-            headers=headers,
+        meta_id = (await _create_meta_deck(client, owner_user, deck_id))["id"]
+
+        bolt_test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Old Card A",
+            added_card_name="Lightning Bolt",
         )
+        await _create_evaluation(client, owner_user, bolt_test_id, meta_id, 5)
+
+        duress_test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Old Card B",
+            added_card_name="Duress",
+        )
+        await _create_evaluation(client, owner_user, duress_test_id, meta_id, 1)
 
         resp = await client.get(
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
@@ -691,16 +731,15 @@ class TestDecklistView:
             json={"validate_removed_card_in_decklist": False},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": other_deck_id,
-                "removed_card_name": "Duress",
-                "added_card_name": "Lightning Bolt",
-                "rating": 5,
-            },
-            headers=headers,
+        meta_id = (await _create_meta_deck(client, owner_user, other_deck_id))["id"]
+        other_test_id = await _create_card_log(
+            client,
+            owner_user,
+            other_deck_id,
+            removed_card_name="Duress",
+            added_card_name="Lightning Bolt",
         )
+        await _create_evaluation(client, owner_user, other_test_id, meta_id, 5)
 
         resp = await client.get(
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
@@ -710,6 +749,41 @@ class TestDecklistView:
             (c["qty"], c["name"]): c["status"] for c in _flatten_library(resp.json())
         }
         assert cards == {(4, "Lightning Bolt"): "neutral"}
+
+    async def test_pending_when_removed_card_still_in_current_decklist(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S17: a card log with no evaluation at all still marks its
+        removed card's line pending, with the added card's name/scryfall
+        id surfaced for the hover preview."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Duress",
+            added_card_name="Not A Real Card XYZ",
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        cards = {c["name"]: c for c in _flatten_library(resp.json())}
+        assert cards["Duress"]["status"] == "pending"
+        assert cards["Duress"]["pending_added_card_name"] == "Not A Real Card XYZ"
+        assert cards["Lightning Bolt"]["status"] == "neutral"
 
     async def test_uses_latest_version_only(
         self, client: AsyncClient, owner_user: User
@@ -999,7 +1073,6 @@ class TestDecklistVersionDiff:
                 "personal_deck_id": deck_id,
                 "removed_card_name": "Duress",
                 "added_card_name": "Sol Ring",
-                "rating": 4,
                 "notes": "great swap into the control matchup",
             },
             headers=headers,
@@ -1010,7 +1083,6 @@ class TestDecklistVersionDiff:
                 "personal_deck_id": deck_id,
                 "removed_card_name": "Not In This Diff",
                 "added_card_name": "Also Not In This Diff",
-                "rating": 4,
                 "notes": "unrelated card test",
             },
             headers=headers,
