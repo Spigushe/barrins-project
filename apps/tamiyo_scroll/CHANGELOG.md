@@ -16,6 +16,22 @@ section of the docs site for details.
   prior version instead — the two are mutually exclusive, not shown
   together. The first version shows an explicit "no prior version"
   message rather than an empty-looking diff.
+- **Breaking**: Tested Cards → decklist change log (S16).
+  `CardTestsSection`'s "Nickname"/"Card" table columns and create-form
+  fields are relabeled "Removed Card"/"Added Card" (also fixing the
+  pre-existing "Card"/"Card name" label mismatch between the table and
+  the form); the stale autofill that prefilled the removed-card field
+  with the current user's display name (a leftover from the old
+  "who's testing" semantics) is removed. Failed validation on create/
+  update now shows the backend's error message inline. Three new
+  `AccountSettingsDialog` switches: "Validate removed card is in
+  decklist" (on by default), "Validate added card exists" (off,
+  Magic-only), "Show decklist change log" (off). With the change-log
+  setting on: `VersionHistorySection`'s diff view shows a matched card
+  test's note as a comment under its `+`/`-` line, anywhere in version
+  history; `CurrentDecklistSection` lists card tests that match no real
+  decklist change in a standalone "Card change being considered in
+  this version" block.
 - Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
   built on the existing `Dialog` primitive, no new dependency — S13):
   deleting a Match journal row, a Card test, a Decklist version, or

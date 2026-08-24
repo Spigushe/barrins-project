@@ -282,6 +282,30 @@ implementation-time refinement over this doc's original "diff is also
 available" framing). Defaults **`true`** for every account — reversing
 this doc's own default-`false` assumption, a same-day decision made
 after the migration was first drafted with `false`.
+**2026-08-24, S16 shipped**: Open question 1 resolved by the user —
+option 1, existing `ts_card_tests` rows keep their pre-pivot values
+under the new `removed_card_name`/`added_card_name` column names,
+documented as a known migration artifact, nothing cleared.
+`TSUserSettings.validate_removed_card_in_decklist` ships defaulting
+**on**, not off as originally drafted — a same-day decision made after
+reviewing the migration, mirroring S15's `show_decklist_version_diff`
+opt-out convention; `validate_added_card_exists` stays opt-in (default
+off) since it resolves against `mj_cards`, Magic-only. Beyond the
+drafted scope, a **post-approval addition**: a card test whose
+removed/added names match a real decklist change (anywhere in a deck's
+version history, matched independently per half) has its note shown as
+a comment on that diff line in `VersionHistorySection`; a card test
+matching nothing shows up instead in a standalone list on
+`CurrentDecklistSection` — both gated by `show_decklist_change_log`
+(new `app/services/tamiyo_scroll/card_test_matching.py`, new `GET
+/card-tests/change-log`, `card_test_notes` added to the existing
+decklist-diff response). The stale "prefill Removed Card with my own
+display name" autofill — a leftover from the pre-pivot "who's testing"
+semantics — is removed outright, not renamed. Full backend suite green,
+`ruff format`/`ruff check`/`ty check` clean; frontend `tsc -b`/`oxlint`/
+`prettier --check` clean on every touched file (one pre-existing,
+unrelated gap: `src/demo/api/personalDecks.ts` never implemented S15's
+`getDecklistVersionView`/`getDecklistVersionDiff`, not fixed here).
 
 ---
 
@@ -1320,7 +1344,7 @@ R5 turning each into a real ADR.
 | S13 | Confirmation dialog before every deletion — 4 of 7 delete actions (Match, Card test, Decklist version, Session) have none today; added 2026-08-23 from GitHub issue #79 | — | ✅ **Done (2026-08-23)**. Frontend-only, no new dependency — `components/ui/confirm-dialog.tsx` extracts a shared `ConfirmDialog` off the existing `Dialog` primitive; wired into the 4 unprotected spots and refactored onto by the 3 already-protected ones (roster deck, personal deck, team — team's two-step invite-code-retype flow preserved). 232 → 248 frontend tests | [s13-delete-confirmation/](s13-delete-confirmation/index.md) |
 | S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version, plus a `location` field added during implementation — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | ✅ Done (2026-08-24). `TSSession.ended_at` renamed `closed_at`; new `started_at`/`ended_at`/`hue`/`location`. Auto-archive is event-triggered (on decklist import), not a periodic job — no scheduler spike needed | [s14-session-overhaul/](s14-session-overhaul/index.md) |
 | S15 | Decklist version history — view a past version's full content + card-level diff against the prior version, gated by a setting defaulting `true` — added 2026-08-23 from GitHub issue #81 | S4 (reuses `ResponseDecklistView`) | ✅ **Done (2026-08-24)**. Diff computed server-side via stdlib `difflib`, matched by card name (no new dependency) — see index.md's "S15 shipped" entry | [s15-decklist-version-diff/](s15-decklist-version-diff/index.md) |
-| S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus opt-in validation (removed card must be in decklist, added card must exist) and an opt-in inline change-log display in the decklist view — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (UI pattern reuse) | **Blocked on an unresolved data question** — existing `ts_card_tests` rows predate this semantic pivot; keep them mislabeled or clear the table on migration is not yet decided, see the page's Open question 1 | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
+| S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus validation (removed card must be in decklist — defaults **on**; added card must exist — opt-in) and a change-log display linking card tests to real decklist diffs — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (`VersionHistorySection`'s diff rendering, extended here) | ✅ **Done (2026-08-24)**. Open question 1 resolved (kept existing rows, documented migration artifact); post-approval addition matches card tests against real decklist diffs anywhere in version history (`card_test_matching.py`, new `GET /card-tests/change-log`) — see index.md's "S16 shipped" entry | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
 
 ### Group RA — Release wrap for `v2.0.0-alpha` (Tamiyo Scroll only, §1.11)
 

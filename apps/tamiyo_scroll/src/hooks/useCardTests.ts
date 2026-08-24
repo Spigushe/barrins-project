@@ -13,11 +13,28 @@ export function useCardTests(personalDeckId: string | null) {
   })
 }
 
+/** S16: card tests for `personalDeckId` that don't match any real decklist
+ * change anywhere in the deck's version history — used by the standalone
+ * change-log list on the current decklist, only fetched when that display
+ * is enabled. */
+export function useCardTestChangeLog(personalDeckId: string | null, enabled: boolean) {
+  const owner = useViewingOwner()
+  return useQuery({
+    queryKey: ['card-tests-change-log', owner?.id ?? 'self', personalDeckId],
+    queryFn: () => cardTestsApi.listCardTestChangeLog(personalDeckId ?? ''),
+    enabled: enabled && personalDeckId !== null,
+  })
+}
+
 function useInvalidateCardTests() {
   const queryClient = useQueryClient()
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['card-tests'] })
+    void queryClient.invalidateQueries({ queryKey: ['card-tests-change-log'] })
     void queryClient.invalidateQueries({ queryKey: ['decklist-view'] })
+    // S16: a card test's match against a decklist diff can change without
+    // the diff's own content changing (e.g. adding a new card test).
+    void queryClient.invalidateQueries({ queryKey: ['decklist-version-diff'] })
   }
 }
 

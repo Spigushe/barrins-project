@@ -31,6 +31,9 @@ from app.schemas.tamiyo_scroll import (
     PersonalDeckPatch,
 )
 from app.services.moxfield import MoxfieldClientDep
+from app.services.tamiyo_scroll.card_test_matching import (
+    annotate_diff_cards_with_card_tests,
+)
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
 from app.services.tamiyo_scroll.decklist_diff import (
     diff_decklist_cards,
@@ -509,12 +512,21 @@ async def get_decklist_version_diff(
             unparsed_lines=[],
         )
 
+    cards = diff_decklist_cards(prior.content, version.content)
+    card_tests_result = await session.execute(
+        select(TSCardTest).where(TSCardTest.personal_deck_id == deck.id)
+    )
+    card_tests = card_tests_result.scalars().all()
+    annotated_cards, _ = await annotate_diff_cards_with_card_tests(
+        session, cards, card_tests
+    )
+
     return ResponseDecklistVersionDiff(
         version_id=version.id,
         version=version.version,
         compared_to_version_id=prior.id,
         compared_to_version=prior.version,
-        cards=diff_decklist_cards(prior.content, version.content),
+        cards=annotated_cards,
         unparsed_lines=diff_decklist_unparsed_lines(prior.content, version.content),
     )
 

@@ -48,7 +48,7 @@ def color_decklist(content: str, card_tests: Sequence[TSCardTest]) -> list[Color
     """
     ratings_by_card: dict[str, list[int]] = defaultdict(list)
     for test in card_tests:
-        ratings_by_card[test.card_name.lower()].append(test.rating)
+        ratings_by_card[test.added_card_name.lower()].append(test.rating)
 
     # Longest name first — prevents a short name (e.g. "Duress") from
     # masking a longer name that contains it (e.g. "Extended Duress").

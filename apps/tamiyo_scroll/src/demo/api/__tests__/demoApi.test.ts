@@ -257,8 +257,8 @@ describe('demo cardTests api', () => {
   it('creates, updates and deletes a card test', async () => {
     const created = await demoCardTestsApi.createCardTest({
       personal_deck_id: DECK_ID,
-      tester: 'Demo tester',
-      card_name: 'Test Card',
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
       opponent_deck_id: null,
       rating: 3,
       notes: null,
@@ -267,8 +267,8 @@ describe('demo cardTests api', () => {
 
     const updated = await demoCardTestsApi.updateCardTest(created.id, {
       personal_deck_id: DECK_ID,
-      tester: 'Demo tester',
-      card_name: 'Test Card',
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
       opponent_deck_id: null,
       rating: 5,
       notes: 'Now excellent',

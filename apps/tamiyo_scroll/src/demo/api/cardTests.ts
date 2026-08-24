@@ -19,8 +19,8 @@ export function createCardTest(payload: CardTestWrite): Promise<CardTest> {
   const test: CardTest = {
     id: nextId(),
     personal_deck_id: payload.personal_deck_id,
-    tester: payload.tester,
-    card_name: payload.card_name,
+    removed_card_name: payload.removed_card_name,
+    added_card_name: payload.added_card_name,
     opponent_deck_id: payload.opponent_deck_id ?? null,
     rating: payload.rating,
     notes: payload.notes ?? null,
@@ -38,8 +38,8 @@ export function updateCardTest(
   const test = store.cardTests.find((candidate) => candidate.id === testId)
   if (!test) throw new Error(`Demo card test not found: ${testId}`)
   test.personal_deck_id = payload.personal_deck_id
-  test.tester = payload.tester
-  test.card_name = payload.card_name
+  test.removed_card_name = payload.removed_card_name
+  test.added_card_name = payload.added_card_name
   test.opponent_deck_id = payload.opponent_deck_id ?? null
   test.rating = payload.rating
   test.notes = payload.notes ?? null
@@ -50,4 +50,11 @@ export function deleteCardTest(testId: string): Promise<void> {
   const store = getStore()
   store.cardTests = store.cardTests.filter((test) => test.id !== testId)
   return Promise.resolve()
+}
+
+/** Demo mode has no decklist-diff computation, so it can't tell a matched
+ * card test from an unmatched one — returns the deck's full list, same as
+ * `listCardTests`. */
+export function listCardTestChangeLog(personalDeckId: string): Promise<CardTest[]> {
+  return listCardTests({ personalDeckId })
 }

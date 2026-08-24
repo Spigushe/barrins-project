@@ -151,13 +151,15 @@ def _card_tests_table_html(card_tests: Sequence[TSCardTest]) -> str:
     for test in card_tests:
         body_rows.append(
             "<tr>"
-            f"<td>{escape(test.card_name)}</td>"
+            f"<td>{escape(test.removed_card_name)}</td>"
+            f"<td>{escape(test.added_card_name)}</td>"
             f"<td>{test.rating}/5</td>"
-            f"<td>{escape(test.tester)}</td>"
             f"<td>{escape(test.notes or '—')}</td>"
             "</tr>"
         )
-    header = "<tr><th>Card</th><th>Rating</th><th>Tester</th><th>Notes</th></tr>"
+    header = (
+        "<tr><th>Removed Card</th><th>Added Card</th><th>Rating</th><th>Notes</th></tr>"
+    )
     return f"<table><thead>{header}</thead><tbody>{''.join(body_rows)}</tbody></table>"
 
 

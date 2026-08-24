@@ -28,6 +28,9 @@ vi.mock('@/hooks/useSettings', () => ({
       auto_archive_stale_sessions: false,
       auto_archive_decklist_version_gap: 3,
       show_decklist_version_diff: true,
+      validate_removed_card_in_decklist: true,
+      validate_added_card_exists: false,
+      show_decklist_change_log: false,
     },
   }),
   useUpdateMySettings: () => ({
@@ -69,11 +72,11 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders separators between the display name, sharing, roster scope, auto-archive, version diff and display sections', () => {
+  it('renders separators between the display name, sharing, roster scope, auto-archive, version diff, card-test validation/change-log and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
     // Display name / Share my data / Roster scope (F10) / Auto-archive (S14) /
-    // Version diff (S15) / Display (S12).
-    expect(screen.getAllByRole('separator')).toHaveLength(5)
+    // Version diff (S15) / Card-test validation + change log (S16) / Display (S12).
+    expect(screen.getAllByRole('separator')).toHaveLength(6)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -122,6 +125,9 @@ describe('AccountSettingsDialog', () => {
       auto_archive_stale_sessions: false,
       auto_archive_decklist_version_gap: 3,
       show_decklist_version_diff: true,
+      validate_removed_card_in_decklist: true,
+      validate_added_card_exists: false,
+      show_decklist_change_log: false,
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -161,6 +167,39 @@ describe('AccountSettingsDialog', () => {
 
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ show_decklist_version_diff: false }),
+    )
+  })
+
+  it('pre-fills the card-test validation and change-log toggles from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(
+      screen.getByRole('switch', { name: 'Validate removed card is in decklist' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      screen.getByRole('switch', { name: 'Validate added card exists' }),
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('switch', { name: 'Show decklist change log' }),
+    ).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('saves the card-test validation and change-log toggles', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(
+      screen.getByRole('switch', { name: 'Validate removed card is in decklist' }),
+    )
+    await user.click(screen.getByRole('switch', { name: 'Validate added card exists' }))
+    await user.click(screen.getByRole('switch', { name: 'Show decklist change log' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        validate_removed_card_in_decklist: false,
+        validate_added_card_exists: true,
+        show_decklist_change_log: true,
+      }),
     )
   })
 

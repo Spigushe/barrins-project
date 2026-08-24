@@ -54,6 +54,12 @@ export const userSettingsSchema = z.object({
   // VersionHistorySection shows its diff against the prior version
   // instead of its full content.
   show_decklist_version_diff: z.boolean(),
+  // S16: opt-in write-time validations for card tests, both default false.
+  validate_removed_card_in_decklist: z.boolean(),
+  validate_added_card_exists: z.boolean(),
+  // S16: gates both the matched-card-test comments on decklist diffs and
+  // the standalone unmatched-entries list on the current decklist.
+  show_decklist_change_log: z.boolean(),
 })
 export type UserSettings = z.infer<typeof userSettingsSchema>
 
@@ -135,8 +141,8 @@ export type Match = z.infer<typeof matchSchema>
 export const cardTestSchema = z.object({
   id: z.uuid(),
   personal_deck_id: z.uuid().nullable(),
-  tester: z.string(),
-  card_name: z.string(),
+  removed_card_name: z.string(),
+  added_card_name: z.string(),
   opponent_deck_id: z.uuid().nullable(),
   rating: z.number().int(),
   notes: z.string().nullable(),
@@ -203,6 +209,9 @@ export const decklistCardDiffSchema = z.object({
   old_qty: z.number().int().nullable(),
   new_qty: z.number().int().nullable(),
   is_commander: z.boolean(),
+  // S16: notes from any card test whose removed/added card matches this
+  // line — always present, rendering gated by `show_decklist_change_log`.
+  card_test_notes: z.array(z.string()),
 })
 export type DecklistCardDiff = z.infer<typeof decklistCardDiffSchema>
 
@@ -298,8 +307,8 @@ export type MatchWrite = z.infer<typeof matchWriteSchema>
 
 export const cardTestWriteSchema = z.object({
   personal_deck_id: z.uuid(),
-  tester: z.string().min(1).max(120),
-  card_name: z.string().min(1).max(255),
+  removed_card_name: z.string().min(1).max(255),
+  added_card_name: z.string().min(1).max(255),
   opponent_deck_id: z.uuid().nullable().optional(),
   rating: z.number().int().min(1).max(5),
   notes: z.string().nullable().optional(),

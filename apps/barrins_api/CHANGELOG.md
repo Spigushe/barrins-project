@@ -21,6 +21,25 @@ section of the docs site for details.
   `compared_to_version: null` rather than a 404. New
   `TSUserSettings.show_decklist_version_diff` (defaults `true`) gates
   the frontend's diff display, exposed via `GET`/`PATCH /me/settings`.
+- **Breaking**: Tested Cards → decklist change log (S16). `TSCardTest`
+  is pivoted from "who tested which card" to "which card was removed
+  and which was added" — `tester`→`removed_card_name`,
+  `card_name`→`added_card_name` (`CardTestWrite`/`ResponseCardTest`
+  updated to match). **Rows created before this migration keep their
+  old values under the new column names** — a documented migration
+  artifact, not reinterpreted. Two new write-time validations on
+  `POST`/`PUT /card-tests`, both `TSUserSettings`-gated:
+  `validate_removed_card_in_decklist` (defaults **on** — `removed_card_name`
+  must match a card in the deck's current decklist content) and
+  `validate_added_card_exists` (defaults off, Magic-only —
+  `added_card_name` must resolve against `mj_cards`). New
+  `app/services/tamiyo_scroll/card_test_matching.py`: matches a card
+  test against real decklist diffs, anywhere in a deck's version
+  history — `GET .../versions/{id}/diff` now returns `card_test_notes`
+  per card line for matches, and a new `GET /card-tests/change-log`
+  returns a deck's card tests that match nothing. New
+  `TSUserSettings.show_decklist_change_log` (defaults off) gates both
+  displays on the frontend.
 - Structured Commander/Library decklist view (S4):
   `GET .../personal-decks/{id}/decklist-view` now returns a
   `ResponseDecklistView` (`commander_cards`/`library_cards`/

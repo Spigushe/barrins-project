@@ -226,8 +226,8 @@
     {
       "id": "695248b4-a96a-4466-a184-9a05b6d688e1",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Lightning Helix",
+      "removed_card_name": "Skewer the Critics",
+      "added_card_name": "Lightning Helix",
       "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
       "rating": 5,
       "notes": "Great removal vs control matchups, also closes games.",
@@ -236,8 +236,8 @@
     {
       "id": "82a07208-249c-4475-958b-6a30c172c149",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Wear // Tear",
+      "removed_card_name": "Galvanic Blast",
+      "added_card_name": "Wear // Tear",
       "opponent_deck_id": null,
       "rating": 4,
       "notes": "Flexible artifact/enchantment removal, sideboard-only feel.",
@@ -246,8 +246,8 @@
     {
       "id": "2a46690c-c979-4fab-b4fd-828d25e777ef",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Naya",
-      "card_name": "Boros Charm",
+      "removed_card_name": "Searing Blaze",
+      "added_card_name": "Boros Charm",
       "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
       "rating": 3,
       "notes": "Fine but rarely closes the game alone.",
@@ -256,8 +256,8 @@
     {
       "id": "3d54df36-16b1-4230-9798-da1602640e98",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Sunset Pyramid",
+      "removed_card_name": "Chained to the Rocks",
+      "added_card_name": "Sunset Pyramid",
       "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
       "rating": 2,
       "notes": "Too slow against faster aggro mirrors.",

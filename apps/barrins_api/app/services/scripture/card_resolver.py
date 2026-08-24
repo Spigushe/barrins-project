@@ -139,6 +139,14 @@ async def resolve_card_name(session: AsyncSession, raw_name: str) -> str | None:
     return None
 
 
+async def resolve_card_name_or_raw(session: AsyncSession, raw_name: str) -> str:
+    """`resolve_card_name`'s result, or `raw_name` itself when
+    unresolved -- for callers comparing two free-text names for equality
+    where an unresolvable-but-identical string should still count as a
+    match (S16)."""
+    return await resolve_card_name(session, raw_name) or raw_name
+
+
 def is_attraction(canonical_name: str) -> bool:
     """True if `canonical_name` (a `resolve_card_name` result) is an Attraction.
 

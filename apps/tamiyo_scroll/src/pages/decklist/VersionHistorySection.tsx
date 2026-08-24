@@ -124,6 +124,9 @@ function ExpandedVersion({ deckId, versionId }: { deckId: string; versionId: str
 }
 
 function VersionDiff({ diff }: { diff: DecklistVersionDiff }) {
+  const { data: settings } = useMySettings()
+  const showChangeLog = settings?.show_decklist_change_log ?? false
+
   if (diff.compared_to_version === null) {
     return (
       <p className="text-muted-foreground">
@@ -145,15 +148,23 @@ function VersionDiff({ diff }: { diff: DecklistVersionDiff }) {
       )}
       <div className="font-mono text-[13px]">
         {changedCards.map((card) => (
-          <p
-            key={card.name}
-            className={DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS[card.status]}
-          >
-            {card.status === 'added' && `+ ${String(card.new_qty)} ${card.name}`}
-            {card.status === 'removed' && `- ${String(card.old_qty)} ${card.name}`}
-            {card.status === 'quantity_changed' &&
-              `${card.name}: ${String(card.old_qty)} → ${String(card.new_qty)}`}
-          </p>
+          <div key={card.name}>
+            <p className={DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS[card.status]}>
+              {card.status === 'added' && `+ ${String(card.new_qty)} ${card.name}`}
+              {card.status === 'removed' && `- ${String(card.old_qty)} ${card.name}`}
+              {card.status === 'quantity_changed' &&
+                `${card.name}: ${String(card.old_qty)} → ${String(card.new_qty)}`}
+            </p>
+            {showChangeLog &&
+              card.card_test_notes.map((note, index) => (
+                <p
+                  key={`${card.name}-note-${String(index)}`}
+                  className="pl-4 font-sans text-[12px] text-muted-foreground italic"
+                >
+                  {note}
+                </p>
+              ))}
+          </div>
         ))}
         {changedLines.map((line, index) => (
           <p
