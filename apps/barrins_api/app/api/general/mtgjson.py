@@ -1,6 +1,8 @@
 """Routes /sets, /cards, /mtgjson (S8): MTGJSON reference data.
 
-Public reads (`/sets/*`, `/cards/*`) plus an admin-gated import trigger,
+Public reads (`/sets/*`, `/cards/*`) plus an import trigger gated to
+either an admin JWT or the scheduled-refresh service token
+(`MTGJSONImportOrAdmin` -- see `app/dependencies/service_auth.py`),
 matching `docs/content/back/barrins_api/auth_roles.md`'s already-
 documented shape -- except `GET /cards/{id}/prices`, deliberately not
 built here (2026-08-05 decision: price import/`AllPrices.json` is out of
@@ -18,6 +20,7 @@ from sqlalchemy import func, or_, select, union
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser
+from app.dependencies.service_auth import MTGJSONImportOrAdmin
 from app.models.mtgjson import (
     CASTABLE_BOTH_FACES_LAYOUTS,
     Card,
@@ -42,12 +45,12 @@ router = APIRouter()
 async def import_mtgjson(
     session: DatabaseSession,
     client: MTGJSONClientDep,
-    _admin: AdminUser,
+    _auth: MTGJSONImportOrAdmin,
 ) -> ResponseImportResult:
     """Download `AllPrintings.json` and upsert every set/card.
 
-    Idempotent — safe to re-run (e.g. from a scheduled refresh) without
-    duplicating rows.
+    Idempotent — safe to re-run (e.g. from the daily scheduled refresh)
+    without duplicating rows.
     """
     result = await import_all_printings(session, client)
     # T3's card-name resolver caches "cards" name/face_name in-process; a
