@@ -153,8 +153,30 @@ exists, otherwise **neutral**.
 **Decision**: computed server-side
 (`GET .../personal-decks/{id}/decklist-view`), never reimplemented on
 the frontend — direct application of the "no duplicated business
-logic" rule (constitution §4.2). The frontend receives
-`{line: str, status: "validated"|"rejected"|"in_test"|"neutral"}[]`.
+logic" rule (constitution §4.2).
+
+**Updated 2026-08-14 (S4)**: the flat `{line: str, status: ...}[]`
+shape above is superseded by a structured `ResponseDecklistView`
+(`app/services/tamiyo_scroll/decklist_view.py`), still built on top of
+`color_decklist`'s per-line status rather than recomputing it. Each
+parsed line is resolved against `mj_cards` (S8) for
+`mana_cost`/`type_line`/`text`/`keywords`/`scryfall_id`, split into an
+optional `commander_cards` section (lines under an explicit
+`"Commander"` header — `commander_section_indices`, new in
+`decklist_coloring.py`) and `library_cards`, the latter type-grouped
+and sorted via the shared `app/services/decklist_sort.py` module
+(category order: planeswalker, battle, creature, instant, sorcery,
+artifact, enchantment, land, other; secondary key mana value, then
+name — the same module `tolaria_news.decks` uses for its own mainboard
+grouping, so both apps' decklist tables sort identically). Any line
+that isn't a `"<qty> <name>"` card line (headers, blank lines, notes)
+falls into `unparsed_lines`, preserving the original flat shape rather
+than silently dropping it. No recognized `"Commander"` header just
+means `commander_cards` is empty — an expected fallback for manually-
+pasted/pre-feature decks, not an error. A Moxfield-imported deck now
+gets this header for free: `services/moxfield/http_client.py`'s
+`_format_board` emits a `"Commander"` line ahead of the commanders
+board on import.
 
 ### G. Deleting a deck (personal or roster)
 

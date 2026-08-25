@@ -16,6 +16,7 @@ function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           'fixed top-1/2 left-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2',
+          'max-h-[85vh] overflow-y-auto',
           'rounded-(--radius-card) border border-border bg-card p-5 text-foreground',
           className,
         )}

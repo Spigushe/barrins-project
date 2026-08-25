@@ -11,13 +11,21 @@ class TestGetMySettings:
         self, client: AsyncClient, owner_user: User
     ):
         """Sharing is opt-out (defaults True); receiving stays opt-in
-        (defaults False) — decided 2026-07-30."""
+        (defaults False) — decided 2026-07-30. Auto-archive is opted-in by
+        default with a 2-version gap (S14 item 9, revised 2026-08-24)."""
         resp = await client.get(f"{BASE}/me/settings", headers=auth_headers(owner_user))
         assert resp.status_code == 200
         body = resp.json()
         assert body["data_shared"] is True
         assert body["receive_shared_data"] is False
         assert body["active_personal_deck_id"] is None
+        assert body["metagame_roster_scope"] == "game"
+        assert body["auto_archive_stale_sessions"] is True
+        assert body["auto_archive_decklist_version_gap"] == 2
+        assert body["show_decklist_version_diff"] is True
+        assert body["validate_removed_card_in_decklist"] is True
+        assert body["validate_added_card_exists"] is False
+        assert body["show_decklist_change_log"] is False
 
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.get(f"{BASE}/me/settings")
@@ -183,6 +191,76 @@ class TestUpdateMySettings:
         resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
         assert resp.status_code == 200
         assert resp.json()["data_shared"] is True
+
+    async def test_sets_metagame_roster_scope(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"metagame_roster_scope": "personal_deck"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["metagame_roster_scope"] == "personal_deck"
+
+        resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
+        assert resp.json()["metagame_roster_scope"] == "personal_deck"
+
+    async def test_invalid_metagame_roster_scope_returns_422(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"metagame_roster_scope": "not-a-scope"},
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 422
+
+    async def test_sets_show_decklist_version_diff(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """Defaults True (2026-08-24 decision) -- this exercises turning
+        it off, since turning it on wouldn't prove the update path works."""
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={"show_decklist_version_diff": False},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["show_decklist_version_diff"] is False
+
+        resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
+        assert resp.json()["show_decklist_version_diff"] is False
+
+    async def test_sets_card_test_validation_and_change_log_settings(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """`validate_removed_card_in_decklist` defaults True (S16) -- this
+        exercises turning it off, alongside turning the other two on
+        (both default False)."""
+        headers = auth_headers(owner_user)
+        resp = await client.patch(
+            f"{BASE}/me/settings",
+            json={
+                "validate_removed_card_in_decklist": False,
+                "validate_added_card_exists": True,
+                "show_decklist_change_log": True,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["validate_removed_card_in_decklist"] is False
+        assert body["validate_added_card_exists"] is True
+        assert body["show_decklist_change_log"] is True
+
+        resp = await client.patch(f"{BASE}/me/settings", json={}, headers=headers)
+        body = resp.json()
+        assert body["validate_removed_card_in_decklist"] is False
+        assert body["validate_added_card_exists"] is True
+        assert body["show_decklist_change_log"] is True
 
     async def test_extra_field_returns_422(self, client: AsyncClient, owner_user: User):
         resp = await client.patch(

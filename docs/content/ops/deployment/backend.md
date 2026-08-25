@@ -55,6 +55,7 @@ cp secrets/barrins_api/production.env.example secrets/barrins_api/production.env
 | `FRONTEND_BASE_URL` | Single value used for the `{FRONTEND_BASE_URL}/verify-email` link. The backend serves multiple frontends but this can only point at one — decide which. Required (non-default) when `ENVIRONMENT=production` and `REQUIRE_EMAIL_VERIFICATION=true`. |
 | `SMTP_HOST`/`SMTP_USERNAME`/`SMTP_PASSWORD` | Required under the same condition as `FRONTEND_BASE_URL`. Empty `SMTP_HOST` (with verification on) logs the code to the service's journal instead of sending email — useful on staging. |
 | `SECRET_KEY` | `openssl rand -hex 32`. Refuses to start on a placeholder value. Use a different key per environment. |
+| `MTGJSON_IMPORT_TOKEN` | `openssl rand -hex 32`. **Required in production** — the `mtgjson_import_scheduler` role's daily timer authenticates `POST /mtgjson/import` with this (an admin JWT still works too). The playbook fails fast if it's missing from `secrets/barrins_api/production.env`. Not used in staging (the scheduled timer is production-only). |
 
 ## Deployment
 
@@ -89,6 +90,11 @@ uv run alembic upgrade head
 - Exercise a real user flow through one of the frontends: signup (check
   the verification code lands somewhere — email or, if `SMTP_HOST` is
   empty, the service log), deck creation, a match record.
+- Production only — the daily MTGJSON reference-data refresh:
+  `systemctl status api-mtgjson-import.timer` (next scheduled run) and
+  `journalctl -u api-mtgjson-import.service -n 50` (last run's outcome),
+  or just `curl https://api.barrins-codex.org/api/v1/mtgjson/status` for
+  `last_imported_at`. See `ops/my-server/roles/mtgjson_import_scheduler/README.md`.
 
 ## Rollback
 
@@ -111,6 +117,8 @@ This rolls back the *code*. It does **not** roll back the database — read
 | A frontend's SPA loads but every API call fails (CORS error in console) | That frontend's origin is missing from `ALLOWED_ORIGINS`. |
 | Email verification links point at the wrong frontend | `FRONTEND_BASE_URL` is shared across every frontend this backend serves — only one can be correct until this becomes per-app aware. |
 | A recent feature doesn't work even though the code is current | Migration not applied — `alembic upgrade head` is never automatic, see "Deployment" above. |
+| Playbook fails on "MTGJSON_IMPORT_TOKEN is not set" (production) | Generate one with `openssl rand -hex 32`, add it to `secrets/barrins_api/production.env`, re-run. |
+| `api-mtgjson-import.service` fails with a 401 in its journal | `MTGJSON_IMPORT_TOKEN` in the deployed `.env` doesn't match what the timer's `EnvironmentFile=` is reading — redeploy after fixing the local `secrets/barrins_api/production.env`. |
 
 ## See also
 

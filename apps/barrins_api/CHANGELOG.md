@@ -3,6 +3,135 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [2.0.0-alpha.2] - 2026-08-25
+
+### Added
+
+- MTGJSON card/set reference-data pipeline (S8): `MTGSet`/`Card` models
+  (with a companion `MTGJSONImportRun` progress-log table), an idempotent
+  `POST /mtgjson/import` (admin JWT or the new scheduled-refresh service
+  token below) that downloads and upserts MTGJSON's `AllPrintings.json`,
+  `GET /mtgjson/import/status` (admin-only: the most recent run's
+  `running`/`succeeded`/`failed` state — admin-gated since a failure's
+  `error_message` can include internal exception text) and public `GET
+  /mtgjson/status` (last import time, row counts), `GET /sets/*`, `GET
+  /cards/by-name/{name}` reads. Feeds `app/services/scripture/
+  card_resolver.py`'s card-name resolution, used directly by S4's
+  decklist view and S16/S17's card-test validation. Price data
+  (`AllPrices.json`) is deliberately out of scope for this pass.
+- `MTGJSON_IMPORT_TOKEN`-gated service-auth path
+  (`verify_mtgjson_or_admin`, `app/dependencies/service_auth.py`)
+  alongside `POST /mtgjson/import`'s existing admin-JWT gate, so the new
+  production-only daily 04:00 UTC systemd timer (`mtgjson_import_
+  scheduler` Ansible role, `ops/my-server/`) can trigger the refresh
+  without a human admin session.
+- `Card` gains `text`/`keywords`/`power`/`toughness`/`loyalty` columns
+  (T6) — oracle text and combat stats MTGJSON's source data already has
+  but S8's importer didn't originally map, needed by Karn Tablets'
+  clustering/feature-engineering pipeline. Nullable; backfilled for every
+  card by re-running the existing idempotent `POST /mtgjson/import`, no
+  new pipeline required.
+- **Breaking**: metagame roster scoped to the active personal deck
+  (F10). `TSMetaDeck` gains a required `personal_deck_id` FK (migration
+  backfills existing rows, duplicating any roster deck fought by more
+  than one personal deck), and a new per-user `metagame_roster_scope`
+  setting (`game`/`personal_deck`, defaults `game`) exposed via `GET`/
+  `PATCH /me/settings`, so the Deck roster and Expected metagame stop
+  leaking across unrelated decks/games. `_sync_opponent_deck_games`
+  reworked to duplicate-and-allocate instead of overwriting a
+  differently-owned opponent row in place; `build_merged_view` gains a
+  separate `filter_meta_decks_by_personal_deck` opt-in so existing
+  full-roster callers (stats, PDF report) are unaffected. Also fixes a
+  shared (foreign) roster row's `game` not being derived from the
+  sharer's own deck.
+- Decklist version history — view past content + diff (S15):
+  `GET .../personal-decks/{id}/versions/{version_id}` returns the same
+  structured `ResponseDecklistView` as the existing latest-version
+  `decklist-view` route, for one specific past version. New `GET
+  .../versions/{version_id}/diff` (`app/services/tamiyo_scroll/
+  decklist_diff.py`) returns a card-level diff (added/removed/
+  unchanged/quantity_changed, matched by card name so reordering isn't
+  a spurious added+removed pair) against the immediately-prior version
+  by `version` number — correctly skips over any version deleted in
+  between. Non-card lines fall back to a plain `difflib` line diff, no
+  new dependency. The very first version returns an explicit
+  `compared_to_version: null` rather than a 404. New
+  `TSUserSettings.show_decklist_version_diff` (defaults `true`) gates
+  the frontend's diff display, exposed via `GET`/`PATCH /me/settings`.
+- **Breaking**: Tested Cards → decklist change log (S16). `TSCardTest`
+  is pivoted from "who tested which card" to "which card was removed
+  and which was added" — `tester`→`removed_card_name`,
+  `card_name`→`added_card_name` (`CardTestWrite`/`ResponseCardTest`
+  updated to match). **Rows created before this migration keep their
+  old values under the new column names** — a documented migration
+  artifact, not reinterpreted. Two new write-time validations on
+  `POST`/`PUT /card-tests`, both `TSUserSettings`-gated:
+  `validate_removed_card_in_decklist` (defaults **on** — `removed_card_name`
+  must match a card in the deck's current decklist content) and
+  `validate_added_card_exists` (defaults off, Magic-only —
+  `added_card_name` must resolve against `mj_cards`). New
+  `app/services/tamiyo_scroll/card_test_matching.py`: matches a card
+  test against real decklist diffs, anywhere in a deck's version
+  history — `GET .../versions/{id}/diff` now returns `card_test_notes`
+  per card line for matches, and a new `GET /card-tests/change-log`
+  returns a deck's card tests that match nothing. New
+  `TSUserSettings.show_decklist_change_log` (defaults off) gates both
+  displays on the frontend.
+- Structured Commander/Library decklist view (S4):
+  `GET .../personal-decks/{id}/decklist-view` now returns a
+  `ResponseDecklistView` (`commander_cards`/`library_cards`/
+  `unparsed_lines`) instead of a flat colored-line list — each resolved
+  card carries `mana_cost`/`type_line`/`text`/`keywords`/`scryfall_id`
+  from `mj_cards`, grouped by type and sorted by mana value then name.
+  `GET /bff/tolaria-news/decks/{id}`'s `mainboard` gets the same
+  type-grouping/sort, via a new shared `app/services/decklist_sort.py`
+  module used by both apps. A `"Commander"` header line (new
+  `commander_section_indices` in `decklist_coloring.py`) splits a
+  decklist into its commander(s) vs. library; Moxfield-imported decks
+  now get this header for free (`_format_board`).
+- Disk-cached Scryfall card-image proxy: `GET
+  /api/v1/cards/{scryfall_id}/image?face=front|back`
+  (`app/services/scryfall/`), rate-limited to Scryfall's ~10 req/s
+  courtesy limit, wiped on every `POST /mtgjson/import` (`scryfall_id`
+  can shift/disappear on refresh). New `SCRYFALL_USER_AGENT`/
+  `CARD_IMAGE_CACHE_DIR` settings; a placeholder-image console client is
+  used when unset outside production.
+- `SessionCreate` (`POST /sessions`, S14 follow-up) now accepts
+  `started_at`/`ended_at`/`hue` alongside the existing `name`/`type`/
+  `personal_deck_id`/`notes`/`location` — the same fields `SessionPatch`
+  already exposed for editing — so a session can be fully filled in at
+  creation instead of requiring an immediate `PATCH`.
+- **Breaking**: card log / match-up evaluation split (S17). `TSCardTest`
+  becomes a pure removed/added-name identity (plus its own overall
+  `notes`); new `TSCardTestEvaluation` table (FK to `ts_card_tests.id`)
+  carries `opponent_deck_id` (required), `rating`, and its own optional
+  `notes` — many evaluations per card log. Backfill: one evaluation per
+  existing `ts_card_tests` row, carrying its old `opponent_deck_id`/
+  `rating`. New `POST`/`PUT`/`DELETE /card-tests/{id}/evaluations[/{id}]`
+  routes. `color_decklist()` gains a new independent **pending** pass:
+  a decklist line matching a card log's `removed_card_name` still
+  present in the current decklist renders `pending`, on top of the
+  existing evaluation-majority pass (now pooling `TSCardTestEvaluation`
+  rows instead of flat `TSCardTest` ratings) — new `pending` value on
+  `LineStatus`/`ResponseDecklistLine`. `ResponseDecklistCard` gains
+  `pending_added_card_name`/`_scryfall_id`/`_mana_cost`/`_text`/
+  `_keywords` and `pending_card_test_id`, resolved against `mj_cards`
+  the same way the line's own card is, so the frontend can render the
+  pending swap and its hover/pips/popover data without a second lookup.
+  New `GET /cards/search-by-name-prefix?q=` (substring `ILIKE` over
+  `Card.name`, 20-result cap) backs the frontend's on-the-fly Added-Card
+  dropdown. `ResponseCardTest` also gains `removed_card_scryfall_id`/
+  `added_card_scryfall_id` so the "Tested cards" list can hover-preview
+  either card's image the same way a pending decklist line does.
+
+### Fixed
+
+- `validate_removed_card_in_decklist` (S16) no longer runs on
+  `PUT /card-tests/{id}` — it's a create-time guard against the deck's
+  *current* decklist content, so re-checking it on every edit rejected
+  saving a plain notes change on an already-saved card log once the
+  decklist had since moved past that card.
+
 ## [2.0.0-alpha] - 2026-08-03
 
 ### Added

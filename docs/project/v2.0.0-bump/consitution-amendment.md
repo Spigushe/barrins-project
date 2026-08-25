@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/CLAUDE.md` (the project constitution) | / |
 | **Initial date** | 2026-07-25 | / |
-| **Status** | ✅ **All six proposals reviewed and accepted.** 1, 4, 5, 6 accepted as written; 2, 3 accepted with modifications (see each). Nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
+| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). 🔲 **Proposal 7 added 2026-08-03, not yet reviewed.** ✅ **Proposal 8 added and accepted 2026-08-24, applied directly to `.claude/CLAUDE.md` the same day** (§11.8). Proposals 2–7 nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
 | **Source** | Decisions recorded in `index.md` §1.2, §1.3, §1.6, §1.7, §1.9 | / |
 
 ---
@@ -30,6 +30,14 @@ below documents exactly what changed and why).
 **Reviewed by the user, 2026-07-27**: Proposal 6 (inbound
 rate-limiting), surfaced while resolving §1.9/I7, **accepted as
 written**. All six proposals are now reviewed.
+
+**Added 2026-08-03, not yet reviewed**: Proposal 7 (long-lived
+integration branches need a documented workaround for this repo's
+squash-only/linear-history branch protection), discovered live while
+executing RA2 — recorded per the user's instruction to store the finding
+for later rather than leave it undocumented, ahead of the full `v2.0.0`
+release's own `proj/v2.0.0-bump` → `staging` promotion (Group R) hitting
+the same thing.
 
 None are yet applied to `docs/content/CLAUDE.md` itself — see "Applying
 these proposals" at the end of this file for that remaining step.
@@ -534,6 +542,240 @@ before it ships once instead of catching it in review each time.
 
 ---
 
+## Proposal 7 — Long-Lived Integration Branches Need an Exception to Squash-Only/Linear-History
+
+**Status: 🔲 Proposed, not yet reviewed** — added 2026-08-03, discovered
+live while executing RA2 (`ra2-merge-staging/index.md`, the
+`v2.0.0-alpha` release plan's `proj/v2.0.0-bump` → `staging` step).
+
+**Target**: new subsection `§18.5` (after existing §18.4, Git Standards
+— this is a branch/merge-strategy rule, not a release-deployment rule,
+so it belongs alongside the existing commit-philosophy rules rather than
+in §25 Release Policy).
+
+### Context
+
+F9 (`f9-proj-branch-protection/index.md`) added a repository ruleset
+requiring PRs (no direct pushes) on `proj/*` branches, mirroring
+`staging`/`main`'s existing protection. Checking that protection's exact
+shape while resolving RA2's own conflict (`gh api
+repos/.../rules/branches/...`) surfaced that both `staging` and
+`proj/v2.0.0-bump` share one repository-wide ruleset requiring
+`allowed_merge_methods: ["squash"]`, `required_linear_history`, and
+`non_fast_forward` (no force-push) — every merge between any two
+branches in this repository, including between two long-lived
+integration branches, is forced to be a squash commit.
+
+This has a structural consequence nothing in this project's docs
+anticipated: **squash merges never advance the git merge-base between
+the two branches involved.** Reconciling `proj/v2.0.0-bump` with
+`staging` (RA1 §1.11's T1/T2-inert decision meant they'd diverged on
+`apps/tamiyo_scroll/package.json`/`package-lock.json` and
+`apps/barrins_api/uv.lock`, from unrelated dependency bumps landing on
+each branch independently) required a "sync" PR (#47, mirroring the
+existing #40 precedent from v1.0.0-bump's own history) to resolve a real
+textual conflict. But because #47 squash-merged into
+`proj/v2.0.0-bump`, git's recorded merge-base with `staging` **stayed
+frozen** at the commit from *before either branch had diverged*
+(`9fa40bf`, 2026-07-25) — so the identical conflict reappeared
+immediately on the next comparison (RA2's own PR, checked via `gh pr
+view --json mergeable`), and would keep reappearing on every future
+comparison between these two branches for as long as they both touch the
+same lines, no matter how many times a sync PR "resolves" it. A second
+sync PR (#48) confirmed this: it squash-merged with **zero net diff**
+(content was already fully reconciled) and, as predicted, did not clear
+the conflict.
+
+**The actual fix** (used to unblock RA2): build the reconciliation
+branch starting **from the target branch** (`staging`) and merge the
+*source* branch (`proj/v2.0.0-bump`) into it, resolving the conflict
+once, so `staging` becomes a real git ancestor of the result — a PR from
+that branch back into `staging` then computes as a clean, trivial diff,
+because nothing on `staging`'s side needs reconciling against a stale
+base anymore. This only works one-directionally (it fixed the
+`proj/v2.0.0-bump` → `staging` direction; the reverse — syncing
+`staging`'s later changes back into `proj/v2.0.0-bump`, as PR #47/#48
+attempted — remains structurally unfixable under squash-only, since
+`proj/v2.0.0-bump` is not the branch actually being merged into GitHub's
+UI in that direction either way).
+
+### Alternatives
+
+1. **Leave it undocumented.** Whoever hits this next (the same
+   `proj/v2.0.0-bump` → `staging` promotion happens again for the full
+   `v2.0.0` release, per `index.md`'s Group R) re-derives the same
+   "why is this still conflicting after I just fixed it" confusion from
+   scratch.
+2. **Record the mechanism and the one-directional workaround** (build
+   from the target branch, not the source branch) as a documented rule —
+   without changing the branch-protection ruleset itself.
+3. **Carve out a ruleset exception** allowing real merge commits (not
+   squash) specifically between long-lived integration branches
+   (`proj/*` ↔ `staging`), which would let the merge-base actually
+   advance and prevent this class of conflict from recurring at all —
+   at the cost of `staging`'s/`proj/*`'s history no longer being fully
+   linear, and touches repo-wide merge-button settings, not just this
+   one pair of branches.
+
+### Trade-offs
+
+Option 1 costs nothing to write but guarantees the same debugging
+detour recurs at least once more this release cycle (the full `v2.0.0`'s
+own `proj/v2.0.0-bump` → `staging` promotion, Group R). Option 3 is the
+structurally cleaner fix (real ancestry, no recurring conflict at all)
+but is a repository-wide policy change the user explicitly declined to
+make when this was found live (2026-08-03) — "keep squash-syncing" was
+chosen over changing merge settings, matching this project's general
+preference (§39/§48, YAGNI) for not re-architecting infrastructure to
+solve a problem a documented workaround already handles. Option 2
+matches that decision: cheap, no infrastructure change, and turns a
+one-off discovery into a repeatable recipe.
+
+### Decision (proposed)
+
+Add `§18.5`: when reconciling two long-lived branches under this
+repository's squash-only/linear-history branch protection, **build the
+reconciliation branch starting from whichever branch is the merge
+*target*, merging the *source* branch into it** — never the reverse —
+so the target becomes a real ancestor of the result and the resulting PR
+computes as a clean diff instead of re-deriving the same conflict from a
+stale, frozen merge-base. Document plainly that squash merges do not
+advance the merge-base between the branches involved, so a conflict
+"resolved" by squash-merging into the *source* branch (e.g. syncing
+`staging`'s changes into `proj/v2.0.0-bump`) will **not** clear the
+corresponding conflict in the *opposite* direction (`proj/v2.0.0-bump`
+into `staging`) — these are two independent reconciliations under
+squash-only, not one.
+
+### Consequences
+
+Gives whoever runs the full `v2.0.0` release's own `proj/v2.0.0-bump` →
+`staging` promotion (Group R, not Group RA) a documented recipe instead
+of re-discovering this the same way RA2 did. Doesn't fix the underlying
+mechanism (still squash-only) — a future release could still hit
+one-off confusion the first time a *different* pair of long-lived
+branches needs reconciling, but at least this exact `proj/*` ↔ `staging`
+shape now has a written answer.
+
+---
+
+## Proposal 8 — Deletions Default to Soft-Delete (Archive), Not Physical Removal
+
+**Status: ✅ Accepted (2026-08-24)** — decided live in conversation while
+implementing S17, applied directly to `.claude/CLAUDE.md` the same day
+(unlike Proposals 2-7, still pending the ADR/merge pass) since the user
+explicitly asked for the constitution itself to be updated, not just this
+record — same treatment Proposal 1 already got.
+
+**Target**: new subsection `§11.8` (after existing §11.7 Pydantic
+schemas, before §12 BFF Architecture — a backend/DB-modeling convention,
+not a §51 privacy/retention rule). §11 already ends at §11.7, so this is
+a clean append; no renumbering.
+
+### Context
+
+Implementing S17 (`s17-card-log-matchup-evaluations/`) shipped
+`DELETE /card-tests/{id}` as a real SQL `DELETE` — and because
+`TSCardTestEvaluation.test_id` has `ondelete="CASCADE"`, deleting a card
+log silently, permanently destroyed every match-up evaluation logged
+against it, with no way back. The user flagged this as unacceptable and
+stated the general rule this project has never actually written down:
+**by default, every delete action in the application should be a
+disguised archive** — the record disappears from the user's active view,
+but stays in the database.
+
+An audit of every existing delete operation
+(`apps/barrins_api/app/api/tamiyo_scroll/`) found the same inconsistency
+already existed project-wide, not just in the new S17 code:
+
+- **Already soft-delete** (an `archived_at` column, list queries filter
+  it out): `TSPersonalDeck` (`personal_decks.py`), `TSMetaDeck`
+  (`meta_decks.py`), `TSSession` (`sessions.py`). Of these, only
+  `TSSession` has a working *restore* path
+  (`PATCH /sessions/{id}` with `SessionPatch.restore`) —
+  `TSPersonalDeck`/`TSMetaDeck` can be archived but never un-archived
+  today.
+- **Hard delete** (`session.delete(...)`, no soft-delete column at all):
+  `TSCardTest` + `TSCardTestEvaluation` (the S17 pair described above),
+  `TSMatch` (`matches.py`), `TSTeam` and its full cascade family
+  (`TSTeamMember`/`TSTeamDeckFlag`/`TSTeamDeckThread`/`TSTeamDeckMessage`,
+  all `ondelete="CASCADE"` off `ts_teams.id` — one `delete_team` call
+  today destroys rows in all four tables at once), and
+  `TSPersonalDecklistVersion` (`delete_decklist_version` — this one
+  carries a deliberate prior rationale, "Option G": the *version* is the
+  delete target, not the deck, cf.
+  `docs/tamiyo_scroll_tracker/00_plan_general.md`).
+
+### Alternatives
+
+1. **Status quo.** Keep deciding hard-delete-vs-soft-delete per table,
+   case by case, as today.
+2. **Blanket soft-delete default.** Every user-triggered delete action
+   sets an archival marker instead of removing the row; the row becomes
+   invisible to normal reads but stays in the database indefinitely.
+   Physical deletion becomes an internal-only operation (an admin tool, a
+   scheduled purge, or a §51 GDPR-driven data-subject-access deletion),
+   never a direct consequence of a user clicking "delete". A specific
+   table/action may still justify a real hard delete, but only as an
+   explicit, documented exception — not the unstated default it is today.
+3. **Same as 2, plus a time-boxed purge job** (e.g. archived rows expire
+   after 90 days).
+
+### Trade-offs
+
+Option 1 is exactly the inconsistency that just caused real data loss in
+S17 and will keep recurring as new features are built — no reason to
+expect it to self-correct. Option 2 guarantees no accidental data loss
+and gives one consistent mental model ("delete = archive"), at the cost
+of: every delete-reachable table needing an archive column, a migration,
+a filtered read path, and (a new requirement most tables don't meet
+today) a restore path; and cascading children needing to archive
+alongside their parent rather than being destroyed — a
+`ondelete="CASCADE"` foreign key can only express *delete*, not
+*archive*, so the Teams family (the deepest cascade chain in the schema)
+needs its own redesign, not just a bulk column addition. Option 3 invents
+a retention/purge schedule that §51 explicitly says not to add
+speculatively ("not before it is actually needed") — premature here,
+revisit only once §51's already-open retention question is actually
+forced by a real requirement (e.g. GDPR).
+
+### Decision (proposed)
+
+Option 2. Every user-triggered delete action defaults to soft-delete; a
+real hard delete requires an explicit, documented exception (a
+code-level comment/docstring stating why), never the unstated default.
+Two existing hard deletes were reviewed against this new default and
+resolved by the user the same day:
+
+- **`TSTeam` deletion** (`teams.py::delete_team`) — previously the one
+  intentional hard-delete exception in the codebase (an invite-code
+  re-entry confirmation gate). **Converts to archive**, no exception
+  kept — its cascade family (`TSTeamMember`/`TSTeamDeckFlag`/
+  `TSTeamDeckThread`/`TSTeamDeckMessage`) needs the same treatment.
+- **`TSPersonalDecklistVersion` deletion**
+  (`personal_decks.py::delete_decklist_version`) — **stays a hard-delete
+  exception**, per the pre-existing Option G rationale (the version, not
+  the deck, is deliberately the real delete target).
+
+### Consequences
+
+`TSCardTest`/`TSCardTestEvaluation` were converted the same day (new
+`archived_at` columns, migration `6cf95145f67e`, delete routes set
+`archived_at` instead of calling `session.delete`, list/report queries
+filter `archived_at.is_(None)`) — no restore path yet, matching
+`TSPersonalDeck`/`TSMetaDeck`'s current state rather than over-building
+ahead of the rest. The remaining conversions (`TSPersonalDeck`/
+`TSMetaDeck`'s missing restore path, `TSMatch`, and the Teams
+cascade-family redesign) are tracked as a new item,
+`s18-deletion-defaults-to-archive/`, not implemented in this pass — the
+scope (a schema-wide, cross-cutting change touching most of the Tamiyo
+Scroll domain) is comparable to S17 itself and needs its own pass. No
+purge/retention job is introduced by this proposal — archived data grows
+unbounded until §51's separate, still-open retention question is
+resolved; this is a deliberate non-goal here, not an oversight.
+
+---
+
 ## Applying these proposals
 
 **Reviewed by the user 2026-07-26 and 2026-07-27.** Outcome: Proposals
@@ -541,6 +783,11 @@ before it ships once instead of catching it in review each time.
 described in each ("What changed from the original proposal"). **All
 six proposals are now reviewed and accepted.** None are applied to
 `docs/content/CLAUDE.md` yet — that's still separate work, done here:
+
+**Proposal 8, added and accepted 2026-08-24**: unlike 2-7, applied
+directly to `.claude/CLAUDE.md` as the new `§11.8` the same day it was
+decided (see Proposal 8's own Status line for why) — not part of the
+batch below.
 
 1. Insert the new **subsections** — §13.6, §13.7 (both after existing
    §13.5), §23.4 (after §23.3, Proposal 6), §26.5 (after §26.4), §31.4

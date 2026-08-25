@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "barrins_project"
-version = "1.0.0"
+version = "2.0.0-alpha"
 authors = [
     { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
 ]
@@ -27,10 +27,13 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.140.13",
     "httpx>=0.28.1,<1.0",
+    # Streaming JSON parser -- lets the MTGJSON import consume AllPrintings.json
+    # (100k+ card rows) without buffering the whole document in memory.
+    "ijson>=3.5.1",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic[email]>=2.13.4",
-    "pydantic-settings>=2.14.2",
+    "pydantic-settings>=2.15.0",
     "python-jose>=3.5.0",
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.51",
@@ -49,10 +52,10 @@ test = [
 ]
 dev = [
     { include-group = "test" },
-    "alembic>=1.18.5",
+    "alembic>=1.19.1",
     "bandit[toml]>=1.9.4",
-    "ruff>=0.16.0",
-    "ty>=0.0.64",
+    "ruff>=0.16.2",
+    "ty>=0.0.69",
     "zest.releaser[recommended]>=9.9.1",
 ]
 

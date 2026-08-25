@@ -66,6 +66,19 @@ class SessionType(enum.StrEnum):
     training = "training"
 
 
+class MetagameRosterScope(enum.StrEnum):
+    """How `GET /meta-decks` filters the caller's roster (F10).
+
+    `game`: every roster entry whose owning personal deck shares the
+    active deck's `game`, same-name rows collapsed into one (default —
+    matches the single-roster-per-game behavior most users expect).
+    `personal_deck`: only entries created against the exact active deck.
+    """
+
+    game = "game"
+    personal_deck = "personal_deck"
+
+
 class CardGame(enum.StrEnum):
     """Card game a personal deck belongs to (S10) — lets ML training data
     be filtered to Magic decks only, while still keeping other games'
@@ -90,18 +103,37 @@ _game_result_column = Enum(GameResult, name="ts_game_result")
 
 
 class TSCardTest(Base):
-    """Individual feedback on a tested card (`cardTests[]` in the design).
+    """A logged decklist swap: one card removed, one card added
+    (`cardTests[]` in the design) (S16, GitHub issue #82).
 
-    `tester` is a free-text string (no FK to `users`) — allows crediting
-    a teammate without a Barrin account, cf.
-    docs/tamiyo_scroll_tracker/00_plan_general.md, Option E.
-    `opponent_deck_id` is nullable: the matchup is optional.
+    `removed_card_name`/`added_card_name` are free-text strings (no FK
+    into `mj_cards`) — optionally validated at write time against the
+    deck's current decklist / the card database, via
+    `TSUserSettings.validate_removed_card_in_decklist`/
+    `validate_added_card_exists` (both opt-in, default off).
+
+    S16 pivot: this table was originally "who tested which card"
+    (`tester`, `card_name`, cf.
+    docs/tamiyo_scroll_tracker/00_plan_general.md, Option E). Rows
+    created before the pivot keep their original values under the new
+    column names — per the accepted migration artifact, they are not
+    reinterpreted as "removed/added card" data.
+
+    S17 split (GitHub-issue-less, user draft note): this used to also
+    carry `opponent_deck_id`/`rating` directly. Those moved to
+    `TSCardTestEvaluation` (one log, many evaluations) — existing rows
+    were backfilled one evaluation each, carrying their old values
+    unchanged. `notes` here is the log's own overall note, independent of
+    any one evaluation's note.
+
+    Deletion = archiving (`archived_at`), never a SQL DELETE — Constitution
+    §11.8 (deletion defaults to archive), same pattern as
+    `TSPersonalDeck`/`TSMetaDeck`. Added after S17 first shipped with a
+    hard delete that cascaded to destroy every evaluation with no way
+    back — corrected the same day.
     """
 
     __tablename__ = "ts_card_tests"
-    __table_args__ = (
-        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_ts_card_tests_rating_range"),
-    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -118,15 +150,60 @@ class TSCardTest(Base):
         ForeignKey("ts_personal_decks.id", ondelete="CASCADE"),
         nullable=True,
     )
-    tester: Mapped[str] = mapped_column(String(120), nullable=False)
-    card_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    opponent_deck_id: Mapped[uuid.UUID | None] = mapped_column(
+    removed_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    added_card_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class TSCardTestEvaluation(Base):
+    """One match-up evaluation against a `TSCardTest` card log (S17).
+
+    Many per card log, addable only from the edit form. Unlike the old
+    flat `TSCardTest.opponent_deck_id` (nullable — the matchup was
+    optional), `opponent_deck_id` here is **required**: an evaluation is
+    specifically a match-up, so one without an opponent deck isn't
+    meaningful. `notes` is this evaluation's own note, independent of the
+    parent card log's overall `notes`.
+
+    Deletion = archiving (`archived_at`), never a SQL DELETE — Constitution
+    §11.8, same correction as `TSCardTest` above and for the same reason.
+    """
+
+    __tablename__ = "ts_card_test_evaluations"
+    __table_args__ = (
+        CheckConstraint(
+            "rating BETWEEN 1 AND 5", name="ck_ts_card_test_evaluations_rating_range"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("ts_meta_decks.id", ondelete="SET NULL"),
-        nullable=True,
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_card_tests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    opponent_deck_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_meta_decks.id", ondelete="CASCADE"),
+        nullable=False,
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -218,6 +295,17 @@ class TSMetaDeck(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # The personal deck this roster entry was created against (F10) — the
+    # precise per-deck association `GET /meta-decks` filters/scopes by.
+    # A roster deck fought by more than one of the owner's personal decks
+    # is represented as one row per personal deck (duplicate-and-allocate,
+    # see `_sync_opponent_deck_games` and the F10 backfill migration),
+    # never a many-to-many link — keeps this FK simple and always exact.
+    personal_deck_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_personal_decks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     tier: Mapped[Decimal] = mapped_column(
         Numeric(2, 1), nullable=False, default=Decimal("0"), server_default="0"
@@ -225,12 +313,12 @@ class TSMetaDeck(Base):
     category: Mapped[ArchetypeCategory] = mapped_column(
         Enum(ArchetypeCategory, name="ts_archetype_category"), nullable=False
     )
-    # Nullable, no backfill — inherited automatically (never user-picked)
-    # from whichever personal deck's game a meta deck is created against
-    # (match-logging "create opponent" flow, or the active personal deck
-    # on the roster quick-add form). A soft data tag for ML export
-    # filtering, not an enforced constraint: a meta deck can still be used
-    # against a personal deck of a different game, nothing blocks it.
+    # Inherited automatically (never user-picked) from `personal_deck_id`
+    # at creation time. Kept as its own denormalized column — always
+    # derivable via the FK join, but reading it directly avoids a join on
+    # every ML export query (F10) — rather than a required, independently
+    # settable field. Still nullable: a historical row can carry a NULL
+    # `game` if the personal deck it inherited from had none set yet.
     game: Mapped[CardGame | None] = mapped_column(
         Enum(CardGame, name="ts_card_game", create_type=False), nullable=True
     )
@@ -252,6 +340,18 @@ class TSMetaDeck(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    # F10 items 5/6 (same-name/same-game propagation, conflict tie-break)
+    # need "most recently updated" to mean something. Set explicitly by
+    # every write path (route + migration backfill/duplicate-and-allocate)
+    # rather than an ORM/DB `onupdate` trigger — the propagation write is
+    # a raw Core UPDATE across several rows at once, not a per-instance
+    # ORM assignment, so a column-level `onupdate` wouldn't reliably fire
+    # for it anyway.
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
@@ -380,6 +480,71 @@ class TSUserSettings(Base):
         ForeignKey("ts_personal_decks.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # F10: how GET /meta-decks filters the roster relative to the active
+    # deck. Defaults "game" (one roster per game) — matches the bug report
+    # exactly; switching to "personal_deck" needs no migration since every
+    # row already carries its exact owning deck via personal_deck_id.
+    metagame_roster_scope: Mapped[MetagameRosterScope] = mapped_column(
+        Enum(MetagameRosterScope, name="ts_metagame_roster_scope"),
+        nullable=False,
+        default=MetagameRosterScope.game,
+        server_default=MetagameRosterScope.game.value,
+    )
+    # S14 item 9: opted-in by default (new rows only — existing rows keep
+    # whatever explicit value they already have, same non-retroactive
+    # pattern as `data_shared` above). `auto_archive_decklist_version_gap`
+    # is only meaningful when the bool is true — see
+    # `services/tamiyo_scroll/session_auto_archive.py`.
+    auto_archive_stale_sessions: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    auto_archive_decklist_version_gap: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=2,
+        server_default="2",
+    )
+    # S15: defaults on for every account (2026-08-24 decision) — gates
+    # whether an expanded version shows its diff against the prior
+    # version instead of its full content (see
+    # services/tamiyo_scroll/decklist_diff.py).
+    show_decklist_version_diff: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    # S16: enforced at write time in app/api/tamiyo_scroll/card_tests.py.
+    # `validate_removed_card_in_decklist` defaults on (2026-08-24 decision,
+    # matching `show_decklist_version_diff`'s opt-out convention above) --
+    # `validate_added_card_exists` stays opt-in (default off): it resolves
+    # against `mj_cards` (Magic: The Gathering only, via
+    # `resolve_card_name`), so it would reject every card name for a
+    # non-Magic deck if it defaulted on.
+    validate_removed_card_in_decklist: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    validate_added_card_exists: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    # S16: gates both the matched-card-test comments on decklist diffs
+    # (VersionHistorySection) and the standalone unmatched-entries list
+    # on the current decklist (CurrentDecklistSection).
+    show_decklist_change_log: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
 
 
 class TSSession(Base):
@@ -391,9 +556,18 @@ class TSSession(Base):
     concept. Deletion = archiving (`archived_at`), same soft-delete pattern
     as `TSPersonalDeck`/`TSMetaDeck` — matches keep their `session_id`
     unchanged when their session is archived.
+
+    S14: `closed_at` is the original `ended_at` column, renamed — it's the
+    field Close/Reopen have always driven (and what the Status badge
+    reads), untouched in behavior. The new `started_at`/`ended_at` pair is
+    purely informational and freely user-editable, deliberately decoupled
+    from the Close/Reopen workflow state (S14, "track separately").
     """
 
     __tablename__ = "ts_sessions"
+    __table_args__ = (
+        CheckConstraint("hue BETWEEN 0 AND 359", name="ck_ts_sessions_hue_range"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -415,17 +589,33 @@ class TSSession(Base):
         Enum(SessionType, name="ts_session_type"), nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # S14: where the session was played (freeform, e.g. venue/city).
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
+    # S14: user-editable "when did this session actually start/end",
+    # backfilled from created_at/closed_at on migration. No workflow
+    # meaning — Close/Reopen never touch these.
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Close/Reopen workflow state — the pre-S14 `ended_at` column, renamed.
+    closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # S14 item 6: freeform per-session color, 0-359 degrees. Server-
+    # persisted (unlike the S12 localStorage display-pref pattern) since
+    # it's user-chosen identity data tied to one specific row.
+    hue: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class TSTeam(Base):
