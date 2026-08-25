@@ -25,7 +25,7 @@ const TAB_LABELS: Record<DemoTabKey, string> = {
  * `DecklistTab`/`SessionsTab` are the exact same components used by the real
  * app; `DemoModeProvider` is the only thing that differs from a normal
  * signed-in session. `DemoTeamsSection` is demo-only — the real "Teams" tab
- * navigates via `/app/team/*` routes, which don't exist under `/demo` (see
+ * navigates via `/team/*` routes, which don't exist under `/demo` (see
  * its own doc comment).
  */
 export function DemoPage() {

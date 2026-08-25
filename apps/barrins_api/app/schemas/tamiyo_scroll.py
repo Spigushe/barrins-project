@@ -1,6 +1,7 @@
 """Request schemas for the Tamiyo Scroll domain (Competitive MTG Tracking)."""
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +10,7 @@ from app.models.tamiyo_scroll import (
     CardGame,
     ExpectedLevel,
     GameResult,
+    MetagameRosterScope,
     SessionType,
 )
 
@@ -21,6 +23,13 @@ class UserSettingsUpdate(BaseModel):
     data_shared: bool | None = None
     receive_shared_data: bool | None = None
     active_personal_deck_id: uuid.UUID | None = None
+    metagame_roster_scope: MetagameRosterScope | None = None
+    auto_archive_stale_sessions: bool | None = None
+    auto_archive_decklist_version_gap: int | None = Field(default=None, ge=1)
+    show_decklist_version_diff: bool | None = None
+    validate_removed_card_in_decklist: bool | None = None
+    validate_added_card_exists: bool | None = None
+    show_decklist_change_log: bool | None = None
 
 
 class PersonalDeckCreate(BaseModel):
@@ -70,11 +79,11 @@ class MoxfieldImportRequest(BaseModel):
 class MetaDeckWrite(BaseModel):
     """Payload shared by POST and PUT /meta-decks — full replacement.
 
-    `personal_deck_id` is a creation-time-only hint, not a stored FK: on
-    create, its game is copied onto the new meta deck's own `game` (soft
-    inheritance, no selector, no enforced constraint — see
-    `TSMetaDeck.game`'s docstring). Ignored on update — a meta deck's
-    `game`, once set, isn't silently changed by a later edit.
+    `personal_deck_id` is required (F10) — every roster row now carries a
+    real, owner-validated FK to the personal deck it was created against;
+    it's a stored value, not a soft creation-time hint. Ignored on
+    update — a meta deck's owning deck, once set, isn't reassigned by a
+    later edit (moving it is a data-migration concern, not a form field).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -87,7 +96,7 @@ class MetaDeckWrite(BaseModel):
     presence: int = Field(default=0, ge=0)
     expected: ExpectedLevel = ExpectedLevel.as_expected
     tests_status: str | None = None
-    personal_deck_id: uuid.UUID | None = None
+    personal_deck_id: uuid.UUID
 
 
 class MatchWrite(BaseModel):
@@ -115,7 +124,13 @@ class MatchWrite(BaseModel):
 
 
 class SessionCreate(BaseModel):
-    """Payload for POST /sessions."""
+    """Payload for POST /sessions.
+
+    `started_at`/`ended_at`/`hue` mirror `SessionPatch`'s fields of the same
+    name (S14: freely client-suppliable, no workflow meaning) — the create
+    form reuses the same field set as edit so a session can be fully filled
+    in at creation instead of requiring a follow-up PATCH.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -123,35 +138,67 @@ class SessionCreate(BaseModel):
     type: SessionType
     personal_deck_id: uuid.UUID
     notes: str | None = None
+    location: str | None = Field(default=None, max_length=255)
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    hue: int | None = Field(default=None, ge=0, le=359)
 
 
 class SessionPatch(BaseModel):
     """Payload for PATCH /sessions/{id} — partial update.
 
-    `ended_at` is write-only-as-a-flag: `close`/`reopen` stamp or clear the
-    current time server-side; the field itself isn't client-suppliable as
-    an arbitrary timestamp — see the route. `reopen` wins if both are sent
-    in the same request (not expected from the frontend, which only ever
-    sends one at a time via separate actions).
+    `close`/`reopen` stamp or clear `closed_at` (the Close/Reopen workflow
+    state) with the current server time — that field itself isn't
+    client-suppliable as an arbitrary timestamp. `reopen` wins if both are
+    sent in the same request (not expected from the frontend, which only
+    ever sends one at a time via separate actions).
+
+    `started_at`/`ended_at` are unrelated to `close`/`reopen` (S14,
+    "track separately") — freely client-suppliable timestamps with no
+    workflow meaning, purely "when did this session actually start/end."
+
+    `restore` clears `archived_at`, mirroring `close`/`reopen`'s shape.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
     notes: str | None = None
+    location: str | None = Field(default=None, max_length=255)
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    hue: int | None = Field(default=None, ge=0, le=359)
     close: bool | None = None
     reopen: bool | None = None
+    restore: bool | None = None
 
 
 class CardTestWrite(BaseModel):
-    """Payload shared by POST and PUT /card-tests — full replacement."""
+    """Payload shared by POST and PUT /card-tests — full replacement.
+
+    S17: narrowed to the card log's own identity fields — the matchup/
+    rating fields that used to live here moved to
+    `CardTestEvaluationWrite`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     personal_deck_id: uuid.UUID
-    tester: str = Field(min_length=1, max_length=120)
-    card_name: str = Field(min_length=1, max_length=255)
-    opponent_deck_id: uuid.UUID | None = None
+    removed_card_name: str = Field(min_length=1, max_length=255)
+    added_card_name: str = Field(min_length=1, max_length=255)
+    notes: str | None = None
+
+
+class CardTestEvaluationWrite(BaseModel):
+    """Payload shared by POST and PUT /card-tests/{test_id}/evaluations —
+    full replacement (S17). `opponent_deck_id` is required here, unlike
+    the pre-S17 flat `CardTestWrite` field it replaces: an evaluation is
+    specifically a match-up.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    opponent_deck_id: uuid.UUID
     rating: int = Field(ge=1, le=5)
     notes: str | None = None
 

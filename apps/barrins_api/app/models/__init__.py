@@ -15,6 +15,7 @@ from app.database import Base
 from app.models._types import JSONBCompat, JsonValue, jsonb_column
 from app.models.base import IDUuidMixin, TimestampMixin
 from app.models.email_verification import EmailVerification
+from app.models.mtgjson import Card, MTGSet
 from app.models.scripture import (
     BSDeck,
     BSDeckBoard,
@@ -50,6 +51,7 @@ __all__ = [
     "BSStanding",
     "BSTournament",
     "Base",
+    "Card",
     "DecklistVersionSource",
     "EmailVerification",
     "ExpectedLevel",
@@ -57,6 +59,7 @@ __all__ = [
     "IDUuidMixin",
     "JSONBCompat",
     "JsonValue",
+    "MTGSet",
     "TSCardTest",
     "TSMatch",
     "TSMetaDeck",

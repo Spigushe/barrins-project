@@ -34,7 +34,9 @@ export async function expectSuiviBo3TabRendersFixtureData(
 export async function expectDecklistTabRendersFixtureData(
   view: RenderResult,
 ): Promise<void> {
-  await view.findByText('1 Aurelia, the Warleader')
+  // Qty and name render as separate table cells now (structured
+  // Commander/Library view, not one raw "<qty> <name>" text line).
+  await view.findByText('Aurelia, the Warleader')
   await view.findByText('Version 2')
-  await view.findByText('Tested cards — individual feedback')
+  await view.findByText('Tested cards — card log')
 }

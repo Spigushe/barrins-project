@@ -22,6 +22,7 @@
     {
       "id": "4259faaa-431d-4d0c-9b20-b70436558af4",
       "name": "Golgari Midrange",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "midrange",
       "decklist_notes": "Grindy value deck, watch out for edict effects.",
@@ -39,6 +40,7 @@
     {
       "id": "37c95738-f081-476b-a1ce-7a64e1549808",
       "name": "Izzet Spells",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "combo",
       "decklist_notes": "Storm-adjacent, race it or disrupt the graveyard.",
@@ -56,6 +58,7 @@
     {
       "id": "c5f81885-ffb5-4eea-b934-e1d3b578b1e2",
       "name": "Mono White Aggro",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 2,
       "category": "aggro",
       "decklist_notes": "Go wide, watch out for anthem effects.",
@@ -73,6 +76,7 @@
     {
       "id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
       "name": "Azorius Control",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 1,
       "category": "control",
       "decklist_notes": "Counterspells + card draw, close it out fast.",
@@ -90,6 +94,7 @@
     {
       "id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
       "name": "Gruul Stompy",
+      "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
       "tier": 2,
       "category": "aggro",
       "decklist_notes": "Big dumb creatures, out-value the top end.",
@@ -221,42 +226,65 @@
     {
       "id": "695248b4-a96a-4466-a184-9a05b6d688e1",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Lightning Helix",
-      "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
-      "rating": 5,
+      "removed_card_name": "Skewer the Critics",
+      "added_card_name": "Lightning Helix",
       "notes": "Great removal vs control matchups, also closes games.",
-      "created_at": "2026-07-10T10:00:00+00:00"
+      "created_at": "2026-07-10T10:00:00+00:00",
+      "evaluations": [
+        {
+          "id": "1f0f6f2e-6b1a-4c3e-9c2a-2f6b1a4c3e9c",
+          "test_id": "695248b4-a96a-4466-a184-9a05b6d688e1",
+          "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
+          "rating": 5,
+          "notes": "Great removal vs control matchups, also closes games.",
+          "created_at": "2026-07-10T10:00:00+00:00"
+        }
+      ]
     },
     {
       "id": "82a07208-249c-4475-958b-6a30c172c149",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Wear // Tear",
-      "opponent_deck_id": null,
-      "rating": 4,
+      "removed_card_name": "Galvanic Blast",
+      "added_card_name": "Wear // Tear",
       "notes": "Flexible artifact/enchantment removal, sideboard-only feel.",
-      "created_at": "2026-07-11T10:00:00+00:00"
+      "created_at": "2026-07-11T10:00:00+00:00",
+      "evaluations": []
     },
     {
       "id": "2a46690c-c979-4fab-b4fd-828d25e777ef",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Naya",
-      "card_name": "Boros Charm",
-      "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
-      "rating": 3,
+      "removed_card_name": "Searing Blaze",
+      "added_card_name": "Boros Charm",
       "notes": "Fine but rarely closes the game alone.",
-      "created_at": "2026-07-12T10:00:00+00:00"
+      "created_at": "2026-07-12T10:00:00+00:00",
+      "evaluations": [
+        {
+          "id": "3e8f6f2e-6b1a-4c3e-9c2a-2f6b1a4c3e3e",
+          "test_id": "2a46690c-c979-4fab-b4fd-828d25e777ef",
+          "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
+          "rating": 3,
+          "notes": "Fine but rarely closes the game alone.",
+          "created_at": "2026-07-12T10:00:00+00:00"
+        }
+      ]
     },
     {
       "id": "3d54df36-16b1-4230-9798-da1602640e98",
       "personal_deck_id": "f36f82f5-5435-4053-b0ff-353bb4a5e293",
-      "tester": "Ravi",
-      "card_name": "Sunset Pyramid",
-      "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
-      "rating": 2,
+      "removed_card_name": "Chained to the Rocks",
+      "added_card_name": "Sunset Pyramid",
       "notes": "Too slow against faster aggro mirrors.",
-      "created_at": "2026-07-13T10:00:00+00:00"
+      "created_at": "2026-07-13T10:00:00+00:00",
+      "evaluations": [
+        {
+          "id": "4d54df36-16b1-4230-9798-da1602640e44",
+          "test_id": "3d54df36-16b1-4230-9798-da1602640e98",
+          "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
+          "rating": 2,
+          "notes": "Too slow against faster aggro mirrors.",
+          "created_at": "2026-07-13T10:00:00+00:00"
+        }
+      ]
     }
   ],
 
@@ -304,9 +332,13 @@
       "name": "Store Championship",
       "type": "tournament",
       "notes": "Local store championship, 4 rounds Swiss.",
+      "location": "Toronto, ON",
       "created_at": "2026-07-29T16:00:00+00:00",
+      "started_at": "2026-07-29T16:00:00+00:00",
       "ended_at": null,
-      "archived_at": null
+      "closed_at": null,
+      "archived_at": null,
+      "hue": 210
     }
   ],
 

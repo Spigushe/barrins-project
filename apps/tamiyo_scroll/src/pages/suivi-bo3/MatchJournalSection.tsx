@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useDecklistVersions } from '@/hooks/useDecklistVersions'
 import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
-import { useMetaDecks } from '@/hooks/useMetaDecks'
+import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
 import { useSessions } from '@/hooks/useSessions'
 import type { GameResult, Match, Session } from '@/schemas/tamiyoScroll'
@@ -10,16 +10,20 @@ import {
   formatDate,
   GAME_RESULT_BORDER_CLASS,
   GAME_RESULT_LABELS,
-  SESSION_TYPE_BADGE_VARIANT,
   SESSION_TYPE_LABELS,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { personalDeckNeedsSetup, PersonalDeckSetupControl } from '@/components/layout/PersonalDeckSetupControl'
+import {
+  personalDeckNeedsSetup,
+  PersonalDeckSetupControl,
+} from '@/components/layout/PersonalDeckSetupControl'
+import { SessionTypeBadge } from '@/components/session/SessionTypeBadge'
 import {
   draftFromMatch,
   MatchFormFields,
@@ -57,16 +61,17 @@ const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'war
   draw: 'warning',
 }
 
-/** Session tag, colored by session type (S9) — same mapping as the
- * Sessions tab (`SESSION_TYPE_BADGE_VARIANT`). Falls back to the default
- * badge variant if the session isn't in the (non-archived) list, e.g. an
- * archived session a historical match still points to. */
+/** Session tag, colored by the session's hue (S14) if set, falling back to
+ * its type (S9, same mapping as the Sessions tab's
+ * `SESSION_TYPE_BADGE_VARIANT`). The session lookup includes archived
+ * sessions (S14 auto-archive makes this common now), so a historical
+ * match's tag still resolves instead of falling back to "?". */
 function SessionBadge({ session }: { session: Session | undefined }) {
   if (!session) return <Badge>?</Badge>
   return (
-    <Badge variant={SESSION_TYPE_BADGE_VARIANT[session.type]}>
+    <SessionTypeBadge session={session}>
       {SESSION_TYPE_LABELS[session.type]}: {session.name}
-    </Badge>
+    </SessionTypeBadge>
   )
 }
 
@@ -75,13 +80,24 @@ export function MatchJournalSection() {
   const { data: matches } = useMatches(activeDeckId)
   const { data: personalDecks } = usePersonalDecks()
   const { data: metaDecks } = useMetaDecks()
-  const { data: sessions } = useSessions(activeDeckId)
+  // A historical match can point at a roster entry the owner has since
+  // archived (or, for a shared match, one collapsed away when a same-name
+  // own entry appeared later) — the default query excludes archived rows
+  // so the edit form's picker never offers them, but resolving *display*
+  // names for the journal needs to see them too, to tell "deleted roster
+  // entry" apart from a genuinely broken reference.
+  const { data: metaDecksIncludingArchived } = useMetaDecks({ includeArchived: true })
+  // Include archived sessions (S14 auto-archive makes them common) — same
+  // "resolve display data even for a since-archived row" precedent as
+  // `metaDecksIncludingArchived` above.
+  const { data: sessions } = useSessions(activeDeckId, true)
   const updateMatch = useUpdateMatch()
   const deleteMatch = useDeleteMatch()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<MatchDraft | null>(null)
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Match | null>(null)
   const { data: editingDeckVersions } = useDecklistVersions(
     editDraft?.personalDeckId ?? null,
   )
@@ -90,7 +106,11 @@ export function MatchJournalSection() {
     return personalDecks?.find((deck) => deck.id === id)?.name ?? '?'
   }
   function opponentDeckName(id: string) {
-    return metaDecks?.find((deck) => deck.id === id)?.name ?? '?'
+    const active = resolveMetaDeckOption(metaDecks, id)
+    if (active) return active.name
+    const archived = resolveMetaDeckOption(metaDecksIncludingArchived, id)
+    if (archived) return 'Deleted deck'
+    return '?'
   }
   function sessionById(id: string) {
     return sessions?.find((session) => session.id === id)
@@ -229,7 +249,7 @@ export function MatchJournalSection() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        void deleteMatch.mutateAsync(match.id)
+                        setPendingDelete(match)
                       }}
                     >
                       Delete
@@ -294,6 +314,25 @@ export function MatchJournalSection() {
           </DialogContent>
         )}
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingDelete(null)
+        }}
+        title={
+          pendingDelete
+            ? `Delete ${personalDeckName(pendingDelete.personal_deck_id)} vs ${opponentDeckName(pendingDelete.opponent_deck_id)}?`
+            : ''
+        }
+        description="It will disappear from the match log. This can't be undone."
+        confirmDisabled={deleteMatch.isPending}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          void deleteMatch.mutateAsync(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </Card>
   )
 }

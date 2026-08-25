@@ -5,10 +5,10 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — added 2026-07-26 (see F8); scope widened 2026-07-30 (§1.10) | / |
+| **Initial date** | 2026-08-05 | Core pipeline done same day |
+| **Status** | ✅ **Done** — core pipeline 2026-08-05, chunked-upsert perf fix 2026-08-07, scheduled-refresh mechanism 2026-08-13/2026-08-25 | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
-| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
+| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocked S4 (done 2026-08-14), and (added 2026-07-30, §1.10) **T3** (transitively T6) — both unblocked, T3 done 2026-08-07. No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
 ---
 
@@ -101,3 +101,28 @@ S4-only.
 - A test asserting a known multi-face fixture card's per-face type data
   round-trips correctly — this is the data S4's "face A Land" rule
   depends on, so it needs its own explicit regression coverage.
+
+## Implementation note (as shipped vs. this page's original scope)
+
+- **Image source**: Scryfall's image API, keyed by `scryfall_id` (the
+  card-image escalation this page flagged as needing its own decision) —
+  a disk-cached proxy (`GET /cards/{scryfall_id}/image`), not MTGJSON
+  itself. Wiped on every re-import since `scryfall_id` can shift.
+- **Face-A-Land rule**: **not implemented** — S4 shipped without it (see
+  that page's own gap list); per-face type storage exists on `Card` but
+  the dedicated rule this page called for was never built.
+- **Scheduled refresh**: `MTGJSON_IMPORT_TOKEN`-gated service-auth path
+  (`verify_mtgjson_or_admin`) alongside the admin-JWT gate, plus a
+  production-only daily 04:00 UTC systemd timer (`mtgjson_import_
+  scheduler` Ansible role) — VPS-hosted, not CI-triggered, following T8's
+  scheduled-job precedent as this page anticipated.
+- **T6 extension (2026-08-25)**: `Card` gained `text`/`keywords`/
+  `power`/`toughness`/`loyalty` columns, opportunistically added via this
+  same importer for Karn Tablets' feature-engineering pipeline — nullable,
+  backfilled by re-running `POST /mtgjson/import`.
+- **Admin progress visibility**: `GET /mtgjson/import/status` (admin-only,
+  reads a new `MTGJSONImportRun` log — `running`/`succeeded`/`failed` plus
+  `error_message` on failure) was added beyond this page's original Done
+  statement, alongside the already-scoped public `GET /mtgjson/status`.
+- **Price data**: `AllPrices.json`/`GET /cards/{id}/prices` deliberately
+  out of scope — not built, not currently planned.

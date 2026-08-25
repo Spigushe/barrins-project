@@ -5,11 +5,15 @@ import { emptyMatchDraft, MatchFormFields } from './MatchForm'
 
 const createMetaDeckMutateAsync = vi.fn()
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useCreateMetaDeck: () => ({ mutateAsync: createMetaDeckMutateAsync }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useCreateMetaDeck: () => ({ mutateAsync: createMetaDeckMutateAsync }),
+  }
+})
 
-let sessions: { id: string; name: string; ended_at: string | null }[] = []
+let sessions: { id: string; name: string; closed_at: string | null }[] = []
 const createSessionMutateAsync = vi.fn()
 
 vi.mock('@/hooks/useSessions', () => ({
@@ -74,6 +78,7 @@ describe('MatchFormFields — opponent deck field', () => {
       presence: 0,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: 'deck-mine',
     })
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ opponentDeckId: 'deck-new' }),
@@ -83,7 +88,7 @@ describe('MatchFormFields — opponent deck field', () => {
 
 describe('MatchFormFields — session field', () => {
   it('selects an existing session, same combobox shape as the opponent field', async () => {
-    sessions = [{ id: 'session-1', name: 'RC Toronto 2026', ended_at: null }]
+    sessions = [{ id: 'session-1', name: 'RC Toronto 2026', closed_at: null }]
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(
@@ -140,8 +145,8 @@ describe('MatchFormFields — session field', () => {
 
   it('does not offer a closed session as selectable, but still shows its name if already assigned', async () => {
     sessions = [
-      { id: 'session-open', name: 'Open Session', ended_at: null },
-      { id: 'session-closed', name: 'Closed Session', ended_at: '2026-07-01T00:00:00Z' },
+      { id: 'session-open', name: 'Open Session', closed_at: null },
+      { id: 'session-closed', name: 'Closed Session', closed_at: '2026-07-01T00:00:00Z' },
     ]
     const onChange = vi.fn()
     const user = userEvent.setup()

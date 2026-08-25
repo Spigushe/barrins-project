@@ -46,6 +46,8 @@ All routes require an authenticated user (`user`).
 | `POST` | `/tamiyo-scroll/personal-decks/{id}/versions/import-moxfield` | Import a Moxfield decklist |
 | `DELETE` | `/tamiyo-scroll/personal-decks/{id}/versions/{versionId}` | Deletes a version |
 | `GET` | `/tamiyo-scroll/personal-decks/{id}/decklist-view` | Current decklist colored by test feedback |
+| `GET` | `/tamiyo-scroll/personal-decks/{id}/versions/{versionId}` | Structured content of one specific past version |
+| `GET` | `/tamiyo-scroll/personal-decks/{id}/versions/{versionId}/diff` | Card-level diff against the immediately-prior version |
 | `GET`/`POST` | `/tamiyo-scroll/meta-decks` | Opponent roster (tracked metagame decks) |
 | `PUT`/`DELETE` | `/tamiyo-scroll/meta-decks/{id}` | Update / archive a metagame deck |
 | `GET`/`POST` | `/tamiyo-scroll/matches` | Match log (BO3) |

@@ -55,7 +55,7 @@ the user out (purge + redirect to `/login`) if the refresh also fails.
 
 | Option | Mechanism | Advantages | Disadvantages |
 | --- | --- | --- | --- |
-| **A (chosen)** | Dedicated React Router routes (`/app/metagame`, `/app/suivi-bo3`, `/app/decklist`) | Shareable URL, working browser back button, consistent with `react-router` being present in the mandated stack | The prototype handled the active tab as plain React state — a minor, accepted deviation, UX improvement |
+| **A (chosen)** | Dedicated React Router routes (`/metagame`, `/tracker`, `/decklist`, originally under an `/app` prefix — flattened to the top level 2026-08-24) | Shareable URL, working browser back button, consistent with `react-router` being present in the mandated stack | The prototype handled the active tab as plain React state — a minor, accepted deviation, UX improvement |
 | B | Local React state (`activeTab`) without routing | Faithful to the prototype | `react-router`, mandated by the constitution, would then have no real usage in the app |
 
 **Choice: A**.
@@ -169,14 +169,22 @@ src/
 
 ## Frontend route map
 
+Originally shipped under an `/app` prefix (`/app/metagame`, `/app/suivi-bo3`,
+`/app/decklist`); flattened to the top level 2026-08-24 — see `App.tsx`'s
+`AppPrefixRedirect` for the compatibility redirect kept for old `/app/*`
+links. This table only lists the routes from this doc's original scope
+(login/verify-email/metagame/decklist); later items (S1 tracker rename,
+S14 sessions, S2 teams, S6 admin metrics) added more routes not reflected
+here — see `App.tsx` for the authoritative current list.
+
 | Route | Page | Protection |
 | --- | --- | --- |
 | `/login` | `LoginPage` (login/signup toggle) | Public |
 | `/verify-email` | `VerifyEmailPage` | Public |
-| `/app/metagame` | `MetagameTab` | Authenticated |
-| `/app/suivi-bo3` | `SuiviBo3Tab` | Authenticated |
-| `/app/decklist` | `DecklistTab` | Authenticated |
-| `/` | Redirect → `/app/metagame` if authenticated, else `/login` | — |
+| `/metagame` | `MetagameTab` | Authenticated |
+| `/tracker` | `SuiviBo3Tab` | Authenticated |
+| `/decklist` | `DecklistTab` | Authenticated |
+| `/` | Redirect → `/tracker` if authenticated, else `/login` | — |
 
 `ProtectedRoute` redirects to `/login` if there's no valid `access_token`.
 

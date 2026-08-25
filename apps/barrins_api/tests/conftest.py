@@ -33,6 +33,7 @@ from app.config import settings
 from app.database import Base
 from app.database.session import get_db
 from app.main import app
+from app.services.scripture.card_resolver import invalidate_name_cache
 from tests.helpers import ensure_test_db_exists
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,20 @@ def _stable_test_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings.base, "require_email_verification", True)
     monkeypatch.setattr(settings.base, "smtp_host", None)
     monkeypatch.setattr(settings.base, "frontend_base_url", "http://localhost:5173")
+
+
+@pytest.fixture(autouse=True)
+def _reset_card_name_cache():
+    """Resets `card_resolver`'s process-local name cache before each test.
+
+    That cache (see its module docstring) is a plain module-level global,
+    not scoped to a request or a DB transaction — once any test builds it
+    against an empty/partial `cards` table, it silently stays "built" and
+    stale for every later test sharing this process, however unrelated
+    (a card added by a later test's own fixtures would never be found).
+    Rebuilding it fresh per test keeps tests order-independent.
+    """
+    invalidate_name_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -141,3 +156,28 @@ async def client(db_connection: AsyncConnection) -> AsyncGenerator[AsyncClient]:
     ) as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# MTGJSON import-progress tracker — redirected onto the test connection
+# ---------------------------------------------------------------------------
+@pytest.fixture()
+def mtgjson_tracker_uses_test_db(
+    monkeypatch: pytest.MonkeyPatch, db_connection: AsyncConnection
+) -> None:
+    """Points `_ImportRunTracker` at this test's connection, not the real DB.
+
+    `app/services/mtgjson/importer.py`'s `_ImportRunTracker` deliberately
+    writes through its own session, independent of the `db_session`/
+    `client` request session, via `app.database.connection.AsyncSessionLocal`
+    -- that's bound to the real per-environment database (e.g. dev), not
+    `_TEST_DB_URL`. Without this, any test that imports MTGJSON data would
+    silently write real, uncommitted-forever rows to the live dev database
+    instead of the isolated, rolled-back test one. Used by every test
+    module that calls `import_all_printings` (`test_mtgjson.py`,
+    `test_mtgjson_import_status.py`), via `pytestmark`.
+    """
+    monkeypatch.setattr(
+        "app.services.mtgjson.importer.AsyncSessionLocal",
+        async_sessionmaker(bind=db_connection, expire_on_commit=False),
+    )

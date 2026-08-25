@@ -1,6 +1,7 @@
 """Shared pytest fixtures for the Tamiyo Scroll domain tests."""
 
 import pytest
+from httpx import AsyncClient
 
 from app.core.security import create_access_token, hash_password
 from app.models.user import User
@@ -20,6 +21,36 @@ def _claims(user: User) -> dict[str, str | int]:
 def auth_headers(user: User) -> dict[str, str]:
     token = create_access_token(_claims(user))
     return {"Authorization": f"Bearer {token}"}
+
+
+async def create_active_personal_deck(
+    client: AsyncClient,
+    user: User,
+    name: str = "My Deck",
+    *,
+    game: str = "magic",
+    category: str = "midrange",
+) -> dict:
+    """Creates a personal deck and selects it as the caller's active deck
+    (F10: `GET /meta-decks` needs an active deck to resolve any scope) —
+    mirrors what `PersonalDeckSelector.createAndSelect` does on the
+    frontend, since the backend itself never auto-selects on create.
+    """
+    headers = auth_headers(user)
+    resp = await client.post(
+        f"{BASE}/personal-decks",
+        json={"name": name, "game": game, "category": category},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    deck = resp.json()
+    settings_resp = await client.patch(
+        f"{BASE}/me/settings",
+        json={"active_personal_deck_id": deck["id"]},
+        headers=headers,
+    )
+    assert settings_resp.status_code == 200
+    return deck
 
 
 @pytest.fixture()

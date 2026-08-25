@@ -13,7 +13,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   if (isLoading) return null
 
   if (currentUser?.role !== 'admin') {
-    return <Navigate to="/app/metagame" replace />
+    return <Navigate to="/tracker" replace />
   }
 
   return children

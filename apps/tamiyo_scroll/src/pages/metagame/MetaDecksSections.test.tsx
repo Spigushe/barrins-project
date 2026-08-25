@@ -22,10 +22,11 @@ vi.mock('@/contexts/active-deck-context', () => ({
 }))
 
 const archiveDeckMutateAsync = vi.fn()
+const createDeckMutateAsync = vi.fn()
 
 vi.mock('@/hooks/useMetaDecks', () => ({
   useMetaDecks: () => ({ data: decks }),
-  useCreateMetaDeck: () => ({ mutateAsync: vi.fn() }),
+  useCreateMetaDeck: () => ({ mutateAsync: createDeckMutateAsync }),
   useUpdateMetaDeck: () => ({ mutateAsync: vi.fn() }),
   useArchiveMetaDeck: () => ({ mutateAsync: archiveDeckMutateAsync }),
 }))
@@ -81,6 +82,43 @@ describe('MetaDecksRosterSection — delete confirmation', () => {
 
     expect(archiveDeckMutateAsync).not.toHaveBeenCalled()
     expect(screen.queryByText('Delete "Boros Aggro"?')).not.toBeInTheDocument()
+  })
+})
+
+// F10: the "add roster entry" form passes the active deck's id, and
+// pre-fills tier/archetype when the typed name matches an existing entry.
+describe('MetaDecksRosterSection — add form', () => {
+  beforeEach(() => {
+    activeDeckState.canEdit = true
+    createDeckMutateAsync.mockClear()
+  })
+
+  afterEach(() => {
+    activeDeckState.canEdit = false
+  })
+
+  it('includes the active deck id in the create payload', async () => {
+    const user = userEvent.setup()
+    render(<MetaDecksRosterSection />)
+
+    await user.type(screen.getByPlaceholderText('Opponent deck name'), 'Grixis Control')
+    await user.click(screen.getByRole('button', { name: '+' }))
+
+    expect(createDeckMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Grixis Control', personal_deck_id: 'deck-1' }),
+    )
+  })
+
+  it('pre-fills tier/archetype when the typed name matches an existing row', async () => {
+    const user = userEvent.setup()
+    render(<MetaDecksRosterSection />)
+
+    await user.type(screen.getByPlaceholderText('Opponent deck name'), 'Boros Aggro')
+    await user.click(screen.getByRole('button', { name: '+' }))
+
+    expect(createDeckMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Boros Aggro', tier: 0.5, category: 'aggro' }),
+    )
   })
 })
 

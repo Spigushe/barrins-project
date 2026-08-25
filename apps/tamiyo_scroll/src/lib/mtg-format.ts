@@ -1,6 +1,9 @@
+import type { CSSProperties } from 'react'
 import type {
   ArchetypeCategory,
   CardGame,
+  DecklistCardCategory,
+  DecklistCardDiffStatus,
   DecklistLineStatus,
   DecklistVersionSource,
   ExpectedLevel,
@@ -38,6 +41,25 @@ export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
 export const SESSION_TYPE_BADGE_VARIANT: Record<SessionType, 'tournament' | 'success'> = {
   tournament: 'tournament',
   training: 'success',
+}
+
+/**
+ * S14 item 6: a session's freeform hue (0-359), when set, replaces
+ * `SESSION_TYPE_BADGE_VARIANT`'s type-based color on every session tag in
+ * the app (Sessions tab row/summary, archived-sessions list, Match
+ * journal tag — see `SessionTypeBadge`). `null` means no override —
+ * callers fall back to the type-based variant.
+ */
+export function sessionHueBadgeStyle(hue: number | null): CSSProperties | undefined {
+  if (hue === null) return undefined
+  return {
+    backgroundColor: `hsl(${hue.toString()} 70% 50% / 0.18)`,
+    borderColor: `hsl(${hue.toString()} 70% 45%)`,
+    // Bright text, not dark: the app is dark-theme-only (index.css), so a
+    // low lightness here (previously 25%) was reading as near-invisible
+    // against the page background regardless of hue.
+    color: `hsl(${hue.toString()} 75% 75%)`,
+  }
 }
 
 export const ARCHETYPE_TEXT_CLASS: Record<ArchetypeCategory, string> = {
@@ -173,6 +195,7 @@ export const DECKLIST_LINE_STATUS_LABELS: Record<DecklistLineStatus, string> = {
   rejected: 'Rejected',
   in_test: 'In test',
   neutral: 'Neutral',
+  pending: 'Pending',
 }
 
 export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string> = {
@@ -180,6 +203,7 @@ export const DECKLIST_LINE_STATUS_TEXT_CLASS: Record<DecklistLineStatus, string>
   rejected: 'text-destructive',
   in_test: 'text-warning',
   neutral: 'text-foreground',
+  pending: 'text-info',
 }
 
 /**
@@ -193,9 +217,41 @@ export const DECKLIST_LINE_STATUS_BG_CLASS: Record<DecklistLineStatus, string> =
   rejected: 'bg-destructive',
   in_test: 'bg-warning',
   neutral: 'bg-foreground',
+  pending: 'bg-info',
+}
+
+/** Section header labels for a decklist's type-grouped card list (e.g. "Creatures (14)" — the count is appended by the component, not here). */
+export const DECKLIST_CARD_CATEGORY_LABELS: Record<DecklistCardCategory, string> = {
+  planeswalker: 'Planeswalkers',
+  battle: 'Battles',
+  creature: 'Creatures',
+  instant: 'Instants',
+  sorcery: 'Sorceries',
+  artifact: 'Artifacts',
+  enchantment: 'Enchantments',
+  land: 'Lands',
+  other: 'Other',
 }
 
 export const DECKLIST_VERSION_SOURCE_LABELS: Record<DecklistVersionSource, string> = {
   manual: 'Manual entry',
   moxfield_import: 'Moxfield import',
+}
+
+/** S15: labels for a card's status in a version-vs-prior-version diff. */
+export const DECKLIST_CARD_DIFF_STATUS_LABELS: Record<DecklistCardDiffStatus, string> = {
+  added: 'Added',
+  removed: 'Removed',
+  unchanged: 'Unchanged',
+  quantity_changed: 'Qty changed',
+}
+
+export const DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS: Record<
+  DecklistCardDiffStatus,
+  string
+> = {
+  added: 'text-success',
+  removed: 'text-destructive',
+  unchanged: 'text-foreground',
+  quantity_changed: 'text-warning',
 }
