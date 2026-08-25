@@ -3,10 +3,15 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0-alpha.2] - 2026-08-25
 
 ### Added
 
+- Metagame roster scoped to the active personal deck (F10): a new
+  "Store roster decks per game" switch (`AccountSettingsDialog`) toggles
+  between one shared roster per game (default) and a roster scoped to
+  just the active personal deck — the Deck roster and Expected metagame
+  sections follow whichever is selected.
 - Decklist version history — view past content + diff (S15):
   `VersionHistorySection` becomes expand-in-place — clicking a version
   shows its full structured content (new shared `DecklistViewContent`,
@@ -110,6 +115,9 @@ section of the docs site for details.
   match-logging session picker now read `closed_at`. A new, separate
   `ended_at` is purely informational and freely editable, independent
   of Close/Reopen.
+- The "Team de test" section is dropped from `AccountSettingsDialog` —
+  Teams itself (`TeamPage`, `TeamDeckSelector`, etc.) is unaffected, only
+  this redundant entry point is removed.
 
 ### Fixed
 
@@ -117,6 +125,13 @@ section of the docs site for details.
   the "Validate added card exists" setting (S16, off by default) — it
   was flagging every non-Magic card name for decks that never opted
   into that validation.
+- `useMetaDecks`' create/update/archive mutations now invalidate the
+  matches cache too (F10) — a roster change can shift which opponent id
+  a cached match should resolve against.
+- `demo/api/metaDecks.ts`'s `createMetaDeck` mock now sets `merged_ids`
+  (F10), fixing a `tsc -b` break introduced by the new required field.
+- Session hue badge text color adjusted for readability in dark theme
+  (`lib/mtg-format.ts`).
 
 ## [2.0.0-alpha] - 2026-08-03
 

@@ -3,10 +3,47 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0-alpha.2] - 2026-08-25
 
 ### Added
 
+- MTGJSON card/set reference-data pipeline (S8): `MTGSet`/`Card` models
+  (with a companion `MTGJSONImportRun` progress-log table), an idempotent
+  `POST /mtgjson/import` (admin JWT or the new scheduled-refresh service
+  token below) that downloads and upserts MTGJSON's `AllPrintings.json`,
+  `GET /mtgjson/import/status` (admin-only: the most recent run's
+  `running`/`succeeded`/`failed` state — admin-gated since a failure's
+  `error_message` can include internal exception text) and public `GET
+  /mtgjson/status` (last import time, row counts), `GET /sets/*`, `GET
+  /cards/by-name/{name}` reads. Feeds `app/services/scripture/
+  card_resolver.py`'s card-name resolution, used directly by S4's
+  decklist view and S16/S17's card-test validation. Price data
+  (`AllPrices.json`) is deliberately out of scope for this pass.
+- `MTGJSON_IMPORT_TOKEN`-gated service-auth path
+  (`verify_mtgjson_or_admin`, `app/dependencies/service_auth.py`)
+  alongside `POST /mtgjson/import`'s existing admin-JWT gate, so the new
+  production-only daily 04:00 UTC systemd timer (`mtgjson_import_
+  scheduler` Ansible role, `ops/my-server/`) can trigger the refresh
+  without a human admin session.
+- `Card` gains `text`/`keywords`/`power`/`toughness`/`loyalty` columns
+  (T6) — oracle text and combat stats MTGJSON's source data already has
+  but S8's importer didn't originally map, needed by Karn Tablets'
+  clustering/feature-engineering pipeline. Nullable; backfilled for every
+  card by re-running the existing idempotent `POST /mtgjson/import`, no
+  new pipeline required.
+- **Breaking**: metagame roster scoped to the active personal deck
+  (F10). `TSMetaDeck` gains a required `personal_deck_id` FK (migration
+  backfills existing rows, duplicating any roster deck fought by more
+  than one personal deck), and a new per-user `metagame_roster_scope`
+  setting (`game`/`personal_deck`, defaults `game`) exposed via `GET`/
+  `PATCH /me/settings`, so the Deck roster and Expected metagame stop
+  leaking across unrelated decks/games. `_sync_opponent_deck_games`
+  reworked to duplicate-and-allocate instead of overwriting a
+  differently-owned opponent row in place; `build_merged_view` gains a
+  separate `filter_meta_decks_by_personal_deck` opt-in so existing
+  full-roster callers (stats, PDF report) are unaffected. Also fixes a
+  shared (foreign) roster row's `game` not being derived from the
+  sharer's own deck.
 - Decklist version history — view past content + diff (S15):
   `GET .../personal-decks/{id}/versions/{version_id}` returns the same
   structured `ResponseDecklistView` as the existing latest-version

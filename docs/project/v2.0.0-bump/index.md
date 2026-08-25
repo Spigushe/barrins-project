@@ -364,6 +364,27 @@ with prior deliberate design decisions were resolved by the user the same
 day: Team deletion converts to archive (dropping its "intentional
 exception" status); decklist version deletion stays a hard-delete
 exception, per the existing Option G rationale.
+**2026-08-25**: a second early alpha release scoped — **§1.12/new Group
+RB** — cutting S4, S8 (both deferred out of `v2.0.0-alpha`), and
+S13–S17 as `v2.0.0-alpha.2`. Unlike alpha1, `feat/tamiyo-scroll-alpha2`
+branches directly off `staging` rather than through `proj/v2.0.0-bump`,
+so no Group T code rides along this time. Version convention corrected
+to SemVer's dot-separated pre-release numbering (`v2.0.0-alpha.2`, not
+`alpha2`) now that a second pre-release of the same name exists. Same
+pass: `apps/barrins_api/CHANGELOG.md`, `apps/tamiyo_scroll/
+CHANGELOG.md`, and `docs/CHANGELOG.md` bumped from `[Unreleased]` to
+`[2.0.0-alpha.2] - 2026-08-25`, filling in three items that had never
+been logged anywhere — S8's MTGJSON pipeline, T6's `mj_cards` text/
+keyword/stat columns, and F10 (shipped 2026-08-18, missed at the time) —
+the same doc-sync-gap pattern RA1 hit for S6/S10/S11. S8's own page
+(`s8-mtgjson-ingestion-pipeline/`) corrected from "Not started" to
+"Done," with an added Implementation-note section covering what shipped
+vs. its original scope (image source, the face-A-Land rule that was
+**not** built, the scheduled-refresh mechanism's actual shape). RB1–RB4
+pages written (scope/merge, promote, tag, deploy) mirroring RA1–RA5's
+shape at the alpha.2 cut's smaller scope (four steps, not five). No
+branch merges, tags, or deploys performed as part of this pass — RB1's
+checklist still has the actual merge as an open task.
 
 ---
 
@@ -1293,6 +1314,74 @@ actually ships.
 
 ---
 
+### 1.12 Cutting a second `v2.0.0-alpha.2` release, Tamiyo Scroll only
+
+**Context.** Since `v2.0.0-alpha` shipped (2026-08-03), S4 and S8 —
+explicitly out of that cut because both depended on MTGJSON data that
+didn't exist yet — both landed (S8 core 2026-08-05, S4 2026-08-14), and
+four more items arrived from GitHub issues/a user draft note and shipped
+the same day each was scoped: S13 (confirm-before-delete, 2026-08-23),
+S14 (session overhaul, 2026-08-24), S15 (decklist version diff,
+2026-08-24), S16 (Tested Cards → change log, 2026-08-24), and S17 (card
+log / match-up evaluation split, 2026-08-24). All seven items live on
+`feat/tamiyo-scroll-alpha2`, which — unlike `feat/v2-tamiyo-upgrade`
+before it — branches directly off `staging`'s current head (confirmed
+via `git merge-base --is-ancestor staging feat/tamiyo-scroll-alpha2`),
+**not** off `proj/v2.0.0-bump`: `git diff --stat` confirms the branch
+touches only `apps/barrins_api`, `apps/tamiyo_scroll`, `docs/`, and
+`ops/my-server` (the new MTGJSON scheduled-refresh timer) — no Group T
+file anywhere, unlike alpha1 where T1/T2 rode along inert. Meanwhile
+`proj/v2.0.0-bump` has continued to accumulate real Group T work
+(Barrin's Scripture, `bs_*` schema) unrelated to this cut.
+
+**Two scoping calls, same "escalate, don't guess" convention as §1.11:**
+
+1. **Release scope is exactly what the branch already contains**: S4,
+   S8, S13–S17. S18 (deletion-defaults-to-archive cleanup, the rest of
+   the project-wide audit S17 started) is **not** on this branch and
+   stays out — not started. Every Group T item stays out, same as
+   alpha1, but this time by construction (nothing to route around)
+   rather than by an explicit "ride along inert" carve-out.
+2. **Version convention changes from `v2.0.0-alpha` to
+   `v2.0.0-alpha.2`** (dot-separated SemVer pre-release numbering,
+   decided 2026-08-25) — a deliberate correction, not an inconsistency:
+   `v2.0.0-alpha` (no number) reads as SemVer's own convention only when
+   there's exactly one pre-release of that name; a second one needs a
+   distinguishing identifier, and SemVer's own precedence rules
+   (numeric identifiers compare numerically, dot-separated) make
+   `alpha.2` the correct form going forward, not `alpha2`. Applies to
+   this cut's tag, GitHub Release, and every bumped `CHANGELOG.md`
+   heading. RA1's own open question is now answered by extension: same
+   two-app scope as alpha1 (`barrins_api`, `tamiyo_scroll` bump; root
+   `docs/CHANGELOG.md` bumps too, to log the doc/cspell changes this cut
+   made; `barrins_scripture`/`tolaria_news`/`barrins_identity` stay at
+   `[Unreleased]`, no changes to log).
+
+**Changelog catch-up, same pattern RA1 hit for S6/S10/S11**: three items
+on this branch had never been logged in any `CHANGELOG.md` at all —
+S8's MTGJSON pipeline (models, import route, scheduled-refresh service
+token), T6's `mj_cards` text/keyword/stat columns (a Karn Tablets
+prerequisite, opportunistically added alongside S8 since it touches the
+same importer), and F10 (metagame roster scoped to the active personal
+deck, `TSMetaDeck.personal_deck_id` + `metagame_roster_scope` setting,
+shipped 2026-08-18 but never written up here or in either app's
+changelog). All three are filled in as part of this release's changelog
+bump (`apps/barrins_api/CHANGELOG.md`, `apps/tamiyo_scroll/
+CHANGELOG.md`), same as RA1 did for the doc-sync gaps it found.
+
+**What this does not change.** Group R (the full `v2.0.0` wrap) and
+Group T's continued work on `proj/v2.0.0-bump` are unaffected — this
+document now expects **three** tags total this release cycle
+(`v2.0.0-alpha`, `v2.0.0-alpha.2`, `v2.0.0` final), not a renumbering of
+anything already planned.
+
+This resolves nothing in the Group I table and needs no new ADR, for the
+same reason §1.11 gave — no new dependency, secret, or deployment
+architecture change; it's a release-cut scoping decision, not an
+architecture one.
+
+---
+
 ### A note on Playwright — deferred, not part of v2.0.0
 
 Playwright was suggested to the user during this planning process. It
@@ -1394,7 +1483,7 @@ R5 turning each into a real ADR.
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | ✅ **Done (2026-07-31)**. Backend-generated (Constitution §4.1: no client-side composition of computed stats), WeasyPrint (**I8 resolved 2026-07-27**, see S5 page). Session-scoped report **and** an added session-less deck-level report (last 30 days, S1 shared-data merge included) share one calculation path (`PeriodStats`) and one renderer. **Blocks S2** — team members' PDF-report access is part of S2's Done statement | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | ✅ **Done**. Flat-count tiles plus the 2026-08-02 time-bucketed (day/week/month) comparison, charted via `recharts` (new dependency, §4.7/§22). v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
-| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | 🟢 **Core pipeline done (2026-08-05)** — `Card`/`MTGSet` models, admin-gated `POST /mtgjson/import`, public `GET /sets/*`/`GET /cards/*` reads, all built from scratch (`auth_roles.md` described this as already existing, verified false, F8). Chunked-upsert performance fix 2026-08-07 (a 45-minute import cut to low minutes). **Unblocked T3 same day (2026-08-05)**, which has since landed (2026-08-07). Still open: the scheduled-refresh mechanism. **Still blocks S4** (not started). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
+| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | ✅ **Done (2026-08-25)** — `Card`/`MTGSet` models, admin-gated `POST /mtgjson/import`, `GET /mtgjson/import/status`, public `GET /sets/*`/`GET /cards/*`/`GET /mtgjson/status`, all built from scratch (`auth_roles.md` described this as already existing, verified false, F8). Chunked-upsert performance fix 2026-08-07 (a 45-minute import cut to low minutes). Scheduled-refresh mechanism landed 2026-08-13/2026-08-25 (`MTGJSON_IMPORT_TOKEN` service-auth path + a daily 04:00 UTC production systemd timer, `mtgjson_import_scheduler` role). **Unblocked T3 same day (2026-08-05)**, which has since landed (2026-08-07), and **unblocked S4**, done 2026-08-14. **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | ✅ **Done**. Dedicated Sessions tab (manage/create/close/reopen/archive, comparison summary, relocated `ExpectedMetagameSection` for tournament-typed sessions), full stack tested. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | ✅ **Done**. `CardGame` enum (`magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana`), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. 2026-08-03 follow-up: `game` cascades to opponent/meta decks | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
@@ -1420,6 +1509,23 @@ this ships, Group R below still runs, later, for the full `v2.0.0` tag.
 | RA3 | `staging` → `main` | RA2 | [ra3-promote-main/](ra3-promote-main/index.md) |
 | RA4 | Tag `v2.0.0-alpha` | RA3 | [ra4-tag-release/](ra4-tag-release/index.md) |
 | RA5 | Deploy from tag (production) — `barrins_api` + `tamiyo_scroll` only, **not** `barrins_scripture.yml` (§1.11) | RA4 | [ra5-deploy-production/](ra5-deploy-production/index.md) |
+
+### Group RB — Release wrap for `v2.0.0-alpha.2` (Tamiyo Scroll only, §1.12)
+
+A second early, tagged, production-deployed pre-release: S4, S8 (both
+deferred out of alpha1), and S13–S17 (all raised and shipped after
+alpha1 cut). One step shorter than Group RA — `feat/tamiyo-scroll-
+alpha2` branches directly off `staging`, so there's no `proj/v2.0.0-
+bump` hop to merge through first. Group T (still on `proj/v2.0.0-bump`)
+and S18 (not started) are untouched by this cut; Group R below still
+runs, later, for the full `v2.0.0` tag.
+
+| # | Item | Depends on | Page |
+| --- | --- | --- | --- |
+| RB1 | Confirm final `v2.0.0-alpha.2` scope, decide the version-bump convention, merge `feat/tamiyo-scroll-alpha2` → `staging` | S4, S8, S13, S14, S15, S16, S17 (all done) | [rb1-merge-staging/](rb1-merge-staging/index.md) |
+| RB2 | `staging` → `main` | RB1 | [rb2-promote-main/](rb2-promote-main/index.md) |
+| RB3 | Tag `v2.0.0-alpha.2` | RB2 | [rb3-tag-release/](rb3-tag-release/index.md) |
+| RB4 | Deploy from tag (production) — `barrins_api` + `tamiyo_scroll` only, **not** `barrins_scripture.yml`, same posture as RA5 | RB3 | [rb4-deploy-production/](rb4-deploy-production/index.md) |
 
 ### Group F — Fixes flagged in docs and roadmap (request item 3)
 
