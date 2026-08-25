@@ -3,6 +3,29 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Added
+
+- Decklist view (`CurrentDecklistSection`) rebuilt around the backend's
+  new structured `ResponseDecklistView` (S4): a Commander table (when
+  the decklist has one) plus one table per card-type section
+  (Planeswalkers/Battles/Creatures/.../Lands), each row showing qty,
+  name, mana-cost pips (`ManaPips`, new `lib/mana-symbols.ts`), and an
+  info popover with oracle text/keywords. Hovering a card name previews
+  its front/back-face art (`CardFacesPreview`, new
+  `components/ui/hover-card.tsx`) via the backend's new Scryfall image
+  proxy. Replaces the old flat colored-text-line rendering; any
+  unparsable line still renders as before, in its own section.
+
+### Changed
+
+- `getDecklistView`'s Zod schema (`decklistViewSchema`) replaces the old
+  flat `decklistLineSchema.array()`; the demo-mode API
+  (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
+  client-side (no `mj_cards` in the browser, so demo cards always
+  categorize as "other").
+
 ## [2.0.0-alpha] - 2026-08-03
 
 ### Added

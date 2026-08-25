@@ -3,6 +3,30 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Added
+
+- Structured Commander/Library decklist view (S4):
+  `GET .../personal-decks/{id}/decklist-view` now returns a
+  `ResponseDecklistView` (`commander_cards`/`library_cards`/
+  `unparsed_lines`) instead of a flat colored-line list — each resolved
+  card carries `mana_cost`/`type_line`/`text`/`keywords`/`scryfall_id`
+  from `mj_cards`, grouped by type and sorted by mana value then name.
+  `GET /bff/tolaria-news/decks/{id}`'s `mainboard` gets the same
+  type-grouping/sort, via a new shared `app/services/decklist_sort.py`
+  module used by both apps. A `"Commander"` header line (new
+  `commander_section_indices` in `decklist_coloring.py`) splits a
+  decklist into its commander(s) vs. library; Moxfield-imported decks
+  now get this header for free (`_format_board`).
+- Disk-cached Scryfall card-image proxy: `GET
+  /api/v1/cards/{scryfall_id}/image?face=front|back`
+  (`app/services/scryfall/`), rate-limited to Scryfall's ~10 req/s
+  courtesy limit, wiped on every `POST /mtgjson/import` (`scryfall_id`
+  can shift/disappear on refresh). New `SCRYFALL_USER_AGENT`/
+  `CARD_IMAGE_CACHE_DIR` settings; a placeholder-image console client is
+  used when unset outside production.
+
 ## [2.0.0-alpha] - 2026-08-03
 
 ### Added

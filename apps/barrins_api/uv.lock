@@ -130,7 +130,7 @@ wheels = [
 
 [[package]]
 name = "barrins-project"
-version = "1.0.0"
+version = "2.0.0a0"
 source = { editable = "." }
 dependencies = [
     { name = "argon2-cffi" },

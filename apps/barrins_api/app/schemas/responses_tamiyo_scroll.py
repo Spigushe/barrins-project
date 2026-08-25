@@ -16,6 +16,7 @@ from app.models.tamiyo_scroll import (
     SessionType,
 )
 from app.schemas.responses_base import BaseResponse
+from app.services.decklist_sort import DecklistCardCategory
 from app.services.metrics.aggregates import MetricSource
 
 
@@ -128,6 +129,48 @@ class ResponseDecklistLine(BaseResponse):
 
     line: str
     status: Literal["validated", "rejected", "in_test", "neutral"]
+
+
+class ResponseDecklistCard(BaseResponse):
+    """One resolved card line within a structured decklist-view section."""
+
+    qty: int
+    name: str
+    status: Literal["validated", "rejected", "in_test", "neutral"]
+    mana_cost: str | None
+    type_line: str | None
+    text: str | None
+    keywords: list[str]
+    scryfall_id: str | None
+
+
+class ResponseDecklistTypeGroup(BaseResponse):
+    """One type-ordered section of `library_cards` (e.g. "creature" with
+    its cards) -- Duel Commander display order (planeswalker, battle,
+    creature, instant, sorcery, artifact, enchantment, land, other), each
+    sorted by mana value then name. `category` is a stable machine-readable
+    key, not a display label -- pluralization/translation is the
+    frontend's job."""
+
+    category: DecklistCardCategory
+    count: int
+    cards: list[ResponseDecklistCard]
+
+
+class ResponseDecklistView(BaseResponse):
+    """Structured Commander/Library decklist view.
+
+    `commander_cards` is empty when the decklist has no recognized
+    "Commander" header line — an expected fallback (manually-pasted or
+    pre-feature decks), not an error; the frontend simply omits the
+    Commander box. `unparsed_lines` preserves `ResponseDecklistLine`'s
+    flat shape for any line that isn't a "<qty> <name>" card line, so
+    nothing the coloring feature colors today silently disappears.
+    """
+
+    commander_cards: list[ResponseDecklistCard]
+    library_cards: list[ResponseDecklistTypeGroup]
+    unparsed_lines: list[ResponseDecklistLine]
 
 
 class ResponseDeckWinrate(BaseResponse):

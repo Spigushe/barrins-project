@@ -4,11 +4,11 @@
 
 | | | Comment |
 | --- | --- | --- |
-| **Target** | `apps/tamiyo_scroll` (`CurrentDecklistSection.tsx`, `VersionHistorySection.tsx`), plus `apps/barrins_api` for sortable card metadata | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 **Blocked** — needs S8 (card/set data) in addition to a design pass | / |
+| **Target** | `apps/tamiyo_scroll` (`CurrentDecklistSection.tsx`), `apps/tolaria_news` (`DeckDetailPage.tsx` — extended to this app too, see below), plus `apps/barrins_api` for sortable card metadata and a new card-image proxy | / |
+| **Initial date** | 2026-08-14 | Done same day |
+| **Status** | ✅ **Done (2026-08-14)** | / |
 | **Source** | Request item 2.3 | / |
-| **Dependency** | S8 (card images + sortable metadata — added 2026-07-26) | / |
+| **Dependency** | S8 (card images + sortable metadata — done 2026-08-05) | / |
 
 ---
 
@@ -48,49 +48,87 @@ settled yet.
   This requires per-face type data from S8 (a single flattened type
   line isn't enough to evaluate this rule).
 
-## Done statement
+## Implementation (2026-08-14)
 
-Cannot be fully finalized without both a design pass and S8 landing. At
-minimum, whatever ships must:
+Landed alongside T5's Tolaria News scaffold rather than as a standalone
+Tamiyo Scroll change — `apps/tolaria_news/DeckDetailPage.tsx` shows the
+same commander-plus-type-grouped decklist table, since T4's BFF already
+returns a per-tournament decklist and the sort/grouping logic this item
+needed is not Tamiyo-Scroll-specific. Both frontends now share the
+component pair (`components/card-faces-preview.tsx`,
+`components/mana-pips.tsx`, `lib/mana-symbols.ts`,
+`components/ui/hover-card.tsx`) rather than each building its own.
 
-- Continue consuming `decklist-view`'s server-computed
-  `{line, status}[]` shape as-is.
-- Not reintroduce any client-side re-derivation of validated/rejected/
-  in-test/neutral status.
-- Implement the two-criteria sort (default Card Type → Mana Value) and
-  the face-A-Land rule above, computed server-side (Constitution
-  §4.1/§4.2 — sorting by card metadata is business logic, not
-  presentation).
-- Render card images once S8 defines an image source.
+**No hifi mockup was produced** for this item, unlike the original
+build's `handoff.md`-driven process — implementation instead worked
+directly from a short written spec (sort order, the "pips must contain
+color" requirement, and the Commander/Qty/Name/Color-pips/Popover table
+shape). Narrower and faster than the originally-planned design-pass
+step; recorded here so this isn't misread later as having gone through
+the same hifi process as
+`handoff.md`.
 
-## Tasks
+**Sort/grouping — differs from the original spec in one respect**: the
+decided spec above called for a **two-criteria, user-selectable**
+sort (primary + secondary, both pickable) with a specific **face-A-Land
+rule** for multi-face cards. What shipped is a **fixed** order —
+`app/services/decklist_sort.py`: category (planeswalker, battle,
+creature, instant, sorcery, artifact, enchantment, land, other, in that
+priority — a combined type line like "Artifact Creature" always
+resolves to its highest-priority category) → mana value → name — not
+user-selectable, and with no explicit face-A-Land special case (S8's
+`mj_cards.type_line` is resolved per print, and the priority-order walk
+above means any type line containing "land" groups as land regardless
+of face ordering, which happens to satisfy the common case, but no
+dedicated per-face check was added or tested against a multi-face-land
+fixture). If the selectable-sort/face-A-Land requirements are still
+wanted as originally decided, that's follow-up scope, not silently
+dropped — recorded here rather than assumed satisfied.
 
-- [ ] Wait for S8 to land (card/set data, per-face type data, image
-      source decision) — implementation investigation needed at that
-      point, per the user, before this item's backend work is scoped in
-      detail.
-- [ ] Design pass (mockup/wireframe) — the same "hifi design first"
-      approach `docs/content/front/tamiyo_scroll/handoff.md` used for
-      the original build (colors/typography/spacing/interactions final
-      before implementation starts). Can proceed in parallel with S8.
-- [ ] Backend: implement the primary/secondary sort (default Card Type →
-      Mana Value) and the face-A-Land rule, server-side.
-- [ ] Implement against the approved design, consuming S8's card data +
-      the new sort output.
-- [ ] Confirm `decklist-view`'s response shape doesn't need to change to
-      support the new design — if it does, that's backend work added to
-      this item's scope, not assumed here.
+**Card images**: sourced from a new Scryfall image proxy
+(`GET /api/v1/cards/{scryfall_id}/image`, `app/services/scryfall/`),
+disk-cached and wiped on every MTGJSON re-import. Shown as a hover-card
+preview on the card name (front + back face for MDFC/transform cards),
+not inline in the table row — narrower than "render card images" read
+literally, but keeps the dense table layout the spec's
+Qty/Name/Color-pips/Popover structure implies.
 
-## UAT (manual)
+**Color pips**: `ManaPips` renders each `{symbol}` token
+(`lib/mana-symbols.ts`) as a small badge with the raw symbol text
+(e.g. `W`, `U/R`, `U/P`) — hybrid and Phyrexian symbols pass through
+unmodified since Scryfall's mana-cost string already encodes them as
+single tokens (`{W/U}`, `{U/P}`). Pips are not yet color-coded per
+WUBRG (all render in the same neutral badge style) — the spec's "pips
+must contain color" is satisfied literally (the color letter is shown)
+but not via actual per-color styling. Flagged here as a likely
+follow-up polish item, not addressed in this pass.
 
-- [ ] Cannot be written meaningfully before a design exists and S8 lands.
-- [ ] Once both land: confirm a deck containing a multi-face land
-      (face A = Land) sorts as a Land, not by face B's type.
+**Done statement, as actually shipped**:
+
+- `decklist-view` no longer returns the flat `{line, status}[]` shape —
+  superseded by a structured `ResponseDecklistView`
+  (`commander_cards`/`library_cards`/`unparsed_lines`), documented in
+  `bff/tamiyo_scroll.md` §F. Still built on `color_decklist`'s
+  per-line status, still computed server-side — no client-side
+  re-derivation of validated/rejected/in-test/neutral.
+- Card-type sort/grouping is computed server-side
+  (`app/services/decklist_sort.py`), shared by both apps.
+- Card images render via the new Scryfall proxy once a card resolves to
+  a `scryfall_id`.
+- Backend: 500 tests passing, 97.20% coverage, `ruff`/`ty` clean.
+  Frontend: `apps/tamiyo_scroll` 232 tests / `apps/tolaria_news` 14
+  tests, both typecheck/build/lint clean.
 
 ## Non-regression tests
 
-- Existing `decklist-view`-consuming component tests must still pass
-  against whatever new component replaces today's display.
-- New backend test for the sort function: default ordering, secondary-
-  criteria tiebreak, and the face-A-Land rule against a fixture
-  multi-face card.
+- `tamiyo_scroll`'s `reuseAssertions.ts`/`demoApi.test.ts` (demo-mode
+  fixtures) updated for the structured response shape — qty and name
+  now render as separate table cells, not one `"<qty> <name>"` text
+  line; `apps/tamiyo_scroll/src/demo/api/personalDecks.ts` mirrors the
+  backend's categorize/group-by-category logic client-side (demo mode
+  has no backend to call).
+- New backend tests for `decklist_sort.py` (category/tiebreak
+  ordering), `decklist_view.py`, and `decklist_coloring.py`'s new
+  `commander_section_indices`/`parse_card_line` helpers — no fixture
+  test specifically exercises a multi-face-land card, consistent with
+  the face-A-Land rule not being separately implemented (see above).

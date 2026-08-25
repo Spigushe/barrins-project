@@ -9,8 +9,8 @@ import * as realTeamsApi from '@/api/teams'
 import {
   archetypeSummarySchema,
   cardTestSchema,
-  decklistLineSchema,
   decklistVersionSchema,
+  decklistViewSchema,
   matchSchema,
   matchupSummarySchema,
   memberDeckSchema,
@@ -118,9 +118,9 @@ describe('demo personalDecks api', () => {
   })
 
   it('returns the decklist view', async () => {
-    const lines = await demoPersonalDecksApi.getDecklistView(DECK_ID)
-    expect(lines.length).toBeGreaterThan(0)
-    for (const line of lines) decklistLineSchema.parse(line)
+    const view = await demoPersonalDecksApi.getDecklistView(DECK_ID)
+    decklistViewSchema.parse(view)
+    expect(view.library_cards.length).toBeGreaterThan(0)
   })
 
   it('returns a downloadable blob for the deck report', async () => {

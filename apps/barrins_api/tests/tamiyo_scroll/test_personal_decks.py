@@ -1,6 +1,7 @@
 """Tests for /bff/tamiyo-scroll/personal-decks and its sub-resources."""
 
 import uuid
+from datetime import date
 
 from httpx import AsyncClient
 from sqlalchemy import select, update
@@ -27,6 +28,12 @@ async def _create_deck(client: AsyncClient, user: User, name: str = "Mono Red") 
     )
     assert resp.status_code == 201
     return resp.json()["id"]
+
+
+def _flatten_library(body: dict) -> list[dict]:
+    """`library_cards`'s cards, in group order -- for tests that only care
+    about resolved card data, not the grouping itself."""
+    return [card for group in body["library_cards"] for card in group["cards"]]
 
 
 class TestListPersonalDecks:
@@ -610,7 +617,7 @@ class TestDecklistVersions:
 
 
 class TestDecklistView:
-    async def test_no_version_returns_empty_list(
+    async def test_no_version_returns_empty_view(
         self, client: AsyncClient, owner_user: User
     ):
         deck_id = await _create_deck(client, owner_user)
@@ -619,9 +626,13 @@ class TestDecklistView:
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert resp.json() == {
+            "commander_cards": [],
+            "library_cards": [],
+            "unparsed_lines": [],
+        }
 
-    async def test_colors_lines_from_card_tests(
+    async def test_colors_cards_from_card_tests(
         self, client: AsyncClient, owner_user: User
     ):
         headers = auth_headers(owner_user)
@@ -656,10 +667,12 @@ class TestDecklistView:
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
         )
         assert resp.status_code == 200
-        lines = {line["line"]: line["status"] for line in resp.json()}
-        assert lines == {
-            "4 Lightning Bolt": "validated",
-            "2 Duress": "rejected",
+        body = resp.json()
+        assert body["commander_cards"] == []
+        cards = {(c["qty"], c["name"]): c["status"] for c in _flatten_library(body)}
+        assert cards == {
+            (4, "Lightning Bolt"): "validated",
+            (2, "Duress"): "rejected",
         }
 
     async def test_ignores_card_tests_from_other_personal_decks(
@@ -688,8 +701,10 @@ class TestDecklistView:
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
         )
         assert resp.status_code == 200
-        lines = {line["line"]: line["status"] for line in resp.json()}
-        assert lines == {"4 Lightning Bolt": "neutral"}
+        cards = {
+            (c["qty"], c["name"]): c["status"] for c in _flatten_library(resp.json())
+        }
+        assert cards == {(4, "Lightning Bolt"): "neutral"}
 
     async def test_uses_latest_version_only(
         self, client: AsyncClient, owner_user: User
@@ -709,4 +724,130 @@ class TestDecklistView:
         resp = await client.get(
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
         )
-        assert [line["line"] for line in resp.json()] == ["new content"]
+        # "new content" doesn't match the "<qty> <name>" card-line pattern,
+        # so it falls back to unparsed_lines rather than disappearing.
+        assert [line["line"] for line in resp.json()["unparsed_lines"]] == [
+            "new content"
+        ]
+
+    async def test_recognizes_commander_header_from_import(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "Commander\n1 Atraxa, Praetors' Voice\n\n1 Sol Ring"},
+            headers=headers,
+        )
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert [(c["qty"], c["name"]) for c in body["commander_cards"]] == [
+            (1, "Atraxa, Praetors' Voice")
+        ]
+        assert [(c["qty"], c["name"]) for c in _flatten_library(body)] == [
+            (1, "Sol Ring")
+        ]
+
+    async def test_sorts_library_cards_by_type_then_mana_value_then_name(
+        self, client: AsyncClient, owner_user: User, db_session
+    ) -> None:
+        """Duel Commander display order: type, then
+        mana value, then name. Covers every category in the type order plus
+        both tiebreaks: creatures with contradicting name/mv order (proves
+        mv beats name), and two same-type same-mv instants (proves name is
+        the final tiebreak)."""
+        mtg_set = MTGSet(
+            code="SRT",
+            name="Sort Test Set",
+            release_date=date(2026, 1, 1),
+            type="expansion",
+            base_set_size=10,
+            total_set_size=10,
+            keyrune_code="srt",
+        )
+        db_session.add(mtg_set)
+        await db_session.flush()
+
+        def _card(name: str, type_line: str, mana_value: float | None) -> Card:
+            return Card(
+                id=uuid.uuid4(),
+                set_code="SRT",
+                name=name,
+                type_line=type_line,
+                mana_cost=None,
+                mana_value=mana_value,
+                color_identity=[],
+                rarity="common",
+                number=name,
+                scryfall_id=f"{name}-scryfall-id",
+            )
+
+        db_session.add_all(
+            [
+                _card("Land Test", "Land", None),
+                _card("Enchant Test", "Enchantment", 3),
+                _card("Sol Ring Test", "Artifact", 1),
+                _card("Sorcery Test", "Sorcery", 2),
+                _card("Bravo Instant", "Instant", 2),
+                _card("Alpha Instant", "Instant", 2),
+                _card("Alpha High", "Creature — Beast", 5),
+                _card("Zeta Low", "Creature — Beast", 1),
+                _card("Battle Test", "Battle — Siege", 3),
+                _card("Nissa Test", "Legendary Planeswalker — Nissa", 5),
+            ]
+        )
+        await db_session.commit()
+
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        content = "\n".join(
+            [
+                "1 Land Test",
+                "1 Enchant Test",
+                "1 Sol Ring Test",
+                "1 Sorcery Test",
+                "1 Bravo Instant",
+                "1 Alpha Instant",
+                "1 Alpha High",
+                "1 Zeta Low",
+                "1 Battle Test",
+                "1 Nissa Test",
+            ]
+        )
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": content},
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert [(g["category"], g["count"]) for g in body["library_cards"]] == [
+            ("planeswalker", 1),
+            ("battle", 1),
+            ("creature", 2),
+            ("instant", 2),
+            ("sorcery", 1),
+            ("artifact", 1),
+            ("enchantment", 1),
+            ("land", 1),
+        ]
+        assert [c["name"] for c in _flatten_library(body)] == [
+            "Nissa Test",  # planeswalker
+            "Battle Test",  # battle
+            "Zeta Low",  # creature, mv1
+            "Alpha High",  # creature, mv5
+            "Alpha Instant",  # instant, mv2, name tiebreak
+            "Bravo Instant",  # instant, mv2, name tiebreak
+            "Sorcery Test",  # sorcery
+            "Sol Ring Test",  # artifact
+            "Enchant Test",  # enchantment
+            "Land Test",  # land
+        ]

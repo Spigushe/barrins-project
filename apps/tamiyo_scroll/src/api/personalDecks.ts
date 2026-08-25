@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { ArchetypeCategory, CardGame } from '@/schemas/tamiyoScroll'
 import {
-  decklistLineSchema,
   decklistVersionSchema,
+  decklistViewSchema,
   personalDeckSchema,
 } from '@/schemas/tamiyoScroll'
 import { apiRequest, apiRequestBlob } from './client'
@@ -77,7 +77,7 @@ export function deleteDecklistVersion(deckId: string, versionId: string) {
 export function getDecklistView(deckId: string) {
   return apiRequest(
     `/bff/tamiyo-scroll/personal-decks/${deckId}/decklist-view`,
-    decklistLineSchema.array(),
+    decklistViewSchema,
     { applyOwnerParam: true },
   )
 }
