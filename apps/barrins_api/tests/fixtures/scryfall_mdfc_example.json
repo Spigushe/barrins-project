@@ -1,0 +1,181 @@
+{
+    "object": "card",
+    "id": "eeedc3a9-e5c0-4234-8653-1a005df095e1",
+    "oracle_id": "fe00278d-4385-4e3f-919c-12a794fd86f5",
+    "multiverse_ids": [],
+    "resource_id": "0161B0D751495D20AC215FA0030EEACB601049D91420259B1D16947084E0C670",
+    "mtgo_id": 153033,
+    "tcgplayer_id": 696335,
+    "cardmarket_id": 890667,
+    "name": "King T'Challa // Black Panther, Hope Enduring",
+    "lang": "en",
+    "released_at": "2026-06-26",
+    "uri": "https://api.scryfall.com/cards/eeedc3a9-e5c0-4234-8653-1a005df095e1",
+    "scryfall_uri": "https://scryfall.com/card/msh/346/king-tchalla-black-panther-hope-enduring?utm_source=api",
+    "layout": "modal_dfc",
+    "highres_image": true,
+    "image_status": "highres_scan",
+    "image_updated_at": "2026-07-13T00:34:21Z",
+    "cmc": 3.0,
+    "type_line": "Legendary Creature — Human Noble Hero // Legendary Creature — Human Warrior Hero",
+    "color_identity": [
+        "U",
+        "W"
+    ],
+    "keywords": [
+        "Transform",
+        "Double strike",
+        "Flash"
+    ],
+    "card_faces": [
+        {
+            "object": "card_face",
+            "name": "King T'Challa",
+            "mana_cost": "{1}{W}{U}",
+            "type_line": "Legendary Creature — Human Noble Hero",
+            "oracle_text": "Flash\nWhenever a player draws their second card each turn, you draw a card.\n{4}{W}{U}: Transform King T'Challa. Activate only as a sorcery.",
+            "colors": [
+                "U",
+                "W"
+            ],
+            "power": "3",
+            "toughness": "2",
+            "artist": "Chris Bachalo",
+            "artist_id": "65472583-fec0-4744-8d80-e1d99b59ae28",
+            "illustration_id": "a09c29b7-9bc2-430e-b044-174607c74663",
+            "image_uris": {
+                "small": "https://cards.scryfall.io/small/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "normal": "https://cards.scryfall.io/normal/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "large": "https://cards.scryfall.io/large/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "png": "https://cards.scryfall.io/png/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.png?1783902861",
+                "art_crop": "https://cards.scryfall.io/art_crop/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "border_crop": "https://cards.scryfall.io/border_crop/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "thumb": "https://cards.scryfall.io/thumb/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "grid": "https://cards.scryfall.io/grid/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "display": "https://cards.scryfall.io/display/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "art": "https://cards.scryfall.io/art/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "crop": "https://cards.scryfall.io/crop/front/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861"
+            }
+        },
+        {
+            "object": "card_face",
+            "name": "Black Panther, Hope Enduring",
+            "mana_cost": "{4}{W}{U}",
+            "type_line": "Legendary Creature — Human Warrior Hero",
+            "oracle_text": "Flash\nDouble strike\nPrevent all damage that would be dealt to Black Panther.\nWhenever Black Panther deals combat damage to a player, draw a card.",
+            "colors": [
+                "U",
+                "W"
+            ],
+            "power": "3",
+            "toughness": "3",
+            "artist": "Johan Grenier",
+            "artist_id": "465e38b8-7eed-4d22-a6d2-d3603ee0c00b",
+            "illustration_id": "5c2343e1-e556-4da2-adc3-617b8b80b635",
+            "image_uris": {
+                "small": "https://cards.scryfall.io/small/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "normal": "https://cards.scryfall.io/normal/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "large": "https://cards.scryfall.io/large/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "png": "https://cards.scryfall.io/png/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.png?1783902861",
+                "art_crop": "https://cards.scryfall.io/art_crop/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "border_crop": "https://cards.scryfall.io/border_crop/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.jpg?1783902861",
+                "thumb": "https://cards.scryfall.io/thumb/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "grid": "https://cards.scryfall.io/grid/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "display": "https://cards.scryfall.io/display/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "art": "https://cards.scryfall.io/art/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861",
+                "crop": "https://cards.scryfall.io/crop/back/e/e/eeedc3a9-e5c0-4234-8653-1a005df095e1.webp?1783902861"
+            }
+        }
+    ],
+    "legalities": {
+        "standard": "legal",
+        "future": "legal",
+        "historic": "legal",
+        "timeless": "legal",
+        "gladiator": "legal",
+        "pioneer": "legal",
+        "modern": "legal",
+        "legacy": "legal",
+        "pauper": "not_legal",
+        "vintage": "legal",
+        "penny": "not_legal",
+        "commander": "legal",
+        "oathbreaker": "legal",
+        "standardbrawl": "legal",
+        "brawl": "legal",
+        "competitivebrawl": "legal",
+        "alchemy": "legal",
+        "paupercommander": "not_legal",
+        "duel": "legal",
+        "oldschool": "not_legal",
+        "premodern": "not_legal",
+        "predh": "not_legal",
+        "tlr": "not_legal"
+    },
+    "games": [
+        "paper",
+        "mtgo"
+    ],
+    "reserved": false,
+    "game_changer": false,
+    "foil": true,
+    "nonfoil": true,
+    "finishes": [
+        "nonfoil",
+        "foil"
+    ],
+    "oversized": false,
+    "promo": false,
+    "reprint": false,
+    "variation": false,
+    "set_id": "ba9bf625-681c-4a4e-ab48-399b2fecac6b",
+    "set": "msh",
+    "set_name": "Marvel Super Heroes",
+    "set_type": "expansion",
+    "set_uri": "https://api.scryfall.com/sets/ba9bf625-681c-4a4e-ab48-399b2fecac6b",
+    "set_search_uri": "https://api.scryfall.com/cards/search?order=set&q=e%3Amsh&unique=prints",
+    "scryfall_set_uri": "https://scryfall.com/sets/msh?utm_source=api",
+    "rulings_uri": "https://api.scryfall.com/cards/eeedc3a9-e5c0-4234-8653-1a005df095e1/rulings",
+    "prints_search_uri": "https://api.scryfall.com/cards/search?order=released&q=oracleid%3Afe00278d-4385-4e3f-919c-12a794fd86f5&unique=prints",
+    "collector_number": "346",
+    "digital": false,
+    "rarity": "mythic",
+    "artist": "Chris Bachalo & Johan Grenier",
+    "artist_ids": [
+        "65472583-fec0-4744-8d80-e1d99b59ae28",
+        "465e38b8-7eed-4d22-a6d2-d3603ee0c00b"
+    ],
+    "border_color": "borderless",
+    "frame": "2015",
+    "frame_effects": [
+        "legendary",
+        "inverted"
+    ],
+    "security_stamp": "oval",
+    "full_art": false,
+    "textless": false,
+    "booster": false,
+    "story_spotlight": false,
+    "promo_types": [
+        "universesbeyond"
+    ],
+    "edhrec_rank": 9092,
+    "prices": {
+        "usd": "19.31",
+        "usd_foil": "35.52",
+        "usd_etched": null,
+        "eur": "14.60",
+        "eur_foil": "42.97",
+        "tix": "1.38"
+    },
+    "related_uris": {
+        "tcgplayer_infinite_articles": "https://partner.tcgplayer.com/c/4931599/1830156/21018?subId1=api&trafcat=tcgplayer.com%2Fsearch%2Farticles&u=https%3A%2F%2Fwww.tcgplayer.com%2Fsearch%2Farticles%3FproductLineName%3Dmagic%26q%3DKing%2BT%2527Challa%2B%252F%252F%2BBlack%2BPanther%252C%2BHope%2BEnduring",
+        "tcgplayer_infinite_decks": "https://partner.tcgplayer.com/c/4931599/1830156/21018?subId1=api&trafcat=tcgplayer.com%2Fsearch%2Fdecks&u=https%3A%2F%2Fwww.tcgplayer.com%2Fsearch%2Fdecks%3FproductLineName%3Dmagic%26q%3DKing%2BT%2527Challa%2B%252F%252F%2BBlack%2BPanther%252C%2BHope%2BEnduring",
+        "edhrec": "https://edhrec.com/route/?cc=King+T%27Challa"
+    },
+    "purchase_uris": {
+        "tcgplayer": "https://partner.tcgplayer.com/c/4931599/1830156/21018?subId1=api&u=https%3A%2F%2Fwww.tcgplayer.com%2Fproduct%2F696335%3Fpage%3D1",
+        "cardmarket": "https://www.cardmarket.com/en/Magic/Products?idProduct=890667&referrer=scryfall&utm_campaign=card_prices&utm_medium=text&utm_source=scryfall",
+        "cardhoarder": "https://www.cardhoarder.com/cards/153033?affiliate_id=scryfall&ref=card-profile&utm_campaign=affiliate&utm_medium=card&utm_source=scryfall"
+    }
+}
