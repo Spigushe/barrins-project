@@ -15,7 +15,7 @@ by any future app, not a Tamiyo-Scroll-specific workflow.
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select, union
 
 from app.database.session import DatabaseSession

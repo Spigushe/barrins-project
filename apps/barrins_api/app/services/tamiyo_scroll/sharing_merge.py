@@ -470,9 +470,7 @@ async def build_merged_view(
                 is_readonly=True,
                 shared_by=owner_label,
                 is_multi_share=is_multi_share,
-                game_override=sharer_personal_deck_game.get(
-                    canonical.personal_deck_id
-                ),
+                game_override=sharer_personal_deck_game.get(canonical.personal_deck_id),
             )
         )
 

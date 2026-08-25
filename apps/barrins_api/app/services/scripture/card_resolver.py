@@ -17,6 +17,15 @@ resolution, no `unaccent` Postgres extension (avoided as a new dependency
 — the same accent-stripping the old code did in SQL via `unaccent()` is
 done here in Python via NFKD, so the in-memory cache alone is enough), no
 `is_token`/`availability` filtering (this schema has neither column).
+
+Attraction cards (Un-set mechanic — `mj_cards.subtypes` contains
+"Attraction"; MTGJSON files it as a subtype, e.g. types=["Artifact"],
+subtypes=["Attraction"], not as a top-level type) are a deliberate
+exception to "resolve every name": scraped
+decklists list them under the sideboard, but they're not part of the
+deck being played and the application must not treat them at all
+(2026-08-19 decision). `is_attraction` lets a caller drop those lines
+instead of persisting/matching them.
 """
 
 import unicodedata
@@ -45,6 +54,10 @@ _COMPAT_MAP = str.maketrans({"꞉": ":"})  # noqa: RUF001
 #: shared/external cache, or a `cards`-table version check) before that
 #: ever changes.
 _name_cache: dict[str, str] = {}
+#: Canonical names (the same strings `_name_cache` can resolve to) that are
+#: Attraction cards — see the module docstring. Checked by `is_attraction`
+#: after `resolve_card_name` has produced a canonical name.
+_attraction_names: set[str] = set()
 #: Whether `_name_cache` reflects the current `cards` contents. Separate
 #: from `_name_cache`'s own truthiness because an empty dict is
 #: ambiguous — "not built yet" and "built, `cards` is genuinely empty"
@@ -58,6 +71,7 @@ def invalidate_name_cache() -> None:
     """Clears the cache — call after an MTGJSON import changes `cards`."""
     global _cache_built
     _name_cache.clear()
+    _attraction_names.clear()
     _cache_built = False
 
 
@@ -92,11 +106,17 @@ async def _build_name_cache(session: AsyncSession) -> None:
     global _cache_built
     if _cache_built:
         return
-    rows = (await session.execute(select(Card.name, Card.face_name))).all()
-    for name, face_name in rows:
+    rows = (
+        await session.execute(select(Card.name, Card.face_name, Card.subtypes))
+    ).all()
+    for name, face_name, subtypes in rows:
         _name_cache.setdefault(normalize_name(name), name)
         if face_name:
             _name_cache.setdefault(normalize_name(face_name), face_name)
+        if "Attraction" in subtypes:
+            _attraction_names.add(name)
+            if face_name:
+                _attraction_names.add(face_name)
     _cache_built = True
 
 
