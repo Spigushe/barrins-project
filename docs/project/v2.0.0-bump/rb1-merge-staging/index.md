@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `feat/tamiyo-scroll-alpha2` → `staging` | / |
-| **Initial date** | 2026-08-25 | In progress |
-| **Status** | 🟡 In progress — scope confirmed and changelogs bumped 2026-08-25; PR #83 open, CI green, mergeable; not yet merged | / |
+| **Initial date** | 2026-08-25 | Done same day |
+| **Status** | ✅ **Done (2026-08-25)** — PR #83 squash-merged into `staging` (`84109d9`), CI green on the merge commit | / |
 | **Source** | §1.12 | / |
 | **Dependency** | S4, S8, S13, S14, S15, S16, S17 (all done) | Blocks RB2 |
 
@@ -53,25 +53,29 @@ RA1's merge into `proj/v2.0.0-bump` was.
       `mj_cards` text/keyword/stat columns, and F10 (metagame roster
       scoped to the active personal deck, shipped 2026-08-18 but never
       written up) — same doc-sync-gap pattern RA1 hit for S6/S10/S11.
-- [ ] Re-verify no new commits landed on `staging` since the
-      `git merge-base` check this plan was written against — re-run
-      `git merge-base --is-ancestor staging feat/tamiyo-scroll-alpha2`
-      immediately before merging.
+- [x] Re-verify no new commits landed on `staging` since the
+      `git merge-base` check this plan was written against — confirmed
+      no drift immediately before merging.
 - [x] Open PR #83 into `staging` per the branch-protection rule added in
       F9 (`gh pr list --head feat/tamiyo-scroll-alpha2`). **Confirmed
       2026-08-25**: `baseRefName: staging`, `mergeStateStatus: CLEAN`,
-      `mergeable: MERGEABLE`. All checks green on HEAD (`2aa6c75`) —
+      `mergeable: MERGEABLE`. All checks green on both HEAD (`2aa6c75`)
+      and the final docs commit (`6724baf`) —
       `ci-required`/`ops`/`back`/`front`/`docs`/`changes` all `success`,
       `scripture` `skipped` (expected, no Barrin's Scripture files
       touched).
-- [ ] Merge `feat/tamiyo-scroll-alpha2` → `staging` (fast-forward
-      expected).
-- [ ] Confirm CI is green on `staging` post-merge.
+- [x] Merge `feat/tamiyo-scroll-alpha2` → `staging` — **done 2026-08-25**,
+      squash merge commit `84109d9`.
+- [x] Confirm CI is green on `staging` post-merge — confirmed on
+      `84109d9` (same check set as above, all green).
 
 ## UAT (manual)
 
-- [ ] Full test suite green on `staging` post-merge (backend, frontend,
+- [x] Full test suite green on `staging` post-merge (backend, frontend,
       ops lint, docs build).
+- [x] `barrins_api` and `tamiyo_scroll` deployed to the staging
+      environment from `staging`'s new head (`84109d9`) and smoke-tested
+      — confirmed working 2026-08-25.
 
 ## Non-regression tests
 
