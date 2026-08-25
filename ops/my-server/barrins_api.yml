@@ -28,6 +28,10 @@
     # }}/apps/barrins_api/.env on every run if present on this machine,
     # skipped otherwise. See secrets/README.md to create it.
     backend_env_file: "{{ playbook_dir }}/secrets/barrins_api/{{ deploy_env }}.env"
+    # Remote work dir the fastapi_backend role deploys into (mirrors that
+    # role's internal fastapi_backend_config.work_dir, which is role-scoped
+    # and not visible here) — used to locate the deployed .env below.
+    backend_work_dir: "/home/{{ username }}/projects/{{ backend_domain }}/apps/barrins_api"
 
   pre_tasks:
     - name: Install WeasyPrint's native dependencies (S5 — Pango/cairo/GDK-Pixbuf)
