@@ -239,12 +239,24 @@ async def _validate_added_card_exists(
 
 
 async def _run_write_validations(
-    session: DatabaseSession, owner_id: uuid.UUID, payload: CardTestWrite
+    session: DatabaseSession,
+    owner_id: uuid.UUID,
+    payload: CardTestWrite,
+    *,
+    check_removed_in_decklist: bool,
 ) -> None:
     """When no `TSUserSettings` row exists yet (the owner has never hit
     GET/PATCH /me/settings), fall back to the column defaults rather than
     treating "no row" as "everything off" -- `validate_removed_card_in_decklist`
-    defaults on, so a brand-new account must still get it enforced."""
+    defaults on, so a brand-new account must still get it enforced.
+
+    `check_removed_in_decklist` is `False` on update: the removed-card
+    check only makes sense against the deck's *current* decklist, so it's
+    a create-time guard -- re-running it on every edit would reject
+    saving a plain notes change on an already-saved log once the
+    decklist has since moved past that card. `validate_added_card_exists`
+    doesn't have this problem (`mj_cards` doesn't shift under a deck) so
+    it still runs on both create and update."""
     settings_result = await session.execute(
         select(TSUserSettings).where(TSUserSettings.user_id == owner_id)
     )
@@ -255,7 +267,7 @@ async def _run_write_validations(
     validate_added = (
         settings.validate_added_card_exists if settings is not None else False
     )
-    if validate_removed:
+    if validate_removed and check_removed_in_decklist:
         await _validate_removed_card_in_decklist(
             session, payload.personal_deck_id, payload.removed_card_name
         )
@@ -334,7 +346,9 @@ async def create_card_test(
     await _validate_personal_deck_ref(
         session, current_user.id, payload.personal_deck_id
     )
-    await _run_write_validations(session, current_user.id, payload)
+    await _run_write_validations(
+        session, current_user.id, payload, check_removed_in_decklist=True
+    )
     test = TSCardTest(owner_id=current_user.id)
     _apply_payload(test, payload)
     session.add(test)
@@ -357,7 +371,9 @@ async def update_card_test(
     await _validate_personal_deck_ref(
         session, current_user.id, payload.personal_deck_id
     )
-    await _run_write_validations(session, current_user.id, payload)
+    await _run_write_validations(
+        session, current_user.id, payload, check_removed_in_decklist=False
+    )
     _apply_payload(test, payload)
     session.add(test)
     await session.commit()

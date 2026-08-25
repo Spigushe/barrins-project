@@ -111,6 +111,13 @@ section of the docs site for details.
   `ended_at` is purely informational and freely editable, independent
   of Close/Reopen.
 
+### Fixed
+
+- `CardTestsSection`'s Added-Card "not found" hint (S17) now respects
+  the "Validate added card exists" setting (S16, off by default) — it
+  was flagging every non-Magic card name for decks that never opted
+  into that validation.
+
 ## [2.0.0-alpha] - 2026-08-03
 
 ### Added

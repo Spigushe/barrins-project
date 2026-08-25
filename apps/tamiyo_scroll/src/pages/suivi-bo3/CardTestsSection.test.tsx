@@ -92,12 +92,21 @@ vi.mock('@/hooks/useCards', () => ({
   useCardNameSearch: () => addedCardSearchResult,
 }))
 
+let mySettings: { validate_added_card_exists: boolean } = {
+  validate_added_card_exists: false,
+}
+
+vi.mock('@/hooks/useSettings', () => ({
+  useMySettings: () => ({ data: mySettings }),
+}))
+
 describe('CardTestsSection', () => {
   beforeEach(() => {
     cardTests = []
     createTestError = null
     decklistView = { commander_cards: [], library_cards: [], unparsed_lines: [] }
     addedCardSearchResult = { data: [], isFetching: false }
+    mySettings = { validate_added_card_exists: false }
   })
 
   it('labels the table headers and create-form fields consistently', () => {
@@ -372,8 +381,9 @@ describe('CardTestsSection — name dropdowns', () => {
     expect(screen.getByLabelText('Added Card')).toHaveValue('Thoughtseize')
   })
 
-  it('shows a not-found hint once the added-card search comes back empty', async () => {
+  it('shows a not-found hint once the added-card search comes back empty and validation is on', async () => {
     addedCardSearchResult = { data: [], isFetching: false }
+    mySettings = { validate_added_card_exists: true }
     const user = userEvent.setup()
     render(<CardTestsSection />)
 
@@ -382,5 +392,18 @@ describe('CardTestsSection — name dropdowns', () => {
     expect(
       await screen.findByText('No matching card found — you can still save this name.'),
     ).toBeInTheDocument()
+  })
+
+  it('hides the not-found hint when "Validate added card exists" is off', async () => {
+    addedCardSearchResult = { data: [], isFetching: false }
+    mySettings = { validate_added_card_exists: false }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'xyz')
+
+    expect(
+      screen.queryByText('No matching card found — you can still save this name.'),
+    ).not.toBeInTheDocument()
   })
 })

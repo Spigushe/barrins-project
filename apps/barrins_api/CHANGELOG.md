@@ -87,6 +87,14 @@ section of the docs site for details.
   `added_card_scryfall_id` so the "Tested cards" list can hover-preview
   either card's image the same way a pending decklist line does.
 
+### Fixed
+
+- `validate_removed_card_in_decklist` (S16) no longer runs on
+  `PUT /card-tests/{id}` — it's a create-time guard against the deck's
+  *current* decklist content, so re-checking it on every edit rejected
+  saving a plain notes change on an already-saved card log once the
+  decklist had since moved past that card.
+
 ## [2.0.0-alpha] - 2026-08-03
 
 ### Added

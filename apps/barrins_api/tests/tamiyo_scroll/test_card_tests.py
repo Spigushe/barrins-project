@@ -385,6 +385,52 @@ class TestValidateRemovedCardInDecklist:
         )
         assert resp.status_code == 201
 
+    async def test_editing_an_existing_log_is_not_re_checked_against_the_decklist(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """The check is create-time only (2026-08-25 decision): once a log
+        is saved, later decklist versions can legitimately move past its
+        removed card, and that must not block editing the log (e.g. just
+        its notes)."""
+        headers = auth_headers(owner_user)
+        personal_id = await _create_personal_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{personal_id}/versions",
+            json={"content": "4 Lightning Bolt\n1 Sol Ring"},
+            headers=headers,
+        )
+        create_resp = await _create_card_log(
+            client,
+            owner_user,
+            personal_id,
+            removed_card_name="Sol Ring",
+            added_card_name="Bolt",
+        )
+        assert create_resp.status_code == 201
+        test_id = create_resp.json()["id"]
+
+        # A newer version drops "Sol Ring" -- it's no longer in the
+        # *current* decklist, so re-validating the existing log's
+        # removed_card_name against it would now fail.
+        await client.post(
+            f"{BASE}/personal-decks/{personal_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+
+        resp = await client.put(
+            f"{BASE}/card-tests/{test_id}",
+            json={
+                "personal_deck_id": personal_id,
+                "removed_card_name": "Sol Ring",
+                "added_card_name": "Bolt",
+                "notes": "Still tracking this swap",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["notes"] == "Still tracking this swap"
+
 
 class TestValidateAddedCardExists:
     async def test_off_by_default_accepts_anything(

@@ -12,6 +12,7 @@ import { CARD_NAME_SEARCH_MIN_LENGTH, useCardNameSearch } from '@/hooks/useCards
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useDecklistView } from '@/hooks/useDecklistVersions'
 import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
+import { useMySettings } from '@/hooks/useSettings'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { ApiError } from '@/api/client'
 import type {
@@ -216,11 +217,15 @@ function filterCardNames(names: string[], query: string): string[] {
 /** S17 item 2: "not found" warning for the Added-Card dropdown once its
  * live search has actually run and come back empty — never shown while
  * still below the minimum length or mid-fetch, so it can't flash on
- * every keystroke. */
+ * every keystroke. Gated on the "Validate added card exists" setting
+ * (S16): the hint would otherwise flag every non-Magic card name for
+ * decks that never opted into that validation. */
 function addedCardNotFoundHint(
   debouncedQuery: string,
   search: { data?: string[]; isFetching: boolean },
+  validateAddedCardExists: boolean,
 ): string | null {
+  if (!validateAddedCardExists) return null
   if (debouncedQuery.trim().length < CARD_NAME_SEARCH_MIN_LENGTH) return null
   if (search.isFetching) return null
   if (search.data && search.data.length === 0) {
@@ -381,6 +386,8 @@ export function CardTestsSection() {
   const { data: cardTests } = useCardTests(activeDeckId)
   const { data: metaDecks } = useMetaDecks()
   const { data: decklistView } = useDecklistView(activeDeckId)
+  const { data: settings } = useMySettings()
+  const validateAddedCardExists = settings?.validate_added_card_exists ?? false
   const createTest = useCreateCardTest()
   const updateTest = useUpdateCardTest()
   const deleteTest = useDeleteCardTest()
@@ -487,6 +494,7 @@ export function CardTestsSection() {
             notFoundHint={addedCardNotFoundHint(
               debouncedNewAddedCard,
               newAddedCardSearch,
+              validateAddedCardExists,
             )}
             className="w-48"
           />
@@ -557,6 +565,7 @@ export function CardTestsSection() {
                       notFoundHint={addedCardNotFoundHint(
                         debouncedEditAddedCard,
                         editAddedCardSearch,
+                        validateAddedCardExists,
                       )}
                     />
                   </TableCell>
