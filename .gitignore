@@ -22,6 +22,9 @@ apps/barrins_identity/logs/
 # api on-disk cache (e.g. Scryfall image cache) — regenerated on demand
 apps/barrins_api/var/cache/
 
+# api on-disk cache (e.g. Scryfall image cache) — regenerated on demand
+apps/barrins_api/var/cache/
+
 # Barrin's Scripture's JSON archive — per T1/§1.3, this lives in its own git
 # repository (a submodule pointing at mtg_decklist_cache or its durable
 # successor), never inlined into this monorepo's own history. Until that

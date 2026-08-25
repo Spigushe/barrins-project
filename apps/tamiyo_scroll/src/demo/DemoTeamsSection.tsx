@@ -10,7 +10,7 @@ const NEW_TEAM = 'new' as const
 
 /**
  * Demo-only "Teams" tab shell. `TeamsTab`/`TeamPage`/`TeamCreateJoinPage`
- * (the real app's equivalents) navigate via `/app/team/*` routes wrapped in
+ * (the real app's equivalents) navigate via `/team/*` routes wrapped in
  * `ProtectedRoute` — reusing them as-is inside `/demo` would bounce an
  * unauthenticated visitor to `/login` the moment they clicked a team (the
  * exact "click a tab, it flashes, then I'm on the login page" bug this

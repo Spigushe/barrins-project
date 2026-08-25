@@ -8,7 +8,12 @@ from sqlalchemy import select, update
 
 from app.main import app
 from app.models.mtgjson import Card, MTGSet
-from app.models.tamiyo_scroll import TSPersonalDeck, TSPersonalDecklistVersion
+from app.models.tamiyo_scroll import (
+    TSMatch,
+    TSMetaDeck,
+    TSPersonalDeck,
+    TSPersonalDecklistVersion,
+)
 from app.services.moxfield import get_moxfield_client
 from app.services.moxfield.base import MoxfieldDeckFetch
 from tests.identity_auth import FakeUser as User
@@ -29,6 +34,38 @@ def _flatten_library(body: dict) -> list[dict]:
     """`library_cards`'s cards, in group order -- for tests that only care
     about resolved card data, not the grouping itself."""
     return [card for group in body["library_cards"] for card in group["cards"]]
+
+
+async def _create_card_log(
+    client: AsyncClient,
+    user: User,
+    personal_deck_id: str,
+    *,
+    removed_card_name: str,
+    added_card_name: str,
+) -> str:
+    resp = await client.post(
+        f"{BASE}/card-tests",
+        json={
+            "personal_deck_id": personal_deck_id,
+            "removed_card_name": removed_card_name,
+            "added_card_name": added_card_name,
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def _create_evaluation(
+    client: AsyncClient, user: User, test_id: str, opponent_deck_id: str, rating: int
+) -> None:
+    resp = await client.post(
+        f"{BASE}/card-tests/{test_id}/evaluations",
+        json={"opponent_deck_id": opponent_deck_id, "rating": rating},
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
 
 
 class TestListPersonalDecks:
@@ -233,6 +270,127 @@ class TestPatchPersonalDeck:
             headers=auth_headers(owner_user),
         )
         assert resp.status_code == 422
+
+
+async def _create_meta_deck(
+    client: AsyncClient, user: User, personal_deck_id: str, name: str = "Control"
+) -> dict:
+    resp = await client.post(
+        f"{BASE}/meta-decks",
+        json={
+            "name": name,
+            "tier": 1.0,
+            "category": "control",
+            "top8": 0,
+            "presence": 0,
+            "expected": "as_expected",
+            "personal_deck_id": personal_deck_id,
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def _log_match(
+    client: AsyncClient, user: User, personal_deck_id: str, opponent_deck_id: str
+) -> None:
+    resp = await client.post(
+        f"{BASE}/matches",
+        json={
+            "personal_deck_id": personal_deck_id,
+            "opponent_deck_id": opponent_deck_id,
+            "on_play": True,
+            "game1": "win",
+        },
+        headers=auth_headers(user),
+    )
+    assert resp.status_code == 201
+
+
+class TestSyncOpponentDeckGames:
+    """`_sync_opponent_deck_games` (F10) — cascades a PATCHed personal
+    deck's `game` onto its logged opponents' `game`, either in place
+    (single-owner) or via duplicate-and-allocate (multi-owner)."""
+
+    async def test_single_owner_updates_game_in_place(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user, "Mono Red")
+        opponent = await _create_meta_deck(client, owner_user, deck_id)
+        await _log_match(client, owner_user, deck_id, opponent["id"])
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_id}",
+            json={"game": "pokemon"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        row = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == uuid.UUID(opponent["id"]))
+            )
+        ).scalar_one()
+        assert row.game.value == "pokemon"
+
+    async def test_multi_owner_duplicates_instead_of_overwriting(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """An opponent roster row already owned (via `personal_deck_id`)
+        by a *different* personal deck must not be silently overwritten
+        when this deck's game is corrected — it's duplicated instead, and
+        only this deck's own matches repoint to the duplicate. The
+        original row (still owned by the other deck) is left untouched.
+        """
+        headers = auth_headers(owner_user)
+        deck_a_id = await _create_deck(client, owner_user, "Deck A")
+        deck_b_id = await _create_deck(client, owner_user, "Deck B")
+
+        # The roster row is owned by deck A; deck B also logs a match
+        # against the same row (allowed — the "game" roster scope can
+        # surface another of the owner's decks' rows in the picker).
+        opponent = await _create_meta_deck(client, owner_user, deck_a_id)
+        await _log_match(client, owner_user, deck_a_id, opponent["id"])
+        await _log_match(client, owner_user, deck_b_id, opponent["id"])
+
+        resp = await client.patch(
+            f"{BASE}/personal-decks/{deck_b_id}",
+            json={"game": "pokemon"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        original = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == uuid.UUID(opponent["id"]))
+            )
+        ).scalar_one()
+        assert original.game.value == "magic"
+
+        matches = (
+            (
+                await db_session.execute(
+                    select(TSMatch).where(TSMatch.owner_id == owner_user.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        deck_a_match = next(m for m in matches if str(m.personal_deck_id) == deck_a_id)
+        deck_b_match = next(m for m in matches if str(m.personal_deck_id) == deck_b_id)
+        assert str(deck_a_match.opponent_deck_id) == opponent["id"]
+        assert deck_b_match.opponent_deck_id != deck_a_match.opponent_deck_id
+
+        duplicate = (
+            await db_session.execute(
+                select(TSMetaDeck).where(TSMetaDeck.id == deck_b_match.opponent_deck_id)
+            )
+        ).scalar_one()
+        assert duplicate.game.value == "pokemon"
+        assert duplicate.name == "Control"
+        assert str(duplicate.personal_deck_id) == deck_b_id
 
 
 class TestArchivePersonalDeck:
@@ -509,6 +667,10 @@ class TestDecklistView:
     async def test_colors_cards_from_card_tests(
         self, client: AsyncClient, owner_user: User
     ):
+        """Evaluation-based majority coloring (S17): both card logs'
+        removed names are deliberately *not* in this decklist, so the
+        pending pass never triggers here -- pending has its own tests
+        below."""
         headers = auth_headers(owner_user)
         deck_id = await _create_deck(client, owner_user)
         await client.post(
@@ -516,26 +678,30 @@ class TestDecklistView:
             json={"content": "4 Lightning Bolt\n2 Duress"},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_id,
-                "tester": "Alice",
-                "card_name": "Lightning Bolt",
-                "rating": 5,
-            },
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": deck_id,
-                "tester": "Bob",
-                "card_name": "Duress",
-                "rating": 1,
-            },
-            headers=headers,
+        meta_id = (await _create_meta_deck(client, owner_user, deck_id))["id"]
+
+        bolt_test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Old Card A",
+            added_card_name="Lightning Bolt",
         )
+        await _create_evaluation(client, owner_user, bolt_test_id, meta_id, 5)
+
+        duress_test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Old Card B",
+            added_card_name="Duress",
+        )
+        await _create_evaluation(client, owner_user, duress_test_id, meta_id, 1)
 
         resp = await client.get(
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
@@ -560,16 +726,20 @@ class TestDecklistView:
             json={"content": "4 Lightning Bolt"},
             headers=headers,
         )
-        await client.post(
-            f"{BASE}/card-tests",
-            json={
-                "personal_deck_id": other_deck_id,
-                "tester": "Alice",
-                "card_name": "Lightning Bolt",
-                "rating": 5,
-            },
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
             headers=headers,
         )
+        meta_id = (await _create_meta_deck(client, owner_user, other_deck_id))["id"]
+        other_test_id = await _create_card_log(
+            client,
+            owner_user,
+            other_deck_id,
+            removed_card_name="Duress",
+            added_card_name="Lightning Bolt",
+        )
+        await _create_evaluation(client, owner_user, other_test_id, meta_id, 5)
 
         resp = await client.get(
             f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
@@ -579,6 +749,116 @@ class TestDecklistView:
             (c["qty"], c["name"]): c["status"] for c in _flatten_library(resp.json())
         }
         assert cards == {(4, "Lightning Bolt"): "neutral"}
+
+    async def test_pending_when_removed_card_still_in_current_decklist(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S17: a card log with no evaluation at all still marks its
+        removed card's line pending, with the added card's name/scryfall
+        id surfaced for the hover preview."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Duress",
+            added_card_name="Not A Real Card XYZ",
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        cards = {c["name"]: c for c in _flatten_library(resp.json())}
+        assert cards["Duress"]["status"] == "pending"
+        assert cards["Duress"]["pending_added_card_name"] == "Not A Real Card XYZ"
+        assert cards["Duress"]["pending_card_test_id"] == test_id
+        # unresolvable added-card name -- no mj_cards row to surface pips from.
+        assert cards["Duress"]["pending_added_card_mana_cost"] is None
+        assert cards["Lightning Bolt"]["status"] == "neutral"
+        assert cards["Lightning Bolt"]["pending_card_test_id"] is None
+
+    async def test_pending_pips_and_popover_reflect_added_card(
+        self, client: AsyncClient, owner_user: User, db_session
+    ):
+        """S17 item 3/4: a pending line's `mana_cost`/`text`/`keywords`
+        (fed to the row's pips + info popover) come from the *added*
+        card, resolved against `mj_cards` the same way the line's own
+        (removed) name is -- not the removed card's own data."""
+        mtg_set = MTGSet(
+            code="PND",
+            name="Pending Test Set",
+            release_date=date(2026, 1, 1),
+            type="expansion",
+            base_set_size=1,
+            total_set_size=1,
+            keyrune_code="pnd",
+        )
+        db_session.add(mtg_set)
+        await db_session.flush()
+        db_session.add(
+            Card(
+                id=uuid.uuid4(),
+                set_code="PND",
+                name="Swords to Plowshares",
+                type_line="Instant",
+                mana_cost="{W}",
+                mana_value=1,
+                color_identity=["W"],
+                rarity="uncommon",
+                number="1",
+                scryfall_id="swords-scryfall-id",
+                text="Exile target creature.",
+                keywords=["Exile"],
+            )
+        )
+        await db_session.commit()
+
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "2 Duress"},
+            headers=headers,
+        )
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        test_id = await _create_card_log(
+            client,
+            owner_user,
+            deck_id,
+            removed_card_name="Duress",
+            added_card_name="Swords to Plowshares",
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/decklist-view", headers=headers
+        )
+        assert resp.status_code == 200
+        card = _flatten_library(resp.json())[0]
+        assert card["status"] == "pending"
+        assert card["pending_card_test_id"] == test_id
+        assert card["pending_added_card_scryfall_id"] == "swords-scryfall-id"
+        assert card["pending_added_card_mana_cost"] == "{W}"
+        assert card["pending_added_card_text"] == "Exile target creature."
+        assert card["pending_added_card_keywords"] == ["Exile"]
+        # the line's own (removed card's) data is untouched by the above.
+        assert card["name"] == "Duress"
+        assert card["mana_cost"] is None
 
     async def test_uses_latest_version_only(
         self, client: AsyncClient, owner_user: User
@@ -725,3 +1005,245 @@ class TestDecklistView:
             "Enchant Test",  # enchantment
             "Land Test",  # land
         ]
+
+
+class TestDecklistVersionView:
+    async def test_returns_specific_past_version_not_latest(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        v1_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        v1_id = v1_resp.json()["id"]
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "2 Duress"},
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v1_id}", headers=headers
+        )
+        assert resp.status_code == 200
+        assert [(c["qty"], c["name"]) for c in _flatten_library(resp.json())] == [
+            (4, "Lightning Bolt")
+        ]
+
+    async def test_unknown_version_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/"
+            "00000000-0000-0000-0000-000000000000",
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_foreign_deck_version_returns_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        version_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        version_id = version_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{version_id}",
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+
+class TestDecklistVersionDiff:
+    async def test_first_version_has_no_prior_version(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        v1_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt"},
+            headers=headers,
+        )
+        v1_id = v1_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v1_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] is None
+        assert body["compared_to_version_id"] is None
+        assert body["cards"] == []
+        assert body["unparsed_lines"] == []
+
+    async def test_diffs_against_immediately_prior_version(
+        self, client: AsyncClient, owner_user: User
+    ):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n1 Sol Ring"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] == 1
+        cards = {
+            (c["name"], c["status"], c["old_qty"], c["new_qty"]) for c in body["cards"]
+        }
+        assert cards == {
+            ("Lightning Bolt", "unchanged", 4, 4),
+            ("Duress", "removed", 2, None),
+            ("Sol Ring", "added", None, 1),
+        }
+
+    async def test_annotates_matching_card_test_notes(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """S16: a card test whose removed/added names match this diff's
+        removed/added cards has its note attached to that line."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n2 Duress"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "4 Lightning Bolt\n1 Sol Ring"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        await client.patch(
+            f"{BASE}/me/settings",
+            json={"validate_removed_card_in_decklist": False},
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/card-tests",
+            json={
+                "personal_deck_id": deck_id,
+                "removed_card_name": "Duress",
+                "added_card_name": "Sol Ring",
+                "notes": "great swap into the control matchup",
+            },
+            headers=headers,
+        )
+        await client.post(
+            f"{BASE}/card-tests",
+            json={
+                "personal_deck_id": deck_id,
+                "removed_card_name": "Not In This Diff",
+                "added_card_name": "Also Not In This Diff",
+                "notes": "unrelated card test",
+            },
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        cards = {c["name"]: c["card_test_notes"] for c in resp.json()["cards"]}
+        assert cards["Duress"] == ["great swap into the control matchup"]
+        assert cards["Sol Ring"] == ["great swap into the control matchup"]
+        assert cards["Lightning Bolt"] == []
+
+    async def test_skips_deleted_version_when_finding_prior(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """The "immediately prior" version is resolved by `version`
+        number among rows that still exist, not literally `version - 1`
+        -- deleting version 2 must make version 3 diff against version 1."""
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring\n1 Mana Crypt"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+        v3_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "1 Sol Ring\n1 Duress"},
+            headers=headers,
+        )
+        v3_id = v3_resp.json()["id"]
+
+        await client.delete(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}", headers=headers
+        )
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v3_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["compared_to_version"] == 1
+        cards = {(c["name"], c["status"]) for c in body["cards"]}
+        assert cards == {("Sol Ring", "unchanged"), ("Duress", "added")}
+
+    async def test_diffs_unparsed_lines(self, client: AsyncClient, owner_user: User):
+        headers = auth_headers(owner_user)
+        deck_id = await _create_deck(client, owner_user)
+        await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "old free-text note"},
+            headers=headers,
+        )
+        v2_resp = await client.post(
+            f"{BASE}/personal-decks/{deck_id}/versions",
+            json={"content": "new free-text note"},
+            headers=headers,
+        )
+        v2_id = v2_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/{v2_id}/diff", headers=headers
+        )
+        assert resp.status_code == 200
+        unparsed_lines = resp.json()["unparsed_lines"]
+        lines = {(line["line"], line["status"]) for line in unparsed_lines}
+        assert lines == {
+            ("old free-text note", "removed"),
+            ("new free-text note", "added"),
+        }
+
+    async def test_unknown_version_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        deck_id = await _create_deck(client, owner_user)
+        resp = await client.get(
+            f"{BASE}/personal-decks/{deck_id}/versions/"
+            "00000000-0000-0000-0000-000000000000/diff",
+            headers=auth_headers(owner_user),
+        )
+        assert resp.status_code == 404

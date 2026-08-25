@@ -105,9 +105,9 @@ vi.mock('@/hooks/useTeams', () => ({
 
 function renderTeamPage() {
   return render(
-    <MemoryRouter initialEntries={['/app/team/team-1']}>
+    <MemoryRouter initialEntries={['/team/team-1']}>
       <Routes>
-        <Route path="/app/team/:teamId" element={<TeamPage />} />
+        <Route path="/team/:teamId" element={<TeamPage />} />
       </Routes>
     </MemoryRouter>,
   )

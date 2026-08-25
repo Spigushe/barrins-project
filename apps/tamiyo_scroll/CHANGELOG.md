@@ -16,6 +16,46 @@ section of the docs site for details.
   entry point), `/signup`, `/verify-email`, `/forgot-password`,
   `/reset-password`. `SessionBootSplash` covers the cookie-mode restore.
 - `.env.example`: `VITE_IDENTITY_SERVICE_URL`.
+- Metagame roster scoped to the active personal deck (F10): a new
+  "Store roster decks per game" switch (`AccountSettingsDialog`) toggles
+  between one shared roster per game (default) and a roster scoped to
+  just the active personal deck — the Deck roster and Expected metagame
+  sections follow whichever is selected.
+- Decklist version history — view past content + diff (S15):
+  `VersionHistorySection` becomes expand-in-place — clicking a version
+  shows its full structured content (new shared `DecklistViewContent`,
+  extracted from `CurrentDecklistSection` so the two never drift) or,
+  when the new "Decklist version diff" setting is on (default,
+  `AccountSettingsDialog`), a card-aware diff against the immediately
+  prior version instead — the two are mutually exclusive, not shown
+  together. The first version shows an explicit "no prior version"
+  message rather than an empty-looking diff.
+- **Breaking**: Tested Cards → decklist change log (S16).
+  `CardTestsSection`'s "Nickname"/"Card" table columns and create-form
+  fields are relabeled "Removed Card"/"Added Card" (also fixing the
+  pre-existing "Card"/"Card name" label mismatch between the table and
+  the form); the stale autofill that prefilled the removed-card field
+  with the current user's display name (a leftover from the old
+  "who's testing" semantics) is removed. Failed validation on create/
+  update now shows the backend's error message inline. Three new
+  `AccountSettingsDialog` switches: "Validate removed card is in
+  decklist" (on by default), "Validate added card exists" (off,
+  Magic-only), "Show decklist change log" (off). With the change-log
+  setting on: `VersionHistorySection`'s diff view shows a matched card
+  test's note as a comment under its `+`/`-` line, anywhere in version
+  history; `CurrentDecklistSection` lists card tests that match no real
+  decklist change in a standalone "Card change being considered in
+  this version" block.
+- Fix: `src/demo/api/personalDecks.ts` was missing S15's
+  `getDecklistVersionView`/`getDecklistVersionDiff`, failing `tsc -b`
+  and `demoApi.test.ts`'s module-shape check. Demo mode now implements
+  both, mirroring the real backend's `diff_decklist_cards` and version
+  view construction against the in-memory store.
+- Shared `ConfirmDialog` component (`components/ui/confirm-dialog.tsx`,
+  built on the existing `Dialog` primitive, no new dependency — S13):
+  deleting a Match journal row, a Card test, a Decklist version, or
+  archiving a Session now opens a confirmation dialog naming the target
+  instead of firing the mutation immediately on click.
 - Decklist view (`CurrentDecklistSection`) rebuilt around the backend's
   new structured `ResponseDecklistView` (S4): a Commander table (when
   the decklist has one) plus one table per card-type section
@@ -26,6 +66,47 @@ section of the docs site for details.
   `components/ui/hover-card.tsx`) via the backend's new Scryfall image
   proxy. Replaces the old flat colored-text-line rendering; any
   unparsable line still renders as before, in its own section.
+- Session overhaul (S14): a session gains a `location` field and an
+  inline-editable `started_at`/`ended_at` date pair (independent of
+  Close/Reopen — see Changed), a freeform 0-359 hue (native range
+  slider, server-persisted, replaces the type-based color on every
+  session tag app-wide — `SessionTypeBadge`), and `GET /sessions` gains
+  `sort_by`/`sort_dir`/`limit`/`offset`/`search`. The Sessions tab table
+  supports sortable columns, 10-per-page pagination, and inline editing
+  (name/location/notes/dates/hue) regardless of a session's status. A
+  "See archived" dialog lists archived sessions with a name search and a
+  restore action (`PATCH .../restore`). Auto-archive (opt-in,
+  `AccountSettingsDialog`): once a session's most recent match's
+  decklist version falls a configurable number of versions behind, it's
+  archived automatically the next time a new decklist version is
+  imported for that deck (Moxfield or plain-text) — event-triggered, not
+  a periodic job.
+- Session creation (S14 follow-up): the "New session" form now reuses
+  `SessionEditFields` — the same location/notes/started_at/ended_at/hue
+  fields used to edit a session — instead of just name/type, so a
+  session can be fully filled in at creation rather than requiring an
+  immediate follow-up edit.
+- **Breaking**: card log / match-up evaluation split (S17). Tested
+  cards' creation form only collects Removed Card, Added Card, and
+  Notes now — match-up (opponent deck) and effectiveness rating moved
+  to an expandable evaluations sub-list on each card log, added from
+  the edit row (one card log, many evaluations). Removed-Card suggests
+  from the current decklist as you type; Added-Card suggests from a
+  live, debounced card-name search (3-character minimum), with a "not
+  found" hint when nothing matches — free text stays valid either way.
+  A decklist line whose card is still present but targeted by a card
+  log's `removed_card_name` renders inline as **pending** (blue): the
+  removed name struck through, an arrow, then the added name, same
+  row — replacing the old separate "Card change being considered"
+  block for changes reflected this way (that block still lists changes
+  not yet reflected in the current decklist). Hovering either name in
+  a pending row, or either name in the "Tested cards" block itself,
+  shows that card's image.
+- Route paths dropped their `/app` prefix (`/app/tracker` → `/tracker`,
+  same for `/metagame`/`/decklist`/`/sessions`/`/team`/`/admin/metrics`)
+  — old `/app/*` links still resolve, redirected to the flattened path.
+  The post-login/first-access landing tab is now Tracker (BO3 Tracking),
+  not Metagame.
 
 ### Changed
 
@@ -45,11 +126,20 @@ section of the docs site for details.
   time-series chart are dropped — `barrins_api` no longer owns a `users`
   table to count. To be restored via a `barrins_identity` admin count
   endpoint.
+- `MetaDecksSections` (`RosterRow`), `PersonalDeckSelector`, and
+  `AccountSettingsTeamSection`'s existing confirm-before-delete dialogs
+  are refactored onto the shared `ConfirmDialog` (S13); behavior is
+  unchanged, including the team flow's extra invite-code-retype step.
 - `getDecklistView`'s Zod schema (`decklistViewSchema`) replaces the old
   flat `decklistLineSchema.array()`; the demo-mode API
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
   client-side (no `mj_cards` in the browser, so demo cards always
   categorize as "other").
+- `TSSession.ended_at` (the Close/Reopen workflow field) is renamed to
+  `closed_at` (S14) — the Status ("Ongoing"/"Closed") badge and the
+  match-logging session picker now read `closed_at`. A new, separate
+  `ended_at` is purely informational and freely editable, independent
+  of Close/Reopen.
 
 ### Removed
 
@@ -57,6 +147,23 @@ section of the docs site for details.
   `src/schemas/auth.ts`, `src/pages/LoginPage.tsx`,
   `src/pages/VerifyEmailPage.tsx` — all superseded by
   `@barrins/goblin-guide`.
+- The "Team de test" section is dropped from `AccountSettingsDialog` —
+  Teams itself (`TeamPage`, `TeamDeckSelector`, etc.) is unaffected, only
+  this redundant entry point is removed.
+
+### Fixed
+
+- `CardTestsSection`'s Added-Card "not found" hint (S17) now respects
+  the "Validate added card exists" setting (S16, off by default) — it
+  was flagging every non-Magic card name for decks that never opted
+  into that validation.
+- `useMetaDecks`' create/update/archive mutations now invalidate the
+  matches cache too (F10) — a roster change can shift which opponent id
+  a cached match should resolve against.
+- `demo/api/metaDecks.ts`'s `createMetaDeck` mock now sets `merged_ids`
+  (F10), fixing a `tsc -b` break introduced by the new required field.
+- Session hue badge text color adjusted for readability in dark theme
+  (`lib/mtg-format.ts`).
 
 ## [2.0.0-alpha] - 2026-08-03
 

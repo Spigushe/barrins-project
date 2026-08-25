@@ -1,4 +1,11 @@
-import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 import { useIdentity } from '@barrins/goblin-guide'
 import { AdminRoute } from '@/components/layout/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
@@ -29,7 +36,7 @@ function RootRedirect() {
   if (isBootstrapping) return <SessionBootSplash />
 
   if (isAuthenticated) {
-    return <Navigate to="/app/metagame" replace />
+    return <Navigate to="/tracker" replace />
   }
 
   // Unauthenticated: offer the demo (S7) alongside the login page, instead
@@ -53,6 +60,17 @@ function RootRedirect() {
   )
 }
 
+/** Old `/app/*` links (bookmarks, shared URLs from before routes were
+ * flattened to the top level) still resolve — redirects to the same
+ * path with the `/app` prefix stripped, preserving any query string.
+ * Exported for `App.test.tsx` — the redirect target-computation is the
+ * one piece of new logic in this file worth testing directly. */
+export function AppPrefixRedirect() {
+  const location = useLocation()
+  const target = location.pathname.replace(/^\/app/, '') || '/'
+  return <Navigate to={`${target}${location.search}`} replace />
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -66,7 +84,7 @@ function App() {
         <Route path="/demo" element={<DemoPage />} />
 
         <Route
-          path="/app/metagame"
+          path="/metagame"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -76,7 +94,7 @@ function App() {
           }
         />
         <Route
-          path="/app/tracker"
+          path="/tracker"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -86,7 +104,7 @@ function App() {
           }
         />
         <Route
-          path="/app/decklist"
+          path="/decklist"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -96,7 +114,7 @@ function App() {
           }
         />
         <Route
-          path="/app/sessions"
+          path="/sessions"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -106,7 +124,7 @@ function App() {
           }
         />
         <Route
-          path="/app/team"
+          path="/team"
           element={
             <ProtectedRoute>
               <AppShell>
@@ -121,7 +139,7 @@ function App() {
         </Route>
 
         <Route
-          path="/app/admin/metrics"
+          path="/admin/metrics"
           element={
             <ProtectedRoute>
               <AdminRoute>
@@ -131,6 +149,7 @@ function App() {
           }
         />
 
+        <Route path="/app/*" element={<AppPrefixRedirect />} />
         <Route path="*" element={<RootRedirect />} />
       </Routes>
     </BrowserRouter>

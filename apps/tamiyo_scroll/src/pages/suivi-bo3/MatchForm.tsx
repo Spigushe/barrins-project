@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { useCreateMetaDeck } from '@/hooks/useMetaDecks'
+import { resolveMetaDeckOption, useCreateMetaDeck } from '@/hooks/useMetaDecks'
 import { useCreateSession, useSessions } from '@/hooks/useSessions'
 import type {
   ArchetypeCategory,
@@ -142,6 +142,7 @@ interface OpponentDeckOption {
   is_readonly?: boolean
   tier?: number
   category?: ArchetypeCategory
+  merged_ids?: string[]
 }
 
 /**
@@ -165,10 +166,14 @@ function OpponentDeckField({
   value,
   onChange,
   options,
+  personalDeckId,
 }: {
   value: string
   onChange: (deckId: string) => void
   options: OpponentDeckOption[]
+  /** The deck this match is being logged for — the new opponent entry is
+   * created against it (required server-side, F10). */
+  personalDeckId: string
 }) {
   const createMetaDeck = useCreateMetaDeck()
 
@@ -180,7 +185,7 @@ function OpponentDeckField({
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
 
-  const selected = options.find((deck) => deck.id === value)
+  const selected = resolveMetaDeckOption(options, value)
   const trimmedSearch = search.trim()
   const filtered = options.filter((deck) =>
     deck.name.toLowerCase().includes(trimmedSearch.toLowerCase()),
@@ -226,6 +231,7 @@ function OpponentDeckField({
       presence: 0,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: personalDeckId,
     })
     onChange(created.id)
     setCreating(false)
@@ -277,7 +283,9 @@ function OpponentDeckField({
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span>
-                        {deck.id === value ? '✓ ' : ''}
+                        {deck.id === value || deck.merged_ids?.includes(value)
+                          ? '✓ '
+                          : ''}
                         {deck.name}
                       </span>
                       {deck.is_readonly && (
@@ -320,8 +328,8 @@ function OpponentDeckField({
               <p className="mt-1 text-sm font-medium text-foreground">{pendingName}</p>
               {claimingShared && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  This deck exists via shared data. Confirm its tier and
-                  archetype to add it to your own roster.
+                  This deck exists via shared data. Confirm its tier and archetype to add
+                  it to your own roster.
                 </p>
               )}
             </div>
@@ -422,7 +430,7 @@ function SessionField({
   // A closed session can't be picked for a new/changed match — but if the
   // match is already tied to one (logged before it closed), its name must
   // still resolve correctly rather than falling back to "— none —".
-  const selectableSessions = allSessions.filter((session) => session.ended_at === null)
+  const selectableSessions = allSessions.filter((session) => session.closed_at === null)
   const selected = allSessions.find((session) => session.id === value)
   const trimmedSearch = search.trim()
   const filtered = selectableSessions.filter((session) =>
@@ -652,6 +660,7 @@ export function MatchFormFields({
             onChange({ ...draft, opponentDeckId: deckId })
           }}
           options={metaDeckOptions}
+          personalDeckId={draft.personalDeckId}
         />
         {draft.personalDeckId && (
           <SessionField

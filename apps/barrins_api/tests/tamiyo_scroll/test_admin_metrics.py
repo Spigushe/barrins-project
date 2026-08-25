@@ -94,6 +94,7 @@ class TestAdminMetrics:
                 "top8": 1,
                 "presence": 5,
                 "expected": "as_expected",
+                "personal_deck_id": deck_a["id"],
             },
             headers=owner_headers,
         )
@@ -107,6 +108,7 @@ class TestAdminMetrics:
                 "top8": 1,
                 "presence": 5,
                 "expected": "as_expected",
+                "personal_deck_id": deck_b["id"],
             },
             headers=other_headers,
         )

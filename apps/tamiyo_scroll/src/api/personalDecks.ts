@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { ArchetypeCategory, CardGame } from '@/schemas/tamiyoScroll'
 import {
+  decklistVersionDiffSchema,
   decklistVersionSchema,
   decklistViewSchema,
   personalDeckSchema,
@@ -78,6 +79,24 @@ export function getDecklistView(deckId: string) {
   return apiRequest(
     `/bff/tamiyo-scroll/personal-decks/${deckId}/decklist-view`,
     decklistViewSchema,
+    { applyOwnerParam: true },
+  )
+}
+
+/** S15: structured content of one specific past version (not just latest). */
+export function getDecklistVersionView(deckId: string, versionId: string) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/personal-decks/${deckId}/versions/${versionId}`,
+    decklistViewSchema,
+    { applyOwnerParam: true },
+  )
+}
+
+/** S15: card-aware diff of `versionId` against the immediately-prior version. */
+export function getDecklistVersionDiff(deckId: string, versionId: string) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/personal-decks/${deckId}/versions/${versionId}/diff`,
+    decklistVersionDiffSchema,
     { applyOwnerParam: true },
   )
 }

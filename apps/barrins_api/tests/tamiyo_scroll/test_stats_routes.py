@@ -25,6 +25,7 @@ async def _setup_match(
             "top8": 1,
             "presence": 5,
             "expected": "as_expected",
+            "personal_deck_id": personal_id,
         },
         headers=headers,
     )
@@ -102,6 +103,70 @@ class TestArchetypeSummary:
         )
         control = next(s for s in resp.json() if s["category"] == "control")
         assert control["decks"][0]["winrate"] == 50.0
+
+    async def test_does_not_leak_a_different_games_roster_into_the_breakdown(
+        self, client: AsyncClient, owner_user: User
+    ):
+        """F10 UAT: switching the active deck to a different game must
+        clear "Breakdown by archetype" too, not just the roster tab —
+        `compute_archetype_summary` lists every roster deck per category
+        (even ones with no matches), so an unfiltered `meta_decks` list
+        leaked every other game's decks in as empty-winrate rows."""
+        headers = auth_headers(owner_user)
+        magic_resp = await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
+            headers=headers,
+        )
+        magic_id = magic_resp.json()["id"]
+        await client.post(
+            f"{BASE}/meta-decks",
+            json={
+                "name": "Burn",
+                "tier": 1.0,
+                "category": "aggro",
+                "top8": 0,
+                "presence": 0,
+                "expected": "as_expected",
+                "personal_deck_id": magic_id,
+            },
+            headers=headers,
+        )
+        pokemon_resp = await client.post(
+            f"{BASE}/personal-decks",
+            json={"name": "Sparks", "game": "pokemon", "category": "aggro"},
+            headers=headers,
+        )
+        pokemon_id = pokemon_resp.json()["id"]
+        await client.post(
+            f"{BASE}/meta-decks",
+            json={
+                "name": "Zapdos",
+                "tier": 1.0,
+                "category": "aggro",
+                "top8": 0,
+                "presence": 0,
+                "expected": "as_expected",
+                "personal_deck_id": pokemon_id,
+            },
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/archetype-summary?personal_deck_id={pokemon_id}",
+            headers=headers,
+        )
+        aggro = next(s for s in resp.json() if s["category"] == "aggro")
+        names = {d["name"] for d in aggro["decks"]}
+        assert names == {"Zapdos"}
+
+        resp = await client.get(
+            f"{BASE}/archetype-summary?personal_deck_id={magic_id}",
+            headers=headers,
+        )
+        aggro = next(s for s in resp.json() if s["category"] == "aggro")
+        names = {d["name"] for d in aggro["decks"]}
+        assert names == {"Burn"}
 
 
 class TestMatchupSummary:
@@ -220,7 +285,7 @@ class TestSharedDataInStats:
         )
 
         owner_headers = auth_headers(owner_user)
-        await client.post(
+        owner_personal_resp = await client.post(
             f"{BASE}/personal-decks",
             json={"name": "Mono Red", "game": "magic", "category": "aggro"},
             headers=owner_headers,
@@ -234,6 +299,7 @@ class TestSharedDataInStats:
                 "top8": 0,
                 "presence": 0,
                 "expected": "as_expected",
+                "personal_deck_id": owner_personal_resp.json()["id"],
             },
             headers=owner_headers,
         )

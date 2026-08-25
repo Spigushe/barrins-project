@@ -34,10 +34,14 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
   useUpdatePersonalDeck: () => ({ mutateAsync: updateDeckMutateAsync, isPending: false }),
 }))
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useMetaDecks: () => ({ data: [] }),
-  useCreateMetaDeck: () => ({ mutateAsync: vi.fn() }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useMetaDecks: () => ({ data: [] }),
+    useCreateMetaDeck: () => ({ mutateAsync: vi.fn() }),
+  }
+})
 
 vi.mock('@/hooks/useMatches', () => ({
   useCreateMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),

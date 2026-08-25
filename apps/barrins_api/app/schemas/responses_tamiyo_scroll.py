@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import computed_field
+from pydantic import Field, computed_field
 
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
@@ -12,6 +12,7 @@ from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     ExpectedLevel,
     GameResult,
+    MetagameRosterScope,
     SessionType,
 )
 from app.schemas.responses_base import BaseResponse
@@ -23,6 +24,13 @@ class ResponseUserSettings(BaseResponse):
     data_shared: bool
     receive_shared_data: bool
     active_personal_deck_id: uuid.UUID | None
+    metagame_roster_scope: MetagameRosterScope
+    auto_archive_stale_sessions: bool
+    auto_archive_decklist_version_gap: int
+    show_decklist_version_diff: bool
+    validate_removed_card_in_decklist: bool
+    validate_added_card_exists: bool
+    show_decklist_change_log: bool
 
 
 class ResponsePersonalDeck(BaseResponse):
@@ -53,12 +61,16 @@ class ResponseDecklistVersion(BaseResponse):
 class ResponseMetaDeck(BaseResponse):
     id: uuid.UUID
     name: str
+    # None only for a foreign (is_readonly) row merged in from a sharer
+    # (F10) — the sharer's own personal_deck_id is never exposed to the
+    # viewer, same "never leak a sharer's raw id" rule sharing_merge
+    # already applies to EffectiveMatch.
+    personal_deck_id: uuid.UUID | None
     tier: float
     category: ArchetypeCategory
-    # Nullable — inherited automatically from whichever personal deck this
-    # meta deck was created against (soft data tag, no enforced constraint;
-    # see TSMetaDeck.game's docstring). None if created without that
-    # context, or if that personal deck itself had no game set yet.
+    # Nullable — inherited automatically from `personal_deck_id` at
+    # creation time (see TSMetaDeck.game's docstring). None if that
+    # personal deck itself had no game set yet.
     game: CardGame | None
     decklist_notes: str | None
     top8: int
@@ -70,6 +82,12 @@ class ResponseMetaDeck(BaseResponse):
     shared_by: str | None = None
     has_shared_data: bool = False
     is_multi_share: bool = False
+    # Every underlying TSMetaDeck.id this row represents (F10) — just
+    # [id] normally, or every id a game-scope collapse folded together.
+    # A match logged against a now-merged-away duplicate still carries
+    # that duplicate's id, so the frontend needs this to resolve it back
+    # to this row rather than showing "?"/an unselected dropdown.
+    merged_ids: tuple[uuid.UUID, ...] = ()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -99,22 +117,139 @@ class ResponseMatch(BaseResponse):
     shared_by: str | None = None
 
 
-class ResponseCardTest(BaseResponse):
+class ResponseCardTestEvaluation(BaseResponse):
     id: uuid.UUID
-    personal_deck_id: uuid.UUID | None
-    tester: str
-    card_name: str
-    opponent_deck_id: uuid.UUID | None
+    test_id: uuid.UUID
+    opponent_deck_id: uuid.UUID
     rating: int
     notes: str | None
     created_at: datetime
+
+
+class ResponseCardTest(BaseResponse):
+    id: uuid.UUID
+    personal_deck_id: uuid.UUID | None
+    removed_card_name: str
+    added_card_name: str
+    #: Resolved against `mj_cards` the same way a pending decklist line's
+    #: names are (S17 item 3 follow-up) -- lets the "Tested cards" block
+    #: hover-preview either name without a separate lookup. `None` when
+    #: the name doesn't resolve to a known card.
+    removed_card_scryfall_id: str | None = None
+    added_card_scryfall_id: str | None = None
+    notes: str | None
+    created_at: datetime
+    evaluations: list[ResponseCardTestEvaluation]
 
 
 class ResponseDecklistLine(BaseResponse):
     """A line of the current decklist, colored based on test feedback."""
 
     line: str
-    status: Literal["validated", "rejected", "in_test", "neutral"]
+    status: Literal["validated", "rejected", "in_test", "neutral", "pending"]
+
+
+class ResponseDecklistCard(BaseResponse):
+    """One resolved card line within a structured decklist-view section.
+
+    `pending_added_card_*`/`pending_card_test_id` (S17) are only
+    populated when `status == "pending"` — the card log's
+    `added_card_name`, resolved against `mj_cards` the same way this
+    line's own name is, so the frontend can show a hover preview and
+    pips/popover data for it without a second lookup (it isn't a real
+    decklist line yet). `pending_card_test_id` is the card log this line
+    is pending on, letting the frontend cross-reference it against the
+    standalone unmatched-card-log list without re-deriving the match.
+    """
+
+    qty: int
+    name: str
+    status: Literal["validated", "rejected", "in_test", "neutral", "pending"]
+    mana_cost: str | None
+    type_line: str | None
+    text: str | None
+    keywords: list[str]
+    scryfall_id: str | None
+    pending_added_card_name: str | None = None
+    pending_added_card_scryfall_id: str | None = None
+    pending_added_card_mana_cost: str | None = None
+    pending_added_card_text: str | None = None
+    pending_added_card_keywords: list[str] = Field(default_factory=list)
+    pending_card_test_id: uuid.UUID | None = None
+
+
+class ResponseDecklistTypeGroup(BaseResponse):
+    """One type-ordered section of `library_cards` (e.g. "creature" with
+    its cards) -- Duel Commander display order (planeswalker, battle,
+    creature, instant, sorcery, artifact, enchantment, land, other), each
+    sorted by mana value then name. `category` is a stable machine-readable
+    key, not a display label -- pluralization/translation is the
+    frontend's job."""
+
+    category: DecklistCardCategory
+    count: int
+    cards: list[ResponseDecklistCard]
+
+
+class ResponseDecklistView(BaseResponse):
+    """Structured Commander/Library decklist view.
+
+    `commander_cards` is empty when the decklist has no recognized
+    "Commander" header line — an expected fallback (manually-pasted or
+    pre-feature decks), not an error; the frontend simply omits the
+    Commander box. `unparsed_lines` preserves `ResponseDecklistLine`'s
+    flat shape for any line that isn't a "<qty> <name>" card line, so
+    nothing the coloring feature colors today silently disappears.
+    """
+
+    commander_cards: list[ResponseDecklistCard]
+    library_cards: list[ResponseDecklistTypeGroup]
+    unparsed_lines: list[ResponseDecklistLine]
+
+
+class ResponseDecklistCardDiff(BaseResponse):
+    """One card's quantity change between two decklist versions --
+    matched by name (not by line), so pure reordering never shows up as
+    a spurious added+removed pair (S15).
+
+    `card_test_notes` (S16): notes from any `TSCardTest` whose
+    `removed_card_name`/`added_card_name` matches this line (only ever
+    populated for `status in {"added", "removed"}`) -- always computed,
+    the frontend decides whether to render it based on the user's
+    `show_decklist_change_log` setting."""
+
+    name: str
+    status: Literal["added", "removed", "unchanged", "quantity_changed"]
+    old_qty: int | None
+    new_qty: int | None
+    is_commander: bool
+    card_test_notes: list[str] = Field(default_factory=list)
+
+
+class ResponseDecklistLineDiff(BaseResponse):
+    """One non-card (unparsed) line's change between two decklist
+    versions -- plain line-level diff, since free-text lines can't be
+    matched by card name."""
+
+    line: str
+    status: Literal["added", "removed", "unchanged"]
+
+
+class ResponseDecklistVersionDiff(BaseResponse):
+    """Card-aware diff of one decklist version against the
+    immediately-prior version (by `version` number, skipping any
+    deleted versions in between). `compared_to_version`/
+    `compared_to_version_id` are None for the very first version -- no
+    prior version to diff against -- in which case `cards`/
+    `unparsed_lines` are empty rather than listing everything as
+    added."""
+
+    version_id: uuid.UUID
+    version: int
+    compared_to_version_id: uuid.UUID | None
+    compared_to_version: int | None
+    cards: list[ResponseDecklistCardDiff]
+    unparsed_lines: list[ResponseDecklistLineDiff]
 
 
 class ResponseDecklistCard(BaseResponse):
@@ -200,9 +335,16 @@ class ResponseSession(BaseResponse):
     name: str
     type: SessionType
     notes: str | None
+    location: str | None
     created_at: datetime
+    # S14: freely user-editable, no workflow meaning — see `closed_at`.
+    started_at: datetime | None
     ended_at: datetime | None
+    # Close/Reopen workflow state (the pre-S14 `ended_at`) — drives the
+    # Status ("Ongoing"/"Closed") badge.
+    closed_at: datetime | None
     archived_at: datetime | None
+    hue: int | None
 
 
 class ResponseSessionComparison(BaseResponse):

@@ -4,6 +4,7 @@ import type {
   SessionCreate,
   SessionPatch,
 } from '@/schemas/tamiyoScroll'
+import type { ListSessionsOptions } from '@/api/sessions'
 import { DEMO_CURRENT_USER_ID, getStore, nextId, nowIso } from '../demoStore'
 import { computeArchetypeSummary, computeMatchupSummary, tallyGames } from './statsCore'
 
@@ -12,13 +13,40 @@ import { computeArchetypeSummary, computeMatchupSummary, tallyGames } from './st
 export function listSessions(
   personalDeckId: string,
   includeArchived = false,
+  options: ListSessionsOptions = {},
 ): Promise<Session[]> {
   const store = getStore()
-  const sessions = store.sessions.filter(
+  let sessions = store.sessions.filter(
     (session) =>
       session.personal_deck_id === personalDeckId &&
       (includeArchived || session.archived_at === null),
   )
+
+  if (options.search) {
+    const needle = options.search.toLowerCase()
+    sessions = sessions.filter((session) => session.name.toLowerCase().includes(needle))
+  }
+
+  if (options.sortBy) {
+    const sortBy = options.sortBy
+    const dir = options.sortDir === 'desc' ? -1 : 1
+    sessions = [...sessions].sort((a, b) => {
+      const key = sortBy === 'status' ? 'closed_at' : sortBy
+      const av = a[key] ?? ''
+      const bv = b[key] ?? ''
+      return av < bv ? -dir : av > bv ? dir : 0
+    })
+  } else {
+    sessions = [...sessions].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  }
+
+  if (options.limit !== undefined) {
+    const offset = options.offset ?? 0
+    sessions = sessions.slice(offset, offset + options.limit)
+  } else if (options.offset) {
+    sessions = sessions.slice(options.offset)
+  }
+
   return Promise.resolve(structuredClone(sessions))
 }
 
@@ -31,9 +59,13 @@ export function createSession(payload: SessionCreate): Promise<Session> {
     name: payload.name,
     type: payload.type,
     notes: payload.notes ?? null,
+    location: payload.location ?? null,
     created_at: nowIso(),
+    started_at: nowIso(),
     ended_at: null,
+    closed_at: null,
     archived_at: null,
+    hue: null,
   }
   store.sessions.push(session)
   return Promise.resolve(structuredClone(session))
@@ -48,8 +80,13 @@ export function updateSession(
   if (!session) throw new Error(`Demo session not found: ${sessionId}`)
   if (payload.name !== undefined) session.name = payload.name
   if (payload.notes !== undefined) session.notes = payload.notes
-  if (payload.close) session.ended_at = nowIso()
-  if (payload.reopen) session.ended_at = null
+  if (payload.location !== undefined) session.location = payload.location ?? null
+  if (payload.started_at !== undefined) session.started_at = payload.started_at
+  if (payload.ended_at !== undefined) session.ended_at = payload.ended_at
+  if (payload.hue !== undefined) session.hue = payload.hue
+  if (payload.close) session.closed_at = nowIso()
+  if (payload.reopen) session.closed_at = null
+  if (payload.restore) session.archived_at = null
   return Promise.resolve(structuredClone(session))
 }
 

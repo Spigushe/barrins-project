@@ -13,17 +13,17 @@ vi.mock('@barrins/goblin-guide', () => ({
 
 function renderAdminRoute() {
   return render(
-    <MemoryRouter initialEntries={['/app/admin/metrics']}>
+    <MemoryRouter initialEntries={['/admin/metrics']}>
       <Routes>
         <Route
-          path="/app/admin/metrics"
+          path="/admin/metrics"
           element={
             <AdminRoute>
               <div>Secret admin metrics</div>
             </AdminRoute>
           }
         />
-        <Route path="/app/metagame" element={<div>Metagame tab</div>} />
+        <Route path="/tracker" element={<div>Tracker tab</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -35,7 +35,7 @@ describe('AdminRoute', () => {
     isLoading = true
     renderAdminRoute()
     expect(screen.queryByText('Secret admin metrics')).not.toBeInTheDocument()
-    expect(screen.queryByText('Metagame tab')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tracker tab')).not.toBeInTheDocument()
   })
 
   it('redirects a non-admin user away, without ever rendering the page', () => {
@@ -43,7 +43,7 @@ describe('AdminRoute', () => {
     isLoading = false
     renderAdminRoute()
     expect(screen.queryByText('Secret admin metrics')).not.toBeInTheDocument()
-    expect(screen.getByText('Metagame tab')).toBeInTheDocument()
+    expect(screen.getByText('Tracker tab')).toBeInTheDocument()
   })
 
   it('redirects a moderator/ml_developer user away too (below admin level)', () => {
@@ -51,7 +51,7 @@ describe('AdminRoute', () => {
     isLoading = false
     renderAdminRoute()
     expect(screen.queryByText('Secret admin metrics')).not.toBeInTheDocument()
-    expect(screen.getByText('Metagame tab')).toBeInTheDocument()
+    expect(screen.getByText('Tracker tab')).toBeInTheDocument()
   })
 
   it('renders the page for an admin user', () => {

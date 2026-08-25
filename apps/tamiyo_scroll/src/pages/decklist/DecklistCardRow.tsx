@@ -1,8 +1,7 @@
-import { CardFacesPreview } from '@/components/card-faces-preview'
+import { CardNameHover } from '@/components/card-name-hover'
 import { ManaPips } from '@/components/mana-pips'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { DECKLIST_LINE_STATUS_TEXT_CLASS } from '@/lib/mtg-format'
@@ -10,29 +9,41 @@ import { cn } from '@/lib/utils'
 import type { DecklistCard } from '@/schemas/tamiyoScroll'
 
 export function DecklistCardRow({ card }: { card: DecklistCard }) {
+  const isPending = card.status === 'pending' && Boolean(card.pending_added_card_name)
+
+  // S17: while pending, the pips/popover describe the *added* card (what
+  // the line is turning into), not the removed one still literally on it.
+  const manaCost = isPending
+    ? (card.pending_added_card_mana_cost ?? null)
+    : card.mana_cost
+  const text = isPending ? (card.pending_added_card_text ?? null) : card.text
+  const keywords = isPending ? (card.pending_added_card_keywords ?? []) : card.keywords
+
   return (
     <TableRow>
       <TableCell className={cn(DECKLIST_LINE_STATUS_TEXT_CLASS[card.status])}>
         {card.qty}
       </TableCell>
       <TableCell className={cn(DECKLIST_LINE_STATUS_TEXT_CLASS[card.status])}>
-        {card.scryfall_id ? (
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <span className="cursor-default underline decoration-dotted decoration-muted-foreground">
-                {card.name}
-              </span>
-            </HoverCardTrigger>
-            <HoverCardContent className="w-auto">
-              <CardFacesPreview scryfallId={card.scryfall_id} name={card.name} />
-            </HoverCardContent>
-          </HoverCard>
+        {isPending ? (
+          <span className="flex items-center gap-1.5">
+            <CardNameHover
+              name={card.name}
+              scryfallId={card.scryfall_id}
+              className="line-through"
+            />
+            <span aria-hidden="true">→</span>
+            <CardNameHover
+              name={card.pending_added_card_name ?? ''}
+              scryfallId={card.pending_added_card_scryfall_id}
+            />
+          </span>
         ) : (
-          card.name
+          <CardNameHover name={card.name} scryfallId={card.scryfall_id} />
         )}
       </TableCell>
       <TableCell>
-        <ManaPips manaCost={card.mana_cost} />
+        <ManaPips manaCost={manaCost} />
       </TableCell>
       <TableCell>
         <Popover>
@@ -47,18 +58,16 @@ export function DecklistCardRow({ card }: { card: DecklistCard }) {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="p-3">
-            {card.keywords.length > 0 && (
+            {keywords.length > 0 && (
               <div className="my-2 flex flex-wrap gap-1">
-                {card.keywords.map((keyword) => (
+                {keywords.map((keyword) => (
                   <Badge key={keyword} variant="accent">
                     {keyword}
                   </Badge>
                 ))}
               </div>
             )}
-            <p className="text-sm whitespace-pre-line">
-              {card.text ?? 'No oracle text.'}
-            </p>
+            <p className="text-sm whitespace-pre-line">{text ?? 'No oracle text.'}</p>
           </PopoverContent>
         </Popover>
       </TableCell>

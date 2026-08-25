@@ -17,6 +17,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -274,42 +275,19 @@ export function PersonalDeckSelector() {
 
       {activeDeck && <PersonalDeckSetupControl deck={activeDeck} />}
 
-      <Dialog
+      <ConfirmDialog
         open={pendingArchive !== null}
         onOpenChange={(next) => {
           if (!next) setPendingArchive(null)
         }}
-      >
-        {pendingArchive && (
-          <DialogContent>
-            <DialogTitle>Archive "{pendingArchive.name}"?</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              It will disappear from your deck list. This can't be undone.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setPendingArchive(null)
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={archiveDeck.isPending}
-                onClick={() => {
-                  void confirmArchive()
-                }}
-              >
-                Archive
-              </Button>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
+        title={pendingArchive ? `Archive "${pendingArchive.name}"?` : ''}
+        description="It will disappear from your deck list. This can't be undone."
+        confirmLabel="Archive"
+        confirmDisabled={archiveDeck.isPending}
+        onConfirm={() => {
+          void confirmArchive()
+        }}
+      />
 
       <Dialog
         open={pendingRename !== null}
