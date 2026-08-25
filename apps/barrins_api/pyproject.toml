@@ -27,6 +27,9 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.140.13",
     "httpx>=0.28.1,<1.0",
+    # Streaming JSON parser -- lets the MTGJSON import consume AllPrintings.json
+    # (100k+ card rows) without buffering the whole document in memory.
+    "ijson>=3.5.1",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic[email]>=2.13.4",
