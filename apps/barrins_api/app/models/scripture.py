@@ -148,7 +148,16 @@ class BSDeckCard(Base):
 
 
 class BSRound(Base):
-    """A named round of a bracket (`Round` in the schema, e.g. "Quarterfinals")."""
+    """A named round of a bracket (`Round` in the schema, e.g. "Quarterfinals").
+
+    `sequence` preserves the scrape/bracket order (`payload.rounds`' list
+    position, T3's ingester) -- `created_at` can't do this: a whole
+    tournament ingest runs in one transaction, and Postgres `now()` is
+    transaction-scoped, so every round upserted in the same ingest gets an
+    identical timestamp. `round_name` is free text (source-language- and
+    format-dependent -- "Quarterfinals", "Top 8", ...), not reliably
+    sortable either.
+    """
 
     __tablename__ = "bs_rounds"
     __table_args__ = (
@@ -168,6 +177,7 @@ class BSRound(Base):
         nullable=False,
     )
     round_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

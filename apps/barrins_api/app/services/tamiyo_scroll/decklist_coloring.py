@@ -3,6 +3,7 @@
 Pure function — cf. docs/tamiyo_scroll_tracker/00_plan_general.md, Option F.
 """
 
+import re
 from collections import defaultdict
 from collections.abc import Sequence
 from typing import Literal, TypedDict
@@ -10,6 +11,12 @@ from typing import Literal, TypedDict
 from app.models.tamiyo_scroll import TSCardTest
 
 LineStatus = Literal["validated", "rejected", "in_test", "neutral"]
+
+_COMMANDER_HEADER = "commander"
+# Mirrors apps/barrins_scripture/barrins_scripture/parsers/mtgo.py's
+# `_get_cards` regex (not imported cross-app — barrins_api doesn't depend
+# on barrins_scripture, only mirrors the same "N Name" text convention).
+_CARD_LINE_RE = re.compile(r"(\d+)[xX]?\s+(.*)")
 
 
 class ColoredLine(TypedDict):
@@ -58,3 +65,41 @@ def color_decklist(content: str, card_tests: Sequence[TSCardTest]) -> list[Color
             status = _line_status(ratings_by_card[matched_card])
         lines.append({"line": raw_line, "status": status})
     return lines
+
+
+def commander_section_indices(lines: Sequence[str]) -> set[int]:
+    """Indices of `lines` belonging to an optional "Commander" section.
+
+    A line whose stripped, casefolded text is exactly "commander" (alone
+    on its own line) starts the section; every following non-blank line
+    is a commander line until the next blank line or end of content. No
+    such header -> empty set, meaning the whole decklist renders as
+    library (expected fallback for manually-pasted/legacy decks, not an
+    error). Only "Commander" is recognized — Sideboard/Companion
+    detection is explicitly out of scope (2026-08-14 decision).
+    """
+    indices: set[int] = set()
+    in_section = False
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.casefold() == _COMMANDER_HEADER:
+            in_section = True
+            continue
+        if in_section:
+            if not stripped:
+                in_section = False
+                continue
+            indices.add(i)
+    return indices
+
+
+def parse_card_line(line: str) -> tuple[int, str] | None:
+    """`(qty, name)` if `line` matches "<qty>[x] <name>", else None
+    (section headers, blank lines, free-text notes, malformed lines)."""
+    stripped = line.strip()
+    if not stripped:
+        return None
+    match = _CARD_LINE_RE.match(stripped)
+    if not match:
+        return None
+    return int(match.group(1)), match.group(2).strip()

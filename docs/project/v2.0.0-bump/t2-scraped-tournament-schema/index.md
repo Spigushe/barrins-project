@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` | New domain, `bs_`-prefixed (Barrin's Scripture) — decided 2026-07-26 |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 In progress — `bs_*` models + Alembic migration + model tests written and passing (2026-07-30), not yet applied to any real database. The `docs/decklist_integration/` doc decision (F7) is resolved — redirect, 2026-08-11: no content ever existed to recreate, so citing docs/comments were repointed at the real `bs_*` schema instead | / |
+| **Status** | ✅ Done (2026-08-11) — `bs_*` models + Alembic migration + model tests written and passing (2026-07-30), migration applied to staging and confirmed populated by a real scrape (2026-08-11). The `docs/decklist_integration/` doc decision (F7) is resolved — redirect, 2026-08-11: no content ever existed to recreate, so citing docs/comments were repointed at the real `bs_*` schema instead | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §0, §1.2 | / |
 | **Dependency** | I3 (§1.2) | Blocks T3, T4 |
 
@@ -117,12 +117,12 @@ existing convention, not something this item does itself.
 
 ## UAT (manual)
 
-- [ ] Load a real sample of `mtg_decklist_cache` JSON files through
-      whatever ingestion path §1.2 chose (T3, not built yet); confirm the
-      resulting rows match the source files field-for-field.
-- [ ] Confirm `alembic upgrade head` applies cleanly against staging via
-      the existing manual SSH process (T1/§1.2's convention), once T3's
-      ingestion route exists to actually use these tables.
+- [x] Load a real sample of `mtg_decklist_cache` JSON files through
+      the ingestion path §1.2 chose (T3); confirmed 2026-08-11 — every
+      `bs_*` table is populated after a real scrape/sweep.
+- [x] Confirm `alembic upgrade head` applies cleanly against staging via
+      the existing manual SSH process (T1/§1.2's convention) — done,
+      2026-08-11.
 
 ## Non-regression tests
 

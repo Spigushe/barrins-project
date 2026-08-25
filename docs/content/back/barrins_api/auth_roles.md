@@ -58,6 +58,7 @@ authentication dependency at all.
 | `GET` | `/mtgjson/status` | anonymous | Public — built 2026-08-05 (S8) |
 | `POST` | `/mtgjson/import` | **admin** | Replaces `X-Admin-Key` — built 2026-08-05 (S8) |
 | `GET` | `/mtgjson/import/status` | **admin** | Progress of the most recent import run (running/succeeded/failed) — built 2026-08-09 (S8 live-progress addition); admin-gated because a failed run's `error_message` can include internal exception text, unlike the public counts-only `/mtgjson/status` above |
+| `GET` | `/cards/{scryfall_id}/image` | anonymous | Disk-cached Scryfall image proxy, `?face=front\|back` — built 2026-08-14 (S4). Not admin-gated: it's a public image passthrough, same posture as `/sets/*`/`/cards/*` above. Wiped on every `/mtgjson/import` (`scryfall_id` can shift/disappear on refresh) |
 | `POST` | `/auth/token` | anonymous | Login — returns `access_token` + `refresh_token` |
 | `POST` | `/auth/refresh` | anonymous | Exchanges a refresh token for a new pair |
 | `POST` | `/auth/logout` | **user** | Instantly revokes all of the caller's tokens |

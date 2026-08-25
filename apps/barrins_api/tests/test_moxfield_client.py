@@ -74,7 +74,9 @@ class TestHttpxMoxfieldClient:
         fetch = await client.fetch_decklist("https://moxfield.com/decks/abc123")
 
         assert fetch.content.splitlines() == [
+            "Commander",
             "1 King T'Challa // Black Panther, Hope Enduring",
+            "",
             "6 Island",
             "1 Brazen Borrower // Petty Theft",
         ]

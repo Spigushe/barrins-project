@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dc_calendar"
+version = "0.1.0"
+authors = [
+    { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
+]
+description = "Duel Commander banlist-period/rolling-window date math, shared by barrins_api and karn_tablets."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["mtg", "Magic: the Gathering", "CCG", "Duel Commander"]
+requires-python = ">=3.14"
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 3 - Alpha",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    # zoneinfo (used for Europe/Paris banlist-effective-time math) needs a
+    # real IANA tz database, which isn't guaranteed on every platform
+    # (Windows, minimal containers) -- tzdata is the Python-core-maintained,
+    # pure-data companion package for exactly this case.
+    "tzdata>=2025.2",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+dev = [
+    { include-group = "test" },
+    "ruff>=0.15.22",
+    "ty>=0.0.62",
+]
+
+[tool.setuptools.packages.find]
+include = ["dc_calendar*"]
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
+    "RUF", # ruff-specific
+    "A",   # flake8-builtins
+]
+ignore = ["E402", "E712", "F403", "S101"]  # S101: allow assert in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-line-length = "dynamic"
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+exclude = ["tests"]
+
+[tool.ty.rules]
+unused-ignore-comment = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["scripts", "build", "dist", ".venv"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=dc_calendar",
+    "--cov-report=html",
+]
+
+[tool.coverage.run]
+source = ["dc_calendar"]
+branch = true
+parallel = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_empty = true
+skip_covered = false
+fail_under = 90
+
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+    "except ImportError:",
+    "pass",
+    "\\.\\.\\.",  # Ignore ellipsis
+]
+
+[tool.coverage.html]
+directory = "reports/pytest_html_report"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "barrins_project"
-version = "1.0.0"
+version = "2.0.0-alpha"
 authors = [
     { name = "Martin Cuchet", email = "martin.cuchet+barrins_project@gmail.com" }
 ]
@@ -40,6 +40,7 @@ dependencies = [
     "uvicorn>=0.51.0",
     # >=69.0: includes fixes for both CVE-2025-68616 and CVE-2026-49452 (see S5 ADR/I8).
     "weasyprint>=69.0",
+    "dc-calendar",
 ]
 
 [dependency-groups]
@@ -92,6 +93,14 @@ select = [
 ]
 ignore = ["E402", "E712", "F403", "S101"]  # S101: allow assert in tests
 
+[tool.ruff.lint.flake8-bugbear]
+# B008 treats any non-scalar-typed default (e.g. `list[str] | None`) as
+# "mutable" regardless of the call inside it, so `Query(...)` false-positives
+# on list-typed query params (scalar ones like `Query(1, ge=1)` are already
+# exempt via B008's own immutable-annotation check). This is ruff's own
+# documented escape hatch for exactly that FastAPI pattern.
+extend-immutable-calls = ["fastapi.Query"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -101,6 +110,10 @@ docstring-code-line-length = "dynamic"
 
 [tool.ty.environment]
 python-version = "3.14"
+# dc_calendar is a local editable dependency (uv's setuptools editable
+# install uses a MetaPathFinder .pth hook, which ty -- unlike Python's own
+# import machinery -- can't resolve statically without this hint).
+extra-paths = ["../dc_calendar"]
 
 [tool.ty.src]
 exclude = ["tests"]
@@ -176,3 +189,6 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "reports/pytest_html_report"
+
+[tool.uv.sources]
+dc-calendar = { path = "../dc_calendar", editable = true }

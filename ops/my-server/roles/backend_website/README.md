@@ -26,6 +26,7 @@ exist, and every request falls through to the proxy.
 | `backend_website_port` | yes | — | Local port the backend process listens on (`127.0.0.1:<port>`). |
 | `backend_website_alternate_server_name` | no | `False` | Extra domain (e.g. `www.<domain>`) that 301-redirects to `backend_website_server_name`. Needs its own `register_ssl` call/certificate. |
 | `backend_website_is_websocket` | no | `False` | Accepted for forward-compatibility but **not yet wired into the nginx template** — the `@backend` location has no `Upgrade`/`Connection` headers today. Add them to `templates/https.conf.j2` before relying on this flag for a websocket backend. |
+| `backend_website_rate_limited_paths` | no | `[]` | List of `{path, zone, rate, burst}` — adds an nginx `limit_req_zone` (conf.d, http context) plus a matching `location <path> { limit_req zone=<zone> burst=<burst> nodelay; ... }` block for each entry, scoped to that path only (the rest of the vhost is unaffected). `rate` is an nginx rate string (e.g. `20r/s`). Per-IP (`$binary_remote_addr`) only — no per-caller-identity option. See `barrins_api.yml`'s Tolaria News BFF entry for a real example. |
 
 Internally, `site_root` resolves to `/home/{{username}}/projects/{{backend_website_server_name}}` — the same convention every other role uses, so it lines up with `fastapi_backend`'s `app_root` when both target the same `fastapi_backend_server_name`/`backend_website_server_name`.
 

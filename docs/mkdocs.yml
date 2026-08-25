@@ -28,6 +28,7 @@ nav:
           - Barrin's API:
                 - Home: back/barrins_api/index.md
                 - BFF Tamiyo Scroll: back/barrins_api/bff/tamiyo_scroll.md
+                - BFF Tolaria News: back/barrins_api/bff/tolaria_news.md
                 - JWT Authentication & Roles: back/barrins_api/auth_roles.md
                 - Signup & Email Verification: back/barrins_api/signup_email_verification.md
           - Barrin's Identity:

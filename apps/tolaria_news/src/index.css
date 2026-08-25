@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens — Midnight palette from the design handoff
+ * (docs/project/v2.0.0-bump/t5-tolaria-news-frontend/handoff/design_handoff_tolaria_news/DESIGN_SYSTEM.md).
+ * Restyle only, per the user's scoping decision: visual language + icon
+ * reused, the handoff's speculative `/bff/v1/*` IA (landing hero, node-graph
+ * viz, Decklists, search, forecasts) is not — this app stays wired to the
+ * real, shipped `/bff/tolaria-news/*` contract.
+ */
+@theme {
+  --font-serif: 'EB Garamond', 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-background: #0b1220;
+  --color-card: #0e1830;
+  --color-input: #142036;
+  --color-border: rgba(240, 234, 214, 0.1);
+
+  --color-foreground: #f0ead6;
+  --color-muted-foreground: rgba(240, 234, 214, 0.62);
+
+  --color-accent: #7be0d6;
+  --color-accent-foreground: #0b1220;
+
+  --color-destructive: #e08a6a;
+  --color-destructive-foreground: #0b1220;
+  --color-warning: #c7a455;
+  --color-success: #6fd9a6;
+
+  --radius-input: 7px;
+  --radius-button: 10px;
+  --radius-card: 14px;
+  --radius-pill: 999px;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-background);
+}
+
+#root {
+  min-height: 100svh;
+}

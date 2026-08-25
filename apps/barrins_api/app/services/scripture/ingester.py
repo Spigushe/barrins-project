@@ -154,11 +154,15 @@ async def _replace_deck_cards(
 
 
 async def _upsert_round(
-    session: AsyncSession, tournament_id: uuid.UUID, round_: RequestRound
+    session: AsyncSession,
+    tournament_id: uuid.UUID,
+    round_: RequestRound,
+    sequence: int,
 ) -> uuid.UUID:
     values: dict[str, object] = {
         "tournament_id": tournament_id,
         "round_name": round_.round_name,
+        "sequence": sequence,
     }
     stmt = pg_insert(BSRound).values(**values)
     stmt = stmt.on_conflict_do_update(
@@ -277,8 +281,8 @@ async def ingest_scrape(
 
     round_ids: set[uuid.UUID] = set()
     round_match_keys: set[tuple[uuid.UUID, frozenset[str]]] = set()
-    for round_ in payload.rounds:
-        round_id = await _upsert_round(session, tournament_id, round_)
+    for sequence, round_ in enumerate(payload.rounds):
+        round_id = await _upsert_round(session, tournament_id, round_, sequence)
         round_ids.add(round_id)
         for match in round_.matches:
             await _upsert_match(session, round_id, match)

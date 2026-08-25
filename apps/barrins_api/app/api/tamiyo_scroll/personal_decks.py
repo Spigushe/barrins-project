@@ -19,8 +19,8 @@ from app.models.tamiyo_scroll import (
 )
 from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
-    ResponseDecklistLine,
     ResponseDecklistVersion,
+    ResponseDecklistView,
     ResponsePersonalDeck,
 )
 from app.schemas.tamiyo_scroll import (
@@ -31,6 +31,7 @@ from app.schemas.tamiyo_scroll import (
 )
 from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
+from app.services.tamiyo_scroll.decklist_view import build_decklist_view
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
 from app.services.tamiyo_scroll.report import (
     format_period,
@@ -336,13 +337,13 @@ async def delete_decklist_version(
 
 
 @router.get(
-    "/personal-decks/{deck_id}/decklist-view", response_model=list[ResponseDecklistLine]
+    "/personal-decks/{deck_id}/decklist-view", response_model=ResponseDecklistView
 )
 async def get_decklist_view(
     deck_id: uuid.UUID,
     session: DatabaseSession,
     owner: ResolvedOwner,
-) -> list[ResponseDecklistLine]:
+) -> ResponseDecklistView:
     deck = await _get_owned_personal_deck(session, deck_id, owner.id)
     latest_result = await session.execute(
         select(TSPersonalDecklistVersion)
@@ -352,7 +353,9 @@ async def get_decklist_view(
     )
     latest = latest_result.scalar_one_or_none()
     if latest is None:
-        return []
+        return ResponseDecklistView(
+            commander_cards=[], library_cards=[], unparsed_lines=[]
+        )
 
     tests_result = await session.execute(
         select(TSCardTest).where(
@@ -360,8 +363,7 @@ async def get_decklist_view(
         )
     )
     card_tests = tests_result.scalars().all()
-    colored_lines = color_decklist(latest.content, card_tests)
-    return [ResponseDecklistLine(**line) for line in colored_lines]
+    return await build_decklist_view(session, latest.content, card_tests)
 
 
 @router.get("/personal-decks/{deck_id}/report.pdf")
