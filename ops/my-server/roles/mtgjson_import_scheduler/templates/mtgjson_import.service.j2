@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily MTGJSON reference-data refresh ({{ mtgjson_import_scheduler_config.app_name }})
+After=network-online.target {{ mtgjson_import_scheduler_config.backend_service_name }}.service
+Wants=network-online.target
+Requires={{ mtgjson_import_scheduler_config.backend_service_name }}.service
+
+[Service]
+Type=oneshot
+# AllPrintings.json is a large streamed download + chunked upsert of
+# ~700 sets / 100k+ cards -- Debian's DefaultTimeoutStartSec (90s) would
+# otherwise kill a legitimately long run, same reasoning as
+# scripture_scraper's own TimeoutStartSec override.
+TimeoutStartSec=infinity
+EnvironmentFile={{ mtgjson_import_scheduler_config.env_file }}
+ExecStart=/usr/bin/curl --fail-with-body -sS -X POST "http://127.0.0.1:{{ mtgjson_import_scheduler_config.backend_port }}/api/v1/mtgjson/import" -H "X-MTGJSON-Import-Token: ${MTGJSON_IMPORT_TOKEN}"

@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -62,12 +62,16 @@ function toWrite(deck: MetaDeck, overrides: Partial<MetaDeckWrite> = {}): MetaDe
     presence: deck.presence,
     expected: deck.expected,
     tests_status: deck.tests_status,
+    // Only ever called for editable (non-readonly, own) rows, which
+    // always carry a personal_deck_id — ignored by the backend on PUT
+    // anyway (a deck's owning deck isn't reassigned by an edit).
+    personal_deck_id: deck.personal_deck_id ?? deck.id,
     ...overrides,
   }
 }
 
 export function MetaDecksRosterSection() {
-  const { canEdit } = useActiveDeck()
+  const { canEdit, activeDeckId } = useActiveDeck()
   const { data: metaDecks } = useMetaDecks()
   const createDeck = useCreateMetaDeck()
   const updateDeck = useUpdateMetaDeck()
@@ -81,9 +85,26 @@ export function MetaDecksRosterSection() {
   const [newTier, setNewTier] = useState(1)
   const [newCategory, setNewCategory] = useState<ArchetypeCategory>('midrange')
 
+  function handleNameChange(value: string) {
+    setNewName(value)
+    // Create-time pre-fill (F10 item 5): typing a name that matches an
+    // existing roster entry (already scoped/collapsed to the "most
+    // recently updated" row by the backend) pre-fills tier/archetype —
+    // still fully editable, and still re-validated server-side.
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) return
+    const existing = (metaDecks ?? []).find(
+      (deck) => deck.name.trim().toLowerCase() === normalized,
+    )
+    if (existing) {
+      setNewTier(existing.tier)
+      setNewCategory(existing.category)
+    }
+  }
+
   async function handleAdd(event: FormEvent) {
     event.preventDefault()
-    if (!newName.trim()) return
+    if (!newName.trim() || !activeDeckId) return
     await createDeck.mutateAsync({
       name: newName.trim(),
       tier: newTier,
@@ -93,6 +114,7 @@ export function MetaDecksRosterSection() {
       presence: 0,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: activeDeckId,
     })
     setNewName('')
     setNewTier(1)
@@ -157,7 +179,7 @@ export function MetaDecksRosterSection() {
             placeholder="Opponent deck name"
             value={newName}
             onChange={(event) => {
-              setNewName(event.target.value)
+              handleNameChange(event.target.value)
             }}
             className="max-w-64"
           />
@@ -212,7 +234,9 @@ function RosterRow({
 
   return (
     <TableRow>
-      <TableCell className={tierColorEnabled ? tierBackgroundClass(deck.tier) : undefined}>
+      <TableCell
+        className={tierColorEnabled ? tierBackgroundClass(deck.tier) : undefined}
+      >
         <Select
           value={String(deck.tier)}
           onValueChange={(value) => {
@@ -309,45 +333,21 @@ function RosterRow({
               >
                 ✕
               </Button>
-              {/* S12 item 12: confirm before delete, same Dialog-based
-                  pattern already used for archiving a personal deck
+              {/* S13: shared confirm-before-delete dialog (same pattern
+                  used for archiving a personal deck
                   (`PersonalDeckSelector.tsx`) and deleting a team
-                  (`AccountSettingsTeamSection.tsx`) — not a native
+                  (`AccountSettingsTeamSection.tsx`)) — not a native
                   `window.confirm`. */}
-              <Dialog
+              <ConfirmDialog
                 open={confirmingDelete}
-                onOpenChange={(next) => {
-                  if (!next) setConfirmingDelete(false)
+                onOpenChange={setConfirmingDelete}
+                title={`Delete "${deck.name}"?`}
+                description="It will disappear from the roster. This can't be undone."
+                onConfirm={() => {
+                  setConfirmingDelete(false)
+                  onDelete()
                 }}
-              >
-                <DialogContent>
-                  <DialogTitle>Delete "{deck.name}"?</DialogTitle>
-                  <p className="text-sm text-muted-foreground">
-                    It will disappear from the roster. This can't be undone.
-                  </p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setConfirmingDelete(false)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        setConfirmingDelete(false)
-                        onDelete()
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              />
             </>
           )}
         </TableCell>

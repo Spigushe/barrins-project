@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as cardTestsApi from '@/api/cardTests'
-import type { CardTestWrite } from '@/schemas/tamiyoScroll'
+import type { CardTestEvaluationWrite, CardTestWrite } from '@/schemas/tamiyoScroll'
 import { useViewingOwner } from './useViewingOwner'
 
 export function useCardTests(personalDeckId: string | null) {
@@ -13,11 +13,28 @@ export function useCardTests(personalDeckId: string | null) {
   })
 }
 
+/** S16: card tests for `personalDeckId` that don't match any real decklist
+ * change anywhere in the deck's version history — used by the standalone
+ * change-log list on the current decklist, only fetched when that display
+ * is enabled. */
+export function useCardTestChangeLog(personalDeckId: string | null, enabled: boolean) {
+  const owner = useViewingOwner()
+  return useQuery({
+    queryKey: ['card-tests-change-log', owner?.id ?? 'self', personalDeckId],
+    queryFn: () => cardTestsApi.listCardTestChangeLog(personalDeckId ?? ''),
+    enabled: enabled && personalDeckId !== null,
+  })
+}
+
 function useInvalidateCardTests() {
   const queryClient = useQueryClient()
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['card-tests'] })
+    void queryClient.invalidateQueries({ queryKey: ['card-tests-change-log'] })
     void queryClient.invalidateQueries({ queryKey: ['decklist-view'] })
+    // S16: a card test's match against a decklist diff can change without
+    // the diff's own content changing (e.g. adding a new card test).
+    void queryClient.invalidateQueries({ queryKey: ['decklist-version-diff'] })
   }
 }
 
@@ -42,6 +59,45 @@ export function useDeleteCardTest() {
   const invalidate = useInvalidateCardTests()
   return useMutation({
     mutationFn: (testId: string) => cardTestsApi.deleteCardTest(testId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useCreateCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({
+      testId,
+      payload,
+    }: {
+      testId: string
+      payload: CardTestEvaluationWrite
+    }) => cardTestsApi.createCardTestEvaluation(testId, payload),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({
+      testId,
+      evaluationId,
+      payload,
+    }: {
+      testId: string
+      evaluationId: string
+      payload: CardTestEvaluationWrite
+    }) => cardTestsApi.updateCardTestEvaluation(testId, evaluationId, payload),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteCardTestEvaluation() {
+  const invalidate = useInvalidateCardTests()
+  return useMutation({
+    mutationFn: ({ testId, evaluationId }: { testId: string; evaluationId: string }) =>
+      cardTestsApi.deleteCardTestEvaluation(testId, evaluationId),
     onSuccess: invalidate,
   })
 }

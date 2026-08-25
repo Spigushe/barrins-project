@@ -26,9 +26,11 @@ export function listMetaDecks(
 
 export function createMetaDeck(payload: MetaDeckWrite): Promise<MetaDeck> {
   const store = getStore()
+  const id = nextId()
   const deck: MetaDeck = {
-    id: nextId(),
+    id,
     name: payload.name,
+    personal_deck_id: payload.personal_deck_id,
     tier: payload.tier,
     category: payload.category,
     decklist_notes: payload.decklist_notes ?? null,
@@ -42,6 +44,7 @@ export function createMetaDeck(payload: MetaDeckWrite): Promise<MetaDeck> {
     shared_by: null,
     has_shared_data: false,
     is_multi_share: false,
+    merged_ids: [id],
   }
   store.metaDecks.push(deck)
   return Promise.resolve(structuredClone(deck))

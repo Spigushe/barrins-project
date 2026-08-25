@@ -7,7 +7,7 @@ from sqlalchemy import update
 
 from app.models.tamiyo_scroll import TSPersonalDeck
 from app.models.user import User
-from tests.tamiyo_scroll.conftest import BASE, auth_headers
+from tests.tamiyo_scroll.conftest import BASE, auth_headers, create_active_personal_deck
 
 
 async def _null_out(
@@ -33,6 +33,7 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
         json={"name": "Mono Red", "game": "magic", "category": "aggro"},
         headers=headers,
     )
+    personal_id = personal_resp.json()["id"]
     meta_resp = await client.post(
         f"{BASE}/meta-decks",
         json={
@@ -42,10 +43,11 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
             "top8": 1,
             "presence": 5,
             "expected": "as_expected",
+            "personal_deck_id": personal_id,
         },
         headers=headers,
     )
-    return personal_resp.json()["id"], meta_resp.json()["id"]
+    return personal_id, meta_resp.json()["id"]
 
 
 def _match_payload(personal_deck_id: str, opponent_deck_id: str, **overrides) -> dict:
@@ -671,12 +673,10 @@ class TestSharedDataMerge:
         )
 
         owner_headers = auth_headers(owner_user)
-        owner_personal_resp = await client.post(
-            f"{BASE}/personal-decks",
-            json={"name": "Mono Red", "game": "magic", "category": "aggro"},
-            headers=owner_headers,
+        owner_personal_deck = await create_active_personal_deck(
+            client, owner_user, "Mono Red"
         )
-        owner_personal = owner_personal_resp.json()["id"]
+        owner_personal = owner_personal_deck["id"]
         await _enable_sharing(client, sharer=other_user, receiver=owner_user)
 
         # "Burn" now appears read-only in the owner's roster (see

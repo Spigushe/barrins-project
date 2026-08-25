@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Match } from '@/schemas/tamiyoScroll'
@@ -32,19 +32,33 @@ const sharedMatch: Match = {
 
 let matches: Match[] = [baseMatch]
 
+const activeMetaDecks: { id: string; name: string }[] = [
+  { id: 'deck-theirs', name: 'Boros Energy' },
+]
+let archivedOnlyMetaDecks: { id: string; name: string }[] = []
+
 vi.mock('@/contexts/active-deck-context', () => ({
   useActiveDeck: () => ({ activeDeckId: 'deck-mine', canEdit: true }),
 }))
 
+const deleteMatchMutateAsync = vi.fn()
+
 vi.mock('@/hooks/useMatches', () => ({
   useMatches: () => ({ data: matches }),
   useUpdateMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteMatch: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteMatch: () => ({ mutateAsync: deleteMatchMutateAsync, isPending: false }),
 }))
 
-vi.mock('@/hooks/useMetaDecks', () => ({
-  useMetaDecks: () => ({ data: [{ id: 'deck-theirs', name: 'Boros Energy' }] }),
-}))
+vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useMetaDecks')>()
+  return {
+    ...actual,
+    useMetaDecks: (options?: { includeArchived?: boolean }) =>
+      options?.includeArchived
+        ? { data: [...activeMetaDecks, ...archivedOnlyMetaDecks] }
+        : { data: activeMetaDecks },
+  }
+})
 
 vi.mock('@/hooks/usePersonalDecks', () => ({
   usePersonalDecks: () => ({ data: [{ id: 'deck-mine', name: 'Mono Red' }] }),
@@ -58,7 +72,9 @@ let sessions: {
   id: string
   name: string
   type: 'tournament' | 'training'
-  ended_at: string | null
+  closed_at: string | null
+  archived_at: string | null
+  hue: number | null
 }[] = []
 
 vi.mock('@/hooks/useSessions', () => ({
@@ -152,7 +168,14 @@ describe('MatchJournalSection — session badge', () => {
   beforeEach(() => {
     matches = [{ ...baseMatch, session_id: 'session-1' }]
     sessions = [
-      { id: 'session-1', name: 'RC Toronto 2026', type: 'tournament', ended_at: null },
+      {
+        id: 'session-1',
+        name: 'RC Toronto 2026',
+        type: 'tournament',
+        closed_at: null,
+        archived_at: null,
+        hue: null,
+      },
     ]
   })
 
@@ -171,5 +194,89 @@ describe('MatchJournalSection — session badge', () => {
     await user.click(screen.getByRole('button', { name: 'View' }))
 
     expect(screen.getAllByText('Tournament: RC Toronto 2026')).toHaveLength(2)
+  })
+
+  it('tints the badge by hue instead of the type variant once a hue is set', () => {
+    sessions = [{ ...sessions[0], hue: 200 }]
+    render(<MatchJournalSection />)
+    const badge = screen.getByText('Tournament: RC Toronto 2026')
+    expect(badge).toHaveStyle({ backgroundColor: 'hsl(200 70% 50% / 0.18)' })
+  })
+
+  it('still resolves the tag for a match pointing at an archived session', () => {
+    matches = [{ ...baseMatch, session_id: 'session-archived' }]
+    sessions = [
+      {
+        id: 'session-archived',
+        name: 'Old Regional',
+        type: 'training',
+        closed_at: '2026-07-01T00:00:00Z',
+        archived_at: '2026-07-02T00:00:00Z',
+        hue: null,
+      },
+    ]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Training: Old Regional')).toBeInTheDocument()
+  })
+})
+
+describe('MatchJournalSection — delete confirmation', () => {
+  beforeEach(() => {
+    matches = [baseMatch]
+    sessions = []
+    deleteMatchMutateAsync.mockClear()
+  })
+
+  it('asks for confirmation before deleting, without deleting immediately', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(deleteMatchMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Delete Mono Red vs Boros Energy?')).toBeInTheDocument()
+  })
+
+  it('deletes the match once confirmed', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+
+    expect(deleteMatchMutateAsync).toHaveBeenCalledWith('match-1')
+  })
+
+  it('cancels without deleting', async () => {
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(deleteMatchMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Delete Mono Red vs Boros Energy?')).not.toBeInTheDocument()
+  })
+})
+
+describe('MatchJournalSection — opponent deck resolution', () => {
+  beforeEach(() => {
+    sessions = []
+    archivedOnlyMetaDecks = []
+  })
+
+  it('shows "Deleted deck" when the opponent exists but is archived', () => {
+    matches = [{ ...baseMatch, opponent_deck_id: 'deck-archived' }]
+    archivedOnlyMetaDecks = [{ id: 'deck-archived', name: 'Old Boros Energy' }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('Deleted deck')).toBeInTheDocument()
+  })
+
+  it('falls back to "?" when the opponent cannot be resolved at all', () => {
+    matches = [{ ...baseMatch, opponent_deck_id: 'deck-unknown' }]
+    render(<MatchJournalSection />)
+    expect(screen.getByText('?')).toBeInTheDocument()
   })
 })

@@ -70,6 +70,22 @@
       fastapi_backend_entrypoint: "app.main:app"
       fastapi_backend_env_file: "{{ backend_env_file }}"
 
+    # Daily 04:00 UTC MTGJSON reference-data refresh (S8, decided
+    # 2026-08-13 — see docs/project/v2.0.0-bump/s8-mtgjson-ingestion-pipeline/).
+    # Production only: staging is a side-by-side preview instance that
+    # doesn't need its own independent daily refresh. Must run after
+    # fastapi_backend — depends on barrins_api's .env already being
+    # deployed with MTGJSON_IMPORT_TOKEN set (checked in post_tasks below).
+    - role: mtgjson_import_scheduler
+      tags:
+        - backend
+      when: deploy_env == 'production'
+      mtgjson_import_scheduler_app_name: "api{{ env_suffix }}-mtgjson-import"
+      mtgjson_import_scheduler_backend_service_name: "api{{ env_suffix }}"
+      mtgjson_import_scheduler_backend_port: "{{ backend_port }}"
+      mtgjson_import_scheduler_env_file: "{{ backend_work_dir }}/.env"
+      mtgjson_import_scheduler_hour: 4
+
     - role: backend_website
       tags:
         - backend

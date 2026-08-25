@@ -8,9 +8,10 @@ import * as realStatsApi from '@/api/stats'
 import * as realTeamsApi from '@/api/teams'
 import {
   archetypeSummarySchema,
+  cardTestEvaluationSchema,
   cardTestSchema,
-  decklistLineSchema,
   decklistVersionSchema,
+  decklistViewSchema,
   matchSchema,
   matchupSummarySchema,
   memberDeckSchema,
@@ -35,6 +36,7 @@ import * as demoTeamsApi from '../teams'
 
 const DECK_ID = fixtures.personalDecks[0].id
 const TEAM_ID = fixtures.teams[0].id
+const OPPONENT_DECK_ID = fixtures.metaDecks[0].id
 
 // The compile-time proof lives in `../types.ts` + `../_typecheck.ts` (`tsc
 // -b`, run by `npm run build`, fails if a signature drifts). This is the
@@ -118,9 +120,9 @@ describe('demo personalDecks api', () => {
   })
 
   it('returns the decklist view', async () => {
-    const lines = await demoPersonalDecksApi.getDecklistView(DECK_ID)
-    expect(lines.length).toBeGreaterThan(0)
-    for (const line of lines) decklistLineSchema.parse(line)
+    const view = await demoPersonalDecksApi.getDecklistView(DECK_ID)
+    decklistViewSchema.parse(view)
+    expect(view.library_cards.length).toBeGreaterThan(0)
   })
 
   it('returns a downloadable blob for the deck report', async () => {
@@ -219,6 +221,7 @@ describe('demo metaDecks api', () => {
       presence: 2,
       expected: 'as_expected',
       tests_status: null,
+      personal_deck_id: DECK_ID,
     })
     metaDeckSchema.parse(created)
 
@@ -231,6 +234,7 @@ describe('demo metaDecks api', () => {
       presence: 6,
       expected: 'more_expected',
       tests_status: null,
+      personal_deck_id: DECK_ID,
     })
     expect(updated.tier).toBe(1)
     expect(updated.decklist_notes).toBe('Updated notes')
@@ -255,27 +259,53 @@ describe('demo cardTests api', () => {
   it('creates, updates and deletes a card test', async () => {
     const created = await demoCardTestsApi.createCardTest({
       personal_deck_id: DECK_ID,
-      tester: 'Demo tester',
-      card_name: 'Test Card',
-      opponent_deck_id: null,
-      rating: 3,
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
       notes: null,
     })
     cardTestSchema.parse(created)
+    expect(created.evaluations).toEqual([])
 
     const updated = await demoCardTestsApi.updateCardTest(created.id, {
       personal_deck_id: DECK_ID,
-      tester: 'Demo tester',
-      card_name: 'Test Card',
-      opponent_deck_id: null,
-      rating: 5,
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
       notes: 'Now excellent',
     })
-    expect(updated.rating).toBe(5)
+    expect(updated.notes).toBe('Now excellent')
 
     await demoCardTestsApi.deleteCardTest(created.id)
     const after = await demoCardTestsApi.listCardTests({ personalDeckId: DECK_ID })
     expect(after.find((test) => test.id === created.id)).toBeUndefined()
+  })
+
+  it('creates, updates and deletes a card test evaluation', async () => {
+    const created = await demoCardTestsApi.createCardTest({
+      personal_deck_id: DECK_ID,
+      removed_card_name: 'Removed Test Card',
+      added_card_name: 'Added Test Card',
+      notes: null,
+    })
+
+    const evaluation = await demoCardTestsApi.createCardTestEvaluation(created.id, {
+      opponent_deck_id: OPPONENT_DECK_ID,
+      rating: 3,
+      notes: null,
+    })
+    cardTestEvaluationSchema.parse(evaluation)
+
+    const updatedEvaluation = await demoCardTestsApi.updateCardTestEvaluation(
+      created.id,
+      evaluation.id,
+      { opponent_deck_id: OPPONENT_DECK_ID, rating: 5, notes: 'Now excellent' },
+    )
+    expect(updatedEvaluation.rating).toBe(5)
+
+    await demoCardTestsApi.deleteCardTestEvaluation(created.id, evaluation.id)
+    const [after] = await demoCardTestsApi.listCardTests({ personalDeckId: DECK_ID })
+    expect(
+      after?.evaluations.find((candidate) => candidate.id === evaluation.id),
+    ).toBeUndefined()
   })
 })
 
@@ -346,13 +376,13 @@ describe('demo sessions api', () => {
       personal_deck_id: DECK_ID,
     })
     sessionSchema.parse(created)
-    expect(created.ended_at).toBeNull()
+    expect(created.closed_at).toBeNull()
 
     const closed = await demoSessionsApi.updateSession(created.id, { close: true })
-    expect(closed.ended_at).not.toBeNull()
+    expect(closed.closed_at).not.toBeNull()
 
     const reopened = await demoSessionsApi.updateSession(created.id, { reopen: true })
-    expect(reopened.ended_at).toBeNull()
+    expect(reopened.closed_at).toBeNull()
 
     await demoSessionsApi.archiveSession(created.id)
     const active = await demoSessionsApi.listSessions(DECK_ID)
@@ -371,6 +401,58 @@ describe('demo sessions api', () => {
     const [session] = await demoSessionsApi.listSessions(DECK_ID)
     const blob = await demoSessionsApi.getSessionReportPdf(session.id)
     expect(blob).toBeInstanceOf(Blob)
+  })
+
+  it('updates location/dates/hue independently of close/reopen, then restores', async () => {
+    const created = await demoSessionsApi.createSession({
+      name: 'Regional Qualifier',
+      type: 'tournament',
+      personal_deck_id: DECK_ID,
+    })
+
+    const updated = await demoSessionsApi.updateSession(created.id, {
+      location: 'Montreal, QC',
+      started_at: '2026-08-01T10:00:00Z',
+      ended_at: '2026-08-01T18:00:00Z',
+      hue: 120,
+    })
+    expect(updated.location).toBe('Montreal, QC')
+    expect(updated.ended_at).toBe('2026-08-01T18:00:00Z')
+    expect(updated.closed_at).toBeNull()
+    expect(updated.hue).toBe(120)
+
+    await demoSessionsApi.archiveSession(created.id)
+    const restored = await demoSessionsApi.updateSession(created.id, { restore: true })
+    expect(restored.archived_at).toBeNull()
+  })
+
+  it('sorts and paginates via listSessions options', async () => {
+    for (const name of ['Charlie', 'Alpha', 'Bravo']) {
+      await demoSessionsApi.createSession({
+        name,
+        type: 'training',
+        personal_deck_id: DECK_ID,
+      })
+    }
+
+    const sorted = await demoSessionsApi.listSessions(DECK_ID, false, {
+      sortBy: 'name',
+      sortDir: 'asc',
+    })
+    expect(sorted.map((s) => s.name)).toEqual([
+      'Alpha',
+      'Bravo',
+      'Charlie',
+      'Store Championship',
+    ])
+
+    const page = await demoSessionsApi.listSessions(DECK_ID, false, {
+      sortBy: 'name',
+      sortDir: 'asc',
+      limit: 2,
+      offset: 1,
+    })
+    expect(page.map((s) => s.name)).toEqual(['Bravo', 'Charlie'])
   })
 })
 

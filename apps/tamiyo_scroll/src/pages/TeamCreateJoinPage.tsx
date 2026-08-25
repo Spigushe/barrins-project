@@ -11,7 +11,7 @@ export function TeamCreateJoinPage() {
       <div className="mt-4 max-w-sm">
         <TeamJoinCreatePanel
           onSuccess={(teamId) => {
-            navigate(`/app/team/${teamId}`)
+            navigate(`/team/${teamId}`)
           }}
         />
       </div>

@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Response, status
-from sqlalchemy import func, select, update
+from sqlalchemy import func, insert, select, update
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
@@ -12,6 +12,7 @@ from app.models._types import JsonValue
 from app.models.tamiyo_scroll import (
     DecklistVersionSource,
     TSCardTest,
+    TSCardTestEvaluation,
     TSMatch,
     TSMetaDeck,
     TSPersonalDeck,
@@ -19,8 +20,9 @@ from app.models.tamiyo_scroll import (
 )
 from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
-    ResponseDecklistLine,
     ResponseDecklistVersion,
+    ResponseDecklistVersionDiff,
+    ResponseDecklistView,
     ResponsePersonalDeck,
 )
 from app.schemas.tamiyo_scroll import (
@@ -30,13 +32,22 @@ from app.schemas.tamiyo_scroll import (
     PersonalDeckPatch,
 )
 from app.services.moxfield import MoxfieldClientDep
+from app.services.tamiyo_scroll.card_test_matching import (
+    annotate_diff_cards_with_card_tests,
+)
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
+from app.services.tamiyo_scroll.decklist_diff import (
+    diff_decklist_cards,
+    diff_decklist_unparsed_lines,
+)
+from app.services.tamiyo_scroll.decklist_view import build_decklist_view
 from app.services.tamiyo_scroll.ownership import ResolvedOwner
 from app.services.tamiyo_scroll.report import (
     format_period,
     render_session_report_pdf,
     resolve_report_decklist_version,
 )
+from app.services.tamiyo_scroll.session_auto_archive import sweep_stale_sessions
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 from app.services.tamiyo_scroll.stats import compute_period_stats
 from app.services.tamiyo_scroll.teams import resolve_team_deck_access
@@ -66,11 +77,22 @@ async def _sync_opponent_deck_games(
     session: DatabaseSession, deck: TSPersonalDeck, owner_id: uuid.UUID
 ) -> None:
     """Cascades a corrected `game` onto every opponent (meta) deck this
-    personal deck has been matched against — always overwrites, unlike
-    the creation-time hint (`TSMetaDeck.game`'s docstring): once a
-    personal deck's game is fixed via PATCH, the opponent decks logged
-    against it should carry that same corrected value for ML export
-    filtering, not a stale/mismatched one.
+    personal deck has been matched against, for ML export filtering. Runs
+    on `game` change (patch_personal_deck).
+
+    Post-F10, an opponent row now carries its own `personal_deck_id`
+    owner, which may not be *this* personal deck (the "game" roster scope
+    can surface another of the owner's decks' rows in a match-logging
+    picker). Rows already owned by `deck` are corrected in place — same
+    single-owner behavior as before (always overwrites, unlike the
+    creation-time inheritance hint). Rows owned by a **different**
+    personal deck are duplicate-and-allocated instead of overwritten (the
+    same rule the F10 backfill migration uses): a new row is inserted,
+    owned by `deck`, carrying the corrected `game`; only `deck`'s own
+    matches against the original row are repointed to the new duplicate.
+    The original row (still owned by the other personal deck) is left
+    untouched — a blind overwrite would otherwise silently mutate data
+    that belongs, via FK, to a different deck.
     """
     opponent_ids_result = await session.execute(
         select(TSMatch.opponent_deck_id)
@@ -80,9 +102,51 @@ async def _sync_opponent_deck_games(
     opponent_ids = opponent_ids_result.scalars().all()
     if not opponent_ids:
         return
-    await session.execute(
-        update(TSMetaDeck).where(TSMetaDeck.id.in_(opponent_ids)).values(game=deck.game)
+
+    opponents_result = await session.execute(
+        select(TSMetaDeck).where(TSMetaDeck.id.in_(opponent_ids))
     )
+    opponents = list(opponents_result.scalars().all())
+
+    own_ids = [o.id for o in opponents if o.personal_deck_id == deck.id]
+    if own_ids:
+        await session.execute(
+            update(TSMetaDeck)
+            .where(TSMetaDeck.id.in_(own_ids))
+            .values(game=deck.game, updated_at=datetime.now(UTC))
+        )
+
+    foreign_opponents = [o for o in opponents if o.personal_deck_id != deck.id]
+    for original in foreign_opponents:
+        new_id = uuid.uuid4()
+        now = datetime.now(UTC)
+        await session.execute(
+            insert(TSMetaDeck).values(
+                id=new_id,
+                owner_id=original.owner_id,
+                personal_deck_id=deck.id,
+                name=original.name,
+                tier=original.tier,
+                category=original.category,
+                game=deck.game,
+                decklist_notes=original.decklist_notes,
+                top8=original.top8,
+                presence=original.presence,
+                expected=original.expected,
+                tests_status=original.tests_status,
+                archived_at=original.archived_at,
+                created_at=original.created_at,
+                updated_at=now,
+            )
+        )
+        await session.execute(
+            update(TSMatch)
+            .where(
+                TSMatch.personal_deck_id == deck.id,
+                TSMatch.opponent_deck_id == original.id,
+            )
+            .values(opponent_deck_id=new_id)
+        )
 
 
 def _moxfield_last_updated_at(raw_data: JsonValue | None) -> datetime | None:
@@ -133,6 +197,12 @@ async def _create_version(
     session.add(version)
     await session.commit()
     await session.refresh(version)
+
+    # S14 item 9: a new decklist version is the event that can make a
+    # session's most recent match's version fall further behind — sweep
+    # right here rather than on any periodic schedule.
+    await sweep_stale_sessions(session, deck, deck.owner_id)
+
     return version
 
 
@@ -335,14 +405,52 @@ async def delete_decklist_version(
     await session.commit()
 
 
+async def _get_deck_version(
+    session: DatabaseSession, deck: TSPersonalDeck, version_id: uuid.UUID
+) -> TSPersonalDecklistVersion:
+    result = await session.execute(
+        select(TSPersonalDecklistVersion).where(
+            TSPersonalDecklistVersion.id == version_id,
+            TSPersonalDecklistVersion.personal_deck_id == deck.id,
+        )
+    )
+    version = result.scalar_one_or_none()
+    if version is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Version not found."
+        )
+    return version
+
+
+async def _decklist_view_for_content(
+    session: DatabaseSession, owner_id: uuid.UUID, deck_id: uuid.UUID, content: str
+) -> ResponseDecklistView:
+    tests_result = await session.execute(
+        select(TSCardTest).where(
+            TSCardTest.owner_id == owner_id,
+            TSCardTest.personal_deck_id == deck_id,
+            TSCardTest.archived_at.is_(None),
+        )
+    )
+    card_tests = tests_result.scalars().all()
+    evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    evaluations = evaluations_result.scalars().all()
+    return await build_decklist_view(session, content, card_tests, evaluations)
+
+
 @router.get(
-    "/personal-decks/{deck_id}/decklist-view", response_model=list[ResponseDecklistLine]
+    "/personal-decks/{deck_id}/decklist-view", response_model=ResponseDecklistView
 )
 async def get_decklist_view(
     deck_id: uuid.UUID,
     session: DatabaseSession,
     owner: ResolvedOwner,
-) -> list[ResponseDecklistLine]:
+) -> ResponseDecklistView:
     deck = await _get_owned_personal_deck(session, deck_id, owner.id)
     latest_result = await session.execute(
         select(TSPersonalDecklistVersion)
@@ -352,16 +460,87 @@ async def get_decklist_view(
     )
     latest = latest_result.scalar_one_or_none()
     if latest is None:
-        return []
+        return ResponseDecklistView(
+            commander_cards=[], library_cards=[], unparsed_lines=[]
+        )
+    return await _decklist_view_for_content(session, owner.id, deck_id, latest.content)
 
-    tests_result = await session.execute(
+
+@router.get(
+    "/personal-decks/{deck_id}/versions/{version_id}",
+    response_model=ResponseDecklistView,
+)
+async def get_decklist_version_view(
+    deck_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+) -> ResponseDecklistView:
+    """S15: the same structured Commander/Library view as `decklist-view`,
+    for one specific past version instead of always the latest."""
+    deck = await _get_owned_personal_deck(session, deck_id, owner.id)
+    version = await _get_deck_version(session, deck, version_id)
+    return await _decklist_view_for_content(session, owner.id, deck_id, version.content)
+
+
+@router.get(
+    "/personal-decks/{deck_id}/versions/{version_id}/diff",
+    response_model=ResponseDecklistVersionDiff,
+)
+async def get_decklist_version_diff(
+    deck_id: uuid.UUID,
+    version_id: uuid.UUID,
+    session: DatabaseSession,
+    owner: ResolvedOwner,
+) -> ResponseDecklistVersionDiff:
+    """S15: card-aware diff of `version_id` against the immediately-prior
+    version (by `version` number, skipping any version deleted in
+    between). No prior version (the deck's first version) is returned
+    as an empty diff with `compared_to_version=None`, not a 404 --
+    handled explicitly rather than as an error, per the item's Done
+    statement."""
+    deck = await _get_owned_personal_deck(session, deck_id, owner.id)
+    version = await _get_deck_version(session, deck, version_id)
+
+    prior_result = await session.execute(
+        select(TSPersonalDecklistVersion)
+        .where(
+            TSPersonalDecklistVersion.personal_deck_id == deck.id,
+            TSPersonalDecklistVersion.version < version.version,
+        )
+        .order_by(TSPersonalDecklistVersion.version.desc())
+        .limit(1)
+    )
+    prior = prior_result.scalar_one_or_none()
+    if prior is None:
+        return ResponseDecklistVersionDiff(
+            version_id=version.id,
+            version=version.version,
+            compared_to_version_id=None,
+            compared_to_version=None,
+            cards=[],
+            unparsed_lines=[],
+        )
+
+    cards = diff_decklist_cards(prior.content, version.content)
+    card_tests_result = await session.execute(
         select(TSCardTest).where(
-            TSCardTest.owner_id == owner.id, TSCardTest.personal_deck_id == deck_id
+            TSCardTest.personal_deck_id == deck.id, TSCardTest.archived_at.is_(None)
         )
     )
-    card_tests = tests_result.scalars().all()
-    colored_lines = color_decklist(latest.content, card_tests)
-    return [ResponseDecklistLine(**line) for line in colored_lines]
+    card_tests = card_tests_result.scalars().all()
+    annotated_cards, _ = await annotate_diff_cards_with_card_tests(
+        session, cards, card_tests
+    )
+
+    return ResponseDecklistVersionDiff(
+        version_id=version.id,
+        version=version.version,
+        compared_to_version_id=prior.id,
+        compared_to_version=prior.version,
+        cards=annotated_cards,
+        unparsed_lines=diff_decklist_unparsed_lines(prior.content, version.content),
+    )
 
 
 @router.get("/personal-decks/{deck_id}/report.pdf")
@@ -423,16 +602,29 @@ async def get_deck_period_report(
         select(TSCardTest).where(
             TSCardTest.owner_id == deck.owner_id,
             TSCardTest.personal_deck_id == deck.id,
+            TSCardTest.archived_at.is_(None),
         )
     )
     all_card_tests = list(all_card_tests_result.scalars().all())
-    colored_lines = color_decklist(version.content, all_card_tests) if version else []
+    all_evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in all_card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    all_evaluations = list(all_evaluations_result.scalars().all())
+    colored_lines = (
+        color_decklist(version.content, all_card_tests, all_evaluations)
+        if version
+        else []
+    )
     version_label = (
         f"Version {version.version} ({version.source.value})"
         if version
         else "No version yet"
     )
     period_card_tests = [t for t in all_card_tests if t.created_at >= period_start]
+    period_evaluations = [e for e in all_evaluations if e.created_at >= period_start]
 
     pdf_bytes = render_session_report_pdf(
         title=deck.name,
@@ -448,6 +640,7 @@ async def get_deck_period_report(
         period_matchup_rows=stats.current_matchup_rows,
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
+        evaluations=period_evaluations,
     )
 
     filename = f"deck-report-{deck.id}.pdf"

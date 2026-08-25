@@ -1,0 +1,918 @@
+{
+  "meta": {
+    "date": "2026-08-04",
+    "version": "5.3.0+20260804"
+  },
+  "data": {
+    "P30A": {
+      "code": "P30A",
+      "name": "30th Anniversary Play Promos",
+      "releaseDate": "2022-09-02",
+      "type": "promo",
+      "block": null,
+      "baseSetSize": 30,
+      "totalSetSize": 30,
+      "keyruneCode": "PMEI",
+      "isOnlineOnly": false,
+      "languages": [
+        "English",
+        "French",
+        "German",
+        "Italian",
+        "Portuguese (Brazil)",
+        "Spanish"
+      ],
+      "cards": [
+        {
+          "artist": "Kev Walker",
+          "artistIds": [
+            "f366a0ee-a0cd-466d-ba6a-90058c7a31a6"
+          ],
+          "availability": [
+            "paper"
+          ],
+          "borderColor": "black",
+          "colorIdentity": [
+            "W"
+          ],
+          "colors": [
+            "W"
+          ],
+          "convertedManaCost": 5.0,
+          "edhrecRank": 9427,
+          "edhrecSaltiness": 0.0,
+          "finishes": [
+            "foil"
+          ],
+          "flavorText": "She soars on wings of Serra's light, her sword of faith meting out justice to the wicked.",
+          "foreignData": [],
+          "frameVersion": "1997",
+          "identifiers": {
+            "cardKingdomFoilId": "265900",
+            "cardsphereFoilId": "94749",
+            "deckboxId": "68353",
+            "mcmId": "669558",
+            "mtgjsonV4Id": "79b34c16-79de-5498-a418-6d3b421e8dab",
+            "scryfallCardBackId": "0aeebaf5-8c7d-4636-9e82-8c27447861f7",
+            "scryfallId": "978c9a84-c316-4d12-912d-d75ea43f06c3",
+            "scryfallIllustrationId": "08975d51-5135-4e73-9db4-8ec2752ad381",
+            "scryfallOracleId": "4b7ac066-e5c7-43e6-9e7e-2739b24a905d",
+            "tcgplayerProductId": "284951"
+          },
+          "isPromo": true,
+          "isReprint": true,
+          "keywords": [
+            "Flying",
+            "Vigilance"
+          ],
+          "language": "English",
+          "layout": "normal",
+          "legalities": {
+            "alchemy": "Legal",
+            "brawl": "Legal",
+            "commander": "Legal",
+            "duel": "Legal",
+            "future": "Legal",
+            "gladiator": "Legal",
+            "historic": "Legal",
+            "legacy": "Legal",
+            "modern": "Legal",
+            "oathbreaker": "Legal",
+            "penny": "Legal",
+            "pioneer": "Legal",
+            "predh": "Legal",
+            "premodern": "Legal",
+            "standard": "Legal",
+            "standardbrawl": "Legal",
+            "timeless": "Legal",
+            "vintage": "Legal"
+          },
+          "manaCost": "{3}{W}{W}",
+          "manaValue": 5.0,
+          "name": "Serra Angel",
+          "number": "1",
+          "power": "4",
+          "printings": [
+            "10E",
+            "2ED",
+            "30A",
+            "3ED",
+            "4BB",
+            "4ED",
+            "7ED",
+            "8ED",
+            "9ED",
+            "ANB",
+            "ATH",
+            "CED",
+            "CEI",
+            "CMA",
+            "CMD",
+            "DDC",
+            "DMR",
+            "DOM",
+            "DVD",
+            "EMA",
+            "FBB",
+            "FDN",
+            "GN3",
+            "GNT",
+            "IMA",
+            "J25",
+            "JMP",
+            "LEA",
+            "LEB",
+            "M10",
+            "M11",
+            "M12",
+            "M13",
+            "M14",
+            "M15",
+            "ME4",
+            "O90P",
+            "OANA",
+            "ORI",
+            "P30A",
+            "P30H",
+            "PDOM",
+            "PLST",
+            "PMDA",
+            "PRM",
+            "PS11",
+            "PTC",
+            "PW24",
+            "PWOS",
+            "SLD",
+            "SUM",
+            "V15",
+            "W16",
+            "W17"
+          ],
+          "promoTypes": [
+            "datestamped"
+          ],
+          "purchaseUrls": {
+            "cardKingdomFoil": "https://mtgjson.com/links/b8409c0daa888148",
+            "cardmarket": "https://mtgjson.com/links/e068379888d69e7b",
+            "cardmarketFoil": "https://mtgjson.com/links/92a183f16f2c4ddd",
+            "tcgplayer": "https://mtgjson.com/links/10c43aa2212b9ff9"
+          },
+          "rarity": "rare",
+          "setCode": "P30A",
+          "skuIds": {
+            "foil": "52228522-a656-591a-a66c-ff4f1548d45a"
+          },
+          "subtypes": [
+            "Angel"
+          ],
+          "supertypes": [],
+          "text": "Flying\nVigilance (Attacking doesn't cause this creature to tap.)",
+          "toughness": "4",
+          "type": "Creature — Angel",
+          "types": [
+            "Creature"
+          ],
+          "uuid": "72a7ba03-cd96-5db1-9a65-577432c79de3",
+          "watermark": "wotc"
+        }
+      ]
+    },
+    "ZNR": {
+      "code": "ZNR",
+      "name": "Zendikar Rising",
+      "releaseDate": "2020-09-25",
+      "type": "expansion",
+      "block": null,
+      "baseSetSize": 280,
+      "totalSetSize": 392,
+      "keyruneCode": "ZNR",
+      "isOnlineOnly": false,
+      "languages": [
+        "Chinese Simplified",
+        "Chinese Traditional",
+        "English",
+        "French",
+        "German",
+        "Italian",
+        "Japanese",
+        "Korean",
+        "Portuguese (Brazil)",
+        "Russian",
+        "Spanish"
+      ],
+      "cards": [
+        {
+          "artist": "Matt Stewart",
+          "artistIds": [
+            "20871267-2d8a-41d5-b03a-be3d557c5734"
+          ],
+          "availability": [
+            "arena",
+            "mtgo",
+            "paper"
+          ],
+          "boosterTypes": [
+            "default"
+          ],
+          "borderColor": "black",
+          "colorIdentity": [
+            "W"
+          ],
+          "colors": [
+            "W"
+          ],
+          "convertedManaCost": 7.0,
+          "edhrecRank": 2835,
+          "edhrecSaltiness": 0.21,
+          "faceConvertedManaCost": 7.0,
+          "faceManaValue": 7.0,
+          "faceName": "Emeria's Call",
+          "finishes": [
+            "foil",
+            "nonfoil"
+          ],
+          "flavorText": "\"Iona no longer guards this place. We do.\"\n—Kasla, Emeria shepherd",
+          "foreignData": [
+            {
+              "faceName": "伊美黎召令",
+              "flavorText": "「艾欧娜虽不再庇佑此地。但我们仍继续守护。」\n～伊美黎牧者卡丝拉",
+              "identifiers": {
+                "multiverseId": "494477",
+                "scryfallId": "3c7490f7-dd1a-481d-b7e8-1e8c6851cdc5"
+              },
+              "language": "Chinese Simplified",
+              "multiverseId": 494477,
+              "name": "伊美黎召令 // 破碎空境伊美黎",
+              "skuIds": {
+                "foil": "eabc6af0-2351-5b66-9185-bc7db3a3f124",
+                "nonfoil": "09f655a6-e10a-5d54-82ee-bef51ce3734b"
+              },
+              "text": "派出两个4/4白色，具飞行异能的天使／战士衍生生物。由你操控的非天使生物获得不灭异能直到你的下一个回合。\n地\n{T}：加{W}。",
+              "type": "法术",
+              "uuid": "8c2c0ba1-63a1-5aa4-957f-a77aacbb32fa"
+            },
+            {
+              "faceName": "伊美黎召令",
+              "flavorText": "「艾歐娜雖不再庇佑此地。但我們仍繼續守護。」\n～伊美黎牧者卡絲拉",
+              "identifiers": {
+                "multiverseId": "494793",
+                "scryfallId": "531a6791-8430-4da9-b0b3-361edfb08ced"
+              },
+              "language": "Chinese Traditional",
+              "multiverseId": 494793,
+              "name": "伊美黎召令 // 破碎空境伊美黎",
+              "skuIds": {
+                "foil": "34d85b38-a7f8-51af-88f8-9a0513ffd2ef",
+                "nonfoil": "a255418d-87b2-50e6-80fc-2e7ea213241e"
+              },
+              "text": "派出兩個4/4白色，具飛行異能的天使／戰士衍生生物。由你操控的非天使生物獲得不滅異能直到你的下一個回合。\n地\n{T}：加{W}。",
+              "type": "巫術",
+              "uuid": "ce99bfd6-1d53-5d4e-857a-792348e05e03"
+            },
+            {
+              "faceName": "Appel d'Éméria",
+              "flavorText": "« Cet endroit n'est plus sous la protection d'Iona, mais sous la nôtre. »\n—Kasla, bergère d'Éméria",
+              "identifiers": {
+                "multiverseId": "492581",
+                "scryfallId": "f8712666-e03a-4bdc-806d-fdb7a8d53986"
+              },
+              "language": "French",
+              "multiverseId": 492581,
+              "name": "Appel d'Éméria // Éméria, fort céleste fracassé",
+              "skuIds": {
+                "foil": "6045924c-04e8-50a1-b77a-5f3e6d522f61",
+                "nonfoil": "ebe19c46-a5d8-54b1-b6fd-d75caf6ba453"
+              },
+              "text": "Créez deux jetons de créature 4/4 blanche Ange et Guerrier avec le vol. Les créatures non-Ange que vous contrôlez acquièrent l'indestructible jusqu'à votre prochain tour.\nTerrain\n{T} : Ajoutez {W}.",
+              "type": "Rituel",
+              "uuid": "efc884d7-68d9-558b-aeb0-f7ace19b3fe4"
+            },
+            {
+              "faceName": "Emerias Ruf",
+              "flavorText": "„Iona bewacht diesen Ort nicht mehr. Wir schon.\"\n—Kasla, Emerias Hirtin",
+              "identifiers": {
+                "multiverseId": "491949",
+                "scryfallId": "4042e563-2887-4fb5-bb18-90ee9392312b"
+              },
+              "language": "German",
+              "multiverseId": 491949,
+              "name": "Emerias Ruf // Emeria, die zerstörte Himmelsfestung",
+              "skuIds": {
+                "foil": "c09f6f46-00bb-5ab0-8f7c-abcd2f946ca9",
+                "nonfoil": "4a76b66e-7097-5f85-a087-bd4d573756ea"
+              },
+              "text": "Erzeuge zwei 4/4 weiße Engel-Krieger-Kreaturenspielsteine mit Flugfähigkeit. Nicht-Engel-Kreaturen, die du kontrollierst, erhalten Unzerstörbarkeit bis zu deinem nächsten Zug.\nLand\n{T}: Erzeuge {W}.",
+              "type": "Hexerei",
+              "uuid": "dd8e37a2-0228-51cb-a463-86c82833d593"
+            },
+            {
+              "faceName": "Richiamo di Emeria",
+              "flavorText": "\"Iona non difende più questo luogo. Ci pensiamo noi.\"\n—Kasla, pastore di Emeria",
+              "identifiers": {
+                "multiverseId": "492897",
+                "scryfallId": "e3f50821-64ed-4de7-ae30-9abaa5d30281"
+              },
+              "language": "Italian",
+              "multiverseId": 492897,
+              "name": "Richiamo di Emeria // Emeria, Enclave Celeste Frantumata",
+              "skuIds": {
+                "foil": "da2fc51d-8d7d-5b04-8277-214698a106b1",
+                "nonfoil": "7c032258-414d-5a6a-be63-510531ca82ce"
+              },
+              "text": "Crea due pedine creatura Guerriero Angelo 4/4 bianche con volare. Le creature non Angelo che controlli hanno indistruttibile fino al tuo prossimo turno.\nTerra\n{T}: Aggiungi {W}.",
+              "type": "Stregoneria",
+              "uuid": "75f5ffbe-634e-586c-984f-465634d78e4a"
+            },
+            {
+              "faceName": "エメリアの呼び声",
+              "flavorText": "「この場所は最早イオナに守られてはいない。我々が守るのだ。」\n――エメリアの番人、カスラ",
+              "identifiers": {
+                "multiverseId": "493213",
+                "scryfallId": "cb7ca9d3-b935-4859-9b0c-f51bd6c61ea3"
+              },
+              "language": "Japanese",
+              "multiverseId": 493213,
+              "name": "エメリアの呼び声 // 砕け散ったスカイクレイブ、エメリア",
+              "skuIds": {
+                "foil": "3c3e4af6-53c7-5284-a3b5-c6eac04450a8",
+                "nonfoil": "e1df9d17-c4e0-5d22-aa67-5d3af3dc5d00"
+              },
+              "text": "飛行を持つ白の４/４の天使・戦士・クリーチャー・トークンを２体生成する。あなたの次のターンまで、あなたがコントロールしていて天使でないクリーチャーは破壊不能を得る。\n土地\n{T}：{W}を加える。",
+              "type": "ソーサリー",
+              "uuid": "d1ab2bd4-57a7-5a59-9c94-af390864a904"
+            },
+            {
+              "faceName": "에메리아의 부름",
+              "flavorText": "\"이곳을 지키는 것은 더이상 아이오나가 아니다. 우리다.\"\n—에메리아 목동, 카슬라",
+              "identifiers": {
+                "multiverseId": "493529",
+                "scryfallId": "fe1b72c6-d5f8-45a6-9f74-bf7fb8f1e650"
+              },
+              "language": "Korean",
+              "multiverseId": 493529,
+              "name": "에메리아의 부름 // 산산조각난 하늘거주지, 에메리아",
+              "skuIds": {
+                "foil": "4eec5ed1-cd56-546c-bbb4-6b651926984b",
+                "nonfoil": "b5ca5c97-b7c6-5a52-a064-4d6a07186f3a"
+              },
+              "text": "비행을 가진 4/4 백색 천사 전사 생물 토큰 두 개를 만든다. 당신이 조종하는 천사가 아닌 생물들은 당신의 다음 턴까지 무적을 얻는다.\n대지\n{T}: {W}를 추가한다.",
+              "type": "집중마법",
+              "uuid": "8ffa1723-313e-51a1-8124-6875bb93a3fa"
+            },
+            {
+              "faceName": "Chamado de Emeria",
+              "flavorText": "\"Iona não protege mais este lugar. Nós protegemos.\"\n— Kasla, pastora de Emeria",
+              "identifiers": {
+                "multiverseId": "493845",
+                "scryfallId": "11a6f523-8dd0-4f67-899b-dcd56bc789b9"
+              },
+              "language": "Portuguese (Brazil)",
+              "multiverseId": 493845,
+              "name": "Chamado de Emeria // Emeria, Enclave Celeste Partido",
+              "skuIds": {
+                "foil": "973af552-6370-5539-8b26-07b68d791d4d",
+                "nonfoil": "ba643fe2-2f37-5489-852a-51d7c7343335"
+              },
+              "text": "Crie duas fichas de criatura branca 4/4 do tipo Anjo Guerreiro com voar. As criaturas que você controla que não sejam Anjos ganham indestrutível até o final do turno.\nTerreno\n{T}: Adicione {W}.",
+              "type": "Feitiço",
+              "uuid": "c1d742e6-492b-5bb5-ad5e-b382d8cb3f6f"
+            },
+            {
+              "faceName": "Зов Эмерии",
+              "flavorText": "«Иона больше не охраняет это место. Теперь это делаем мы».\n— Касла, пастырь Эмерии",
+              "identifiers": {
+                "multiverseId": "494161",
+                "scryfallId": "82947fd8-f350-4726-9338-a575d5387f78"
+              },
+              "language": "Russian",
+              "multiverseId": 494161,
+              "name": "Зов Эмерии // Эмерия, Руины Небесного Анклава",
+              "skuIds": {
+                "foil": "18ae4b97-82a8-5ef7-b765-feab61f2e5aa",
+                "nonfoil": "c94886a3-a64a-5ed9-b3ef-2cdf56993bca"
+              },
+              "text": "Создайте две фишки существа 4/4 белый Ангел Воин с Полетом. Не являющиеся Ангелами существа под вашим контролем получают Неразрушимость до вашего следующего хода.\nЗемля\n{T}: добавьте {W}.",
+              "type": "Волшебство",
+              "uuid": "a3442bbc-4bc3-5cc9-aafa-67da915e5c35"
+            },
+            {
+              "faceName": "Llamada de Emeria",
+              "flavorText": "\"Iona ya no protege este lugar, pero nosotras sí\".\n—Kasla, pastora de Emeria",
+              "identifiers": {
+                "multiverseId": "492265",
+                "scryfallId": "43b5816b-f4e3-482f-b1ed-e8ace6447485"
+              },
+              "language": "Spanish",
+              "multiverseId": 492265,
+              "name": "Llamada de Emeria // Emeria, aerorruina quebrada",
+              "skuIds": {
+                "foil": "10922ec1-7a5e-53bb-958a-ab9a49391f6f",
+                "nonfoil": "5ee0688f-0f49-5152-8904-930da2d4b1b2"
+              },
+              "text": "Crea dos fichas de criatura Guerrero Ángel blancas 4/4 con la habilidad de volar. Las criaturas que no sean Ángel que controlas ganan la habilidad de indestructible hasta tu próximo turno.\nTierra\n{T}: Agrega {W}.",
+              "type": "Conjuro",
+              "uuid": "e7beca21-6ee1-5f11-a645-522d687cb2e3"
+            }
+          ],
+          "frameVersion": "2015",
+          "identifiers": {
+            "cardKingdomFoilId": "237682",
+            "cardKingdomId": "237058",
+            "cardsphereFoilId": "70330",
+            "cardsphereId": "70331",
+            "deckboxId": "52600",
+            "mcmId": "495434",
+            "mcmMetaId": "316364",
+            "mtgArenaId": "73194",
+            "mtgjsonV4Id": "243db642-2940-5f34-80e5-94b5a2adfbce",
+            "mtgoId": "82959",
+            "multiverseId": "491633",
+            "scryfallId": "c470539a-9cc7-4175-8f7c-c982b6072b6d",
+            "scryfallIllustrationId": "0bd76506-0572-4170-bff5-53cc1ebc24c2",
+            "scryfallOracleId": "6ec2a242-9068-4ee2-8ac8-8341cc570f56",
+            "tcgplayerProductId": "221952"
+          },
+          "language": "English",
+          "layout": "modal_dfc",
+          "legalities": {
+            "brawl": "Legal",
+            "commander": "Legal",
+            "duel": "Legal",
+            "gladiator": "Legal",
+            "historic": "Legal",
+            "legacy": "Legal",
+            "modern": "Legal",
+            "oathbreaker": "Legal",
+            "pioneer": "Legal",
+            "timeless": "Legal",
+            "vintage": "Legal"
+          },
+          "manaCost": "{4}{W}{W}{W}",
+          "manaValue": 7.0,
+          "name": "Emeria's Call // Emeria, Shattered Skyclave",
+          "number": "12",
+          "originalText": "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel creatures you control gain indestructible until your next turn.",
+          "originalType": "Sorcery",
+          "otherFaceIds": [
+            "dde525a3-231d-58c4-a49d-4d6b6d811f19"
+          ],
+          "printings": [
+            "PRM",
+            "PZNR",
+            "ZNR"
+          ],
+          "producedMana": [
+            "W"
+          ],
+          "purchaseUrls": {
+            "cardKingdom": "https://mtgjson.com/links/c1fbc617cb47e872",
+            "cardKingdomFoil": "https://mtgjson.com/links/6b7f5645500ca7e5",
+            "cardmarket": "https://mtgjson.com/links/0410ba60c419ed6c",
+            "cardmarketFoil": "https://mtgjson.com/links/5d692e501e59bc26",
+            "tcgplayer": "https://mtgjson.com/links/6972f122cfb54cef"
+          },
+          "rarity": "mythic",
+          "relatedCards": {
+            "tokens": [
+              "d640859a-29e8-5cff-a0c0-5816ae2813b1"
+            ]
+          },
+          "rulings": [
+            {
+              "date": "2020-09-25",
+              "text": "A modal double-faced card can't be transformed or be put onto the battlefield transformed. Ignore any instruction to transform a modal double-faced card or to put one onto the battlefield transformed."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "Emeria's Call affects only creatures you control at the time it resolves. Creatures you begin to control later won't gain indestructible."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect allows you to play a land or cast a spell from among a group of cards, you may play or cast a modal double-faced card with any face that fits the criteria of that effect."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect allows you to play a specific modal double-faced card, you may cast it as a spell or play it as a land, as determined by which face you choose to play. If an effect allows you to cast (rather than \"play\") a specific modal double-faced card, you can't play it as a land."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect instructs a player to choose a card name, the name of either face may be chosen. If that effect or a linked ability refers to a spell with the chosen name being cast and/or a land with the chosen name being played, it considers only the chosen name, not the other face's name."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect puts a double-faced card onto the battlefield, it enters with its front face up. If that front face can't be put onto the battlefield, it doesn't enter the battlefield."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "In the Commander variant, a double-faced card's color identity is determined by the mana costs and mana symbols in the rules text of both faces combined. If either face has a color indicator or basic land type, those are also considered."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "The mana value of a modal double-faced card is based on the characteristics of the face that's being considered. On the stack and battlefield, consider whichever face is up. In all other zones, consider only the front face. This is different than how the mana value of a transforming double-faced card is determined."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "There is a single triangle icon in the top left corner of the front face. There is a double triangle icon in the top left corner of the back face."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "To determine whether it is legal to play a modal double-faced card, consider only the characteristics of the face you're playing and ignore the other face's characteristics."
+            }
+          ],
+          "securityStamp": "oval",
+          "setCode": "ZNR",
+          "side": "a",
+          "skuIds": {
+            "foil": "731427e7-acfb-5913-a489-85ff9d31f957",
+            "nonfoil": "1a3463c5-4282-5e75-9b11-758975a90311"
+          },
+          "sourceProducts": {
+            "foil": [
+              "146b3cbd-6432-58e4-b5da-7a530cfcaf0f",
+              "2b7bdbc4-4089-5b7b-9930-dc7643227e7b",
+              "4af9eee1-4534-5af4-8eb0-0fc32e907534",
+              "4b339137-87a8-57d3-8166-2ffe66c56062",
+              "4d9d262a-6ab5-5e25-a933-e7876ebe86d4",
+              "51bdebf1-8e33-53c0-b9c7-1d6293ac8258",
+              "7b4ee0c9-b66d-5f6b-93ae-1f18998c3f4c",
+              "7bd7948a-02dc-5871-a0b4-44029e71c5c5",
+              "935eccbf-4519-56be-8c4c-f6c0200e7b0c",
+              "a23f1a83-e1de-5b30-8276-745cffbbaba3",
+              "a7831b69-abd3-5fd0-9b7c-373cc16d7a47",
+              "c6c28758-a9f5-5001-b61f-b014d19adc69",
+              "ca4d4bd9-ce93-5434-a19c-014299301630",
+              "d2ab22c7-b20e-5ba0-bcdd-ec4578f4a349",
+              "f3736d50-8967-5f09-89be-3b7a4eddb948"
+            ],
+            "nonfoil": [
+              "0332a109-d6ad-59f3-80fb-432a103bfb25",
+              "146b3cbd-6432-58e4-b5da-7a530cfcaf0f",
+              "2b7bdbc4-4089-5b7b-9930-dc7643227e7b",
+              "4af9eee1-4534-5af4-8eb0-0fc32e907534",
+              "4b339137-87a8-57d3-8166-2ffe66c56062",
+              "4d9d262a-6ab5-5e25-a933-e7876ebe86d4",
+              "60fe8c7d-354a-533b-a951-0a65666deb58",
+              "6c8b3f20-df72-51b4-9b7f-6f15acbb1ec9",
+              "74dff029-aea7-5373-875e-9c4b0ae8b248",
+              "78cbfbba-9382-598d-b459-e96e1d470cb2",
+              "7bd7948a-02dc-5871-a0b4-44029e71c5c5",
+              "9773d5c8-4b11-5276-9582-da4f32c44bdc",
+              "a7831b69-abd3-5fd0-9b7c-373cc16d7a47",
+              "a952eb83-c1a0-5356-9eb4-d2b93c5aad12",
+              "be2e11c1-394e-5f5e-8b5b-0be0852898a8",
+              "c6c28758-a9f5-5001-b61f-b014d19adc69",
+              "c6f5f120-41e4-572e-8e6c-2b033b464bcf",
+              "ca4d4bd9-ce93-5434-a19c-014299301630",
+              "f3736d50-8967-5f09-89be-3b7a4eddb948"
+            ]
+          },
+          "subtypes": [],
+          "supertypes": [],
+          "text": "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel creatures you control gain indestructible until your next turn.",
+          "type": "Sorcery",
+          "types": [
+            "Sorcery"
+          ],
+          "uuid": "d1222c93-0aee-5d60-970a-7342b6f8cba4",
+          "variations": [
+            "6d82730a-9c18-5030-9aa7-bb1eb590556a"
+          ]
+        },
+        {
+          "artist": "Matt Stewart",
+          "artistIds": [
+            "20871267-2d8a-41d5-b03a-be3d557c5734"
+          ],
+          "availability": [
+            "arena",
+            "mtgo",
+            "paper"
+          ],
+          "boosterTypes": [
+            "default"
+          ],
+          "borderColor": "black",
+          "colorIdentity": [
+            "W"
+          ],
+          "colors": [],
+          "convertedManaCost": 0.0,
+          "edhrecRank": 2835,
+          "edhrecSaltiness": 0.21,
+          "faceConvertedManaCost": 0.0,
+          "faceManaValue": 0.0,
+          "faceName": "Emeria, Shattered Skyclave",
+          "finishes": [
+            "foil",
+            "nonfoil"
+          ],
+          "flavorText": "\"You called it the castle of a god. It is less than that, and so much more.\"\n—Kasla, Emeria shepherd",
+          "foreignData": [
+            {
+              "faceName": "破碎空境伊美黎",
+              "flavorText": "「你们将这称作神佑之城。神明已逝，天威犹存。」\n～伊美黎牧者卡丝拉",
+              "identifiers": {
+                "multiverseId": "494477",
+                "scryfallId": "3c7490f7-dd1a-481d-b7e8-1e8c6851cdc5"
+              },
+              "language": "Chinese Simplified",
+              "multiverseId": 494477,
+              "name": "伊美黎召令 // 破碎空境伊美黎",
+              "skuIds": {
+                "foil": "250ea72e-bdc9-5ac2-b545-e1c64a4444f1",
+                "nonfoil": "50867308-c193-594f-96e3-f39128a6d393"
+              },
+              "text": "于破碎空境伊美黎进战场时，你可以支付3点生命。如果你未如此作，则它须横置进战场。\n{T}：加{W}。\n法术\n{4}{W}{W}{W}",
+              "type": "地",
+              "uuid": "c6ec6c2b-401b-54dc-9d96-7b6aacba12a3"
+            },
+            {
+              "faceName": "破碎空境伊美黎",
+              "flavorText": "「你們將這稱作神祐之城。神明已逝，天威猶存。」\n～伊美黎牧者卡絲拉",
+              "identifiers": {
+                "multiverseId": "494793",
+                "scryfallId": "531a6791-8430-4da9-b0b3-361edfb08ced"
+              },
+              "language": "Chinese Traditional",
+              "multiverseId": 494793,
+              "name": "伊美黎召令 // 破碎空境伊美黎",
+              "skuIds": {
+                "foil": "0b663ba2-0427-5c62-a983-026199a8e6b4",
+                "nonfoil": "4a926e7b-4b14-500a-995d-76b132fd334e"
+              },
+              "text": "於破碎空境伊美黎進戰場時，你可以支付3點生命。如果你未如此作，則它須橫置進戰場。\n{T}：加{W}。\n巫術\n{4}{W}{W}{W}",
+              "type": "地",
+              "uuid": "2cbd008e-ee40-5b46-ad6f-909511b22749"
+            },
+            {
+              "faceName": "Éméria, fort céleste fracassé",
+              "flavorText": "« Vous l'avez décrit comme un château divin. C'est à la fois loin d'en être un et bien plus que ça encore. »\n—Kasla, bergère d'Éméria",
+              "identifiers": {
+                "multiverseId": "492581",
+                "scryfallId": "f8712666-e03a-4bdc-806d-fdb7a8d53986"
+              },
+              "language": "French",
+              "multiverseId": 492581,
+              "name": "Appel d'Éméria // Éméria, fort céleste fracassé",
+              "skuIds": {
+                "foil": "3ec56550-06db-5cc2-a4dc-58c3eaeb239e",
+                "nonfoil": "d9cae4d3-410c-5b8d-99ef-292be7ec5b20"
+              },
+              "text": "Au moment où Éméria, fort céleste fracassé arrive sur le champ de bataille, vous pouvez payer 3 points de vie. Si vous ne le faites pas, il arrive sur le champ de bataille engagé.\n{T} : Ajoutez {W}.\nRituel\n{4}{W}{W}{W}",
+              "type": "Terrain",
+              "uuid": "354c0f8c-412f-5250-bc51-5488df9237b7"
+            },
+            {
+              "faceName": "Emeria, die zerstörte Himmelsfestung",
+              "flavorText": "„Du hast es als Götterfestung bezeichnet. Es ist weniger als das und so viel mehr.\"\n—Kasla, Emerias Hirtin",
+              "identifiers": {
+                "multiverseId": "491949",
+                "scryfallId": "4042e563-2887-4fb5-bb18-90ee9392312b"
+              },
+              "language": "German",
+              "multiverseId": 491949,
+              "name": "Emerias Ruf // Emeria, die zerstörte Himmelsfestung",
+              "skuIds": {
+                "foil": "cef8e8b0-e7d5-5e8c-85e8-d1d26dd55573",
+                "nonfoil": "c8f6e492-3d75-561e-812e-b19021c1618d"
+              },
+              "text": "Sowie Emeria, die zerstörte Himmelsfestung, ins Spiel kommt, kannst du 3 Lebenspunkte bezahlen. Falls du dies nicht tust, kommt sie getappt ins Spiel.\n{T}: Erzeuge {W}.\nHexerei\n{4}{W}{W}{W}",
+              "type": "Land",
+              "uuid": "4169f2ac-3555-5507-96d2-b0eb3ecc7daf"
+            },
+            {
+              "faceName": "Emeria, Enclave Celeste Frantumata",
+              "flavorText": "\"L'avete chiamata il castello di una dea. È meno di questo e molto di più.\"\n—Kasla, pastore di Emeria",
+              "identifiers": {
+                "multiverseId": "492897",
+                "scryfallId": "e3f50821-64ed-4de7-ae30-9abaa5d30281"
+              },
+              "language": "Italian",
+              "multiverseId": 492897,
+              "name": "Richiamo di Emeria // Emeria, Enclave Celeste Frantumata",
+              "skuIds": {
+                "foil": "6e30133f-3a1f-521e-a4f2-37d5a605f154",
+                "nonfoil": "f741f46e-ef75-50b8-a4ce-da6dfd107d14"
+              },
+              "text": "Mentre Emeria, Enclave Celeste Frantumata entra nel campo di battaglia, puoi pagare 3 punti vita. Se non lo fai, entra nel campo di battaglia TAPpata.\n{T}: Aggiungi {W}.\nStregoneria\n{4}{W}{W}{W}",
+              "type": "Terra",
+              "uuid": "9388559c-ccd8-5249-aab4-ee43b9c1ab69"
+            },
+            {
+              "faceName": "砕け散ったスカイクレイブ、エメリア",
+              "flavorText": "「お前はここが神の城だと言ったな。それほどではない。だがそれ以上でもある。」\n――エメリアの番人、カスラ",
+              "identifiers": {
+                "multiverseId": "493213",
+                "scryfallId": "cb7ca9d3-b935-4859-9b0c-f51bd6c61ea3"
+              },
+              "language": "Japanese",
+              "multiverseId": 493213,
+              "name": "エメリアの呼び声 // 砕け散ったスカイクレイブ、エメリア",
+              "skuIds": {
+                "foil": "f41c73b7-4870-5222-b13e-493f4a5942e0",
+                "nonfoil": "a91818db-65cb-5c3d-9583-e94cdee6de48"
+              },
+              "text": "砕け散ったスカイクレイブ、エメリアが戦場に出るに際し、あなたは３点のライフを支払ってもよい。そうしないなら、これはタップ状態で戦場に出る。\n{T}：{W}を加える。\nソーサリー\n{4}{W}{W}{W}",
+              "type": "土地",
+              "uuid": "64350f13-ea23-5578-bd84-6b0b6e3e6aca"
+            },
+            {
+              "faceName": "산산조각난 하늘거주지, 에메리아",
+              "flavorText": "\"넌 그곳을 신의 성이라고 불렀지. 그곳은 그렇다기보단, 더 많은 의미를 가지고 있어.\"\n—에메리아 목동, 카슬라",
+              "identifiers": {
+                "multiverseId": "493529",
+                "scryfallId": "fe1b72c6-d5f8-45a6-9f74-bf7fb8f1e650"
+              },
+              "language": "Korean",
+              "multiverseId": 493529,
+              "name": "에메리아의 부름 // 산산조각난 하늘거주지, 에메리아",
+              "skuIds": {
+                "foil": "36d41b14-2a03-54ef-97b7-40d92dd4eb1e",
+                "nonfoil": "4c7975f4-6af9-5a9c-8d84-28d9ec09cec4"
+              },
+              "text": "산산조각난 하늘거주지, 에메리아가 전장에 들어오면서, 당신은 생명 3점을 지불할 수 있다. 그러지 않으면, 에메리아는 탭된 채로 전장에 들어온다.\n{T}: {W}를 추가한다.\n집중마법\n{4}{W}{W}{W}",
+              "type": "대지",
+              "uuid": "ad039ae5-8fd8-5091-b0e1-88e348b29d85"
+            },
+            {
+              "faceName": "Emeria, Enclave Celeste Partido",
+              "flavorText": "\"Vocês diziam que era o castelo de uma divindade. Não é tudo isso, mas, ao mesmo tempo, é muito mais.\"\n— Kasla, pastora de Emeria",
+              "identifiers": {
+                "multiverseId": "493845",
+                "scryfallId": "11a6f523-8dd0-4f67-899b-dcd56bc789b9"
+              },
+              "language": "Portuguese (Brazil)",
+              "multiverseId": 493845,
+              "name": "Chamado de Emeria // Emeria, Enclave Celeste Partido",
+              "skuIds": {
+                "foil": "ef62cacc-dfc1-551c-9d77-0f748648fe5b",
+                "nonfoil": "67278b51-7683-51f6-a0cb-abc42970b847"
+              },
+              "text": "Conforme Emeria, Enclave Celeste Partido, entra no campo de batalha, você pode pagar 3 pontos de vida. Se não fizer isso, ele entrará no campo de batalha virado.\n{T}: Adicione {W}.\nFeitiço\n{4}{W}{W}{W}",
+              "type": "Terreno",
+              "uuid": "88d1a47a-1637-5aaf-9714-460b5498046e"
+            },
+            {
+              "faceName": "Эмерия, Руины Небесного Анклава",
+              "flavorText": "«Вы называли ее замком богини. Но это нечто меньшее — и неизмеримо большее».\n— Касла, пастырь Эмерии",
+              "identifiers": {
+                "multiverseId": "494161",
+                "scryfallId": "82947fd8-f350-4726-9338-a575d5387f78"
+              },
+              "language": "Russian",
+              "multiverseId": 494161,
+              "name": "Зов Эмерии // Эмерия, Руины Небесного Анклава",
+              "skuIds": {
+                "foil": "ee884ed3-b9dc-5f07-a0a9-14bba46a75ee",
+                "nonfoil": "90b6a172-0875-5faf-8bb4-d3e3576227b1"
+              },
+              "text": "При выходе Эмерии, Руин Небесного Анклава на поле битвы вы можете заплатить 3 жизни. Если вы этого не делаете, она выходит на поле битвы повернутой.\n{T}: добавьте {W}.\nВолшебство\n{4}{W}{W}{W}",
+              "type": "Земля",
+              "uuid": "7db0525d-b697-54bc-a305-75b8146ef853"
+            },
+            {
+              "faceName": "Emeria, aerorruina quebrada",
+              "flavorText": "\"Dijiste que era el castillo de una diosa. Es menos que eso, pero a la vez mucho más\".\n—Kasla, pastora de Emeria",
+              "identifiers": {
+                "multiverseId": "492265",
+                "scryfallId": "43b5816b-f4e3-482f-b1ed-e8ace6447485"
+              },
+              "language": "Spanish",
+              "multiverseId": 492265,
+              "name": "Llamada de Emeria // Emeria, aerorruina quebrada",
+              "skuIds": {
+                "foil": "55f74997-96ff-5d75-804b-db34f7b3a39d",
+                "nonfoil": "c2c4cf80-c8d6-5222-95cc-e83e2ad97e8f"
+              },
+              "text": "En cuanto Emeria, aerorruina quebrada entre al campo de batalla, puedes pagar 3 vidas. Si no lo haces, entra al campo de batalla girada.\n{T}: Agrega {W}.\nConjuro\n{4}{W}{W}{W}",
+              "type": "Tierra",
+              "uuid": "405a2d79-dd0d-5dcb-92d2-40cfa8c04bc9"
+            }
+          ],
+          "frameVersion": "2015",
+          "identifiers": {
+            "cardKingdomFoilId": "237682",
+            "cardKingdomId": "237058",
+            "cardsphereFoilId": "70330",
+            "cardsphereId": "70331",
+            "deckboxId": "52600",
+            "mcmId": "495434",
+            "mcmMetaId": "316364",
+            "mtgArenaId": "73194",
+            "mtgjsonV4Id": "af930557-6b67-59db-84d7-24eb22c4ac00",
+            "mtgoId": "82959",
+            "multiverseId": "491634",
+            "scryfallId": "c470539a-9cc7-4175-8f7c-c982b6072b6d",
+            "scryfallIllustrationId": "7e4ebfcb-0a84-4510-b0e5-c7cb2138d4da",
+            "scryfallOracleId": "6ec2a242-9068-4ee2-8ac8-8341cc570f56",
+            "tcgplayerProductId": "221952"
+          },
+          "language": "English",
+          "layout": "modal_dfc",
+          "legalities": {
+            "brawl": "Legal",
+            "commander": "Legal",
+            "duel": "Legal",
+            "gladiator": "Legal",
+            "historic": "Legal",
+            "legacy": "Legal",
+            "modern": "Legal",
+            "oathbreaker": "Legal",
+            "pioneer": "Legal",
+            "timeless": "Legal",
+            "vintage": "Legal"
+          },
+          "manaValue": 0.0,
+          "name": "Emeria's Call // Emeria, Shattered Skyclave",
+          "number": "12",
+          "originalText": "As Emeria, Shattered Skyclave enters the battlefield, you may pay 3 life. If you don't, it enters the battlefield tapped.\n{T}: Add {W}.",
+          "originalType": "Land",
+          "otherFaceIds": [
+            "d1222c93-0aee-5d60-970a-7342b6f8cba4"
+          ],
+          "printings": [
+            "PRM",
+            "PZNR",
+            "ZNR"
+          ],
+          "producedMana": [
+            "W"
+          ],
+          "purchaseUrls": {
+            "cardKingdom": "https://mtgjson.com/links/f9a4731444abfef4",
+            "cardKingdomFoil": "https://mtgjson.com/links/6f010b62efb9373e",
+            "cardmarket": "https://mtgjson.com/links/24fe0a928a28922f",
+            "cardmarketFoil": "https://mtgjson.com/links/f09f92fc5a030fc2",
+            "tcgplayer": "https://mtgjson.com/links/75f5abbabf48a0d9"
+          },
+          "rarity": "mythic",
+          "relatedCards": {
+            "tokens": [
+              "d640859a-29e8-5cff-a0c0-5816ae2813b1"
+            ]
+          },
+          "rulings": [
+            {
+              "date": "2020-09-25",
+              "text": "A modal double-faced card can't be transformed or be put onto the battlefield transformed. Ignore any instruction to transform a modal double-faced card or to put one onto the battlefield transformed."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "Emeria's Call affects only creatures you control at the time it resolves. Creatures you begin to control later won't gain indestructible."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect allows you to play a land or cast a spell from among a group of cards, you may play or cast a modal double-faced card with any face that fits the criteria of that effect."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect allows you to play a specific modal double-faced card, you may cast it as a spell or play it as a land, as determined by which face you choose to play. If an effect allows you to cast (rather than \"play\") a specific modal double-faced card, you can't play it as a land."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect instructs a player to choose a card name, the name of either face may be chosen. If that effect or a linked ability refers to a spell with the chosen name being cast and/or a land with the chosen name being played, it considers only the chosen name, not the other face's name."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "If an effect puts a double-faced card onto the battlefield, it enters with its front face up. If that front face can't be put onto the battlefield, it doesn't enter the battlefield."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "In the Commander variant, a double-faced card's color identity is determined by the mana costs and mana symbols in the rules text of both faces combined. If either face has a color indicator or basic land type, those are also considered."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "The mana value of a modal double-faced card is based on the characteristics of the face that's being considered. On the stack and battlefield, consider whichever face is up. In all other zones, consider only the front face. This is different than how the mana value of a transforming double-faced card is determined."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "There is a single triangle icon in the top left corner of the front face. There is a double triangle icon in the top left corner of the back face."
+            },
+            {
+              "date": "2020-09-25",
+              "text": "To determine whether it is legal to play a modal double-faced card, consider only the characteristics of the face you're playing and ignore the other face's characteristics."
+            }
+          ],
+          "securityStamp": "oval",
+          "setCode": "ZNR",
+          "side": "b",
+          "skuIds": {
+            "foil": "b8647fdb-16a1-5cf9-80c6-d5b56dd8149c",
+            "nonfoil": "824f01b7-ca7c-5cd1-8c45-775830f87af6"
+          },
+          "subtypes": [],
+          "supertypes": [],
+          "text": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {W}.",
+          "type": "Land",
+          "types": [
+            "Land"
+          ],
+          "uuid": "dde525a3-231d-58c4-a49d-4d6b6d811f19",
+          "variations": [
+            "b31428a0-3a18-54aa-82db-a4fa8e155e6b"
+          ]
+        }
+      ]
+    }
+  }
+}

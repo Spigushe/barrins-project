@@ -10,9 +10,21 @@ interface MockSession {
   name: string
   type: 'tournament' | 'training'
   notes: string | null
+  location: string | null
   created_at: string
+  started_at: string | null
   ended_at: string | null
+  closed_at: string | null
   archived_at: string | null
+  hue: number | null
+}
+
+interface ListSessionsOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'name' | 'type' | 'started_at' | 'status'
+  sortDir?: 'asc' | 'desc'
+  search?: string
 }
 
 let canEdit = true
@@ -37,8 +49,49 @@ vi.mock('@/hooks/useMetaDecks', () => ({
   useUpdateMetaDeck: () => ({ mutateAsync: vi.fn() }),
 }))
 
+/** Mimics the real listSessions option handling (sort/paginate/search)
+ * closely enough to exercise the component's table-header/Prev-Next/
+ * search wiring without a real backend. */
+function applyListOptions(
+  input: MockSession[],
+  includeArchived: boolean,
+  options: ListSessionsOptions,
+): MockSession[] {
+  let result = input.filter((s) => includeArchived || s.archived_at === null)
+
+  if (options.search) {
+    const needle = options.search.toLowerCase()
+    result = result.filter((s) => s.name.toLowerCase().includes(needle))
+  }
+
+  if (options.sortBy) {
+    const key = options.sortBy === 'status' ? 'closed_at' : options.sortBy
+    const dir = options.sortDir === 'desc' ? -1 : 1
+    result = [...result].sort((a, b) => {
+      const av = a[key] ?? ''
+      const bv = b[key] ?? ''
+      if (av < bv) return -dir
+      if (av > bv) return dir
+      return 0
+    })
+  }
+
+  if (options.limit !== undefined) {
+    const offset = options.offset ?? 0
+    result = result.slice(offset, offset + options.limit)
+  }
+
+  return result
+}
+
 vi.mock('@/hooks/useSessions', () => ({
-  useSessions: () => ({ data: sessions }),
+  useSessions: (
+    _deckId: string | null,
+    includeArchived = false,
+    options: ListSessionsOptions = {},
+  ) => ({
+    data: applyListOptions(sessions, includeArchived, options),
+  }),
   useSessionComparison: (sessionId: string | null) => ({
     data: sessionId ? comparisonBySessionId[sessionId] : undefined,
   }),
@@ -97,9 +150,13 @@ const activeTrainingSession: MockSession = {
   name: 'Weekly Training',
   type: 'training',
   notes: null,
+  location: null,
   created_at: '2026-07-01T00:00:00+00:00',
+  started_at: '2026-07-01T00:00:00+00:00',
   ended_at: null,
+  closed_at: null,
   archived_at: null,
+  hue: null,
 }
 
 const closedTournamentSession: MockSession = {
@@ -109,9 +166,13 @@ const closedTournamentSession: MockSession = {
   name: 'RC Toronto 2026',
   type: 'tournament',
   notes: null,
+  location: null,
   created_at: '2026-07-01T00:00:00+00:00',
-  ended_at: '2026-07-02T00:00:00+00:00',
+  started_at: '2026-07-01T00:00:00+00:00',
+  ended_at: null,
+  closed_at: '2026-07-02T00:00:00+00:00',
   archived_at: null,
+  hue: null,
 }
 
 beforeEach(() => {
@@ -150,27 +211,32 @@ describe('SessionsOverviewSection — merged sessions list', () => {
     sessions = [activeTrainingSession]
     render(<SessionsOverviewSection />)
 
-    expect(screen.queryByPlaceholderText('e.g. RC Toronto 2026')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '✕' })).not.toBeInTheDocument()
     expect(screen.getByText('Weekly Training')).toBeInTheDocument()
   })
 
-  it('creates a session for the active deck', async () => {
+  it('creates a session for the active deck, reusing the edit form fields', async () => {
     createSessionMutateAsync.mockResolvedValue(activeTrainingSession)
     const user = userEvent.setup()
     render(<SessionsOverviewSection />)
 
-    await user.type(
-      screen.getByPlaceholderText('e.g. RC Toronto 2026'),
-      'Weekly Training',
-    )
+    // Nothing is being edited yet, so the "New session" form's fields are
+    // the only ones on screen.
+    await user.type(screen.getByLabelText('Name'), 'Weekly Training')
+    await user.type(screen.getByLabelText('Location'), 'Toronto, ON')
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(createSessionMutateAsync).toHaveBeenCalledWith({
       name: 'Weekly Training',
       type: 'training',
       personal_deck_id: 'deck-mine',
+      location: 'Toronto, ON',
+      notes: null,
+      started_at: null,
+      ended_at: null,
+      hue: null,
     })
   })
 
@@ -200,14 +266,31 @@ describe('SessionsOverviewSection — merged sessions list', () => {
     })
   })
 
-  it('archives a session', async () => {
+  it('asks for confirmation before archiving a session', async () => {
     sessions = [activeTrainingSession]
     const user = userEvent.setup()
     render(<SessionsOverviewSection />)
 
     await user.click(screen.getByRole('button', { name: '✕' }))
 
+    expect(archiveSessionMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Archive "Weekly Training"?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+
     expect(archiveSessionMutateAsync).toHaveBeenCalledWith('session-active')
+  })
+
+  it('cancels without archiving', async () => {
+    sessions = [activeTrainingSession]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: '✕' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(archiveSessionMutateAsync).not.toHaveBeenCalled()
+    expect(screen.queryByText('Archive "Weekly Training"?')).not.toBeInTheDocument()
   })
 
   it('excludes archived sessions from the list', () => {
@@ -238,6 +321,152 @@ describe('SessionsOverviewSection — merged sessions list', () => {
     expect(
       screen.queryByRole('button', { name: 'Download report (PDF)' }),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('SessionsOverviewSection — sorting and pagination (S14)', () => {
+  it('sorts by name ascending, then descending, on repeated header clicks', async () => {
+    sessions = [
+      { ...activeTrainingSession, id: 's-b', name: 'Bravo' },
+      { ...activeTrainingSession, id: 's-a', name: 'Alpha' },
+      { ...activeTrainingSession, id: 's-c', name: 'Charlie' },
+    ]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    const firstRowName = () => {
+      const rows = screen.getAllByRole('row').slice(1) // skip the header row
+      return within(rows[0]).getAllByRole('cell')[0].textContent
+    }
+    const nameHeader = () => screen.getByRole('columnheader', { name: /^Session/ })
+
+    await user.click(nameHeader())
+    expect(firstRowName()).toBe('Alpha')
+
+    await user.click(nameHeader())
+    expect(firstRowName()).toBe('Charlie')
+  })
+
+  it('pages through more than 10 sessions with Prev/Next', async () => {
+    sessions = Array.from({ length: 12 }, (_, i) => ({
+      ...activeTrainingSession,
+      id: `s-${String(i)}`,
+      name: `S${String(i).padStart(2, '0')}`,
+    }))
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    expect(screen.getByText('S00')).toBeInTheDocument()
+    expect(screen.queryByText('S10')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next' })).not.toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('S10')).toBeInTheDocument()
+    expect(screen.queryByText('S00')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+})
+
+describe('SessionsOverviewSection — inline edit (S14)', () => {
+  it('edits name, location, notes, dates and hue, regardless of status', async () => {
+    sessions = [closedTournamentSession]
+    updateSessionMutateAsync.mockResolvedValue(closedTournamentSession)
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+
+    // Scoped to the edit form — the "New session" form above also has a
+    // "Name" field, sharing that label.
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    const editForm = saveButton.closest('td')
+    if (!editForm) throw new Error('edit form not found')
+    const form = within(editForm)
+
+    const nameInput = form.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'RC Toronto (renamed)')
+
+    const locationInput = form.getByLabelText('Location')
+    await user.type(locationInput, 'Toronto, ON')
+
+    await user.click(saveButton)
+
+    expect(updateSessionMutateAsync).toHaveBeenCalledWith({
+      sessionId: 'session-closed',
+      payload: expect.objectContaining({
+        name: 'RC Toronto (renamed)',
+        location: 'Toronto, ON',
+      }),
+    })
+  })
+
+  it('cancels without saving', async () => {
+    sessions = [activeTrainingSession]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(updateSessionMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByText('Weekly Training')).toBeInTheDocument()
+  })
+})
+
+describe('SessionsOverviewSection — archived sessions dialog (S14)', () => {
+  it('opens the archived sessions dialog and lists only archived rows', async () => {
+    sessions = [
+      activeTrainingSession,
+      { ...closedTournamentSession, archived_at: '2026-07-05T00:00:00+00:00' },
+    ]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'See archived' }))
+
+    expect(screen.getByText('Archived sessions')).toBeInTheDocument()
+    expect(screen.getByText('RC Toronto 2026')).toBeInTheDocument()
+  })
+
+  it('restores an archived session', async () => {
+    sessions = [{ ...activeTrainingSession, archived_at: '2026-07-05T00:00:00+00:00' }]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'See archived' }))
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+
+    expect(updateSessionMutateAsync).toHaveBeenCalledWith({
+      sessionId: 'session-active',
+      payload: { restore: true },
+    })
+  })
+
+  it('filters archived sessions by search', async () => {
+    sessions = [
+      {
+        ...activeTrainingSession,
+        id: 's-1',
+        name: 'Weekly Training',
+        archived_at: '2026-07-05T00:00:00+00:00',
+      },
+      {
+        ...closedTournamentSession,
+        id: 's-2',
+        name: 'RC Toronto 2026',
+        archived_at: '2026-07-05T00:00:00+00:00',
+      },
+    ]
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'See archived' }))
+    await user.type(screen.getByPlaceholderText('Search by name…'), 'toronto')
+
+    expect(screen.getByText('RC Toronto 2026')).toBeInTheDocument()
+    expect(screen.queryByText('Weekly Training')).not.toBeInTheDocument()
   })
 })
 
