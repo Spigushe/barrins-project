@@ -122,6 +122,9 @@ class TestSweep:
         assert post.call_count == 2
 
     def test_continues_after_a_failed_post(self, archive: Path) -> None:
+        # concurrency=1 pins execution order to submission order, so the
+        # side_effect list below lines up with the two "recent" files --
+        # otherwise which file gets which side effect is a race.
         with patch.object(
             sweep.requests,
             "post",
@@ -134,6 +137,7 @@ class TestSweep:
                 mode="recent",
                 days=7,
                 now=_NOW,
+                concurrency=1,
             )
         assert (succeeded, failed) == (1, 1)
         assert post.call_count == 2
@@ -198,6 +202,87 @@ class TestSweep:
         assert (succeeded, failed) == (1, 1)
         assert post.call_count == 1
 
+    def test_concurrency_is_forwarded_to_the_thread_pool(self, archive: Path) -> None:
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                concurrency=3,
+            )
+        pool_cls.assert_called_once_with(max_workers=3)
+
+    def test_no_files_selected_does_not_touch_the_thread_pool(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(sweep.concurrent.futures, "ThreadPoolExecutor") as pool_cls:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+        assert (succeeded, failed) == (0, 0)
+        pool_cls.assert_not_called()
+
+    def test_chunk_size_splits_selection_across_multiple_pools(
+        self, archive: Path
+    ) -> None:
+        """4 files with chunk_size=1 must yield 4 separate thread pools --
+        the whole point of chunking is that a chunk's payloads are read,
+        posted, and dropped before the next chunk's are read, so at most
+        chunk_size payloads are ever in memory at once."""
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                chunk_size=1,
+            )
+        assert (succeeded, failed) == (4, 0)
+        assert pool_cls.call_count == 4
+
+    def test_chunk_size_larger_than_selection_uses_one_pool(
+        self, archive: Path
+    ) -> None:
+        with (
+            patch.object(sweep.requests, "post", return_value=Mock()),
+            patch.object(
+                sweep.concurrent.futures,
+                "ThreadPoolExecutor",
+                wraps=sweep.concurrent.futures.ThreadPoolExecutor,
+            ) as pool_cls,
+        ):
+            succeeded, failed = sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                chunk_size=sweep.DEFAULT_CHUNK_SIZE,
+            )
+        assert (succeeded, failed) == (4, 0)
+        assert pool_cls.call_count == 1
+
     def test_endpoint_trailing_slash_is_normalized(self, archive: Path) -> None:
         mock_response = Mock()
         with patch.object(sweep.requests, "post", return_value=mock_response) as post:
@@ -224,6 +309,26 @@ class TestBuildParser:
         assert args.days == sweep.DEFAULT_RECENT_DAYS
         assert args.api_url is None
         assert args.token is None
+        assert args.concurrency == sweep.DEFAULT_CONCURRENCY
+        assert args.progress is False
+        assert args.chunk_size == sweep.DEFAULT_CHUNK_SIZE
+        assert args.fast_forward is False
+
+    def test_reads_fast_forward_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--fast-forward"])
+        assert args.fast_forward is True
+
+    def test_reads_concurrency_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--concurrency", "12"])
+        assert args.concurrency == 12
+
+    def test_reads_progress_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--progress"])
+        assert args.progress is True
+
+    def test_reads_chunk_size_flag(self) -> None:
+        args = sweep.build_parser().parse_args(["--chunk-size", "50"])
+        assert args.chunk_size == 50
 
     def test_rejects_unknown_mode(self) -> None:
         with pytest.raises(SystemExit):
@@ -252,6 +357,11 @@ class TestMain:
         monkeypatch.delenv("SCRIPTURE_INGEST_TOKEN", raising=False)
         with (
             patch("sys.argv", ["sweep"]),
+            # Without this, main()'s load_dotenv() call reads the real
+            # apps/barrins_scripture/.env off disk (local dev only -- CI
+            # has no such file) and silently repopulates the two vars
+            # this test just deleted, defeating the "missing" scenario.
+            patch.object(sweep, "load_dotenv"),
             patch.object(sweep, "sweep") as mock_sweep,
             pytest.raises(SystemExit),
         ):
@@ -280,7 +390,15 @@ class TestMain:
         ):
             sweep.main()  # must not raise
         mock_sweep.assert_called_once_with(
-            tmp_path, "https://api.example.com", "tok", "full", 3
+            tmp_path,
+            "https://api.example.com",
+            "tok",
+            "full",
+            3,
+            concurrency=sweep.DEFAULT_CONCURRENCY,
+            progress=False,
+            chunk_size=sweep.DEFAULT_CHUNK_SIZE,
+            fast_forward=False,
         )
 
     def test_exits_nonzero_when_any_file_failed(self, tmp_path: Path) -> None:
@@ -302,3 +420,122 @@ class TestMain:
         ):
             sweep.main()
         assert exc_info.value.code == 1
+
+    def test_fast_forward_with_recent_mode_exits_with_error(
+        self, tmp_path: Path
+    ) -> None:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "sweep",
+                    "--fast-forward",
+                    "--archive-dir",
+                    str(tmp_path),
+                    "--api-url",
+                    "https://api.example.com",
+                    "--token",
+                    "tok",
+                ],
+            ),
+            patch.object(sweep, "sweep") as mock_sweep,
+            pytest.raises(SystemExit),
+        ):
+            sweep.main()
+        mock_sweep.assert_not_called()
+
+    def test_fast_forward_with_full_mode_is_forwarded(self, tmp_path: Path) -> None:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "sweep",
+                    "--mode",
+                    "full",
+                    "--fast-forward",
+                    "--archive-dir",
+                    str(tmp_path),
+                    "--api-url",
+                    "https://api.example.com",
+                    "--token",
+                    "tok",
+                ],
+            ),
+            patch.object(sweep, "sweep", return_value=(0, 0)) as mock_sweep,
+        ):
+            sweep.main()
+        assert mock_sweep.call_args.kwargs["fast_forward"] is True
+
+
+class TestFastForwardSweep:
+    def test_skips_files_with_already_ingested_urls(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "01" / "known.json",
+            {"tournament": {"name": "known", "url": "https://mtgo.com/known"}},
+        )
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "02" / "new.json",
+            {"tournament": {"name": "new", "url": "https://mtgo.com/new"}},
+        )
+        mock_get_response = Mock()
+        mock_get_response.json.return_value = {"urls": ["https://mtgo.com/known"]}
+        with (
+            patch.object(sweep.requests, "get", return_value=mock_get_response) as get,
+            patch.object(sweep.requests, "post", return_value=Mock()) as post,
+        ):
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                fast_forward=True,
+            )
+        assert (succeeded, failed) == (1, 0)
+        assert post.call_count == 1
+        assert (
+            post.call_args.kwargs["json"]["tournament"]["url"] == "https://mtgo.com/new"
+        )
+        get.assert_called_once_with(
+            "https://api.example.com/internal/scripture/ingested-urls",
+            headers={"X-Scripture-Token": "secret-token"},
+            timeout=30,
+        )
+
+    def test_fetch_failure_falls_back_to_posting_everything(
+        self, tmp_path: Path
+    ) -> None:
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "01" / "only.json",
+            {"tournament": {"name": "only", "url": "https://mtgo.com/only"}},
+        )
+        with (
+            patch.object(
+                sweep.requests, "get", side_effect=requests.ConnectionError("down")
+            ),
+            patch.object(sweep.requests, "post", return_value=Mock()) as post,
+        ):
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+                fast_forward=True,
+            )
+        assert (succeeded, failed) == (1, 0)
+        post.assert_called_once()
+
+    def test_fast_forward_off_never_calls_get(self, archive: Path) -> None:
+        with (
+            patch.object(sweep.requests, "get") as get,
+            patch.object(sweep.requests, "post", return_value=Mock()),
+        ):
+            sweep.sweep(
+                archive,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+        get.assert_not_called()

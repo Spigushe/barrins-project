@@ -2,7 +2,7 @@ import os
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
@@ -73,7 +73,12 @@ def get_mtgo_tournaments(
                     (By.CSS_SELECTOR, TOURNAMENT_LINKS_SELECTOR)
                 )
             )
-        except TimeoutException:
+        except WebDriverException:
+            # Broader than TimeoutException on purpose: a hung navigation
+            # raises TimeoutException, but a reset/dropped connection (e.g.
+            # net::ERR_CONNECTION_RESET) raises the plain base
+            # WebDriverException, which previously wasn't caught here and
+            # crashed the run instead of retrying like a timeout does.
             timeout += 10
             page_load_timeout += 10
             continue

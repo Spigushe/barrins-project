@@ -20,12 +20,30 @@ is a no-op, not a duplicate row. A failed POST (``barrins_api`` down, a
 malformed file, ...) is logged and skipped, never retried within the same
 run — the next scheduled sweep tick picks it up, per the 2026-08-07
 decision superseding the original push+maintenance-gate+backoff design.
+
+File *contents* are read and posted one ``--chunk-size`` slice at a time
+rather than all at once — ``--mode full`` walks the entire archive, and
+loading every JSON payload into memory up front OOMs once the archive
+gets large. Only the (path, source) pairs for the whole selection are
+held at once, which is cheap.
+
+``--fast-forward`` (``--mode full`` only, 2026-08-17 decision) skips
+re-POSTing files whose tournament URL is already in ``bs_tournaments``:
+fetched once per run from ``GET /internal/scripture/ingested-urls``. Not
+supported with ``--mode recent`` — that mode intentionally re-submits
+every file inside the ``--days`` window on every tick to catch MTGO
+decklists edited within their ~3-day post-publication window, and
+fast-forwarding by URL alone would silently stop picking up those edits
+after a tournament's first ingest.
 """
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
+import sys
+import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -33,12 +51,30 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from barrins_scripture.utils.progress import (
+    CLEAR_LINE,
+    CURSOR_UP,
+    chunked,
+    render_progress,
+)
+
 logger = logging.getLogger(__name__)
 
 #: apps/barrins_scripture/scraped/ — same default root the scrape CLI
 #: writes under (see utils/mtgo.py::BASE_PATH, utils/mtgtop8.py::BASE_PATH).
 DEFAULT_ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "scraped"
 DEFAULT_RECENT_DAYS = 7
+#: Matches `barrins_api`'s `pool_size=5` (`app/database/connection.py`) --
+#: high enough to overlap files' DB round trips instead of paying them one
+#: at a time, but capped at the pool's steady-state size rather than its
+#: `max_overflow=10` ceiling, so a sweep tick doesn't starve other API
+#: traffic of connections while it runs.
+DEFAULT_CONCURRENCY = 5
+#: Max archive files read + parsed into memory at once. Bounds `--mode
+#: full`'s memory use to this many JSON payloads regardless of archive
+#: size -- the whole point of chunking (the archive can hold far more
+#: files than comfortably fit in memory at once).
+DEFAULT_CHUNK_SIZE = 200
 
 
 def _default_archive_dir() -> Path:
@@ -104,6 +140,45 @@ def iter_archive_files(
             yield file_path, source
 
 
+def _post_file(
+    endpoint: str, headers: dict[str, str], file_path: Path, payload: dict
+) -> bool:
+    """POSTs one already-parsed payload. Returns True on success.
+
+    Never raises -- a `RequestException` (connection error, timeout,
+    `raise_for_status()`) is logged and reported as failure instead, so
+    one bad file can't take down the whole worker pool.
+    """
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.exception("ingest failed for %s", file_path)
+        return False
+    return True
+
+
+def _fetch_ingested_urls(api_url: str, headers: dict[str, str]) -> set[str]:
+    """GETs every already-ingested tournament URL from `bs_tournaments`.
+
+    Backs `--fast-forward`. Never raises -- a fetch failure is logged and
+    treated as an empty set, so `--fast-forward` degrades to "skip
+    nothing" (posts every selected file, same as without the flag)
+    instead of aborting the run.
+    """
+    endpoint = api_url.rstrip("/") + "/internal/scripture/ingested-urls"
+    try:
+        response = requests.get(endpoint, headers=headers, timeout=30)
+        response.raise_for_status()
+        return set(response.json()["urls"])
+    except requests.RequestException, KeyError, ValueError:
+        logger.exception(
+            "failed to fetch already-ingested URLs for --fast-forward; "
+            "proceeding without skipping anything"
+        )
+        return set()
+
+
 def sweep(
     archive_dir: Path,
     api_url: str,
@@ -111,6 +186,10 @@ def sweep(
     mode: str = "recent",
     days: int = DEFAULT_RECENT_DAYS,
     now: datetime | None = None,
+    concurrency: int = DEFAULT_CONCURRENCY,
+    progress: bool = False,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    fast_forward: bool = False,
 ) -> tuple[int, int]:
     """Posts every file `mode` selects to `POST /internal/scripture/ingest`.
 
@@ -121,44 +200,139 @@ def sweep(
     `now` is forwarded to `iter_archive_files` for `--mode recent`'s
     lookback window — defaults to the real current time, overridable for
     deterministic tests.
+
+    Selection (`iter_archive_files`) is materialized up front -- cheap,
+    it's just paths and a source string per file. File *contents* are
+    read and posted `chunk_size` files at a time, so at most `chunk_size`
+    parsed JSON payloads are ever in memory at once, regardless of how
+    large `--mode full` makes the overall selection. Within a chunk,
+    reading/parsing stays sequential (cheap local I/O, stable failure-log
+    ordering); only the POSTs -- the actual bottleneck, one HTTP round
+    trip that itself fans out into many DB round trips server-side --
+    run concurrently, up to `concurrency` at a time.
+
+    `progress`, when True, renders two live stderr lines: a
+    chunk-advancement bar (chunks completed / total chunks) that persists
+    across the whole run, and a sub-bar tracking POSTs completed within
+    the *current* chunk. The sub-bar is cleared when its chunk finishes
+    (replaced by the advanced chunk bar), so at most 2 progress lines are
+    ever on screen at once rather than one line surviving per chunk.
+    Off by default since a scheduled/cron invocation has no terminal to
+    render it on and would otherwise fill logs with escape-code junk.
+
+    `fast_forward`, when True, fetches every already-ingested tournament
+    URL once up front and skips POSTing (and, notably, the DB round trip
+    behind it) any selected file whose `tournament.url` is already known
+    -- see the module docstring for why this is `--mode full`-only.
     """
     endpoint = api_url.rstrip("/") + "/internal/scripture/ingest"
     headers = {"X-Scripture-Token": token}
-    succeeded = failed = 0
+    succeeded = failed = fast_forwarded = 0
 
-    for file_path, source in iter_archive_files(archive_dir, mode, days, now):
-        try:
-            payload = json.loads(file_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                # A syntactically valid JSON file can still be a list,
-                # string, number, or null at the top level -- `payload[...]
-                # = source` below would raise a TypeError that isn't a
-                # json.JSONDecodeError, so this file is caught here rather
-                # than being an assignment done outside the try below,
-                # where it would have crashed the whole run instead of
-                # just this one file.
-                raise TypeError(
-                    f"expected a JSON object at the top level, got "
-                    f"{type(payload).__name__}"
+    selected = list(iter_archive_files(archive_dir, mode, days, now))
+    if not selected:
+        logger.info("sweep done (mode=%s): 0 succeeded, 0 failed", mode)
+        return 0, 0
+
+    ingested_urls = _fetch_ingested_urls(api_url, headers) if fast_forward else None
+
+    chunks = list(chunked(selected, chunk_size))
+    total_chunks = len(chunks)
+    start = time.monotonic()
+
+    if progress:
+        sys.stderr.write(
+            render_progress(0, total_chunks, 0.0, failed=0, prefix="chunks ") + "\n"
+        )
+        sys.stderr.flush()
+
+    for chunk_index, chunk in enumerate(chunks, start=1):
+        to_post: list[tuple[Path, dict]] = []
+        chunk_total = len(chunk)
+        chunk_done = chunk_failed = 0
+        for file_path, source in chunk:
+            try:
+                payload = json.loads(file_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    # A syntactically valid JSON file can still be a list,
+                    # string, number, or null at the top level --
+                    # `payload[...] = source` below would raise a
+                    # TypeError that isn't a json.JSONDecodeError, so this
+                    # file is caught here rather than being an assignment
+                    # done outside the try below, where it would have
+                    # crashed the whole run instead of just this one file.
+                    raise TypeError(
+                        f"expected a JSON object at the top level, got "
+                        f"{type(payload).__name__}"
+                    )
+                payload["source"] = source
+            except OSError, json.JSONDecodeError, TypeError:
+                logger.exception("skipping unreadable archive file %s", file_path)
+                failed += 1
+                chunk_failed += 1
+                chunk_done += 1
+                continue
+            if (
+                ingested_urls is not None
+                and payload.get("tournament", {}).get("url") in ingested_urls
+            ):
+                logger.debug("fast-forward: skipping already-ingested %s", file_path)
+                fast_forwarded += 1
+                chunk_done += 1
+                continue
+            to_post.append((file_path, payload))
+
+        chunk_start = time.monotonic()
+        if to_post:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = [
+                    pool.submit(_post_file, endpoint, headers, file_path, payload)
+                    for file_path, payload in to_post
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    if future.result():
+                        succeeded += 1
+                    else:
+                        failed += 1
+                        chunk_failed += 1
+                    chunk_done += 1
+                    if progress:
+                        elapsed = time.monotonic() - chunk_start
+                        sys.stderr.write(
+                            render_progress(
+                                chunk_done,
+                                chunk_total,
+                                elapsed,
+                                failed=chunk_failed,
+                                prefix=f"  chunk {chunk_index}/{total_chunks} ",
+                            )
+                        )
+                        sys.stderr.flush()
+
+        if progress:
+            # Drop the finished chunk's sub-bar and advance the chunk bar
+            # in its place -- see the `progress` docstring above.
+            sys.stderr.write(CLEAR_LINE)
+            sys.stderr.write(CURSOR_UP)
+            sys.stderr.write(CLEAR_LINE)
+            sys.stderr.write(
+                render_progress(
+                    chunk_index,
+                    total_chunks,
+                    time.monotonic() - start,
+                    failed=failed,
+                    prefix="chunks ",
                 )
-            payload["source"] = source
-        except OSError, json.JSONDecodeError, TypeError:
-            logger.exception("skipping unreadable archive file %s", file_path)
-            failed += 1
-            continue
-
-        try:
-            response = requests.post(
-                endpoint, json=payload, headers=headers, timeout=30
             )
-            response.raise_for_status()
-            succeeded += 1
-        except requests.RequestException:
-            logger.exception("ingest failed for %s", file_path)
-            failed += 1
+            sys.stderr.write("\n")
+            sys.stderr.flush()
 
     logger.info(
-        "sweep done (mode=%s): %d succeeded, %d failed", mode, succeeded, failed
+        "sweep done (mode=%s): %d succeeded, %d failed%s",
+        mode,
+        succeeded,
+        failed,
+        f", {fast_forwarded} fast-forwarded (already ingested)" if fast_forward else "",
     )
     return succeeded, failed
 
@@ -202,6 +376,44 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("SCRIPTURE_INGEST_TOKEN"),
         help="shared ingestion secret (env: SCRIPTURE_INGEST_TOKEN)",
     )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=(
+            "max concurrent POSTs to /internal/scripture/ingest "
+            f"(default: {DEFAULT_CONCURRENCY}, matching barrins_api's DB pool_size)"
+        ),
+    )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        default=False,
+        help=(
+            "show a live progress bar on stderr while posting files "
+            "(default: off -- for interactive/manual runs, not cron)"
+        ),
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_CHUNK_SIZE,
+        help=(
+            "max archive files read into memory at once "
+            f"(default: {DEFAULT_CHUNK_SIZE} -- keeps --mode full bounded "
+            "regardless of archive size)"
+        ),
+    )
+    parser.add_argument(
+        "--fast-forward",
+        action="store_true",
+        default=False,
+        help=(
+            "skip files whose tournament URL is already in bs_tournaments "
+            "(default: off; only valid with --mode full -- --mode recent "
+            "intentionally re-submits within --days to catch late MTGO edits)"
+        ),
+    )
     return parser
 
 
@@ -220,9 +432,19 @@ def main() -> None:
         parser.error(
             "--api-url/BARRINS_API_URL and --token/SCRIPTURE_INGEST_TOKEN are required"
         )
+    if args.fast_forward and args.mode != "full":
+        parser.error("--fast-forward is only supported with --mode full")
 
     _succeeded, failed = sweep(
-        args.archive_dir, args.api_url, args.token, args.mode, args.days
+        args.archive_dir,
+        args.api_url,
+        args.token,
+        args.mode,
+        args.days,
+        concurrency=args.concurrency,
+        progress=args.progress,
+        chunk_size=args.chunk_size,
+        fast_forward=args.fast_forward,
     )
     if failed:
         raise SystemExit(1)

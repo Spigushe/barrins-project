@@ -3,6 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from barrins_scripture.utils.date_parsing import get_month_range, parse_date
+from barrins_scripture.utils.progress import chunked, format_eta, render_progress
 from barrins_scripture.utils.swiss_tournament import get_num_rounds
 
 
@@ -63,3 +64,50 @@ class TestGetNumRounds:
     )
     def test_bracket_sizes(self, players: int, expected_rounds: int) -> None:
         assert get_num_rounds(players) == expected_rounds
+
+
+class TestChunked:
+    def test_splits_into_slices_of_at_most_size(self) -> None:
+        assert list(chunked([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
+
+    def test_size_larger_than_items_yields_one_chunk(self) -> None:
+        assert list(chunked([1, 2], 10)) == [[1, 2]]
+
+    def test_empty_items_yields_no_chunks(self) -> None:
+        assert list(chunked([], 5)) == []
+
+
+class TestFormatEta:
+    def test_under_an_hour_omits_the_hours_field(self) -> None:
+        assert format_eta(125) == "02:05"
+
+    def test_an_hour_or_more_includes_the_hours_field(self) -> None:
+        assert format_eta(3725) == "1:02:05"
+
+    def test_truncates_fractional_seconds(self) -> None:
+        assert format_eta(59.9) == "00:59"
+
+
+class TestRenderProgress:
+    def test_no_progress_yet_omits_eta(self) -> None:
+        assert render_progress(0, 10, 0.0) == "\r[" + "-" * 30 + "] 0/10"
+
+    def test_includes_eta_once_something_is_done(self) -> None:
+        rendered = render_progress(5, 10, 10.0)
+        assert "5/10" in rendered
+        assert "eta 00:10" in rendered
+
+    def test_failed_count_is_reported_when_given(self) -> None:
+        assert "(2 failed)" in render_progress(5, 10, 0.0, failed=2)
+
+    def test_failed_omitted_by_default(self) -> None:
+        assert "failed" not in render_progress(5, 10, 0.0)
+
+    def test_suffix_is_appended_after_the_counts(self) -> None:
+        assert "5/10 chunks" in render_progress(5, 10, 0.0, suffix="chunks")
+
+    def test_prefix_is_prepended_before_the_bar(self) -> None:
+        assert render_progress(0, 10, 0.0, prefix="chunks ").startswith("\rchunks [")
+
+    def test_full_bar_when_done_equals_total(self) -> None:
+        assert "[" + "#" * 30 + "]" in render_progress(10, 10, 1.0)

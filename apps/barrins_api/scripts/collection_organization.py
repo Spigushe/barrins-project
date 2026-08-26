@@ -824,50 +824,54 @@ def write_csv(
 
         for binder in sorted(binders):
             for slot in binders[binder]:
-                writer.writerow({
-                    "binder": slot.binder,
-                    "binder_label": binder_labels[slot.binder],
-                    "page": slot.page,
-                    "slot_in_page": slot.slot_in_page,
-                    "global_slot": slot.global_slot,
-                    "status": "matched",
-                    "match_method": slot.card.match_method,
-                    "card_name": slot.card.name,
-                    "csv_name": slot.row.name,
-                    "set_code": slot.card.set_code,
-                    "collector_number": slot.card.number,
-                    "foil": slot.row.foil,
-                    "count": slot.row.count,
-                    "tradelist_count": slot.row.tradelist_count,
-                    "color_identity": _color_identity_str(slot.card.color_identity),
-                    "mana_value": slot.card.mana_value,
-                    "type_line": slot.card.type_line,
-                    "type_category": type_category(slot.card.types),
-                    "reason": "",
-                })
+                writer.writerow(
+                    {
+                        "binder": slot.binder,
+                        "binder_label": binder_labels[slot.binder],
+                        "page": slot.page,
+                        "slot_in_page": slot.slot_in_page,
+                        "global_slot": slot.global_slot,
+                        "status": "matched",
+                        "match_method": slot.card.match_method,
+                        "card_name": slot.card.name,
+                        "csv_name": slot.row.name,
+                        "set_code": slot.card.set_code,
+                        "collector_number": slot.card.number,
+                        "foil": slot.row.foil,
+                        "count": slot.row.count,
+                        "tradelist_count": slot.row.tradelist_count,
+                        "color_identity": _color_identity_str(slot.card.color_identity),
+                        "mana_value": slot.card.mana_value,
+                        "type_line": slot.card.type_line,
+                        "type_category": type_category(slot.card.types),
+                        "reason": "",
+                    }
+                )
 
         for entry in sorted(unmatched, key=lambda u: u.row.line_no):
-            writer.writerow({
-                "binder": "",
-                "binder_label": "",
-                "page": "",
-                "slot_in_page": "",
-                "global_slot": "",
-                "status": "unmatched",
-                "match_method": "",
-                "card_name": "",
-                "csv_name": entry.row.name,
-                "set_code": entry.row.edition,
-                "collector_number": entry.row.collector_number,
-                "foil": entry.row.foil,
-                "count": entry.row.count,
-                "tradelist_count": entry.row.tradelist_count,
-                "color_identity": "",
-                "mana_value": "",
-                "type_line": "",
-                "type_category": "",
-                "reason": entry.reason,
-            })
+            writer.writerow(
+                {
+                    "binder": "",
+                    "binder_label": "",
+                    "page": "",
+                    "slot_in_page": "",
+                    "global_slot": "",
+                    "status": "unmatched",
+                    "match_method": "",
+                    "card_name": "",
+                    "csv_name": entry.row.name,
+                    "set_code": entry.row.edition,
+                    "collector_number": entry.row.collector_number,
+                    "foil": entry.row.foil,
+                    "count": entry.row.count,
+                    "tradelist_count": entry.row.tradelist_count,
+                    "color_identity": "",
+                    "mana_value": "",
+                    "type_line": "",
+                    "type_category": "",
+                    "reason": entry.reason,
+                }
+            )
 
 
 def _slot_to_dict(slot: BinderSlot) -> dict[str, object]:

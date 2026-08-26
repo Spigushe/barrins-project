@@ -30,6 +30,14 @@ section of the docs site for details.
   same purpose (renamed from `mtgo_empy_decks`, a typo in the original).
   Invoked directly (`python -m barrins_scripture.scripts.<name>`), same
   as the originals were.
+- `scripts.top8_check_gaps`: `--output-dir` (same meaning as `scrape
+  --output-dir`, for when the archive is checked out outside this
+  monorepo) and `--progress` (a `sweep --progress`-style live stderr
+  bar, off by default). Also fixes two producer/consumer wiring bugs
+  that made every real (non-mocked) `scrape_gaps()` run silently do
+  nothing: the 3rd `producer` arg was the batch's `Lock` instead of the
+  scraped-ids set `we_should_scrape_it()` checks, and `consumer` was
+  missing its required `producers_done` argument entirely.
 - CI: a `scripture` path filter + job in `.github/workflows/CI.yml`
   (mirrors `back`'s shape, no Postgres service — this app has no DB
   access), backed by a new local CI runner
@@ -42,6 +50,21 @@ section of the docs site for details.
   replacing `mtg_scraper`'s GitHub Actions cron per T1's scheduling
   decision. `ansible-lint` clean (via WSL); not yet deployed to the
   real VPS.
+
+### Changed
+
+- `services.mtgo.scrape_mtgo`: reworked from "detect every month in the
+  date span, then scrape everything found" to detect-then-scrape one
+  month at a time (`detect_month` / `scrape_links`, replacing the old
+  `producer`/`consumer`-thread split for the detection side). A large
+  backfill now starts saving tournaments after the first month is
+  detected instead of only after the whole span has been crawled, and
+  one month's retries never mix with another month's queue. Selenium
+  drivers are now reused across every month's batch instead of being
+  re-launched per run — `consumer()` no longer quits its own driver
+  (driver lifecycle moved to the caller: `scrape_mtgo` and
+  `scripts.mtgo_empty_decks.scrape_tournaments_without_decks`, the two
+  places that create drivers for it).
 
 ### Fixed
 
