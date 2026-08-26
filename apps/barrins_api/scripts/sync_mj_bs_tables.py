@@ -1,14 +1,14 @@
 """Copies the `mj_*` (MTGJSON) and `bs_*` (Barrin's Scripture) tables from
-the staging database into the dev database.
+a source database into a target database.
 
 Usage
 -----
-    python scripts/sync_staging_to_dev_db.py \
-        --staging-db-url postgresql://user:pass@host:5432/barrins_api_staging \
-        --dev-db-url postgresql://user:pass@host:5432/barrins_api_dev \
+    python scripts/sync_mj_bs_tables.py \
+        --source-db-url postgresql://user:pass@host:5432/barrins_api_staging \
+        --target-db-url postgresql://user:pass@host:5432/barrins_api_dev \
         --yes
 
-URLs can also be supplied via the STAGING_DATABASE_URL / DEV_DATABASE_URL
+URLs can also be supplied via the SOURCE_DATABASE_URL / TARGET_DATABASE_URL
 env vars, or left out entirely: if unset, they fall back to those same
 keys read directly from apps/barrins_api/.env (this script does not
 import the app, so pydantic-settings' own .env loading doesn't apply
@@ -20,17 +20,17 @@ driver suffix is stripped before shelling out, since `pg_dump`/
 
 What it does
 ------------
-Runs `pg_dump --format=custom -t 'mj_*' -t 'bs_*'` against staging, then
-`pg_restore --clean --if-exists` against dev. Table selection is by
+Runs `pg_dump --format=custom -t 'mj_*' -t 'bs_*'` against the source, then
+`pg_restore --clean --if-exists` against the target. Table selection is by
 wildcard, not an enumerated list, so it automatically picks up any future
 `mj_*`/`bs_*` table without needing this script updated. `--clean`
-means the existing `mj_*`/`bs_*` tables in dev are dropped and recreated
-from staging's schema (handles schema drift too), then reloaded with
-staging's data. `pg_dump`/`pg_restore` order DROP/CREATE/INSERT
-statements to respect the tables' internal foreign keys automatically —
-no `mj_*`/`bs_*` table has a foreign key to a non-prefixed table (e.g.
-`users`), so this subset is self-contained and safe to copy in
-isolation.
+means the existing `mj_*`/`bs_*` tables in the target are dropped and
+recreated from the source's schema (handles schema drift too), then
+reloaded with the source's data. `pg_dump`/`pg_restore` order DROP/CREATE/
+INSERT statements to respect the tables' internal foreign keys
+automatically — no `mj_*`/`bs_*` table has a foreign key to a
+non-prefixed table (e.g. `users`), so this subset is self-contained and
+safe to copy in isolation.
 
 Nothing outside `mj_*`/`bs_*` (users, ts_* Tamiyo Scroll tables, the
 alembic version table, ...) is touched.
@@ -95,27 +95,27 @@ def _resolve_value(cli_value: str | None, env_key: str) -> str | None:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Copies the mj_* and bs_* tables from the staging database "
-            "into the dev database (drops and recreates them in dev)."
+            "Copies the mj_* and bs_* tables from the source database "
+            "into the target database (drops and recreates them in the target)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--staging-db-url",
+        "--source-db-url",
         default=None,
         metavar="URL",
         help=(
-            "Staging DB connection URL "
-            "(default: $STAGING_DATABASE_URL, then .env's STAGING_DATABASE_URL)."
+            "Source DB connection URL "
+            "(default: $SOURCE_DATABASE_URL, then .env's SOURCE_DATABASE_URL)."
         ),
     )
     parser.add_argument(
-        "--dev-db-url",
+        "--target-db-url",
         default=None,
         metavar="URL",
         help=(
-            "Dev DB connection URL "
-            "(default: $DEV_DATABASE_URL, then .env's DEV_DATABASE_URL)."
+            "Target DB connection URL "
+            "(default: $TARGET_DATABASE_URL, then .env's TARGET_DATABASE_URL)."
         ),
     )
     parser.add_argument(
@@ -127,7 +127,7 @@ def _parse_args() -> argparse.Namespace:
         "--force",
         action="store_true",
         help=(
-            "Proceed even though the dev URL's host or database name "
+            "Proceed even though the target URL's host or database name "
             "contains 'prod'. Without this flag, that is refused as a "
             "likely misconfiguration."
         ),
@@ -200,38 +200,39 @@ def _run(command: list[str]) -> None:
 def main() -> None:
     args = _parse_args()
 
-    staging_db_url = _resolve_value(args.staging_db_url, "STAGING_DATABASE_URL")
-    dev_db_url = _resolve_value(args.dev_db_url, "DEV_DATABASE_URL")
+    source_db_url = _resolve_value(args.source_db_url, "SOURCE_DATABASE_URL")
+    target_db_url = _resolve_value(args.target_db_url, "TARGET_DATABASE_URL")
     pg_dump_bin = _resolve_value(args.pg_dump_bin, "PG_DUMP_BIN")
     pg_restore_bin = _resolve_value(args.pg_restore_bin, "PG_RESTORE_BIN")
 
-    if not staging_db_url:
+    if not source_db_url:
         print(
-            "ERROR: staging DB URL required "
-            "(--staging-db-url, $STAGING_DATABASE_URL, or .env).",
+            "ERROR: source DB URL required "
+            "(--source-db-url, $SOURCE_DATABASE_URL, or .env).",
             file=sys.stderr,
         )
         sys.exit(1)
-    if not dev_db_url:
+    if not target_db_url:
         print(
-            "ERROR: dev DB URL required (--dev-db-url, $DEV_DATABASE_URL, or .env).",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    staging_url = _to_libpq_url(staging_db_url)
-    dev_url = _to_libpq_url(dev_db_url)
-
-    if staging_url == dev_url:
-        print(
-            "ERROR: staging and dev URLs are identical — refusing to run.",
+            "ERROR: target DB URL required "
+            "(--target-db-url, $TARGET_DATABASE_URL, or .env).",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    if "prod" in dev_url.lower() and not args.force:
+    source_url = _to_libpq_url(source_db_url)
+    target_url = _to_libpq_url(target_db_url)
+
+    if source_url == target_url:
         print(
-            "ERROR: the dev URL's host or database name contains 'prod'. "
+            "ERROR: source and target URLs are identical — refusing to run.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if "prod" in target_url.lower() and not args.force:
+        print(
+            "ERROR: the target URL's host or database name contains 'prod'. "
             "Refusing to run without --force, since this would drop and "
             "overwrite mj_*/bs_* tables at that target.",
             file=sys.stderr,
@@ -241,13 +242,13 @@ def main() -> None:
     pg_dump = _require_binary("pg_dump", pg_dump_bin)
     pg_restore = _require_binary("pg_restore", pg_restore_bin)
 
-    print(f"Source (staging): {_describe(staging_url)}")
-    print(f"Target (dev):     {_describe(dev_url)}")
+    print(f"Source: {_describe(source_url)}")
+    print(f"Target: {_describe(target_url)}")
     print(
-        f"Tables:           {', '.join(TABLE_PATTERNS)} "
+        f"Tables: {', '.join(TABLE_PATTERNS)} "
         "(and any future tables matching these prefixes)"
     )
-    print("This will DROP and recreate the matching tables in the dev database.")
+    print("This will DROP and recreate the matching tables in the target database.")
 
     if not args.yes:
         answer = input("Proceed? [y/N] ").strip().lower()
@@ -256,14 +257,14 @@ def main() -> None:
             sys.exit(1)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        dump_path = Path(tmp_dir) / "mj_bs_staging.dump"
+        dump_path = Path(tmp_dir) / "mj_bs_source.dump"
 
         dump_command = [pg_dump, "--format=custom", "--no-owner", "--no-privileges"]
         for pattern in TABLE_PATTERNS:
             dump_command += ["-t", pattern]
-        dump_command += ["--file", str(dump_path), staging_url]
+        dump_command += ["--file", str(dump_path), source_url]
 
-        print("\nDumping from staging...")
+        print("\nDumping from source...")
         _run(dump_command)
 
         restore_command = [
@@ -272,14 +273,14 @@ def main() -> None:
             "--if-exists",
             "--no-owner",
             "--no-privileges",
-            f"--dbname={dev_url}",
+            f"--dbname={target_url}",
             str(dump_path),
         ]
 
-        print("Restoring into dev...")
+        print("Restoring into target...")
         _run(restore_command)
 
-    print("\nDone. mj_* and bs_* tables in dev now mirror staging.")
+    print("\nDone. mj_* and bs_* tables in the target now mirror the source.")
 
 
 if __name__ == "__main__":
