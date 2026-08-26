@@ -2,18 +2,28 @@ version: 2
 
 updates:
   - package-ecosystem: "uv"
-    directory: "/apps/barrins_api"
+    directories:
+      - "/apps/*"
     target-branch: "staging"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
-    directory: "/apps/tamiyo_scroll"
+    directories:
+      - "/apps/*"
     target-branch: "staging"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/docs"
@@ -21,6 +31,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -28,3 +42,7 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
