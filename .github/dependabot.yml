@@ -2,7 +2,8 @@ version: 2
 
 updates:
   - package-ecosystem: "uv"
-    directory: "/apps/barrins_api"
+    directories:
+      - "/apps/*"
     target-branch: "staging"
     schedule:
       interval: "weekly"
@@ -13,7 +14,8 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/apps/tamiyo_scroll"
+    directories:
+      - "/apps/*"
     target-branch: "staging"
     schedule:
       interval: "weekly"
