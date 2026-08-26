@@ -77,6 +77,7 @@ nav:
                 - Docs Site: ops/roles/docs_site/index.md
                 - FastAPI Backend: ops/roles/fastapi_backend/index.md
                 - GitHub Token: ops/roles/github_token/index.md
+                - MTGJSON Import Scheduler: ops/roles/mtgjson_import_scheduler/index.md
                 - pgAdmin: ops/roles/pgadmin/index.md
                 - Postgres Backup: ops/roles/postgres_backup/index.md
                 - React Frontend: ops/roles/react_frontend/index.md
@@ -89,6 +90,9 @@ nav:
                 - Home: ops/security/index.md
                 - Secrets Management: ops/security/secrets.md
           - Operations: ops/operations/index.md
+          - Incidents:
+                - Home: ops/incidents/index.md
+                - PostgreSQL disk full: ops/incidents/2026-08-15-postgres-disk-full.md
           - Deployment Strategy: ops/deployment_strategy.md
           - Roadmap: ops/roadmap.md
     - Changelog:
