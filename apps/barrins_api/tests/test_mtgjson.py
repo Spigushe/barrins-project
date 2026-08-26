@@ -16,8 +16,10 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from pydantic import SecretStr
 from sqlalchemy import func, select, update
 
+from app.config import settings
 from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models.mtgjson import Card, MTGSet
@@ -97,6 +99,51 @@ class TestImportGate:
             f"{_BASE}/mtgjson/import", headers=_auth_headers(plain_user)
         )
         assert resp.status_code == 403
+
+
+_MTGJSON_TOKEN = "test-mtgjson-import-token"  # noqa: S105
+
+
+class TestImportServiceToken:
+    """The daily-refresh systemd timer authenticates via
+    X-MTGJSON-Import-Token instead of an admin JWT -- see
+    app/dependencies/service_auth.py::verify_mtgjson_or_admin. A human
+    admin's JWT must keep working unchanged regardless of whether this
+    token is configured (covered by TestImportGate/TestImportRoute above,
+    which never set mtgjson_import_token).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _configured_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            settings.base, "mtgjson_import_token", SecretStr(_MTGJSON_TOKEN)
+        )
+
+    async def test_valid_service_token_allows_import(self, client: AsyncClient):
+        app.dependency_overrides[get_mtgjson_client] = lambda: FakeMTGJSONClient()
+        resp = await client.post(
+            f"{_BASE}/mtgjson/import",
+            headers={"X-MTGJSON-Import-Token": _MTGJSON_TOKEN},
+        )
+        assert resp.status_code == 200
+
+    async def test_wrong_service_token_and_no_bearer_gets_401(
+        self, client: AsyncClient
+    ):
+        resp = await client.post(
+            f"{_BASE}/mtgjson/import",
+            headers={"X-MTGJSON-Import-Token": "wrong-token"},
+        )
+        assert resp.status_code == 401
+
+    async def test_admin_jwt_still_works_when_token_is_configured(
+        self, client: AsyncClient, admin_user: User
+    ):
+        app.dependency_overrides[get_mtgjson_client] = lambda: FakeMTGJSONClient()
+        resp = await client.post(
+            f"{_BASE}/mtgjson/import", headers=_auth_headers(admin_user)
+        )
+        assert resp.status_code == 200
 
 
 class TestImportRoute:
