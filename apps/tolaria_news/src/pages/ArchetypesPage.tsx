@@ -1,25 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useArchetypes } from '@/hooks/useKarnTablets'
 import type { WindowMode } from '@/schemas/karnTablets'
 import { WindowModeSelect } from '@/components/karnTablets/WindowModeSelect'
-import { Card, CardTitle, CardDescription } from '@/components/ui/card'
+import { WindowStepper } from '@/components/karnTablets/WindowStepper'
+import { ArchetypeDetailTable } from '@/components/karnTablets/ArchetypeDetailTable'
+import { CardTitle, CardDescription } from '@/components/ui/card'
 import { Eyebrow } from '@/components/ui/eyebrow'
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 
 // PROVISIONAL page — see src/schemas/karnTablets.ts. Prepared ahead of T4
 // iteration 2 / T6 ("Karn Tablets"), which hasn't shipped; only reachable
 // behind VITE_FEATURE_KARN_TABLETS.
 export function ArchetypesPage() {
-  const [windowMode, setWindowMode] = useState<WindowMode>('rolling_30d')
-  const { data, isLoading, isError } = useArchetypes(windowMode)
+  const [windowMode, setWindowMode] = useState<WindowMode>('banlist_period')
+  // `at` = a past window's label; `undefined` = the most recent window.
+  const [at, setAt] = useState<string | undefined>(undefined)
+  // Forward-only cursor history: one entry per visited page, `undefined`
+  // for page 1. Reset whenever the window (kind or period) changes.
+  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
+  useEffect(() => {
+    setAt(undefined)
+    setCursors([undefined])
+  }, [windowMode])
+
+  function stepWindow(label: string | undefined) {
+    setAt(label)
+    setCursors([undefined])
+  }
+
+  const currentCursor = cursors[cursors.length - 1]
+  const { data, isLoading, isError } = useArchetypes(windowMode, at, currentCursor)
+
+  const nextCursor = data?.page?.next_cursor ?? null
+  const pageNumber = cursors.length
 
   return (
     <div className="flex flex-col gap-4">
@@ -27,48 +40,51 @@ export function ArchetypesPage() {
         <div className="flex flex-col gap-2">
           <Eyebrow>Archetypes</Eyebrow>
           <CardTitle>Every archetype, traced to its core.</CardTitle>
-          <CardDescription>Clustered Duel Commander deck archetypes.</CardDescription>
+          <CardDescription>
+            Each clustered archetype&rsquo;s representative decklist size and its
+            most-copied signature cards.
+          </CardDescription>
         </div>
         <WindowModeSelect value={windowMode} onChange={setWindowMode} />
       </div>
 
-      {isLoading && <Skeleton className="h-40 w-full" />}
-
-      {isError && (
-        <Card className="border-destructive/40 text-destructive">
-          Archetype data isn't available yet — this view is prepared ahead of the Karn
-          Tablets backend (T4 iteration 2), which hasn't shipped.
-        </Card>
+      {data && (
+        <WindowStepper
+          window={data.data.window}
+          previousWindow={data.data.previous_window}
+          nextWindow={data.data.next_window}
+          onSelect={stepWindow}
+        />
       )}
 
-      {data && (
-        <Card className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Archetype</TableHead>
-                <TableHead>Deck share</TableHead>
-                <TableHead>Decks</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.data.map((archetype) => (
-                <TableRow key={archetype.id}>
-                  <TableCell>{archetype.name}</TableCell>
-                  <TableCell>{(archetype.deck_share * 100).toFixed(1)}%</TableCell>
-                  <TableCell>{archetype.deck_count}</TableCell>
-                </TableRow>
-              ))}
-              {data.data.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground">
-                    No archetypes for this window.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Card>
+      <ArchetypeDetailTable
+        archetypes={data?.data.archetypes}
+        isLoading={isLoading}
+        isError={isError}
+      />
+
+      {(pageNumber > 1 || nextCursor) && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <Button
+            variant="outline"
+            disabled={pageNumber === 1}
+            onClick={() => {
+              setCursors((current) => current.slice(0, -1))
+            }}
+          >
+            Previous
+          </Button>
+          <span className="font-mono">Page {pageNumber}</span>
+          <Button
+            variant="outline"
+            disabled={!nextCursor}
+            onClick={() => {
+              if (nextCursor) setCursors((current) => [...current, nextCursor])
+            }}
+          >
+            Next
+          </Button>
+        </div>
       )}
     </div>
   )

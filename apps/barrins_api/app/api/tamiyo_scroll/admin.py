@@ -7,17 +7,23 @@ metrics — active users, sharing adoption, retention... — are explicitly
 deferred, not v2.0.0).
 """
 
-from fastapi import APIRouter
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Query
 
 from app.database.session import DatabaseSession
 from app.dependencies.auth import AdminUser
+from app.models.karn import KTWindowKind
 from app.schemas.responses_tamiyo_scroll import (
     ResponseAggregateMetric,
+    ResponseKarnArchetypeShare,
+    ResponseKarnDeckTypeDistribution,
     ResponseMetricTimeseries,
     ResponseMetricTimeseriesPoint,
     ResponsePlatformMetrics,
     ResponsePlatformMetricsTimeseries,
 )
+from app.services.karn import read as karn_read
 from app.services.metrics import (
     MetricTimeseries,
     compute_platform_metrics,
@@ -25,6 +31,8 @@ from app.services.metrics import (
 )
 
 router = APIRouter()
+
+_KARN_DEFAULT_FORMAT = "Duel Commander"
 
 
 def _to_response_timeseries(metric: MetricTimeseries) -> ResponseMetricTimeseries:
@@ -87,4 +95,43 @@ async def get_platform_metrics_timeseries(
         accounts=_to_response_timeseries(timeseries.accounts),
         personal_decks=_to_response_timeseries(timeseries.personal_decks),
         matches=_to_response_timeseries(timeseries.matches),
+    )
+
+
+@router.get(
+    "/admin/metrics/karn-tablets",
+    response_model=ResponseKarnDeckTypeDistribution,
+)
+async def get_karn_tablets_distribution(
+    session: DatabaseSession,
+    _admin: AdminUser,
+    window: Annotated[Literal["rolling_30d", "banlist_period"], Query()],
+    fmt: Annotated[str, Query(alias="format")] = _KARN_DEFAULT_FORMAT,
+) -> ResponseKarnDeckTypeDistribution:
+    """Deck-type share of the latest Karn Tablets clustering run for the
+    given `(format, window)` — the exact numbers the public Tolaria News
+    `/metagame` route serves (ADR-13: S6 and Tolaria News read the same
+    `kt_*` tables through the same service, never a separate computation).
+
+    Aggregate-only, derived from data the backend already stores for the
+    clustering pipeline — no new collection (Constitution §51).
+    """
+    snapshot = await karn_read.metagame_snapshot(session, fmt, KTWindowKind(window))
+    return ResponseKarnDeckTypeDistribution(
+        format=snapshot.fmt,
+        window_kind=snapshot.window.kind.value,
+        window_label=snapshot.window.label,
+        window_date_from=snapshot.window.date_from,
+        window_date_to=snapshot.window.date_to,
+        total_decks=snapshot.total_decks,
+        generated_at=snapshot.synced_at,
+        archetypes=[
+            ResponseKarnArchetypeShare(
+                id=str(row.id),
+                name=row.name,
+                deck_count=row.deck_count,
+                deck_share=row.share,
+            )
+            for row in snapshot.archetypes
+        ],
     )

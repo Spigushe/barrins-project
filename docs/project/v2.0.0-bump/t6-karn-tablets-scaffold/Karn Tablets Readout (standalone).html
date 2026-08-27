@@ -1,0 +1,4194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Karn Tablets Readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,500&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --plane:#f6f5f2; --surface:#fcfbf8; --sunken:#f0eee7;
+    --ink:#17150f; --ink-2:#55514a; --muted:#8b867c;
+    --rule:#e3e0d6; --rule-strong:#cdc9bd;
+    --accent:#3f7d6e; --accent-soft:#3f7d6e28; --accent-line:#3f7d6e;
+    --gap:#fcfbf8;                 /* 2px surface gap between marks */
+    --shadow:0 1px 2px rgba(23,21,15,.05), 0 8px 24px -12px rgba(23,21,15,.12);
+    --maxw:1080px;
+  }
+  @media (prefers-color-scheme:dark) {
+    :root:not([data-theme="light"]) {
+      --plane:#131210; --surface:#1b1a17; --sunken:#211f1b;
+      --ink:#f4f2ea; --ink-2:#b9b4a6; --muted:#8b867c;
+      --rule:#2b2a26; --rule-strong:#3a382f;
+      --accent:#5fa593; --accent-soft:#5fa59330; --accent-line:#6cb6a3;
+      --gap:#1b1a17;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --plane:#131210; --surface:#1b1a17; --sunken:#211f1b;
+    --ink:#f4f2ea; --ink-2:#b9b4a6; --muted:#8b867c;
+    --rule:#2b2a26; --rule-strong:#3a382f;
+    --accent:#5fa593; --accent-soft:#5fa59330; --accent-line:#6cb6a3;
+    --gap:#1b1a17;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+
+  *,*::before,*::after { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--plane); color:var(--ink);
+    font-family:"Public Sans", system-ui, sans-serif;
+    font-size:16px; line-height:1.6; letter-spacing:.005em;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:clamp(1.5rem,4vw,4rem) clamp(1rem,4vw,2.5rem) 5rem; }
+
+  h1,h2,h3 { font-family:"Spectral", Georgia, serif; font-weight:600; text-wrap:balance; margin:0; letter-spacing:-.01em; }
+  h1 { font-size:clamp(2rem,5vw,3rem); line-height:1.08; }
+  h2 { font-size:clamp(1.35rem,3vw,1.8rem); line-height:1.15; }
+  h3 { font-size:1.02rem; font-weight:600; }
+  .mono { font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+
+  /* masthead */
+  header.mast { border-bottom:1px solid var(--rule-strong); padding-bottom:1.75rem; margin-bottom:2.5rem; }
+  .eyebrow {
+    font-family:"JetBrains Mono", monospace; font-size:.72rem; font-weight:500;
+    letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 1rem;
+  }
+  header.mast p.lede { max-width:60ch; color:var(--ink-2); font-size:1.05rem; margin:1rem 0 0; }
+
+  /* provenance strip */
+  .prov {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:1px; background:var(--rule); border:1px solid var(--rule);
+    border-radius:10px; overflow:hidden; margin-top:1.75rem;
+  }
+  .prov > div { background:var(--surface); padding:.8rem 1rem; }
+  .prov dt {
+    font-family:"JetBrains Mono", monospace; font-size:.64rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 .3rem;
+  }
+  .prov dd { margin:0; font-family:"JetBrains Mono", monospace; font-size:.92rem; font-weight:500; color:var(--ink); }
+
+  section { margin-top:3.5rem; }
+  section > .head { margin-bottom:1.4rem; }
+  section > .head p { color:var(--ink-2); max-width:66ch; margin:.5rem 0 0; font-size:.96rem; }
+
+  .panel {
+    background:var(--surface); border:1px solid var(--rule);
+    border-radius:12px; padding:1.4rem 1.5rem 1.6rem; box-shadow:var(--shadow);
+  }
+  .panel h3 { margin-bottom:.15rem; }
+  .panel .sub { font-family:"JetBrains Mono",monospace; font-size:.74rem; color:var(--muted); letter-spacing:.04em; margin-bottom:1.1rem; }
+
+  .two-col { display:grid; grid-template-columns:1fr; gap:1.25rem; }
+  @media (min-width:800px){ .two-col { grid-template-columns:1fr 1fr; } }
+
+  /* horizontal bar chart */
+  .barrow { display:grid; grid-template-columns:1fr; gap:.55rem; }
+  .bar { display:grid; grid-template-columns:1fr; gap:.28rem; }
+  .bar .lab { display:flex; justify-content:space-between; align-items:baseline; gap:.75rem; }
+  .bar .lab .name { font-size:.9rem; font-weight:500; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar .lab .val { font-family:"JetBrains Mono",monospace; font-size:.82rem; color:var(--ink-2); flex:none; }
+  .bar .track { height:16px; background:var(--sunken); border-radius:4px; overflow:hidden; position:relative; }
+  .bar .fill {
+    height:100%; background:var(--accent); border-radius:4px 0 0 4px;
+    box-shadow:2px 0 0 var(--gap); min-width:3px; transition:filter .12s;
+  }
+  .bar:hover .fill { filter:brightness(1.08); }
+  .bar .track[data-tip]:hover::after {
+    content:attr(data-tip); position:absolute; left:8px; top:-2.1rem; z-index:5;
+    background:var(--ink); color:var(--plane); font-family:"JetBrains Mono",monospace;
+    font-size:.72rem; padding:.3rem .5rem; border-radius:5px; white-space:nowrap; pointer-events:none;
+  }
+
+  /* small multiples */
+  .facets { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:12px; overflow:hidden; }
+  .facet { background:var(--surface); padding:.95rem 1rem 1.1rem; }
+  .facet .ftitle { font-family:"Spectral",serif; font-weight:600; font-size:.95rem; line-height:1.2; margin-bottom:.1rem; }
+  .facet .fmeta { font-family:"JetBrains Mono",monospace; font-size:.68rem; color:var(--muted); margin-bottom:.5rem; }
+  .facet svg { display:block; width:100%; height:70px; overflow:visible; }
+  .facet .area { fill:var(--accent-soft); }
+  .facet .line { fill:none; stroke:var(--accent-line); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+  .facet .dot-end { fill:var(--accent-line); stroke:var(--surface); stroke-width:2; }
+  .facet .pt { fill:transparent; }
+  .facet .pt:hover ~ .hovlab, .facet .pt:hover { }
+  .facet .gl { stroke:var(--rule); stroke-width:1; }
+  .axis-strip {
+    display:flex; justify-content:space-between; gap:.5rem; flex-wrap:wrap;
+    margin-top:.7rem; padding:0 .2rem;
+    font-family:"JetBrains Mono",monospace; font-size:.68rem; color:var(--muted); letter-spacing:.04em;
+  }
+
+  /* table */
+  .tablewrap { overflow-x:auto; border:1px solid var(--rule); border-radius:12px; background:var(--surface); }
+  table { border-collapse:collapse; width:100%; min-width:640px; font-size:.9rem; }
+  thead th {
+    text-align:left; font-family:"JetBrains Mono",monospace; font-size:.66rem; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); font-weight:500; padding:.85rem 1rem; border-bottom:1px solid var(--rule-strong); white-space:nowrap;
+  }
+  tbody td { padding:.7rem 1rem; border-bottom:1px solid var(--rule); vertical-align:top; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr:hover td { background:var(--sunken); }
+  td.num { font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  td.cmd { font-weight:500; }
+  td.cards { color:var(--ink-2); font-size:.82rem; }
+  .sharebar { display:inline-block; height:8px; background:var(--accent); border-radius:3px; vertical-align:middle; margin-left:.5rem; }
+
+  .note { margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid var(--rule); color:var(--ink-2); font-size:.88rem; max-width:70ch; }
+  .note strong { color:var(--ink); font-weight:600; }
+  .note code { font-family:"JetBrains Mono",monospace; font-size:.82em; background:var(--sunken); padding:.1em .35em; border-radius:4px; }
+
+  @media (prefers-reduced-motion:reduce){ * { transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">Karn Tablets · clustering run inspection</p>
+    <h1>Karn Tablets Readout</h1>
+    <p class="lede">
+      What the metagame-clustering job actually computed: Duel&nbsp;Commander
+      tournament decks (scraped into <span class="mono">bs_*</span>) grouped into
+      archetypes by <span class="mono">scikit-learn</span> k-means, then pushed to
+      <span class="mono">barrins_api</span>'s <span class="mono">kt_*</span> tables.
+      Every number below is read back out of those tables through the same
+      <span class="mono">/bff/tolaria-news</span> routes the frontend will use.
+    </p>
+    <dl class="prov" id="prov"></dl>
+  </header>
+
+  <section id="sec-now">
+    <div class="head">
+      <h2>Metagame now</h2>
+      <p>Archetype share of the most recent clustering run for each window mode,
+        largest first. Share is a cluster's deck count over the run total.</p>
+    </div>
+    <div class="two-col" id="now-panels"></div>
+  </section>
+
+  <section id="sec-history">
+    <div class="head">
+      <h2>Across banlist periods</h2>
+      <p>One clustering run per Duel&nbsp;Commander banlist period since mid-2024.
+        Each panel tracks a single archetype's share of the metagame over those
+        periods — a gap means the archetype had no cluster in that run. Archetype
+        identity is carried across runs by commander, so a deck's 99 flexible
+        cards drifting between periods doesn't fork it.</p>
+    </div>
+    <div class="facets" id="facets"></div>
+    <div class="axis-strip" id="facet-axis"></div>
+  </section>
+
+  <section id="sec-rolling">
+    <div class="head">
+      <h2>Rolling 30-day check</h2>
+      <p>The other window mode, two runs a fortnight apart — a quick read on
+        whether the picture is stable between a rolling window and a
+        banlist-aligned one.</p>
+    </div>
+    <div class="panel" id="rolling-panel"></div>
+  </section>
+
+  <section id="sec-table">
+    <div class="head">
+      <h2>Latest banlist run — every archetype</h2>
+      <p>The full cluster list behind the "now" chart, with the auto-derived name,
+        the representative decklist's size, and its most-copied non-land cards.</p>
+    </div>
+    <div class="tablewrap"><table id="detail">
+      <thead><tr>
+        <th>Archetype (commander)</th><th>Decks</th><th>Share</th>
+        <th>Rep. list</th><th>Signature cards</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script id="kt-data" type="application/json">
+{
+ "runs": [
+  {
+   "id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "format": "Duel Commander",
+   "window_kind": "rolling_30d",
+   "window_label": "rolling_30d:2026-08-13",
+   "date_from": "2026-07-14",
+   "date_to": "2026-08-13",
+   "algorithm": "kmeans",
+   "total_decks": 820,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:11:34.607874+00"
+  },
+  {
+   "id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "format": "Duel Commander",
+   "window_kind": "rolling_30d",
+   "window_label": "rolling_30d:2026-08-27",
+   "date_from": "2026-07-28",
+   "date_to": "2026-08-27",
+   "algorithm": "kmeans",
+   "total_decks": 720,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:13:31.900329+00"
+  },
+  {
+   "id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2024-05-28_2024-07-29",
+   "date_from": "2024-05-28",
+   "date_to": "2024-07-29",
+   "algorithm": "kmeans",
+   "total_decks": 1010,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:16:09.185672+00"
+  },
+  {
+   "id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2024-07-30_2024-09-23",
+   "date_from": "2024-07-30",
+   "date_to": "2024-09-23",
+   "algorithm": "kmeans",
+   "total_decks": 1646,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:18:48.551629+00"
+  },
+  {
+   "id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2024-09-24_2024-11-25",
+   "date_from": "2024-09-24",
+   "date_to": "2024-11-25",
+   "algorithm": "kmeans",
+   "total_decks": 1807,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:21:46.541958+00"
+  },
+  {
+   "id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2024-11-26_2025-01-27",
+   "date_from": "2024-11-26",
+   "date_to": "2025-01-27",
+   "algorithm": "kmeans",
+   "total_decks": 2158,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:24:47.354016+00"
+  },
+  {
+   "id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-01-28_2025-03-24",
+   "date_from": "2025-01-28",
+   "date_to": "2025-03-24",
+   "algorithm": "kmeans",
+   "total_decks": 2455,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:28:52.827458+00"
+  },
+  {
+   "id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-03-25_2025-05-26",
+   "date_from": "2025-03-25",
+   "date_to": "2025-05-26",
+   "algorithm": "kmeans",
+   "total_decks": 3826,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:34:24.064595+00"
+  },
+  {
+   "id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-05-27_2025-07-28",
+   "date_from": "2025-05-27",
+   "date_to": "2025-07-28",
+   "algorithm": "kmeans",
+   "total_decks": 3697,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:39:17.835808+00"
+  },
+  {
+   "id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-07-29_2025-09-29",
+   "date_from": "2025-07-29",
+   "date_to": "2025-09-29",
+   "algorithm": "kmeans",
+   "total_decks": 3493,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:43:46.893745+00"
+  },
+  {
+   "id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-09-30_2025-11-24",
+   "date_from": "2025-09-30",
+   "date_to": "2025-11-24",
+   "algorithm": "kmeans",
+   "total_decks": 2685,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:47:39.180476+00"
+  },
+  {
+   "id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2025-11-25_2026-01-26",
+   "date_from": "2025-11-25",
+   "date_to": "2026-01-26",
+   "algorithm": "kmeans",
+   "total_decks": 2270,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:50:29.552584+00"
+  },
+  {
+   "id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2026-01-27_2026-03-30",
+   "date_from": "2026-01-27",
+   "date_to": "2026-03-30",
+   "algorithm": "kmeans",
+   "total_decks": 3080,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:54:29.020424+00"
+  },
+  {
+   "id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2026-03-31_2026-05-25",
+   "date_from": "2026-03-31",
+   "date_to": "2026-05-25",
+   "algorithm": "kmeans",
+   "total_decks": 2423,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 16:58:00.130195+00"
+  },
+  {
+   "id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2026-05-26_2026-07-27",
+   "date_from": "2026-05-26",
+   "date_to": "2026-07-27",
+   "algorithm": "kmeans",
+   "total_decks": 2223,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 17:01:11.341078+00"
+  },
+  {
+   "id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "format": "Duel Commander",
+   "window_kind": "banlist_period",
+   "window_label": "banlist_period:2026-07-28_2026-09-28",
+   "date_from": "2026-07-28",
+   "date_to": "2026-09-28",
+   "algorithm": "kmeans",
+   "total_decks": 720,
+   "pipeline_version": "0.1.0",
+   "generated_at": "2026-08-27 17:03:03.529949+00"
+  }
+ ],
+ "run_archetypes": [
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "b4a8aae3-f2cd-4064-9766-d53c347b39d6",
+   "name": "Tasigur, the Golden Fang",
+   "commanders": [
+    "Tasigur, the Golden Fang"
+   ],
+   "deck_count": 155,
+   "share": 0.189,
+   "cluster_id": 5,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Abrupt Decay",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "59309fe8-5147-478b-aa30-1ef608c9a2bc",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 142,
+   "share": 0.1732,
+   "cluster_id": 7,
+   "mainboard_distinct": 95,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Island",
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Command Tower"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "f187b272-0ac8-4864-8565-dbf1b95c88c4",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 138,
+   "share": 0.1683,
+   "cluster_id": 3,
+   "mainboard_distinct": 94,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Abundant Countryside",
+    "Animate Dead",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Blackcleave Cliffs",
+    "Blazemire Verge"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "f869c9cb-e62f-4932-a3ca-368e2258f413",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 107,
+   "share": 0.1305,
+   "cluster_id": 2,
+   "mainboard_distinct": 73,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Burrenton Forge-Tender",
+    "Castle Ardenvale"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "d62b5da7-aaab-4f83-aadc-2ebacdfccca7",
+   "name": "Toph, Greatest Earthbender",
+   "commanders": [
+    "Toph, Greatest Earthbender"
+   ],
+   "deck_count": 76,
+   "share": 0.0927,
+   "cluster_id": 8,
+   "mainboard_distinct": 87,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Forest",
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Avacyn's Pilgrim",
+    "Ba Sing Se",
+    "Badgermole Cub"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "baa2bf82-4036-4f13-b455-1be8c213db46",
+   "name": "Spider-Man 2099",
+   "commanders": [
+    "Spider-Man 2099"
+   ],
+   "deck_count": 63,
+   "share": 0.0768,
+   "cluster_id": 1,
+   "mainboard_distinct": 89,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Abrade",
+    "Agna Qel'a",
+    "Archmage's Charm",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "d2d54277-2c0b-4b08-8c26-cfe96c55080f",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 60,
+   "share": 0.0732,
+   "cluster_id": 9,
+   "mainboard_distinct": 90,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Arbor Elf",
+    "Ba Sing Se",
+    "Badgermole Cub",
+    "Bant Panorama",
+    "Become Immense",
+    "Berserk"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "9ab65ba2-9769-4828-a5b3-defbd96b53dd",
+   "name": "Emry, Lurker of the Loch",
+   "commanders": [
+    "Emry, Lurker of the Loch"
+   ],
+   "deck_count": 37,
+   "share": 0.0451,
+   "cluster_id": 4,
+   "mainboard_distinct": 79,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Aether Spellbomb",
+    "Arcane Signet",
+    "Arcum's Astrolabe",
+    "Basalt Monolith",
+    "Chromatic Sphere",
+    "Chromatic Star",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "8aeb8559-9cc2-40d2-8817-4463e8785fe0",
+   "name": "Winter, Cynical Opportunist",
+   "commanders": [
+    "Winter, Cynical Opportunist"
+   ],
+   "deck_count": 23,
+   "share": 0.028,
+   "cluster_id": 6,
+   "mainboard_distinct": 99,
+   "mainboard_total": 99,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Armaggon, Future Shark",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Badlands"
+   ]
+  },
+  {
+   "run_id": "ccff5ab2-5b95-4117-a2f0-b78983fa97ca",
+   "archetype_id": "a5d79680-e791-45f1-a32d-30265bd3cd5c",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 19,
+   "share": 0.0232,
+   "cluster_id": 10,
+   "mainboard_distinct": 71,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Ancient Den",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Brigone, Soldier of Meletis",
+    "Brilliant Wings",
+    "Cartouche of Solidarity"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "b4a8aae3-f2cd-4064-9766-d53c347b39d6",
+   "name": "Tasigur, the Golden Fang",
+   "commanders": [
+    "Tasigur, the Golden Fang"
+   ],
+   "deck_count": 133,
+   "share": 0.1847,
+   "cluster_id": 3,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "f869c9cb-e62f-4932-a3ca-368e2258f413",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 104,
+   "share": 0.1444,
+   "cluster_id": 4,
+   "mainboard_distinct": 73,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Castle Ardenvale",
+    "Cataclysm"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "59309fe8-5147-478b-aa30-1ef608c9a2bc",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 100,
+   "share": 0.1389,
+   "cluster_id": 6,
+   "mainboard_distinct": 92,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Island",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Command Tower",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "f187b272-0ac8-4864-8565-dbf1b95c88c4",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 99,
+   "share": 0.1375,
+   "cluster_id": 2,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Abundant Countryside",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "d62b5da7-aaab-4f83-aadc-2ebacdfccca7",
+   "name": "Toph, Greatest Earthbender",
+   "commanders": [
+    "Toph, Greatest Earthbender"
+   ],
+   "deck_count": 85,
+   "share": 0.1181,
+   "cluster_id": 8,
+   "mainboard_distinct": 87,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Forest",
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Avacyn's Pilgrim",
+    "Ba Sing Se",
+    "Badgermole Cub"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "257625cb-d529-4e9e-8f60-4915aeef1d3e",
+   "name": "Phlage, Titan of Fire's Fury / Winota, Joiner of Forces",
+   "commanders": [
+    "Phlage, Titan of Fire's Fury",
+    "Winota, Joiner of Forces"
+   ],
+   "deck_count": 48,
+   "share": 0.0667,
+   "cluster_id": 9,
+   "mainboard_distinct": 90,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Araña, Heart of the Spider",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Battlefield Forge"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "d2d54277-2c0b-4b08-8c26-cfe96c55080f",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 44,
+   "share": 0.0611,
+   "cluster_id": 1,
+   "mainboard_distinct": 90,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Arbor Elf",
+    "Ba Sing Se",
+    "Badgermole Cub",
+    "Bant Panorama",
+    "Become Immense",
+    "Berserk"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "9ab65ba2-9769-4828-a5b3-defbd96b53dd",
+   "name": "Emry, Lurker of the Loch",
+   "commanders": [
+    "Emry, Lurker of the Loch"
+   ],
+   "deck_count": 43,
+   "share": 0.0597,
+   "cluster_id": 10,
+   "mainboard_distinct": 60,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Snow-Covered Island",
+    "Aether Spellbomb",
+    "Agna Qel'a",
+    "Archmage's Charm",
+    "Brainstorm",
+    "Brainsurge",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "7ffa9f0b-45eb-4ecc-85d7-dd49f931f71e",
+   "name": "Zurgo Bellstriker",
+   "commanders": [
+    "Zurgo Bellstriker"
+   ],
+   "deck_count": 36,
+   "share": 0.05,
+   "cluster_id": 7,
+   "mainboard_distinct": 76,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Mountain",
+    "Abrade",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Bloodstained Mire",
+    "Bomat Courier",
+    "Broadside Bombardiers"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "b401f13a-637e-44f7-b27c-d589ef99d3b9",
+   "name": "Malcolm, the Eyes",
+   "commanders": [
+    "Malcolm, the Eyes"
+   ],
+   "deck_count": 110,
+   "share": 0.051,
+   "cluster_id": 6,
+   "mainboard_distinct": 83,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Abhorrent Oculus",
+    "Arid Mesa",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Burst Lightning"
+   ]
+  },
+  {
+   "run_id": "5878326b-3979-444e-b1fc-a212ad78d9d2",
+   "archetype_id": "8aeb8559-9cc2-40d2-8817-4463e8785fe0",
+   "name": "Winter, Cynical Opportunist",
+   "commanders": [
+    "Winter, Cynical Opportunist"
+   ],
+   "deck_count": 28,
+   "share": 0.0389,
+   "cluster_id": 5,
+   "mainboard_distinct": 99,
+   "mainboard_total": 99,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Armaggon, Future Shark",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Badlands"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 159,
+   "share": 0.1574,
+   "cluster_id": 1,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou",
+    "Birds of Paradise"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 147,
+   "share": 0.1455,
+   "cluster_id": 8,
+   "mainboard_distinct": 92,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Plains",
+    "Adarkar Wastes",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 136,
+   "share": 0.1347,
+   "cluster_id": 2,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Balance",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 38,
+   "share": 0.0376,
+   "cluster_id": 10,
+   "mainboard_distinct": 74,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Arid Mesa",
+    "Authority of the Consuls",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Cartouche of Solidarity",
+    "Castle Ardenvale"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 122,
+   "share": 0.1208,
+   "cluster_id": 4,
+   "mainboard_distinct": 88,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Plains",
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arid Mesa",
+    "Ash, Party Crasher",
+    "Baird, Argivian Recruiter",
+    "Battlefield Forge"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "fbe08a89-ac9e-4608-8e8f-1ab27773bd05",
+   "name": "Ertai Resurrected / Malcolm, Alluring Scoundrel / Wilson, Refined Grizzly",
+   "commanders": [
+    "Aragorn, King of Gondor",
+    "Errant and Giada",
+    "Ertai Resurrected",
+    "Jori En, Ruin Diver",
+    "Malcolm, Alluring Scoundrel",
+    "Nadu, Winged Wisdom",
+    "Octavia, Living Thesis",
+    "Sai, Master Thopterist",
+    "Shameless Charlatan",
+    "Svyelun of Sea and Sky",
+    "Sword Coast Sailor",
+    "Tameshi, Reality Architect",
+    "Teferi, Temporal Archmage",
+    "Tuvasa the Sunlit",
+    "Wilson, Refined Grizzly"
+   ],
+   "deck_count": 116,
+   "share": 0.1149,
+   "cluster_id": 5,
+   "mainboard_distinct": 74,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Island",
+    "Amphibian Downpour",
+    "Archmage's Charm",
+    "Boseiju, Who Endures",
+    "Brainstorm",
+    "Brainsurge",
+    "Breeding Pool"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 108,
+   "share": 0.1069,
+   "cluster_id": 6,
+   "mainboard_distinct": 75,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Ahn-Crop Crasher",
+    "Arc Trail",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Bomat Courier"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "650a47ef-43f6-4309-91cc-0a2f0ddee41d",
+   "name": "Nadu, Winged Wisdom",
+   "commanders": [
+    "Nadu, Winged Wisdom"
+   ],
+   "deck_count": 79,
+   "share": 0.0782,
+   "cluster_id": 7,
+   "mainboard_distinct": 87,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Island",
+    "Snow-Covered Forest",
+    "Allosaurus Shepherd",
+    "Arbor Elf",
+    "Archdruid's Charm",
+    "Birds of Paradise",
+    "Boreal Druid"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "0f4faef2-fc7d-4bbf-b83c-3886e3ee163c",
+   "name": "Phlage, Titan of Fire's Fury",
+   "commanders": [
+    "Phlage, Titan of Fire's Fury"
+   ],
+   "deck_count": 72,
+   "share": 0.0713,
+   "cluster_id": 3,
+   "mainboard_distinct": 91,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Mountain",
+    "Swamp",
+    "Animate Dead",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Blackcleave Cliffs"
+   ]
+  },
+  {
+   "run_id": "22083dc1-c87e-41b3-8736-ee8cc2e9371a",
+   "archetype_id": "f5984f58-1138-4930-a9eb-c15408b63b38",
+   "name": "Old Stickfingers",
+   "commanders": [
+    "Old Stickfingers"
+   ],
+   "deck_count": 33,
+   "share": 0.0327,
+   "cluster_id": 9,
+   "mainboard_distinct": 90,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Swamp",
+    "Abrupt Decay",
+    "Agonizing Remorse",
+    "Animate Dead",
+    "Assassin's Trophy",
+    "Bayou",
+    "Beseech the Mirror",
+    "Beseech the Queen"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 345,
+   "share": 0.2096,
+   "cluster_id": 5,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou",
+    "Birds of Paradise"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 310,
+   "share": 0.1883,
+   "cluster_id": 1,
+   "mainboard_distinct": 95,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Island",
+    "Plains",
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "fbe08a89-ac9e-4608-8e8f-1ab27773bd05",
+   "name": "Ertai Resurrected / Malcolm, Alluring Scoundrel / Wilson, Refined Grizzly",
+   "commanders": [
+    "Aragorn, King of Gondor",
+    "Errant and Giada",
+    "Ertai Resurrected",
+    "Jori En, Ruin Diver",
+    "Malcolm, Alluring Scoundrel",
+    "Nadu, Winged Wisdom",
+    "Octavia, Living Thesis",
+    "Sai, Master Thopterist",
+    "Shameless Charlatan",
+    "Svyelun of Sea and Sky",
+    "Sword Coast Sailor",
+    "Tameshi, Reality Architect",
+    "Teferi, Temporal Archmage",
+    "Tuvasa the Sunlit",
+    "Wilson, Refined Grizzly"
+   ],
+   "deck_count": 232,
+   "share": 0.1409,
+   "cluster_id": 4,
+   "mainboard_distinct": 79,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Amphibian Downpour",
+    "Archmage's Charm",
+    "Boseiju, Who Endures",
+    "Botanical Sanctum",
+    "Brainstorm",
+    "Brainsurge",
+    "Breeding Pool"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 206,
+   "share": 0.1252,
+   "cluster_id": 2,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 190,
+   "share": 0.1154,
+   "cluster_id": 3,
+   "mainboard_distinct": 91,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash, Party Crasher",
+    "Baird, Argivian Recruiter"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 189,
+   "share": 0.1148,
+   "cluster_id": 7,
+   "mainboard_distinct": 72,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Arcum's Astrolabe",
+    "Batterskull",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Cataclysm",
+    "Cave of the Frost Dragon",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "fdb13109-8e7d-4c0b-b505-a0946a966066",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 174,
+   "share": 0.1057,
+   "cluster_id": 6,
+   "mainboard_distinct": 74,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Ahn-Crop Crasher",
+    "Arc Trail",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 355,
+   "share": 0.1965,
+   "cluster_id": 5,
+   "mainboard_distinct": 93,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 353,
+   "share": 0.1954,
+   "cluster_id": 2,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Arcane Signet",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Barrowgoyf",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 262,
+   "share": 0.145,
+   "cluster_id": 4,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou",
+    "Birds of Paradise"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 218,
+   "share": 0.1206,
+   "cluster_id": 8,
+   "mainboard_distinct": 91,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Baird, Argivian Recruiter"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 198,
+   "share": 0.1096,
+   "cluster_id": 3,
+   "mainboard_distinct": 73,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Arcum's Astrolabe",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Cataclysm",
+    "Cathar Commando",
+    "City of Traitors",
+    "Command Beacon"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 159,
+   "share": 0.088,
+   "cluster_id": 6,
+   "mainboard_distinct": 73,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Mountain",
+    "Arc Trail",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Zealot",
+    "Barbarian Ring",
+    "Blood Moon"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "6137a1a6-5c0c-40a4-92c3-fd48bb8ae4fc",
+   "name": "Azusa, Lost but Seeking",
+   "commanders": [
+    "Azusa, Lost but Seeking"
+   ],
+   "deck_count": 106,
+   "share": 0.0587,
+   "cluster_id": 1,
+   "mainboard_distinct": 91,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "All Is Dust",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Augur of Autumn",
+    "Birds of Paradise",
+    "Blast Zone"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "877e3f25-09e2-4ba7-9f3a-5917bc9da599",
+   "name": "Aminatou, the Fateshifter",
+   "commanders": [
+    "Aminatou, the Fateshifter"
+   ],
+   "deck_count": 104,
+   "share": 0.0576,
+   "cluster_id": 10,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Adarkar Wastes",
+    "Agent of Treachery",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Ashen Rider",
+    "Astral Dragon",
+    "Balance"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 40,
+   "share": 0.0221,
+   "cluster_id": 7,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Ancient Den",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Cartouche of Solidarity",
+    "Cathar Commando",
+    "Curse of Silence"
+   ]
+  },
+  {
+   "run_id": "b616a31c-36c8-442f-a87d-61b462fc5d48",
+   "archetype_id": "b757e76c-e8d3-4795-9bbf-6a7c62895b3f",
+   "name": "The Ur-Dragon",
+   "commanders": [
+    "The Ur-Dragon"
+   ],
+   "deck_count": 12,
+   "share": 0.0066,
+   "cluster_id": 9,
+   "mainboard_distinct": 95,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Adult Gold Dragon",
+    "Ardent Plea",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Atsushi, the Blazing Sky",
+    "Badlands",
+    "Bayou",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 524,
+   "share": 0.2428,
+   "cluster_id": 1,
+   "mainboard_distinct": 93,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning",
+    "Command Tower",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 297,
+   "share": 0.1376,
+   "cluster_id": 2,
+   "mainboard_distinct": 76,
+   "mainboard_total": 92,
+   "top_cards": [
+    "Mountain",
+    "Arc Trail",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Bloodthirsty Adversary"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 296,
+   "share": 0.1372,
+   "cluster_id": 10,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Barrowgoyf",
+    "Bayou",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "6137a1a6-5c0c-40a4-92c3-fd48bb8ae4fc",
+   "name": "Azusa, Lost but Seeking",
+   "commanders": [
+    "Azusa, Lost but Seeking"
+   ],
+   "deck_count": 249,
+   "share": 0.1154,
+   "cluster_id": 5,
+   "mainboard_distinct": 89,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Forest",
+    "All Is Dust",
+    "Arboreal Grazer",
+    "Arid Archway",
+    "Augur of Autumn",
+    "Bayou",
+    "Birds of Paradise",
+    "Blast Zone"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 222,
+   "share": 0.1029,
+   "cluster_id": 4,
+   "mainboard_distinct": 91,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Plains",
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash, Party Crasher"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 203,
+   "share": 0.0941,
+   "cluster_id": 3,
+   "mainboard_distinct": 74,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Arcum's Astrolabe",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "City of Traitors",
+    "Command Beacon",
+    "Containment Priest",
+    "Council's Judgment"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "877e3f25-09e2-4ba7-9f3a-5917bc9da599",
+   "name": "Aminatou, the Fateshifter",
+   "commanders": [
+    "Aminatou, the Fateshifter"
+   ],
+   "deck_count": 172,
+   "share": 0.0797,
+   "cluster_id": 8,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Adarkar Wastes",
+    "Agent of Treachery",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Ashen Rider",
+    "Astral Dragon",
+    "Balance"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 56,
+   "share": 0.0259,
+   "cluster_id": 9,
+   "mainboard_distinct": 70,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Cartouche of Solidarity",
+    "Command Beacon",
+    "Daybreak Coronet",
+    "Dog Umbra"
+   ]
+  },
+  {
+   "run_id": "3e7d7a16-b74c-4288-9797-1fa20be6d102",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 29,
+   "share": 0.0134,
+   "cluster_id": 7,
+   "mainboard_distinct": 69,
+   "mainboard_total": 99,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Chain of Vapor"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 546,
+   "share": 0.2224,
+   "cluster_id": 2,
+   "mainboard_distinct": 93,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Abhorrent Oculus",
+    "Adarkar Wastes",
+    "Archivist of Oghma",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 464,
+   "share": 0.189,
+   "cluster_id": 8,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Barrowgoyf",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "0f4faef2-fc7d-4bbf-b83c-3886e3ee163c",
+   "name": "Phlage, Titan of Fire's Fury",
+   "commanders": [
+    "Phlage, Titan of Fire's Fury"
+   ],
+   "deck_count": 278,
+   "share": 0.1132,
+   "cluster_id": 7,
+   "mainboard_distinct": 80,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Snow-Covered Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Benevolent Bodyguard",
+    "Blood Moon",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 260,
+   "share": 0.1059,
+   "cluster_id": 4,
+   "mainboard_distinct": 89,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash, Party Crasher",
+    "Baird, Argivian Recruiter"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "6137a1a6-5c0c-40a4-92c3-fd48bb8ae4fc",
+   "name": "Azusa, Lost but Seeking",
+   "commanders": [
+    "Azusa, Lost but Seeking"
+   ],
+   "deck_count": 205,
+   "share": 0.0835,
+   "cluster_id": 6,
+   "mainboard_distinct": 89,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "All Is Dust",
+    "Arbor Elf",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Augur of Autumn",
+    "Birds of Paradise"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "691e5d59-72cd-4c16-9977-a0003077228d",
+   "name": "Hidetsugu and Kairi",
+   "commanders": [
+    "Hidetsugu and Kairi"
+   ],
+   "deck_count": 176,
+   "share": 0.0717,
+   "cluster_id": 5,
+   "mainboard_distinct": 85,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Island",
+    "Swamp",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Baleful Strix",
+    "Barrowgoyf",
+    "Bloodchief's Thirst",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 160,
+   "share": 0.0652,
+   "cluster_id": 1,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 149,
+   "share": 0.0607,
+   "cluster_id": 10,
+   "mainboard_distinct": 77,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Mountain",
+    "Arc Trail",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Bloodthirsty Adversary"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "877e3f25-09e2-4ba7-9f3a-5917bc9da599",
+   "name": "Aminatou, the Fateshifter",
+   "commanders": [
+    "Aminatou, the Fateshifter"
+   ],
+   "deck_count": 133,
+   "share": 0.0542,
+   "cluster_id": 3,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Agent of Treachery",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Ashen Rider",
+    "Barrowgoyf",
+    "Bitter Triumph",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "261d839e-cf5f-4855-931c-39cc2b53d47c",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 84,
+   "share": 0.0342,
+   "cluster_id": 9,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Consider",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 833,
+   "share": 0.2177,
+   "cluster_id": 4,
+   "mainboard_distinct": 94,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Island",
+    "Archivist of Oghma",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "691e5d59-72cd-4c16-9977-a0003077228d",
+   "name": "Hidetsugu and Kairi",
+   "commanders": [
+    "Hidetsugu and Kairi"
+   ],
+   "deck_count": 602,
+   "share": 0.1573,
+   "cluster_id": 3,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Barrowgoyf",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "0f4faef2-fc7d-4bbf-b83c-3886e3ee163c",
+   "name": "Phlage, Titan of Fire's Fury",
+   "commanders": [
+    "Phlage, Titan of Fire's Fury"
+   ],
+   "deck_count": 528,
+   "share": 0.138,
+   "cluster_id": 10,
+   "mainboard_distinct": 81,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Snow-Covered Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Broadside Bombardiers"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 508,
+   "share": 0.1328,
+   "cluster_id": 6,
+   "mainboard_distinct": 89,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Amped Raptor",
+    "Anim Pakal, Thousandth Moon",
+    "Arabella, Abandoned Doll",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 400,
+   "share": 0.1045,
+   "cluster_id": 1,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "6137a1a6-5c0c-40a4-92c3-fd48bb8ae4fc",
+   "name": "Azusa, Lost but Seeking",
+   "commanders": [
+    "Azusa, Lost but Seeking"
+   ],
+   "deck_count": 227,
+   "share": 0.0593,
+   "cluster_id": 8,
+   "mainboard_distinct": 87,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "All Is Dust",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Augur of Autumn",
+    "Blast Zone",
+    "Boseiju, Who Endures"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "2c21258a-ff81-4800-9a2c-18783860d037",
+   "name": "Ketramose, the New Dawn",
+   "commanders": [
+    "Ketramose, the New Dawn"
+   ],
+   "deck_count": 207,
+   "share": 0.0541,
+   "cluster_id": 2,
+   "mainboard_distinct": 95,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Swamp",
+    "Swamp",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Badlands",
+    "Behold the Beyond",
+    "Beseech the Mirror",
+    "Beseech the Queen"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "0118ac39-8520-476c-8151-960c8f49412d",
+   "name": "Feldon, Ronom Excavator",
+   "commanders": [
+    "Feldon, Ronom Excavator"
+   ],
+   "deck_count": 195,
+   "share": 0.051,
+   "cluster_id": 9,
+   "mainboard_distinct": 76,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Zealot",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 184,
+   "share": 0.0481,
+   "cluster_id": 7,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Consider",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "38dbaf8b-01e0-4641-8ebd-54911449c344",
+   "archetype_id": "f282dc7f-5389-4b73-8ab9-d7eb68c0c7bd",
+   "name": "Acererak the Archlich",
+   "commanders": [
+    "Acererak the Archlich"
+   ],
+   "deck_count": 142,
+   "share": 0.0371,
+   "cluster_id": 5,
+   "mainboard_distinct": 64,
+   "mainboard_total": 99,
+   "top_cards": [
+    "Snow-Covered Swamp",
+    "Agonizing Remorse",
+    "Beseech the Mirror",
+    "Beseech the Queen",
+    "Bloodchief's Thirst",
+    "Bontu's Monument",
+    "Bubbling Muck",
+    "Cabal Coffers"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 745,
+   "share": 0.2015,
+   "cluster_id": 3,
+   "mainboard_distinct": 93,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 522,
+   "share": 0.1412,
+   "cluster_id": 6,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "d803b39a-1aa1-4efe-bd8f-0efa856f088f",
+   "name": "Cloud, Midgar Mercenary",
+   "commanders": [
+    "Cloud, Midgar Mercenary"
+   ],
+   "deck_count": 474,
+   "share": 0.1282,
+   "cluster_id": 4,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Ancient Den",
+    "Benevolent Bodyguard",
+    "Castle Ardenvale",
+    "Cataclysm",
+    "Cathar Commando",
+    "Cid, Freeflier Pilot",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "491f2b9c-1da1-4f26-8d97-58669f56da04",
+   "name": "Zurgo Bellstriker",
+   "commanders": [
+    "Zurgo Bellstriker"
+   ],
+   "deck_count": 135,
+   "share": 0.0365,
+   "cluster_id": 10,
+   "mainboard_distinct": 74,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Zealot",
+    "Barbarian Ring",
+    "Blood Moon",
+    "Bloodstained Mire",
+    "Broadside Bombardiers"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 451,
+   "share": 0.122,
+   "cluster_id": 8,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "0f4faef2-fc7d-4bbf-b83c-3886e3ee163c",
+   "name": "Phlage, Titan of Fire's Fury",
+   "commanders": [
+    "Phlage, Titan of Fire's Fury"
+   ],
+   "deck_count": 399,
+   "share": 0.1079,
+   "cluster_id": 7,
+   "mainboard_distinct": 82,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Snow-Covered Mountain",
+    "Adeline, Resplendent Cathar",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Blood Moon",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 374,
+   "share": 0.1012,
+   "cluster_id": 1,
+   "mainboard_distinct": 88,
+   "mainboard_total": 92,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Arabella, Abandoned Doll",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash, Party Crasher"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "2c21258a-ff81-4800-9a2c-18783860d037",
+   "name": "Ketramose, the New Dawn",
+   "commanders": [
+    "Ketramose, the New Dawn"
+   ],
+   "deck_count": 261,
+   "share": 0.0706,
+   "cluster_id": 5,
+   "mainboard_distinct": 95,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Swamp",
+    "Swamp",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Badlands",
+    "Behold the Beyond",
+    "Beseech the Mirror",
+    "Beseech the Queen"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 217,
+   "share": 0.0587,
+   "cluster_id": 2,
+   "mainboard_distinct": 68,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Consider",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "15e2adb8-5745-4968-9193-cc918b18b353",
+   "archetype_id": "686a0405-9b8b-4034-b568-0741dc4264ea",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 119,
+   "share": 0.0322,
+   "cluster_id": 9,
+   "mainboard_distinct": 84,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Forest",
+    "Adventuring Gear",
+    "Allosaurus Shepherd",
+    "Arbor Elf",
+    "Bant Panorama",
+    "Become Immense",
+    "Birds of Paradise",
+    "Blossoming Defense"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 536,
+   "share": 0.1996,
+   "cluster_id": 5,
+   "mainboard_distinct": 88,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Chain Lightning",
+    "Clout of the Dominus"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 441,
+   "share": 0.1642,
+   "cluster_id": 6,
+   "mainboard_distinct": 94,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 346,
+   "share": 0.1289,
+   "cluster_id": 2,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "d803b39a-1aa1-4efe-bd8f-0efa856f088f",
+   "name": "Cloud, Midgar Mercenary",
+   "commanders": [
+    "Cloud, Midgar Mercenary"
+   ],
+   "deck_count": 338,
+   "share": 0.1259,
+   "cluster_id": 1,
+   "mainboard_distinct": 71,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Ancient Den",
+    "Armageddon",
+    "Benevolent Bodyguard",
+    "Castle Ardenvale",
+    "Cathar Commando",
+    "Cid, Freeflier Pilot",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 874,
+   "share": 0.2502,
+   "cluster_id": 3,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 785,
+   "share": 0.2247,
+   "cluster_id": 6,
+   "mainboard_distinct": 93,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Archivist of Oghma",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 574,
+   "share": 0.1643,
+   "cluster_id": 4,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Arcane Signet",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "d803b39a-1aa1-4efe-bd8f-0efa856f088f",
+   "name": "Cloud, Midgar Mercenary",
+   "commanders": [
+    "Cloud, Midgar Mercenary"
+   ],
+   "deck_count": 338,
+   "share": 0.0968,
+   "cluster_id": 10,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Ancient Den",
+    "Armageddon",
+    "Benevolent Bodyguard",
+    "Castle Ardenvale",
+    "Cathar Commando",
+    "Cid, Freeflier Pilot",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 285,
+   "share": 0.0816,
+   "cluster_id": 2,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Aven Interrupter",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Castle Ardenvale",
+    "Cataclysm",
+    "City of Traitors",
+    "Cloud, Midgar Mercenary"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "947a1101-9040-4e23-8ffa-d380304bf05f",
+   "name": "Magda, the Hoardmaster",
+   "commanders": [
+    "Magda, the Hoardmaster"
+   ],
+   "deck_count": 222,
+   "share": 0.0636,
+   "cluster_id": 5,
+   "mainboard_distinct": 74,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Agatha's Soul Cauldron",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Bomat Courier",
+    "Bonehoard Dracosaur",
+    "Broadside Bombardiers"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 214,
+   "share": 0.0613,
+   "cluster_id": 7,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Snow-Covered Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Consider"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "686a0405-9b8b-4034-b568-0741dc4264ea",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 104,
+   "share": 0.0298,
+   "cluster_id": 1,
+   "mainboard_distinct": 84,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Allosaurus Shepherd",
+    "Arbor Elf",
+    "Bant Panorama",
+    "Become Immense",
+    "Birds of Paradise",
+    "Blossoming Defense"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "87b46a7c-9aa6-4848-9826-87178265cae6",
+   "name": "Jenson Carthalion, Druid Exile",
+   "commanders": [
+    "Jenson Carthalion, Druid Exile"
+   ],
+   "deck_count": 57,
+   "share": 0.0163,
+   "cluster_id": 8,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Aragorn, King of Gondor",
+    "Ardent Plea",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou",
+    "Birthing Pod"
+   ]
+  },
+  {
+   "run_id": "30682c87-32ec-471b-a8c5-33dfe14366bc",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 40,
+   "share": 0.0115,
+   "cluster_id": 9,
+   "mainboard_distinct": 67,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Archivist of Oghma",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Brigone, Soldier of Meletis",
+    "Cartouche of Solidarity",
+    "Cathar Commando"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "f6dbab4e-a7fe-4b8c-9643-f8943b41c5e6",
+   "name": "Deadpool, Trading Card",
+   "commanders": [
+    "Deadpool, Trading Card"
+   ],
+   "deck_count": 298,
+   "share": 0.111,
+   "cluster_id": 3,
+   "mainboard_distinct": 92,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Swamp",
+    "Animate Dead",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Ash Barrens",
+    "Badlands",
+    "Barrowgoyf",
+    "Blackcleave Cliffs"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "6137a1a6-5c0c-40a4-92c3-fd48bb8ae4fc",
+   "name": "Azusa, Lost but Seeking",
+   "commanders": [
+    "Azusa, Lost but Seeking"
+   ],
+   "deck_count": 212,
+   "share": 0.079,
+   "cluster_id": 9,
+   "mainboard_distinct": 95,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Arbor Elf",
+    "Archdruid's Charm",
+    "Arid Mesa",
+    "Avacyn's Pilgrim",
+    "Bayou",
+    "Birds of Paradise",
+    "Birthing Pod"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "5799819e-9446-443d-b7dd-9f066edce7e8",
+   "name": "Taii Wakeen, Perfect Shot",
+   "commanders": [
+    "Taii Wakeen, Perfect Shot"
+   ],
+   "deck_count": 190,
+   "share": 0.0708,
+   "cluster_id": 4,
+   "mainboard_distinct": 86,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Mountain",
+    "Snow-Covered Plains",
+    "Mountain",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Battlefield Forge",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 171,
+   "share": 0.0637,
+   "cluster_id": 7,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Consider",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "87b46a7c-9aa6-4848-9826-87178265cae6",
+   "name": "Jenson Carthalion, Druid Exile",
+   "commanders": [
+    "Jenson Carthalion, Druid Exile"
+   ],
+   "deck_count": 82,
+   "share": 0.0305,
+   "cluster_id": 8,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Anointed Peacekeeper",
+    "Aragorn, King of Gondor",
+    "Ardent Plea",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "6cfe1fff-f51d-4e08-986e-c3052b65a6a1",
+   "archetype_id": "686a0405-9b8b-4034-b568-0741dc4264ea",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 71,
+   "share": 0.0264,
+   "cluster_id": 10,
+   "mainboard_distinct": 86,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Allosaurus Shepherd",
+    "Arbor Elf",
+    "Bant Panorama",
+    "Become Immense",
+    "Berserk",
+    "Birds of Paradise"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 511,
+   "share": 0.2251,
+   "cluster_id": 2,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 375,
+   "share": 0.1652,
+   "cluster_id": 3,
+   "mainboard_distinct": 92,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Island",
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "10888719-8fac-44ae-a264-07d8c4877119",
+   "name": "Spider-Man 2099",
+   "commanders": [
+    "Spider-Man 2099"
+   ],
+   "deck_count": 351,
+   "share": 0.1546,
+   "cluster_id": 6,
+   "mainboard_distinct": 90,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Abhorrent Oculus",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "d803b39a-1aa1-4efe-bd8f-0efa856f088f",
+   "name": "Cloud, Midgar Mercenary",
+   "commanders": [
+    "Cloud, Midgar Mercenary"
+   ],
+   "deck_count": 336,
+   "share": 0.148,
+   "cluster_id": 5,
+   "mainboard_distinct": 70,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Benevolent Bodyguard",
+    "Castle Ardenvale",
+    "Cathar Commando",
+    "Cid, Freeflier Pilot",
+    "City of Traitors"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 296,
+   "share": 0.1304,
+   "cluster_id": 9,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "c35a5293-851d-4942-bca6-217e482bddd4",
+   "name": "Acererak the Archlich / Sheoldred, the Apocalypse",
+   "commanders": [
+    "Acererak the Archlich",
+    "Sheoldred, the Apocalypse"
+   ],
+   "deck_count": 152,
+   "share": 0.067,
+   "cluster_id": 1,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arid Mesa",
+    "Badlands",
+    "Bayou",
+    "Beseech the Mirror",
+    "Blood Crypt",
+    "Bloodstained Mire",
+    "Bonus Round"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "37fe6649-a20d-49f4-a93e-5ff12164b514",
+   "name": "Lumra, Bellow of the Woods",
+   "commanders": [
+    "Lumra, Bellow of the Woods"
+   ],
+   "deck_count": 125,
+   "share": 0.0551,
+   "cluster_id": 8,
+   "mainboard_distinct": 88,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Amulet of Vigor",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Ba Sing Se",
+    "Beast Within",
+    "Blast Zone"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 87,
+   "share": 0.0383,
+   "cluster_id": 4,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Archmage's Charm",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Consider",
+    "Consult the Star Charts",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "b60ea95e-23b8-4f9d-abab-df9223edc048",
+   "archetype_id": "686a0405-9b8b-4034-b568-0741dc4264ea",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 37,
+   "share": 0.0163,
+   "cluster_id": 7,
+   "mainboard_distinct": 87,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Allosaurus Shepherd",
+    "Arbor Elf",
+    "Badgermole Cub",
+    "Bant Panorama",
+    "Become Immense",
+    "Berserk"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 697,
+   "share": 0.2263,
+   "cluster_id": 4,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badgermole Cub",
+    "Badlands"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "6c276864-b55b-4f57-ba24-7ef67b07b900",
+   "name": "Tasigur, the Golden Fang",
+   "commanders": [
+    "Tasigur, the Golden Fang"
+   ],
+   "deck_count": 600,
+   "share": 0.1948,
+   "cluster_id": 1,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "10888719-8fac-44ae-a264-07d8c4877119",
+   "name": "Spider-Man 2099",
+   "commanders": [
+    "Spider-Man 2099"
+   ],
+   "deck_count": 496,
+   "share": 0.161,
+   "cluster_id": 3,
+   "mainboard_distinct": 87,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Abhorrent Oculus",
+    "Abrade",
+    "Agna Qel'a",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 468,
+   "share": 0.1519,
+   "cluster_id": 5,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Burrenton Forge-Tender",
+    "Cataclysm"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 433,
+   "share": 0.1406,
+   "cluster_id": 2,
+   "mainboard_distinct": 93,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Island",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Chain Lightning",
+    "Command Tower"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "37fe6649-a20d-49f4-a93e-5ff12164b514",
+   "name": "Lumra, Bellow of the Woods",
+   "commanders": [
+    "Lumra, Bellow of the Woods"
+   ],
+   "deck_count": 244,
+   "share": 0.0792,
+   "cluster_id": 6,
+   "mainboard_distinct": 87,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Aftermath Analyst",
+    "Amulet of Vigor",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Ba Sing Se",
+    "Beast Within"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 118,
+   "share": 0.0383,
+   "cluster_id": 8,
+   "mainboard_distinct": 69,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Ancient Den",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Brigone, Soldier of Meletis",
+    "Brilliant Wings",
+    "Cartouche of Solidarity"
+   ]
+  },
+  {
+   "run_id": "9e20d8e2-117b-464b-aad5-3000f156ef4c",
+   "archetype_id": "20d89f03-6e60-49ed-b522-3da8b569dcc8",
+   "name": "Golos, Tireless Pilgrim",
+   "commanders": [
+    "Golos, Tireless Pilgrim"
+   ],
+   "deck_count": 24,
+   "share": 0.0078,
+   "cluster_id": 7,
+   "mainboard_distinct": 96,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Alpha Deathclaw",
+    "Archon of Cruelty",
+    "Ardent Plea",
+    "Arid Mesa",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Aurora Awakener",
+    "Badlands"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 435,
+   "share": 0.1795,
+   "cluster_id": 4,
+   "mainboard_distinct": 97,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badgermole Cub"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "10888719-8fac-44ae-a264-07d8c4877119",
+   "name": "Spider-Man 2099",
+   "commanders": [
+    "Spider-Man 2099"
+   ],
+   "deck_count": 426,
+   "share": 0.1758,
+   "cluster_id": 3,
+   "mainboard_distinct": 89,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Agna Qel'a",
+    "Archmage's Charm",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "6c276864-b55b-4f57-ba24-7ef67b07b900",
+   "name": "Tasigur, the Golden Fang",
+   "commanders": [
+    "Tasigur, the Golden Fang"
+   ],
+   "deck_count": 410,
+   "share": 0.1692,
+   "cluster_id": 7,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Archmage's Charm",
+    "Baleful Strix",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm",
+    "Brainsurge"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 320,
+   "share": 0.1321,
+   "cluster_id": 8,
+   "mainboard_distinct": 71,
+   "mainboard_total": 96,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Burrenton Forge-Tender",
+    "Cataclysm"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 258,
+   "share": 0.1065,
+   "cluster_id": 10,
+   "mainboard_distinct": 94,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Adarkar Wastes",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Command Tower",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "bcbd1a07-7335-4ada-aae2-8066bf3e027c",
+   "name": "Quintorius, History Chaser",
+   "commanders": [
+    "Quintorius, History Chaser"
+   ],
+   "deck_count": 195,
+   "share": 0.0805,
+   "cluster_id": 9,
+   "mainboard_distinct": 90,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Snow-Covered Mountain",
+    "Agatha's Soul Cauldron",
+    "Arcane Signet",
+    "Arid Mesa",
+    "Battlefield Forge",
+    "Bloodstained Mire",
+    "Boros Signet"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "37fe6649-a20d-49f4-a93e-5ff12164b514",
+   "name": "Lumra, Bellow of the Woods",
+   "commanders": [
+    "Lumra, Bellow of the Woods"
+   ],
+   "deck_count": 185,
+   "share": 0.0764,
+   "cluster_id": 5,
+   "mainboard_distinct": 88,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Aftermath Analyst",
+    "Amulet of Vigor",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Ba Sing Se",
+    "Beast Within"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "877e3f25-09e2-4ba7-9f3a-5917bc9da599",
+   "name": "Aminatou, the Fateshifter",
+   "commanders": [
+    "Aminatou, the Fateshifter"
+   ],
+   "deck_count": 85,
+   "share": 0.0351,
+   "cluster_id": 2,
+   "mainboard_distinct": 92,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Swamp",
+    "Island",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Astral Dragon",
+    "Bitter Triumph",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "c24ccd30-ebb9-4d67-8a6d-2c689be21a71",
+   "name": "Maelstrom Wanderer / The Wandering Minstrel / Winter, Cynical Opportunist",
+   "commanders": [
+    "Golos, Tireless Pilgrim",
+    "Maelstrom Wanderer",
+    "The First Sliver",
+    "The Ur-Dragon",
+    "The Wandering Minstrel",
+    "Winter, Cynical Opportunist"
+   ],
+   "deck_count": 61,
+   "share": 0.0252,
+   "cluster_id": 6,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Apex Altisaur",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Aurora Awakener"
+   ]
+  },
+  {
+   "run_id": "ca5b67e2-45ac-4951-9009-bcf72c716443",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 48,
+   "share": 0.0198,
+   "cluster_id": 1,
+   "mainboard_distinct": 69,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Ancient Den",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Brigone, Soldier of Meletis",
+    "Brilliant Wings",
+    "Cartouche of Solidarity"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "0d0fbfe9-ce8e-4cc5-b657-fbdc1a584f07",
+   "name": "Atraxa, Grand Unifier",
+   "commanders": [
+    "Atraxa, Grand Unifier"
+   ],
+   "deck_count": 133,
+   "share": 0.1847,
+   "cluster_id": 3,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 104,
+   "share": 0.1444,
+   "cluster_id": 4,
+   "mainboard_distinct": 73,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Castle Ardenvale",
+    "Cataclysm"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 100,
+   "share": 0.1389,
+   "cluster_id": 6,
+   "mainboard_distinct": 92,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Island",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Command Tower",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 438,
+   "share": 0.197,
+   "cluster_id": 1,
+   "mainboard_distinct": 94,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Abrupt Decay",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arbor Elf",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "6c276864-b55b-4f57-ba24-7ef67b07b900",
+   "name": "Tasigur, the Golden Fang",
+   "commanders": [
+    "Tasigur, the Golden Fang"
+   ],
+   "deck_count": 432,
+   "share": 0.1943,
+   "cluster_id": 7,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Arcane Signet",
+    "Archmage's Charm",
+    "Arid Mesa",
+    "Bayou",
+    "Bloodstained Mire",
+    "Boseiju, Who Endures",
+    "Brainstorm"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "10888719-8fac-44ae-a264-07d8c4877119",
+   "name": "Spider-Man 2099",
+   "commanders": [
+    "Spider-Man 2099"
+   ],
+   "deck_count": 357,
+   "share": 0.1606,
+   "cluster_id": 3,
+   "mainboard_distinct": 88,
+   "mainboard_total": 95,
+   "top_cards": [
+    "Island",
+    "Mountain",
+    "Abrade",
+    "Agna Qel'a",
+    "Archmage's Charm",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "db617c23-9966-4888-9efa-f80f2db7c67e",
+   "name": "Aragorn, King of Gondor",
+   "commanders": [
+    "Aragorn, King of Gondor"
+   ],
+   "deck_count": 303,
+   "share": 0.1363,
+   "cluster_id": 6,
+   "mainboard_distinct": 93,
+   "mainboard_total": 93,
+   "top_cards": [
+    "Arena of Glory",
+    "Arid Mesa",
+    "Bloodstained Mire",
+    "Brainstorm",
+    "Cathar Commando",
+    "Command Tower",
+    "Consult the Star Charts",
+    "Counterspell"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "eefc7afb-75e3-436a-afdb-3bcb38fc748f",
+   "name": "Phelia, Exuberant Shepherd",
+   "commanders": [
+    "Phelia, Exuberant Shepherd"
+   ],
+   "deck_count": 279,
+   "share": 0.1255,
+   "cluster_id": 4,
+   "mainboard_distinct": 72,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Ancient Den",
+    "Anointed Peacekeeper",
+    "Benevolent Bodyguard",
+    "Blade Splicer",
+    "Burrenton Forge-Tender",
+    "Castle Ardenvale"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "f740258f-8e35-4124-b741-e3c6aef01541",
+   "name": "Emry, Lurker of the Loch",
+   "commanders": [
+    "Emry, Lurker of the Loch"
+   ],
+   "deck_count": 138,
+   "share": 0.0621,
+   "cluster_id": 5,
+   "mainboard_distinct": 81,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Snow-Covered Island",
+    "Accorder's Shield",
+    "Aether Spellbomb",
+    "Arcane Signet",
+    "Arcum's Astrolabe",
+    "Astral Cornucopia",
+    "Basalt Monolith",
+    "Bone Saw"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "37fe6649-a20d-49f4-a93e-5ff12164b514",
+   "name": "Lumra, Bellow of the Woods",
+   "commanders": [
+    "Lumra, Bellow of the Woods"
+   ],
+   "deck_count": 136,
+   "share": 0.0612,
+   "cluster_id": 10,
+   "mainboard_distinct": 88,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Forest",
+    "Aftermath Analyst",
+    "Amulet of Vigor",
+    "Arboreal Grazer",
+    "Archdruid's Charm",
+    "Arid Archway",
+    "Ba Sing Se",
+    "Beast Within"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "f582df9d-7f68-492d-9fed-70fb76fc5324",
+   "name": "Light-Paws, Emperor's Voice",
+   "commanders": [
+    "Light-Paws, Emperor's Voice"
+   ],
+   "deck_count": 56,
+   "share": 0.0252,
+   "cluster_id": 8,
+   "mainboard_distinct": 70,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "All That Glitters",
+    "Ancient Den",
+    "Benevolent Blessing",
+    "Benevolent Bodyguard",
+    "Brigone, Soldier of Meletis",
+    "Brilliant Wings",
+    "Cartouche of Solidarity"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "c24ccd30-ebb9-4d67-8a6d-2c689be21a71",
+   "name": "Maelstrom Wanderer / The Wandering Minstrel / Winter, Cynical Opportunist",
+   "commanders": [
+    "Golos, Tireless Pilgrim",
+    "Maelstrom Wanderer",
+    "The First Sliver",
+    "The Ur-Dragon",
+    "The Wandering Minstrel",
+    "Winter, Cynical Opportunist"
+   ],
+   "deck_count": 44,
+   "share": 0.0198,
+   "cluster_id": 9,
+   "mainboard_distinct": 98,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Armaggon, Future Shark",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Badlands"
+   ]
+  },
+  {
+   "run_id": "bd121080-dd83-40b7-b377-e9f40b35b351",
+   "archetype_id": "babeec73-4a59-443b-ba48-db95f9724e06",
+   "name": "Lier, Disciple of the Drowned",
+   "commanders": [
+    "Lier, Disciple of the Drowned"
+   ],
+   "deck_count": 40,
+   "share": 0.018,
+   "cluster_id": 2,
+   "mainboard_distinct": 69,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Archmage's Charm",
+    "Baral, Chief of Compliance",
+    "Brain Freeze",
+    "Brainstorm",
+    "Brainsurge",
+    "Candelabra of Tawnos",
+    "Chain of Vapor"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "1e8339c0-c7ff-46b8-9f1a-102e65dfdbd9",
+   "name": "Slimefoot and Squee",
+   "commanders": [
+    "Slimefoot and Squee"
+   ],
+   "deck_count": 99,
+   "share": 0.1375,
+   "cluster_id": 2,
+   "mainboard_distinct": 97,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Abrupt Decay",
+    "Abundant Countryside",
+    "Accursed Marauder",
+    "Animate Dead",
+    "Arid Mesa",
+    "Badlands",
+    "Barrowgoyf",
+    "Bayou"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "8c9686ea-516a-4f66-a492-b9f8ff0b576d",
+   "name": "Toph, Greatest Earthbender",
+   "commanders": [
+    "Toph, Greatest Earthbender"
+   ],
+   "deck_count": 85,
+   "share": 0.1181,
+   "cluster_id": 8,
+   "mainboard_distinct": 87,
+   "mainboard_total": 97,
+   "top_cards": [
+    "Snow-Covered Forest",
+    "Snow-Covered Plains",
+    "Abandoned Air Temple",
+    "Arbor Elf",
+    "Arid Mesa",
+    "Avacyn's Pilgrim",
+    "Ba Sing Se",
+    "Badgermole Cub"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "2a0311aa-2165-43c7-8455-b464edbbe95b",
+   "name": "Marath, Will of the Wild / The Ur-Dragon",
+   "commanders": [
+    "Marath, Will of the Wild",
+    "The Ur-Dragon"
+   ],
+   "deck_count": 48,
+   "share": 0.0667,
+   "cluster_id": 9,
+   "mainboard_distinct": 90,
+   "mainboard_total": 94,
+   "top_cards": [
+    "Snow-Covered Plains",
+    "Adeline, Resplendent Cathar",
+    "Anim Pakal, Thousandth Moon",
+    "Araña, Heart of the Spider",
+    "Arbaaz Mir",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Battlefield Forge"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "686a0405-9b8b-4034-b568-0741dc4264ea",
+   "name": "Tifa Lockhart",
+   "commanders": [
+    "Tifa Lockhart"
+   ],
+   "deck_count": 44,
+   "share": 0.0611,
+   "cluster_id": 1,
+   "mainboard_distinct": 90,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Forest",
+    "Adventuring Gear",
+    "Arbor Elf",
+    "Ba Sing Se",
+    "Badgermole Cub",
+    "Bant Panorama",
+    "Become Immense",
+    "Berserk"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "f740258f-8e35-4124-b741-e3c6aef01541",
+   "name": "Emry, Lurker of the Loch",
+   "commanders": [
+    "Emry, Lurker of the Loch"
+   ],
+   "deck_count": 43,
+   "share": 0.0597,
+   "cluster_id": 10,
+   "mainboard_distinct": 60,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Island",
+    "Snow-Covered Island",
+    "Aether Spellbomb",
+    "Agna Qel'a",
+    "Archmage's Charm",
+    "Brainstorm",
+    "Brainsurge",
+    "Consult the Star Charts"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "491f2b9c-1da1-4f26-8d97-58669f56da04",
+   "name": "Zurgo Bellstriker",
+   "commanders": [
+    "Zurgo Bellstriker"
+   ],
+   "deck_count": 36,
+   "share": 0.05,
+   "cluster_id": 7,
+   "mainboard_distinct": 76,
+   "mainboard_total": 98,
+   "top_cards": [
+    "Mountain",
+    "Abrade",
+    "Arena of Glory",
+    "Arid Mesa",
+    "Barbarian Ring",
+    "Bloodstained Mire",
+    "Bomat Courier",
+    "Broadside Bombardiers"
+   ]
+  },
+  {
+   "run_id": "bf97d4e5-77a7-4cba-b6eb-eec61647c048",
+   "archetype_id": "c24ccd30-ebb9-4d67-8a6d-2c689be21a71",
+   "name": "Maelstrom Wanderer / The Wandering Minstrel / Winter, Cynical Opportunist",
+   "commanders": [
+    "Golos, Tireless Pilgrim",
+    "Maelstrom Wanderer",
+    "The First Sliver",
+    "The Ur-Dragon",
+    "The Wandering Minstrel",
+    "Winter, Cynical Opportunist"
+   ],
+   "deck_count": 28,
+   "share": 0.0389,
+   "cluster_id": 5,
+   "mainboard_distinct": 99,
+   "mainboard_total": 99,
+   "top_cards": [
+    "Abrupt Decay",
+    "Animate Dead",
+    "Archon of Cruelty",
+    "Arid Mesa",
+    "Armaggon, Future Shark",
+    "Ashen Rider",
+    "Atraxa, Grand Unifier",
+    "Badlands"
+   ]
+  }
+ ]
+}
+</script>
+
+<script>
+(function () {
+  const DATA = JSON.parse(document.getElementById('kt-data').textContent);
+  const fmtPct = v => (v * 100).toFixed(1) + '%';
+  const byId = {};
+  DATA.runs.forEach(r => byId[r.id] = r);
+  const raOf = rid => DATA.run_archetypes.filter(x => x.run_id === rid);
+
+  const runsOf = kind => DATA.runs
+    .filter(r => r.window_kind === kind)
+    .sort((a, b) => a.generated_at.localeCompare(b.generated_at));
+  const latestOf = kind => { const r = runsOf(kind); return r[r.length - 1] || null; };
+
+  /* ---------- provenance ---------- */
+  (function prov() {
+    const all = DATA.runs;
+    if (!all.length) return;
+    const bl = runsOf('banlist_period'), rl = runsOf('rolling_30d');
+    const gen = all.map(r => r.generated_at).sort();
+    const rows = [
+      ['Format', all[0].format],
+      ['Pipeline', all[0].pipeline_version],
+      ['Algorithm', all[0].algorithm],
+      ['Banlist runs', String(bl.length)],
+      ['Rolling runs', String(rl.length)],
+      ['Period span', bl.length ? bl[0].date_from + ' → ' + bl[bl.length - 1].date_to : '—'],
+      ['Computed', gen[0].slice(0, 16).replace('T', ' ') + ' UTC'],
+    ];
+    document.getElementById('prov').innerHTML = rows
+      .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  })();
+
+  /* ---------- horizontal bar chart ---------- */
+  function barChart(rows, maxShare) {
+    const mx = maxShare || Math.max(...rows.map(r => r.share), 0.01);
+    return '<div class="barrow">' + rows.map(r => {
+      const w = Math.max(2, (r.share / mx) * 100);
+      const tip = `${r.deck_count} decks · ${fmtPct(r.share)}`;
+      return `<div class="bar">
+        <div class="lab"><span class="name" title="${esc(r.name)}">${esc(r.name)}</span>
+          <span class="val">${fmtPct(r.share)} · ${r.deck_count}</span></div>
+        <div class="track" data-tip="${esc(tip)}"><div class="fill" style="width:${w}%"></div></div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  /* ---------- "now" panels ---------- */
+  (function now() {
+    const wrap = document.getElementById('now-panels');
+    const modes = [
+      ['rolling_30d', 'Rolling 30-day'],
+      ['banlist_period', 'Current banlist period'],
+    ];
+    const globalMax = Math.max(...DATA.run_archetypes.map(r => r.share), 0.01);
+    wrap.innerHTML = modes.map(([kind, title]) => {
+      const run = latestOf(kind);
+      if (!run) return `<div class="panel"><h3>${title}</h3><div class="sub">no run</div></div>`;
+      const rows = raOf(run.id).sort((a, b) => b.deck_count - a.deck_count);
+      return `<div class="panel">
+        <h3>${title}</h3>
+        <div class="sub">${run.window_label} · ${run.total_decks} decks · ${run.date_from}→${run.date_to}</div>
+        ${barChart(rows, globalMax)}
+      </div>`;
+    }).join('');
+  })();
+
+  /* ---------- small multiples: archetype share across banlist periods ---------- */
+  (function facets() {
+    const runs = runsOf('banlist_period');
+    const host = document.getElementById('facets');
+    if (runs.length < 2) { host.innerHTML = '<div class="facet"><div class="fmeta">need ≥2 banlist runs</div></div>'; return; }
+
+    // series keyed by archetype_id, value = share per run index (null if absent)
+    const series = {};
+    runs.forEach((run, i) => {
+      raOf(run.id).forEach(ra => {
+        (series[ra.archetype_id] || (series[ra.archetype_id] = { name: ra.name, pts: Array(runs.length).fill(null), total: 0, peak: 0 }));
+        series[ra.archetype_id].pts[i] = ra.share;
+        series[ra.archetype_id].total += ra.deck_count;
+        series[ra.archetype_id].peak = Math.max(series[ra.archetype_id].peak, ra.share);
+      });
+    });
+    const list = Object.values(series).sort((a, b) => b.total - a.total).slice(0, 12);
+    const yMax = Math.max(...list.flatMap(s => s.pts.filter(v => v != null)), 0.05);
+    const nPresent = s => s.pts.filter(v => v != null).length;
+
+    const W = 210, H = 70, n = runs.length;
+    const x = i => (i / (n - 1)) * W;
+    const y = v => H - (v / yMax) * H;
+
+    host.innerHTML = list.map(s => {
+      const pts = s.pts.map((v, i) => v == null ? null : [x(i), y(v)]);
+      const segs = []; let cur = [];
+      pts.forEach(p => { if (p) cur.push(p); else { if (cur.length) segs.push(cur); cur = []; } });
+      if (cur.length) segs.push(cur);
+      const linePath = segs.map(seg => 'M' + seg.map(p => p.join(',')).join(' L')).join(' ');
+      const firstSeg = segs[0] || [];
+      const lastSeg = segs[segs.length - 1] || [];
+      const areaPath = firstSeg.length > 1
+        ? 'M' + firstSeg[0][0] + ',' + H + ' L' + firstSeg.map(p => p.join(',')).join(' L') + ' L' + firstSeg[firstSeg.length - 1][0] + ',' + H + ' Z'
+        : '';
+      const end = lastSeg[lastSeg.length - 1];
+      const lastVal = [...s.pts].reverse().find(v => v != null);
+      const dots = pts.map((p, i) => p ? `<circle class="pt" cx="${p[0]}" cy="${p[1]}" r="7"><title>${esc(runs[i].window_label.replace('banlist_period:',''))}: ${fmtPct(s.pts[i])}</title></circle>` : '').join('');
+      return `<div class="facet">
+        <div class="ftitle">${esc(s.name)}</div>
+        <div class="fmeta">${nPresent(s)}/${runs.length} periods · peak ${fmtPct(s.peak)} · latest ${lastVal != null ? fmtPct(lastVal) : '—'}</div>
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+          <line class="gl" x1="0" y1="${H}" x2="${W}" y2="${H}"></line>
+          ${areaPath ? `<path class="area" d="${areaPath}"></path>` : ''}
+          <path class="line" d="${linePath}"></path>
+          ${end ? `<circle class="dot-end" cx="${end[0]}" cy="${end[1]}" r="3"></circle>` : ''}
+          ${dots}
+        </svg>
+      </div>`;
+    }).join('');
+
+    // shared period axis: first period start, each year boundary, last period end
+    const marks = [runs[0].date_from.slice(0, 7)];
+    runs.forEach((r, i) => { if (i && r.date_from.slice(0, 4) !== runs[i - 1].date_from.slice(0, 4)) marks.push(r.date_from.slice(0, 7)); });
+    marks.push(runs[runs.length - 1].date_to.slice(0, 7));
+    document.getElementById('facet-axis').innerHTML =
+      marks.map((m, i) => `<span>${i === 0 ? '◀ ' : ''}${m}${i === marks.length - 1 ? ' ▶' : ''}</span>`).join('');
+  })();
+
+  /* ---------- rolling comparison ---------- */
+  (function rolling() {
+    const runs = runsOf('rolling_30d');
+    const host = document.getElementById('rolling-panel');
+    if (!runs.length) { host.innerHTML = '<div class="sub">no rolling runs</div>'; return; }
+    // union of archetypes across the rolling runs, by name
+    const names = {};
+    runs.forEach((run, i) => raOf(run.id).forEach(ra => {
+      (names[ra.name] || (names[ra.name] = Array(runs.length).fill(null)))[i] = ra.share;
+    }));
+    const rows = Object.entries(names)
+      .map(([name, pts]) => ({ name, pts, peak: Math.max(...pts.filter(v => v != null)) }))
+      .sort((a, b) => b.peak - a.peak);
+    const head = runs.map(r => `<th class="num">${r.window_label.replace('rolling_30d:', '')}</th>`).join('');
+    host.innerHTML = `<h3>Rolling 30-day — share by run</h3>
+      <div class="sub">${runs.map(r => r.window_label.replace('rolling_30d:', '') + ' (' + r.total_decks + ')').join('  ·  ')}</div>
+      <div class="tablewrap" style="border:none;background:none">
+      <table style="min-width:320px"><thead><tr><th>Archetype</th>${head}</tr></thead>
+      <tbody>${rows.map(r => `<tr><td class="cmd">${esc(r.name)}</td>${r.pts.map(v => `<td class="num">${v == null ? '·' : fmtPct(v)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+  })();
+
+  /* ---------- detail table ---------- */
+  (function detail() {
+    const run = latestOf('banlist_period') || latestOf('rolling_30d');
+    const tb = document.querySelector('#detail tbody');
+    if (!run) { tb.innerHTML = '<tr><td colspan="5">no run</td></tr>'; return; }
+    const rows = raOf(run.id).sort((a, b) => b.deck_count - a.deck_count);
+    const mx = Math.max(...rows.map(r => r.share), 0.01);
+    tb.innerHTML = rows.map(r => `<tr>
+      <td class="cmd">${esc(r.name)}</td>
+      <td class="num">${r.deck_count}</td>
+      <td class="num">${fmtPct(r.share)}<span class="sharebar" style="width:${(r.share / mx) * 60}px"></span></td>
+      <td class="num">${r.mainboard_distinct}/${r.mainboard_total}</td>
+      <td class="cards">${(r.top_cards || []).slice(0, 6).map(esc).join(', ')}</td>
+    </tr>`).join('');
+  })();
+
+  /* ---------- note ---------- */
+  (function note() {
+    const bl = runsOf('banlist_period');
+    const decks = bl.map(r => r.total_decks);
+    document.getElementById('note').innerHTML =
+      `<strong>How to read this.</strong> Clusters come from k-means with <code>k</code> chosen ` +
+      `by silhouette score (≈10 per run here), over card-composition feature vectors; the ` +
+      `<em>name</em> is just the cluster's representative commander, not a human-assigned label, so a ` +
+      `catch-all cluster shows several commanders joined by "/". Deck counts per banlist run range ` +
+      `${decks.length ? Math.min(...decks) + '–' + Math.max(...decks) : '—'}. ` +
+      `Two archetypes with the same commander but genuinely different builds split as ` +
+      `"<code>Name</code>" and "<code>Name #2</code>". This is a verification view of a dev-database run, ` +
+      `not a published metagame report.`;
+  })();
+})();
+</script>
+
+</body>
+</html>

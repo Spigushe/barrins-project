@@ -135,3 +135,42 @@ async def verify_mtgjson_or_admin(
 
 
 MTGJSONImportOrAdmin = Annotated[None, Depends(verify_mtgjson_or_admin)]
+
+
+def _karn_token_valid(token: str | None) -> bool:
+    expected = settings.base.karn_ingest_token
+    return (
+        expected is not None
+        and token is not None
+        and hmac.compare_digest(token, expected.get_secret_value())
+    )
+
+
+async def verify_karn_token(
+    x_karn_token: Annotated[str | None, Header()] = None,
+) -> None:
+    """Validate the `X-Karn-Token` header against the configured secret.
+
+    Verbatim twin of `verify_scripture_token` (Constitution §4.2 — reused
+    pattern, not reimplemented): the Karn Tablets clustering job
+    (`apps/karn_tablets`) is another Barrin's-ecosystem service, not a
+    logged-in user, and `POST /internal/karn/ingest` has no human caller,
+    so there is no admin-JWT fallback (unlike `verify_mtgjson_or_admin`).
+
+    Raises 503 if no token is configured (misconfiguration — the route can
+    never be called successfully in that state) and 401 if the header is
+    missing or doesn't match.
+    """
+    if settings.base.karn_ingest_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Karn Tablets ingestion is not configured.",
+        )
+    if not _karn_token_valid(x_karn_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing service credential.",
+        )
+
+
+KarnToken = Annotated[None, Depends(verify_karn_token)]

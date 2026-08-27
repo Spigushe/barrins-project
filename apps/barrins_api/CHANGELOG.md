@@ -7,6 +7,48 @@ section of the docs site for details.
 
 ### Added
 
+- Karn Tablets clustering ingest + read surface (T6 backend half,
+  ADR-13). `POST /internal/karn/ingest` (`X-Karn-Token` /
+  `KARN_INGEST_TOKEN`, same shape as scripture ingest) persists a pushed
+  clustering run into new `kt_*` tables (`kt_clustering_runs`,
+  `kt_archetypes`, `kt_run_archetypes`). The ingester
+  (`app/services/karn/ingester.py`) gives each cluster a **stable**
+  archetype identity by matching its representative decklist against the
+  registry (Jaccard ≥ 0.6), auto-naming new archetypes from their top
+  non-basic-land cards. Read layer (`app/services/karn/read.py`, isolated
+  per §45.1) is shared by the public Tolaria News BFF routes
+  `GET /bff/tolaria-news/{metagame,archetypes,trends}` (no auth, ADR-10)
+  and the S6 admin route
+  `GET /bff/tamiyo-scroll/admin/metrics/karn-tablets` (`AdminUser`), so
+  the two surfaces can't drift. All read routes take `window`
+  (`rolling_30d` | `banlist_period`) and an optional `format` query param
+  (default `"Duel Commander"` — see ADR-13's 2026-08-27 amendment).
+  Migration `a1f4c7e9b230`. Deployment playbook (T8) still separate.
+- Karn Tablets read contract additions (T6 frontend wiring). Additive —
+  no migration.
+  - **Window stepper.** `/metagame` and `/archetypes` responses gained
+    `previous_window` / `next_window` (`WindowOut | null`, the adjacent
+    windows of the same kind by period start), and both take an `at`
+    query param — a `window.label` — to step to a past window (`404` if
+    no run carries that label). `/archetypes` `data` changed from a bare
+    list to `{format, window, previous_window, next_window, archetypes}`
+    (the `page` envelope still carries the cursor).
+  - **Momentum** (`"rising" | "falling" | "stable" | "new"`) +
+    `deck_share_delta` on every archetype row now compare it to the run
+    of the **preceding window of the same kind** (not "the second-most-
+    recent run"), so momentum is meaningful at any point in the stepper;
+    at the oldest window everything is `"stable"`/`null`. The
+    ±10%-of-previous-share band is a backend-owned rule (§4.1/§4.2).
+  - Every archetype row (all three routes) gained
+    `commanders: [{name, scryfall_id}]` for card-image hovers.
+  - `/archetypes` `representative_mainboard` rows gained `scryfall_id`,
+    `is_land`, and `is_signature` — the last is `false` for a **basic**
+    land always and for any other land in ≥33% of the run's archetypes
+    (a metagame-wide staple), `true` otherwise; the frontend just
+    filters on it.
+  - `/archetypes` is cursor-paginated (`limit` 1–100, default 20; opaque
+    `cursor`; malformed cursor → `400`). `/trends` returns the top 10
+    archetypes.
 - Structured Commander/Library decklist view (S4):
   `GET .../personal-decks/{id}/decklist-view` now returns a
   `ResponseDecklistView` (`commander_cards`/`library_cards`/

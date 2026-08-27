@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
-from app.api.general import auth, card_images, health, mtgjson, scripture
+from app.api.general import auth, card_images, health, karn, mtgjson, scripture
 
 router = APIRouter()
 
@@ -20,3 +20,4 @@ router.include_router(card_images.router, prefix="/api/v1", tags=["card-images"]
 router.include_router(
     scripture.router, prefix="/internal/scripture", tags=["scripture-internal"]
 )
+router.include_router(karn.router, prefix="/internal/karn", tags=["karn-internal"])

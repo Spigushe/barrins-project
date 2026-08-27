@@ -344,3 +344,30 @@ class ResponsePlatformMetricsTimeseries(BaseResponse):
     accounts: ResponseMetricTimeseries
     personal_decks: ResponseMetricTimeseries
     matches: ResponseMetricTimeseries
+
+
+class ResponseKarnArchetypeShare(BaseResponse):
+    """One archetype's share of a Karn Tablets clustering run (ADR-13)."""
+
+    id: str
+    name: str
+    deck_count: int
+    deck_share: float
+
+
+class ResponseKarnDeckTypeDistribution(BaseResponse):
+    """The S6 admin view of the latest Karn Tablets clustering run for a
+    `(format, window)` — the same numbers the public Tolaria News
+    `/metagame` route serves (both call
+    `app.services.karn.read.metagame_snapshot`, so they cannot drift),
+    plus the run's window bounds and deck total for admin oversight."""
+
+    format: str
+    window_kind: Literal["rolling_30d", "banlist_period"]
+    window_label: str
+    window_date_from: date
+    window_date_to: date
+    total_decks: int
+    #: `generated_at` of the run; `None` when no run exists yet.
+    generated_at: datetime | None
+    archetypes: list[ResponseKarnArchetypeShare]
