@@ -20,6 +20,36 @@ section of the docs site for details.
   already-canonicalized card names — no new indexed columns needed.
 - `/methodology` — a real stub page (placeholder copy, no data), linked
   from a new secondary "Read the methodology" CTA on the landing page.
+- Flag-gated Karn Tablets pages (`VITE_FEATURE_KARN_TABLETS`, still off)
+  wired to the real `barrins_api` BFF routes and `src/schemas/
+  karnTablets.ts` reconciled against the live response shape. All three
+  pages default to the **banlist-period** window; every archetype name
+  and every card name is hoverable for Scryfall art (reusing the shared
+  `CardNameCell` / `CardFacesPreview`).
+  - `/metagame` — the archetype table is now a horizontal bar chart
+    (top 20, largest first), each row tagged with a rising / falling /
+    stable / new chip from the backend's `momentum` field (share change
+    vs the previous period, ±10%-relative band — classified server-side,
+    not in the client). A prev/next period stepper (`WindowStepper`)
+    steps through the windows of the current kind via `?at=`.
+  - `/trends` — keeps the shared-axis line chart and adds a provisional
+    second block: a per-archetype small-multiples sparkline grid, two
+    rows of five, kept until one display method is chosen.
+  - `/archetypes` — the detail table alone (representative-list size as
+    distinct/total, plus the top "signature" cards from the backend's
+    `is_signature` flag, which drops basic lands and metagame-wide
+    staple lands). Same prev/next period stepper as `/metagame`, plus
+    cursor pagination (Previous / Next, page size 20); pagination resets
+    when the window (kind or period) changes.
+
+### Notes
+
+- `VITE_FEATURE_KARN_TABLETS` stays unset in every environment — the
+  pages above are wired but not yet reachable. Flipping the flag is a
+  separate call (pending T7 docs / T8 playbook).
+- Trends "zoom into one period, split into 8 sub-points" was requested
+  but deferred: `kt_*` holds per-run aggregates only, so it needs a
+  pipeline or schema change first — tracked in the T6 doc.
 
 ## [2.0.0-alpha] - 2026-08-14
 
