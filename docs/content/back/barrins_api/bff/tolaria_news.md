@@ -92,7 +92,7 @@ Deliberately **not** in v1 (see "Deferred scope" below):
 `/metagame`, `/archetypes`, `/trends`, `/forecasts`, `/search`, a card
 oracle-text/image proxy, and tournament `location`. Bracket data
 (`bs_rounds`/`bs_round_matches`) **is** in v1 (`/tournaments/{id}/bracket`,
-added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output--data-flow-scope-and-consumption-surface)).
+added 2026-08-11 — see [ADR-13](../../../ops/architecture/decisions.md#adr-13-karn-tablets-output-data-flow-scope-and-consumption-surface)).
 
 **Addendum (2026-08-15)**: `GET /decks` (global index) added to back T5's
 `/decklists` route. Deliberately a plain filtered list, not the
@@ -236,22 +236,101 @@ BFF to justify a dedicated request-schema module.
 
 ---
 
-## Deferred scope (not built now, not "unscoped" — see T4's page)
+## Karn Tablets clustering — `/metagame`, `/archetypes`, `/trends` (ADR-13)
 
-Archetype clustering has an owner: T6 ("Karn Tablets," not started as
-of this page's writing). Everything downstream of "archetype" in an
-earlier design-handoff exploration (`/metagame`, `/archetypes`,
-`/trends`) is sequenced as a **T4 iteration 2**, once T6/T8 ship —
-and requires amending T6's own implementation plan, which currently
-routes its clustering output to the S6 admin dashboard only, not to
-Tolaria News. See T4's page for the full reconciliation against that
-design-handoff material, including what's rejected outright (a
-standalone Node BFF service — conflicts with the in-repo FastAPI
-pattern this page implements) and what's still genuinely unowned
-(`/forecasts`, full `/search`, tournament `location`). The card image
-proxy named here as unowned **was** built, 2026-08-14, as part of S4 —
-see the "Commander + card data" section above and the phase breakdown
-below.
+Built 2026-08-27. Backed by the `kt_*` tables the Karn Tablets clustering
+job (`apps/karn_tablets`) pushes into via `POST /internal/karn/ingest`
+(ADR-13's push-based data flow — `barrins_api` owns the schema, every
+consumer reads Postgres directly). Public, no auth (ADR-10), wrapped in
+the same `Envelope`/`Meta` as the rest of this BFF.
+
+### `POST /internal/karn/ingest`
+
+| | |
+| --- | --- |
+| **Purpose** | Persist one clustering run: window metadata + per-cluster share and representative decklist. Each cluster is matched to a stable `kt_archetypes` identity by representative-decklist Jaccard similarity (`app/services/karn/ingester.py`, threshold `0.6`) so `/trends` can follow an archetype across runs; the pipeline's raw `cluster_id` is *not* a stable identity. |
+| **Auth** | Static shared secret, `X-Karn-Token` header (`KARN_INGEST_TOKEN`), same mechanism as `X-Scripture-Token`. No admin-JWT fallback — the only caller is the scheduled job. |
+| **Request** | `{window: {kind, date_from, date_to, label}, algorithm, total_decks, pipeline_version, generated_at, archetypes: [{cluster_id, deck_count, share, representative_mainboard, representative_sideboard}], format?}`. `format` is optional and not sent by the pipeline today — the ingester stamps `"Duel Commander"`. This body is the frozen contract `apps/karn_tablets/karn_tablets/push.py` builds. |
+| **Response** | `200 {run_id, archetypes_matched, archetypes_created}` |
+| **Idempotency** | An exact re-push of the same `(format, window kind, window label, generated_at)` updates the run in place and rebuilds its cluster rows. A re-run of the same window with a later `generated_at` is a *new* run and becomes the one reads return. |
+| **Errors** | `401` missing/wrong token · `503` token not configured · `422` malformed body |
+
+### Public read routes
+
+All take `window` (`rolling_30d` \| `banlist_period`, required) and
+`format` (optional, default `"Duel Commander"` — the only populated value
+in v1; the param ships from v1 per ADR-13's 2026-08-27 amendment). By
+default they read the **latest** window for that `(format, window)`;
+`/metagame` and `/archetypes` also take `at` — a `window.label` from a
+prior response — to step to a past window (`404` if no run has that
+label). An unknown format or a window kind with no runs yet returns an
+empty snapshot with the current calendar window and `200`, never an
+error.
+
+| Method | Path | Response |
+| --- | --- | --- |
+| `GET` | `/bff/tolaria-news/metagame?at=` | `Envelope[{format, window, previous_window \| null, next_window \| null, archetypes: [{id, name, commanders: [CardRef], deck_count, deck_share, deck_share_delta \| null, momentum}]}]`, largest archetype first |
+| `GET` | `/bff/tolaria-news/archetypes?at=&limit=&cursor=` | `Envelope[{format, window, previous_window \| null, next_window \| null, archetypes: [{…MetagameArchetype, representative_mainboard: [{name, qty, scryfall_id \| null, is_land, is_signature}]}]}, page: {next_cursor \| null, limit}]` — `limit` 1–100 (default 20), `cursor` opaque; a malformed cursor is `400` |
+| `GET` | `/bff/tolaria-news/trends` | `Envelope[[{archetype_id, archetype_name, commanders: [CardRef], points: [{window: WindowOut, deck_share \| null}]}]]` — top-10 archetypes of the latest run, their share across the last 12 runs; `deck_share` is `null` for a run in which the archetype had no cluster |
+
+`window` / `previous_window` / `next_window` are all `WindowOut`. The
+last two are the adjacent windows of the same kind (oldest→newest,
+ordered by period start), for the frontend's prev/next stepper — `null`
+at either end. Navigate by re-requesting with `?at=<window.label>`.
+
+`CardRef` is `{name, scryfall_id \| null}`. `commanders` (on every
+archetype row of all three routes) is the archetype's commander card(s)
+— 1 solo, 2 for a partner pair, `[]` for none — resolved against
+`mj_cards` for the frontend's card-image hover; `name` can diverge from
+them (an admin rename, a `#2` split).
+
+`momentum` (`"rising" \| "falling" \| "stable" \| "new"`) and
+`deck_share_delta` compare each archetype to the run of the **preceding
+window of the same kind** (`previous_window`), not "the second-most-
+recent run" — so momentum stays meaningful at any point in the stepper.
+`deck_share_delta` is the raw share change; `momentum` buckets it against
+a ±10%-of-previous-share relative band (inside → `"stable"`; outside →
+`"rising"`/`"falling"`). `"new"` means the archetype had a cluster in
+this window but none in the preceding one (`deck_share_delta` is then
+`null`); at the oldest window (`previous_window` is `null`) every
+archetype is `"stable"` with a `null` delta.
+
+`is_land` (`/archetypes` only) is resolved against `mj_cards.type_line`
+(via `app/services/decklist_sort.py::categorize`). `is_signature` is the
+"belongs in the signature-cards view" flag: `true` for every non-land;
+`false` for a **basic** land (`Basic` supertype) always, and for any
+other land that appears in ≥33% of the run's archetypes' representative
+lists (a metagame-wide staple). A non-basic land unique to one archetype
+stays `is_signature: true`. The ≥33% threshold and the basic-land rule
+are backend-owned (Constitution §4.1/§4.2) — the frontend just filters
+on `is_signature`. Only `/archetypes` resolves per-card facts;
+`/metagame` and the S6 admin route resolve commanders only.
+
+`apps/tolaria_news/src/schemas/karnTablets.ts` is reconciled against
+this contract and its Metagame/Archetypes/Trends pages are wired to
+these routes: window defaults to `banlist_period`; Metagame and
+Archetypes carry a prev/next period stepper (`?at=`); Archetypes is the
+paginated detail table only; the Trends per-archetype grid is two rows
+of five. It all stays behind `VITE_FEATURE_KARN_TABLETS`, still unset in
+every environment — flipping it is gated on T7 docs / T8 playbook.
+
+The S6 admin dashboard reads the same numbers through the same service
+(`app/services/karn/read.py::metagame_snapshot`) at
+`GET /bff/tamiyo-scroll/admin/metrics/karn-tablets?window=&format=`
+(`AdminUser`-gated) — so admin and public can't drift (ADR-13
+consequence). This is a §51 aggregate-analytics surface: counts/shares
+derived from data already stored for the pipeline, public for the BFF,
+admin for S6.
+
+### Still deferred
+
+`/forecasts`, full `/search` DSL, and tournament `location` remain
+genuinely unowned (see T4's page — a standalone Node BFF service was
+rejected outright as conflicting with this in-repo FastAPI pattern). The
+Karn Tablets deployment playbook (T8) and the nginx rate-limit entries
+for these three new public paths are still open. The card image proxy
+once named here as unowned **was** built, 2026-08-14, as part of S4 —
+see the "Commander + card data" section above.
 
 ---
 

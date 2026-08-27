@@ -240,3 +240,120 @@ class StatsResponse(BaseResponse):
 
     tournaments_count: int
     decks_count: int
+
+
+# --- Karn Tablets metagame clustering (ADR-13) ---------------------------
+# Backed by the `kt_*` tables `apps/karn_tablets` pushes into. `format`
+# defaults to "Duel Commander" (the only populated value in v1); the param
+# ships from v1 by user decision, superseding ADR-13's "no format param"
+# note -- retrofitting a param onto a public contract later is worse.
+
+
+#: `deck_share` movement of an archetype from the previous run of the
+#: same `(format, window_kind)` to the latest one:
+#: - "rising"/"falling" -- `deck_share` changed by more than 10% of its
+#:   previous value (a relative band, so a 2%-share archetype and a
+#:   20%-share one are held to proportional thresholds);
+#: - "stable" -- present in both runs, within that band;
+#: - "new" -- had a cluster in the latest run but none in the previous one.
+#: When there is no previous run at all, every archetype is "stable" with
+#: a `None` delta -- there is nothing to compare against, not a claim of
+#: stability.
+ArchetypeMomentum = Literal["rising", "falling", "stable", "new"]
+
+
+class CardRef(BaseResponse):
+    """A card name plus its resolved Scryfall id (`None` if unresolved),
+    enough for the frontend's card-image hover."""
+
+    name: str
+    scryfall_id: str | None
+
+
+class MetagameArchetype(BaseResponse):
+    #: Stable across runs (`kt_archetypes.id` as a string) -- unlike a
+    #: run's raw cluster integer.
+    id: str
+    name: str
+    #: The archetype's commander card(s): 1 for a solo commander, 2 for a
+    #: partner pair, empty for data with no commander. `name` can diverge
+    #: (an admin rename, or a "#2" build split) -- these are the actual
+    #: underlying cards, for the image hover.
+    commanders: list[CardRef]
+    deck_count: int
+    #: `deck_count / run total`, in [0, 1].
+    deck_share: float
+    #: `deck_share` (latest run) minus `deck_share` (previous run) for this
+    #: archetype identity. `None` when there is no previous run, or the
+    #: archetype is absent from it (`momentum == "new"`).
+    deck_share_delta: float | None
+    #: `deck_share_delta` bucketed -- see `ArchetypeMomentum`. The band
+    #: threshold is a backend-owned domain rule, not a frontend concern
+    #: (Constitution 4.1/4.2).
+    momentum: ArchetypeMomentum
+
+
+class RepresentativeCard(BaseResponse):
+    name: str
+    qty: int
+    #: `None` if the name doesn't resolve in `mj_cards`.
+    scryfall_id: str | None
+    #: Resolved against `mj_cards` (`type_line`); `False` for a name that
+    #: doesn't resolve.
+    is_land: bool
+    #: `False` only for a land at or above the field-prevalence threshold
+    #: across the latest run's archetypes (a metagame-wide staple, not
+    #: archetype-defining). Always `True` for non-lands and for a land
+    #: unique to a single archetype. The frontend's "signature cards" view
+    #: renders only `is_signature` cards -- the threshold is a
+    #: backend-owned rule (Constitution 4.1/4.2).
+    is_signature: bool
+
+
+class MetagameArchetypeDetail(MetagameArchetype):
+    """`GET /archetypes` row -- adds the aggregated representative
+    mainboard so the response isn't a pure duplicate of `/metagame`."""
+
+    representative_mainboard: list[RepresentativeCard]
+
+
+class MetagameSnapshot(BaseResponse):
+    format: str
+    window: WindowOut
+    #: The adjacent windows of the same kind, oldest→newest, for the
+    #: frontend's prev/next stepper. `null` at either end. Navigate by
+    #: re-requesting with `?at=<window.label>`.
+    previous_window: WindowOut | None
+    next_window: WindowOut | None
+    #: Largest archetype first.
+    archetypes: list[MetagameArchetype]
+
+
+class ArchetypeDetailPage(BaseResponse):
+    """`GET /archetypes` payload -- the same window framing as
+    `MetagameSnapshot` (so the page can carry the prev/next stepper) plus
+    the detail rows. The list is a `?limit=&cursor=` slice; the outer
+    `Envelope.page` carries `next_cursor`."""
+
+    format: str
+    window: WindowOut
+    previous_window: WindowOut | None
+    next_window: WindowOut | None
+    archetypes: list[MetagameArchetypeDetail]
+
+
+class ArchetypeTrendPoint(BaseResponse):
+    window: WindowOut
+    #: `None` (not `0`) for a run in which this archetype had no cluster
+    #: -- lets a sparkline render a gap.
+    deck_share: float | None
+
+
+class ArchetypeTrend(BaseResponse):
+    archetype_id: str
+    archetype_name: str
+    #: Same as `MetagameArchetype.commanders` -- for the card-image hover
+    #: on the trends legend / small-multiples titles.
+    commanders: list[CardRef]
+    #: Chronological, one point per recent run of this window mode.
+    points: list[ArchetypeTrendPoint]
