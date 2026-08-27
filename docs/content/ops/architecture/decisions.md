@@ -969,3 +969,306 @@ the var unset," not "resurrect the role from git history."
   would need revisiting — nothing here rules that out, it's just not
   what the evidence in the 2026-08-10 incident shows.
 - This resolves the 2026-08-10 incident.
+
+## ADR-13: Karn Tablets output — data flow, scope, and consumption surface
+
+**Context.** T4 v1 shipped Tolaria News' tournament/deck/standings routes
+without the archetype-shaped ones (`/metagame`, `/archetypes`, `/trends`)
+— those depend on Karn Tablets (T6), which ADR-6 scoped but which hadn't
+started (`apps/karn_tablets` didn't exist) and left two sub-decisions open
+(windowing default, consumption surface). T6's own plan additionally
+defaulted the consumption surface to the S6 admin dashboard only, not
+Tolaria News — the opposite of what a "full Tolaria News BFF" needs.
+Planning this iteration (2026-08-11) required resolving all of this
+together, since they're interdependent: the consumption surface decides
+who needs the data, which decides how it should reach them.
+
+**Alternatives considered — data flow.**
+
+1. **Live synchronous API.** Karn Tablets self-schedules its own
+   retraining internally and exposes a small read API; `barrins_api`'s
+   Tolaria News BFF and the S6 dashboard call it live, per request.
+2. **Push-based.** Karn Tablets self-schedules retraining the same way,
+   but pushes its results to a new `barrins_api`-owned internal route
+   after each run (mirrors `POST /internal/scripture/ingest`, ADR-5's
+   "one schema owner" pattern); `barrins_api` stores them in its own
+   tables, and every consumer reads Postgres directly.
+
+**Trade-offs.** Option 1 keeps Karn Tablets fully decoupled from
+`barrins_api`'s schema, but makes the public Tolaria News BFF's read path
+depend on Karn Tablets' uptime and latency at request time — a dependency
+none of v1's routes have today (they're Postgres-only). Since clustering
+is inherently periodic, not real-time, that live coupling buys nothing.
+Option 2 costs `barrins_api` a small amount of schema it doesn't compute
+itself (the same trade ADR-5 already accepted for Barrin's Scripture,
+for the same reason: one schema owner, zero new runtime dependency on the
+public read path) but keeps Tolaria News exactly as available as it is
+today regardless of Karn Tablets' own uptime, and lets Karn Tablets itself
+collapse to a plain scheduled job (no inbound API to serve, so no
+persistent process, no internal scheduler library) rather than the
+"scheduled job plus narrow API" hybrid service shape ADR-6 anticipated as
+a possible third `ops/my-server` shape.
+
+**Decision.** Option 2 (push-based), per the user, 2026-08-11.
+
+**Alternatives considered — scope and windowing.**
+
+- **Consumption surface**: T6's plan defaulted to S6 (admin dashboard)
+  only. **Amended to Tolaria News + S6, both** — the whole point of this
+  iteration is exposing the data publicly; S6 keeps showing the same
+  numbers for admin oversight, reading the same tables (Phase 5 of the
+  implementation plan), so there's no drift between the two views.
+- **Windowing**: T6 left rolling-30-day vs. banlist-period undecided.
+  **Both, selectable** — v1 of Karn Tablets implements both modes rather
+  than picking a single default.
+- **Format scope**: `bs_tournaments.format` covers every format
+  `barrins_scripture` scrapes (MTGO and MTGTop8 both cover multiple
+  formats), but `apps/tolaria_news/README.md` names the app a "Duel
+  Commander tournament aggregator." Karn Tablets' v1 clustering input is
+  therefore filtered to `format == "Duel Commander"` only, matching the
+  same string check `services/tolaria_news/decks.py` already uses for
+  commander derivation. No `format` query parameter is added to the new
+  BFF routes for v1 — there is exactly one consumer and it only ever
+  wants one format; adding the parameter now would be an unused
+  abstraction (Constitution §48).
+
+**Consequences.**
+
+- T6's page is amended: consumption surface (Tolaria News + S6), both
+  windowing modes, Duel-Commander-only input, push-based (not live-API)
+  output.
+- T8's page is amended: Karn Tablets' deployment shape is a scheduled job
+  (systemd timer, matching `scripture_scraper`'s `.service`/`.timer`
+  pattern), not a new hybrid role — it reuses the existing scheduled-job
+  precedent directly. It needs no inbound network exposure at all (only
+  outbound, to Postgres and to `barrins_api`'s ingestion route), which
+  also resolves what would otherwise have been an open Agent-3
+  network-exposure question under the live-API alternative.
+- `barrins_api` gains a new owned schema (`kt_*` tables, mirroring the
+  `bs_*` naming convention already used for Barrin's Scripture's tables)
+  and a new internal ingestion route (`POST /internal/karn/ingest`),
+  authenticated by a static shared secret (`KARN_INGEST_TOKEN`) the same
+  way `SCRIPTURE_INGEST_TOKEN` gates `POST /internal/scripture/ingest`.
+- A later expansion — feeding Tamiyo Scroll's own results (`ts_*`) into
+  Karn Tablets alongside scraped tournament data — is anticipated but not
+  built now (Constitution §39): Karn Tablets' data-access layer should
+  keep its "read decks to cluster" step behind a per-source boundary
+  (today: one reader, Duel-Commander-only `bs_*`) rather than hardcoding
+  a single-source assumption, and its archetype labels should be chosen
+  without colliding with Tamiyo Scroll's existing `ArchetypeCategory`
+  enum (S11's personal-deck macrotype) later.
+- The clustering algorithm/library itself is still not chosen — that
+  still requires its own §4.7/§22 approval record before implementation
+  starts on Karn Tablets' pipeline.
+- See `docs/project/v2.0.0-bump/t4-tolaria-news-bff/index.md`,
+  `t6-karn-tablets-scaffold/index.md`, and
+  `t8-scripture-karn-playbooks/index.md` for the full implementation
+  breakdown.
+
+**Amendment (2026-08-27).** The "no `format` query parameter is added to
+the new BFF routes for v1" point above is superseded by the user: the
+`/metagame`, `/archetypes`, `/trends`, and the S6
+`/admin/metrics/karn-tablets` routes all take an optional `format` query
+param from v1 (defaulting to `"Duel Commander"`, the only populated value
+today). Rationale: the param will be needed as soon as Karn Tablets
+clusters more than one format, and retrofitting a parameter onto an
+already-public contract is worse than carrying it from the start. Nothing
+else changes — the pipeline still pushes Duel-Commander-only data with no
+`format` field, the ingest route's body still has no required `format`,
+and the ingester stamps `"Duel Commander"` (`INGEST_DEFAULT_FORMAT`). The
+`kt_*` schema, the ingester's archetype matching, and both read surfaces
+are scoped by `(format, window_kind)` so a multi-format pipeline later
+needs no schema or contract change.
+
+## ADR-14: Tamiyo Scroll pagination — dedicated `Paginated[T]`, not `Envelope`
+
+**Context.** The user wants pagination on Tamiyo Scroll's two largest
+list endpoints — `GET /matches` (the "Journal") and `GET /card-tests`
+— with a page size the user selects from {10, 25, 50}. Tolaria News
+already has a pagination-shaped response wrapper, `Envelope[T]` /
+`Meta` / `Page` (`{data, meta, page?}`, `responses_tolaria_news.py`),
+raising the question of whether Tamiyo Scroll should adopt the same
+wrapper for consistency (Constitution §4.3) rather than invent a
+second pattern.
+
+**Alternatives considered.**
+
+1. **Adopt Tolaria News' `Envelope[T]`** wholesale, wrapping `Paginated`
+   Tamiyo Scroll responses the same way.
+2. **New dedicated `Paginated[T]`** (`items`, `total`, `page`,
+   `per_page`), added to the shared `responses_base.py`, applied only
+   to the two affected endpoints.
+
+**Trade-offs.** `Envelope`'s `Page` is cursor pagination
+(`next_cursor`, `limit`) — built for infinite-scroll over Tolaria
+News' public, staleness-sensitive tournament data. A page-size
+selector (10/25/50) is page-number pagination: the user expects a
+total count and the ability to jump between pages, neither of which a
+cursor token supports. `Envelope`'s `Meta` (`generated_at`,
+`source_synced_at`) also has no Tamiyo Scroll equivalent — matches and
+card tests are the user's own live-written data, not scraped data with
+a sync lag; forcing it in would mean dummy fields with no meaning.
+Beyond the shape mismatch, treating `Envelope` as *the* Tamiyo Scroll
+convention would, for consistency, eventually pull in all of Tamiyo
+Scroll's ~117 route handlers and every test asserting on a bare
+response body — a large, unscoped migration in service of two
+endpoints whose pagination need doesn't fit the wrapper being adopted.
+Separately, `GET /matches` builds its result via
+`services/tamiyo_scroll/sharing_merge.py`'s `build_merged_view`, which
+merges the owner's own rows with name-matched shared rows **in
+Python**, not SQL — there is no query to attach `LIMIT`/`OFFSET` to.
+This affects the implementation (pagination is a slice of the
+already-sorted merged list, acceptable at personal-tracker scale) but
+not the choice between the two wrapper shapes above.
+
+**Decision.** Option 2, per the user. `Paginated[T]` is added to
+`app/schemas/responses_base.py` and used only by `GET /matches` and
+`GET /card-tests`. `Envelope` remains Tolaria-News-specific, per its
+original divergence rationale already documented in
+`responses_tolaria_news.py`'s module docstring — this ADR reaffirms
+rather than revisits that boundary.
+
+Page size is **not** a per-request query parameter or a
+`localStorage`-only client preference: it is persisted server-side as
+a `ts_user_settings` field, one independent setting per list ("Journal
+page size" and "Card Tests page size" are separate, per the user —
+changing one never affects the other), editable only from the Account
+Settings popup (`AccountSettingsDialog.tsx`), the same place
+`data_shared` / `receive_shared_data` / `active_personal_deck_id`
+already live. This is consistent with Option D of
+`docs/content/back/barrins_api/bff/tamiyo_scroll.md` ("dedicated
+`ts_user_settings` table for the BFF domain, `users` stays a pure
+identity model") — page size is exactly this kind of Tamiyo-Scroll-only
+preference, not a Barrin-wide concept.
+
+**Consequences.**
+
+- `ts_user_settings` gains two new columns (working names:
+  `journal_page_size`, `card_tests_page_size`), each constrained to
+  {10, 25, 50}, with a default — needs a migration.
+- `ResponseUserSettings` / `UserSettingsUpdate`
+  (`schemas/responses_tamiyo_scroll.py` / `schemas/tamiyo_scroll.py`)
+  and `PATCH /me/settings` (`api/tamiyo_scroll/settings.py`) gain the
+  two fields, validated against the allowed set the same way
+  `receive_shared_data` is validated against `data_shared`.
+- `GET /matches` and `GET /card-tests` gain a `page` (page number)
+  query param only — `per_page` is read server-side from the caller's
+  stored setting, never accepted as a request override, since the
+  settings popup is the only place page size changes.
+- `AccountSettingsDialog.tsx` gains two page-size selectors (one per
+  list) alongside the existing sharing toggles and display-preference
+  switches.
+- Not yet implemented — this ADR precedes the implementation. Once
+  shipped, `docs/content/back/barrins_api/bff/tamiyo_scroll.md`'s
+  route map (already flagged in its own 2026-08-02 gap note as
+  out of date past v1) and `responses_base.py` should reflect
+  `Paginated[T]` alongside `BaseResponse`.
+
+## ADR-15: Karn Tablets observability — job health and Jupyter Lab
+
+**Context.** ADR-13 settled Karn Tablets as a push-based scheduled job
+(systemd timer mirroring `scripture_scraper`, no inbound API, no
+persistent process). That leaves two related but unresolved day-2
+operability questions, neither part of the pipeline's core scope
+(ADR-6): how anyone knows whether a given clustering run succeeded, and
+how anyone explores the underlying data/clustering output interactively,
+beyond the fixed views the Tolaria News BFF and S6 admin dashboard
+surface (ADR-13).
+
+**Alternatives considered — run-health monitoring.**
+
+1. Add a HetrixTools tracker for Karn Tablets, matching the uptime
+   monitoring already used for `barrins_api` (ADR-4).
+2. Have Karn Tablets expose a small inbound HTTP status/health endpoint
+   for something else to poll.
+3. Scheduled-job health only: state is checked the same way
+   `scripture_scraper`'s already is today (`systemctl status`/
+   `journalctl` on the VPS) — no new tracker, no new endpoint.
+
+**Trade-offs.** Option 1 would consume a HetrixTools slot on a free tier
+already fully used by `barrins_api` prod+staging (ADR-4) — a paid tier or
+dropping an existing tracker, for a periodic batch job with no
+user-facing uptime property to begin with (HetrixTools checks HTTP
+uptime; a scheduled job's failure mode is "did the run exit 0", not "is
+it up right now" — the same mismatch D2/F1 already noted for
+`scripture_scraper`). Option 2 reintroduces exactly the inbound network
+exposure ADR-13 deliberately eliminated ("needs no inbound network
+exposure at all"), for a monitoring shape that still wouldn't fit a
+periodic job well. Option 3 adds nothing new architecturally and matches
+existing precedent exactly, but inherits the same known gap already
+tracked for `scripture_scraper`: no automated failure notification yet,
+manual inspection only.
+
+**Decision.** Option 3. Karn Tablets' scheduled-job health is checked the
+same way `scripture_scraper`'s is today — manual `systemctl status`/
+`journalctl` on the VPS. This folds Karn Tablets into the same,
+already-open D2/F1 backlog item (automated scheduled-job failure
+notification) rather than solving it separately per job. No HetrixTools
+tracker is added for Karn Tablets; no inbound status endpoint is built.
+
+**Alternatives considered — Jupyter Lab's purpose and scope.**
+
+1. Jupyter Lab is part of the production pipeline: notebooks are how
+   clustering actually runs, or how it's monitored, in production.
+2. Jupyter Lab is an ops/dev exploration tool only: a workbench,
+   restricted to `admin` and `ml_developer` account holders, for
+   interactively poking at `bs_*`/`kt_*` data and clustering behavior.
+   The pipeline itself stays exactly what T6 scaffolded — a CLI batch job
+   (`uv run karn-tablets ...`), no notebooks anywhere in the execution
+   path.
+
+**Trade-offs.** Option 1 would put an interactive, hand-run artifact
+inside the actual clustering execution path, cutting against Constitution
+§45.2 (reproducible pipelines, every result carries source
+data/version/model info) — a notebook run by hand doesn't reproduce the
+same way a scheduled CLI job does. Option 2 keeps §45.2 fully intact
+(the pipeline `apps/karn_tablets` already scaffolds is untouched) and
+scopes Jupyter to what it's actually good at: ad-hoc exploration of data
+already produced by the real pipeline.
+
+**Decision.** Option 2. Jupyter Lab, reachable at
+`karn-jupyter.barrins-codex.org`, is an interactive exploration tool over
+Karn Tablets' data, restricted to `admin` and `ml_developer` account
+holders — never part of the scheduled clustering job itself, which
+remains the CLI pipeline `apps/karn_tablets` already scaffolds.
+
+The authorization boundary reuses `auth_roles.md`'s existing role
+hierarchy rather than inventing a new one: `ml_developer` (level 3) and
+`admin` (level 4) are already-defined roles, and `MlDeveloperUser`
+already exists as a dependency alias covering exactly this pair (`admin
+⊃ ml_developer` in the hierarchy, so gating at the `ml_developer` level
+already admits admins too). No new role is created for Jupyter access.
+
+The *technical* enforcement mechanism is deliberately left open here
+rather than prescribed: the closest existing infra precedent is pgAdmin
+(`ops/my-server`) — Docker, bound to `127.0.0.1` only, its own nginx
+vhost with a dedicated cert, and the tool's own login as the sole access
+gate, no separate allowlist layer. Whether Jupyter follows that same
+shape (its own login, credentials handed out only to `admin`/
+`ml_developer` account holders, same as pgAdmin's credential-sharing
+model) or something that actively validates a `barrins_api` JWT/role
+(an auth-checking reverse-proxy layer, heavier to build) is not decided
+here — no ops role for Jupyter exists yet, and picking the concrete
+shape is deferred to the T8-style implementation task that actually
+builds it, the same way ADR-13 deferred Karn Tablets' own deployment
+shape until it was concretely needed.
+
+**Consequences.**
+
+- No new HetrixTools tracker, no new inbound endpoint on Karn Tablets;
+  Karn Tablets' run-health is added to D2/F1's existing scope
+  (automated scheduled-job failure notification, still open) rather than
+  given its own bespoke solution.
+- `apps/karn_tablets`' pipeline code and its §45.2 reproducibility
+  properties are unaffected by this decision — Jupyter is additive
+  tooling on top, not a second execution path.
+- A new subdomain, `karn-jupyter.barrins-codex.org`, needs a
+  `register_ssl` entry and a new `ops/my-server` role plus nginx vhost
+  before it can go live — not yet built. Until that implementation task
+  picks and builds an enforcement mechanism, "`admin`/`ml_developer`
+  only" is a stated requirement, not yet an enforced access boundary.
+- Follows the same pattern as ADR-1/ADR-5/ADR-13's `KARN_INGEST_TOKEN`,
+  `SCRIPTURE_INGEST_TOKEN`, etc.: whatever auth Jupyter ends up using
+  (its own token/password, per the pgAdmin precedent) is a secret,
+  handled per ADR-1 — never committed, documented in
+  `ops/my-server/secrets/README.md` once it exists.

@@ -185,6 +185,19 @@ class BaseAppSettings(BaseSettings):
         ),
     )
 
+    # --- Karn Tablets ingestion (ADR-13) ---
+    karn_ingest_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Shared static token the Karn Tablets clustering job "
+            "(apps/karn_tablets) sends as the X-Karn-Token header on "
+            "POST /internal/karn/ingest, compared with hmac.compare_digest "
+            "exactly like scripture_ingest_token. Empty -> the route "
+            "always responds 503 (misconfigured), never accepts a request "
+            "unauthenticated."
+        ),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url_sync(self) -> str:
