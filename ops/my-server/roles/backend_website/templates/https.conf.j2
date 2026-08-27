@@ -28,7 +28,7 @@ server {
 
 {% for p in backend_website_config.rate_limited_paths %}
   location {{ p.path }} {
-    limit_req zone={{ p.zone }} burst={{ p.burst }} nodelay;
+    limit_req zone={{ backend_website_config.zone_prefix }}_{{ p.zone }} burst={{ p.burst }} nodelay;
     limit_req_status 429;
     try_files $uri @backend;
   }

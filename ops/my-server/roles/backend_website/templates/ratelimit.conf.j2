@@ -3,5 +3,5 @@
 # (conf.d, not sites-enabled/<vhost>), since limit_req_zone can't be
 # declared inside a `server` block.
 {% for p in backend_website_config.rate_limited_paths %}
-limit_req_zone $binary_remote_addr zone={{ p.zone }}:10m rate={{ p.rate }};
+limit_req_zone $binary_remote_addr zone={{ backend_website_config.zone_prefix }}_{{ p.zone }}:10m rate={{ p.rate }};
 {% endfor %}
