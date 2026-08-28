@@ -12,6 +12,22 @@
 
 ---
 
+## Reference material
+
+- [`Karn Tablets Readout (standalone).html`](<./Karn Tablets Readout (standalone).html>)
+  — self-contained verification view of a dev-database clustering run
+  (2026-08-27, `pipeline_version` 0.1.0, k-means). Renders the `kt_*`
+  data read back through the `/bff/tolaria-news/{metagame,archetypes,
+  trends}` routes: "metagame now" for both window modes, per-archetype
+  share across every Duel Commander banlist period since mid-2024, a
+  rolling-30-day cross-check, and the full latest-run cluster table
+  (auto-derived name, representative decklist size, signature cards).
+  Not a published metagame report — kept here as a snapshot of what the
+  pipeline actually computed. Exported from Claude artifact
+  `f83f45b7-9e53-48d4-a7fb-f426f130adbb`.
+
+---
+
 ## Context
 
 §1.4 originally recommended scoping Karn Tablets to a placeholder for
