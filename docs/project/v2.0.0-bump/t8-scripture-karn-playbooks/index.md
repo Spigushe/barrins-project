@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟡 **Barrin's Scripture half done (2026-08-08); still blocked on T6 for Karn Tablets** — `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
+| **Status** | 🟢 **Both playbooks written (Karn Tablets 2026-08-28); neither deployed to the real VPS yet** — Barrin's Scripture half done 2026-08-08 (see below). Karn Tablets: `ops/my-server/karn_tablets.yml` + the `karn_tablets` role now run `apps/karn_tablets` as a daily `systemd`-timer job (03:00 UTC), same application-level scheduled-job shape as `scripture_scraper` minus the scraping/Chromium/archive/sweep. `deploy_env` staging/production side-by-side (default staging). `KARN_INGEST_TOKEN` via a new `karn_ingest_token` role (mirrors `scripture_ingest_token`); `KARN_TABLETS_DATABASE_URL_RO` is a hand-created read-only Postgres role (`CREATE ROLE … GRANT SELECT`, snippet in the `.env.example` + playbook reminder). `ansible-lint ops/my-server` clean (production profile). The three public read routes it feeds are `barrins_api`'s, already rate-limited by that vhost's `location /bff/tolaria-news` block — nothing to add. Remaining: a real staging deploy + UAT. — Barrin's Scripture detail: `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
 | **Dependency** | T1 (done), T6 (open), D1 (✅ done 2026-08-03) | / |
 
@@ -58,8 +58,11 @@ narrow read API, if the consumption-surface decision lands there.
   scrape's.
 - A Karn Tablets playbook exists once T6's consumption-surface decision
   lands, following the same scheduled-job pattern (plus a minimal API
-  role if T6 needs one) — no longer explicitly out of scope, but not
-  written until T6 unblocks it. **Still open.**
+  role if T6 needs one). **Done (2026-08-28).** T6 resolved push-based /
+  no inbound API (ADR-13), so no API role was needed: `karn_tablets.yml`
+  and the `karn_tablets` role are a straight scheduled-job deploy
+  modelled on `scripture_scraper`. `ansible-lint` clean; a real staging
+  deploy plus UAT is the only remaining step.
 
 ## Tasks
 
@@ -139,11 +142,18 @@ narrow read API, if the consumption-surface decision lands there.
       existing production one. Cutting over to production means passing
       both `-e deploy_branch=main -e deploy_env=production` together —
       the default never posts to production by accident.
-- [ ] Once T6 resolves its consumption-surface question, write Karn
+- [x] Once T6 resolves its consumption-surface question, write Karn
       Tablets' playbook: a scheduled job for the clustering run, plus a
-      minimal API role only if T6 needs one exposed. **Out of
-      Barrin's-Scripture scope** — Karn Tablets is a different
-      application; not touched without the user's go-ahead.
+      minimal API role only if T6 needs one exposed. **Done
+      (2026-08-28)**: T6 landed push-based / no inbound API (ADR-13,
+      merged via #106), so no API role. `ops/my-server/karn_tablets.yml`
+      + `roles/karn_tablets/` (daily `systemd` timer, `deploy_env`
+      staging/production) + `roles/karn_ingest_token/` (shared
+      `KARN_INGEST_TOKEN`, mirrors `scripture_ingest_token`) +
+      `secrets/karn{,_tablets}/*.example` + a `karn` CI job. The
+      read-only DB role (`KARN_TABLETS_DATABASE_URL_RO`) is a documented
+      manual `CREATE ROLE … GRANT SELECT` step, like the `postgres`
+      superuser password. `ansible-lint` clean (production profile).
 
 ## UAT (manual)
 

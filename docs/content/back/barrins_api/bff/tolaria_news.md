@@ -327,10 +327,15 @@ admin for S6.
 `/forecasts`, full `/search` DSL, and tournament `location` remain
 genuinely unowned (see T4's page — a standalone Node BFF service was
 rejected outright as conflicting with this in-repo FastAPI pattern). The
-Karn Tablets deployment playbook (T8) and the nginx rate-limit entries
-for these three new public paths are still open. The card image proxy
-once named here as unowned **was** built, 2026-08-14, as part of S4 —
-see the "Commander + card data" section above.
+card image proxy once named here as unowned **was** built, 2026-08-14,
+as part of S4 — see the "Commander + card data" section above.
+
+The Karn Tablets deployment playbook (T8) landed 2026-08-28
+(`ops/my-server/karn_tablets.yml` — a scheduled `systemd`-timer job, not
+deployed to the real VPS yet). No separate nginx rate-limit entry was
+needed for `/metagame`, `/archetypes`, `/trends`: `barrins_api.yml`'s
+existing `location /bff/tolaria-news` `limit_req` block is a prefix
+match that already covers them (`20r/s`, burst `80`, per IP).
 
 ---
 

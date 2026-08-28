@@ -159,6 +159,16 @@ a new shape.
   failure-notification wiring (Validation today is manual
   `systemctl status`/`journalctl`) — both real gaps a future consumer of
   this template should decide deliberately rather than silently repeat.
+- `ops/my-server/roles/karn_tablets/` +
+  `ops/my-server/karn_tablets.yml` (T8) — a second application-level
+  scheduled job built directly against this checklist, narrower than
+  `scripture_scraper`: no external scraping, no Chromium, no archive, no
+  sweep. Reads `bs_*`/`mj_*` over a read-only DB credential and pushes to
+  `barrins_api`'s `POST /internal/karn/ingest`. Its README carries the
+  Step-0 answers; the read-only DB role
+  (`KARN_TABLETS_DATABASE_URL_RO`) is the one item it leaves to a manual
+  step (`CREATE ROLE … GRANT SELECT`), like the `postgres` superuser
+  password.
 
 ## See also
 

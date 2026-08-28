@@ -77,6 +77,8 @@ nav:
                 - Docs Site: ops/roles/docs_site/index.md
                 - FastAPI Backend: ops/roles/fastapi_backend/index.md
                 - GitHub Token: ops/roles/github_token/index.md
+                - Karn Ingest Token: ops/roles/karn_ingest_token/index.md
+                - Karn Tablets: ops/roles/karn_tablets/index.md
                 - MTGJSON Import Scheduler: ops/roles/mtgjson_import_scheduler/index.md
                 - pgAdmin: ops/roles/pgadmin/index.md
                 - Postgres Backup: ops/roles/postgres_backup/index.md

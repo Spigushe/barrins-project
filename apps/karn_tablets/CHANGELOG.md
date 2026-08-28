@@ -29,3 +29,13 @@ section of the docs site for details.
 - `push`: posts a run's result to `barrins_api`'s
   `POST /internal/karn/ingest`.
 - `__main__`: `karn-tablets` CLI, the systemd-timer entry point.
+- Deployment (T8): `ops/my-server/karn_tablets.yml` + the `karn_tablets`
+  Ansible role run this pipeline as a daily `systemd`-timer job on the
+  VPS (03:00 UTC, `Persistent`), `deploy_env` staging/production
+  side-by-side. The shared `KARN_INGEST_TOKEN` is provisioned by the
+  `karn_ingest_token` role; `KARN_TABLETS_DATABASE_URL_RO` points at a
+  hand-created read-only Postgres role. See
+  `ops/my-server/roles/karn_tablets/README.md`.
+- CI: a `karn` job in `.github/workflows/CI.yml`
+  (`apps/karn_tablets/**` / `apps/dc_calendar/**` paths-filter) running
+  `ruff` / `ty` / `pytest`.
