@@ -1,0 +1,131 @@
+---
+# Dedicated playbook for the Karn Tablets clustering pipeline. Like
+# barrins_scripture.yml this app has no HTTP-facing component (T6,
+# ADR-13: a scheduled job, not a deployed web service) — no domain/SSL/
+# reverse-proxy roles here. Constitution §26.1 ("one application, one
+# playbook"): this playbook touches nothing belonging to barrins_api /
+# tolaria_news / tamiyo_scroll. The three public read routes it feeds
+# (/bff/tolaria-news/{metagame,archetypes,trends}) are barrins_api's,
+# deployed and rate-limited by barrins_api.yml.
+- name: Deploy/schedule the Karn Tablets clustering run
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    karn_tablets_repo: Spigushe/barrins-project
+    karn_tablets_repo_subdir: apps/karn_tablets
+    # Defaults to staging so the clustering run can be validated
+    # end-to-end against the staging barrins_api before a production
+    # cutover — pass -e deploy_env=production to cut over. Mirrors
+    # barrins_scripture.yml: deploy_env alone drives the git branch, the
+    # checkout/work dir, the systemd unit name (via app_name) and which
+    # .env / ingest-token file is loaded, so staging and production run
+    # as fully independent, side-by-side instances.
+    #   ansible-playbook karn_tablets.yml -e deploy_env=production
+    # To validate a feature branch against the staging API, override the
+    # branch directly (extra-vars win over deploy_env's derived default):
+    #   ansible-playbook karn_tablets.yml -e karn_tablets_git_branch=my-feature
+    deploy_env: staging
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    karn_tablets_app_name: "karn_tablets{{ env_suffix }}"
+    karn_tablets_git_branch: "{{ env_branch }}"
+    # Local, git-ignored .env — deployed to <work_dir>/.env on every run
+    # if present on this machine, skipped otherwise (same pattern as
+    # barrins_scripture.yml's scripture_scraper_env_file). Holds
+    # KARN_TABLETS_DATABASE_URL_RO and BARRINS_API_URL — see
+    # secrets/README.md to create it. KARN_INGEST_TOKEN is NOT in this
+    # file: it's injected from the single shared secret below.
+    karn_tablets_env_file: "{{ playbook_dir }}/secrets/karn_tablets/{{ deploy_env }}.env"
+
+  roles:
+    - role: github_token
+
+    - role: karn_ingest_token
+
+    - role: karn_tablets
+      tags: [karn, deploy]
+
+  post_tasks:
+    - name: Check whether a .env was actually deployed to inject the token into
+      ansible.builtin.stat:
+        path: "{{ karn_tablets_config.work_dir }}/.env"
+      register: karn_tablets_deployed_env_stat
+      tags: [karn, deploy]
+
+    - name: Inject the shared KARN_INGEST_TOKEN into the deployed .env
+      no_log: true
+      ansible.builtin.lineinfile:
+        path: "{{ karn_tablets_config.work_dir }}/.env"
+        regexp: "^KARN_INGEST_TOKEN="
+        line: "KARN_INGEST_TOKEN={{ karn_ingest_token }}"
+        owner: "{{ username }}"
+        mode: "0600"
+      when: karn_tablets_deployed_env_stat.stat.exists
+      tags: [karn, deploy]
+
+    - name: Check whether the staging timer exists (to stop it on production cutover)
+      ansible.builtin.stat:
+        path: /etc/systemd/system/karn_tablets-staging.timer
+      register: karn_tablets_staging_timer_stat
+      when: deploy_env == 'production'
+      tags: [karn, deploy]
+
+    - name: Stop and disable the staging timer/service to save resources on production cutover
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - karn_tablets-staging.timer
+        - karn_tablets-staging.service
+      when: deploy_env == 'production' and karn_tablets_staging_timer_stat.stat.exists
+      tags: [karn, deploy]
+
+    - name: Immediately fire the clustering run on production deploys
+      # Blocking (Type=oneshot) — this playbook run doubles as the deploy
+      # validation instead of waiting for the next daily timer tick.
+      ansible.builtin.systemd:
+        name: "{{ karn_tablets_config.service_name }}.service"
+        state: started
+      when: deploy_env == 'production'
+      tags: [karn, deploy]
+
+    - name: Reminder — the read-only DB role is created by hand, not here
+      ansible.builtin.debug:
+        msg:
+          - "{{ karn_tablets_config.work_dir }}/.env needs"
+          - "KARN_TABLETS_DATABASE_URL_RO pointing at a read-only Postgres"
+          - "role scoped to SELECT on bs_*/mj_* — NOT barrins_api's own"
+          - "DATABASE_URL. Like the postgres superuser password"
+          - "(postgresql_pgadmin.yml), this role is created manually. SSH"
+          - "in and run, as the postgres user against the barrins DB:"
+          - "CREATE ROLE karn_tablets_ro LOGIN PASSWORD '<pw>';"
+          - "GRANT CONNECT ON DATABASE barrins TO karn_tablets_ro;"
+          - "GRANT USAGE ON SCHEMA public TO karn_tablets_ro;"
+          - "GRANT SELECT ON ALL TABLES IN SCHEMA public TO karn_tablets_ro;"
+          - "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT TO karn_tablets_ro;"
+          - "Full snippet also in secrets/karn_tablets/{{ deploy_env }}.env.example."
+      tags: [karn, deploy]
+
+    - name: Reminder — which barrins_api this run is currently targeting
+      ansible.builtin.debug:
+        msg:
+          - "deploy_env={{ deploy_env }}: the run pushes to whatever"
+          - "BARRINS_API_URL is in {{ karn_tablets_env_file }}, clustering"
+          - "the {{ karn_tablets_config.git_branch }} branch's code."
+          - "Validate against staging (the default) before cutting over"
+          - "with -e deploy_env=production — see"
+          - "docs/project/v2.0.0-bump/t8-scripture-karn-playbooks/index.md."
+      tags: [karn, deploy]
+
+    - name: Reminder — .env is local-only, not managed by git
+      ansible.builtin.debug:
+        msg:
+          - "{{ karn_tablets_env_file }} is git-ignored (Constitution §34)"
+          - "— if this is a fresh checkout and that file doesn't exist yet"
+          - "on this machine, the .env step was skipped and the server's"
+          - "existing .env (if any) was left untouched. The timer's ticks"
+          - "will fail until it's deployed. See secrets/README.md."
+      tags: [karn, deploy]

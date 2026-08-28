@@ -1,0 +1,23 @@
+---
+karn_tablets_config:
+  repo: "{{ karn_tablets_repo }}"
+  repo_subdir: "{{ karn_tablets_repo_subdir | default('apps/karn_tablets') }}"
+  git_branch: "{{ karn_tablets_git_branch | default('main') }}"
+  app_name: "{{ karn_tablets_app_name }}"
+  app_root: "/home/{{ username }}/projects/{{ karn_tablets_app_name }}"
+  # Systemd unit base name and wrapper-script path are derived from
+  # app_name so side-by-side staging/production deploys (distinct
+  # app_name per karn_tablets.yml's env_suffix) get their own
+  # timer/service instead of fighting over one shared unit.
+  service_name: "{{ karn_tablets_app_name }}"
+  run_script_path: "/usr/local/bin/{{ karn_tablets_app_name }}_run.sh"
+  work_dir: >-
+    {{ '/home/' + username + '/projects/' + karn_tablets_app_name
+    + '/' + (karn_tablets_repo_subdir | default('apps/karn_tablets')) }}
+  daily_hour: "{{ karn_tablets_daily_hour | default(3) }}"
+  github_token: "{{ karn_tablets_github_token | default(github_token) }}"
+  env_file: "{{ karn_tablets_env_file | default('') }}"
+  # Passed straight to `karn-tablets --window` / `--algorithm`. Defaults
+  # match the CLI's own defaults (see apps/karn_tablets/karn_tablets/__main__.py).
+  window_mode: "{{ karn_tablets_window_mode | default('both') }}"
+  algorithm: "{{ karn_tablets_algorithm | default('kmeans') }}"

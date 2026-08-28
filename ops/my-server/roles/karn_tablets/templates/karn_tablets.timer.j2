@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily Karn Tablets clustering run ({{ karn_tablets_config.app_name }})
+
+[Timer]
+# Explicit UTC suffix (systemd.time(7)) rather than a bare local-time
+# spec — correct regardless of whether this host's clock is set to UTC.
+# The rolling-30d window shifts every day and /trends wants a steady run
+# history, so this fires daily (see the T8 cadence decision, 2026-08-28).
+OnCalendar=*-*-* {{ '%02d' | format(karn_tablets_config.daily_hour | int) }}:00:00 UTC
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target
