@@ -34,13 +34,20 @@ the shape `scripture_scraper` already implements (see above).
 
 **Karn Tablets is no longer deferred** (§1.4, resolved 2026-07-26): it
 ships real clustering/aggregation functionality in v2.0.0, not a
-placeholder. Its playbook is still **blocked on T6**, but for an
-ordinary dependency reason (T6 hasn't decided its consumption surface —
-a periodic job with no API, vs. a periodic job plus a small results-
-serving API), not because there's no code to deploy. Once T6 resolves
-that, this item likely needs a third service shape alongside Barrin's
-Scripture's scheduled-job pattern — a scheduled job that also exposes a
-narrow read API, if the consumption-surface decision lands there.
+placeholder. T6 resolved its consumption surface as push-based / no
+inbound API (ADR-13, merged via #106), so the playbook is a straight
+scheduled-job deploy modelled on `scripture_scraper` — no results-
+serving API role after all. Done 2026-08-28 (see the Tasks section).
+
+**ADR-15's Jupyter Lab half is out of this item's scope.** ADR-15
+(Karn Tablets observability) has two halves: run-health monitoring
+(closed — folded into D2/F1, no new tracker/endpoint) and a Jupyter Lab
+workbench at `karn-jupyter.barrins-codex.org` for `admin`/`ml_developer`
+account holders. ADR-15 explicitly makes the Jupyter deployment (and its
+auth-enforcement mechanism) a separate "T8-style implementation task" —
+it is **not** part of the scheduled clustering job this page delivers.
+That task is now tracked as
+[T9](../t9-karn-jupyter-workbench/index.md).
 
 ## Done statement
 
