@@ -32,6 +32,17 @@ secrets/
     production_ingest_token.txt.example  # shared by barrins_api.yml AND
     production_ingest_token.txt          # barrins_scripture.yml — one value
                                           # per environment, not per app
+  karn_tablets/
+    production.env.example   # KARN_INGEST_TOKEN is NOT in these files —
+    production.env           # see secrets/karn/ below. deploy_env picks
+    staging.env.example      # which one gets deployed (default staging —
+    staging.env              # see karn_tablets.yml)
+  karn/
+    staging_ingest_token.txt.example     # plaintext template, committed
+    staging_ingest_token.txt             # real value, git-ignored, local-only
+    production_ingest_token.txt.example  # shared by barrins_api.yml AND
+    production_ingest_token.txt          # karn_tablets.yml — one value
+                                          # per environment, not per app
   postgresql_pgadmin/
     admin_password.txt.example  # plaintext template, committed
     admin_password.txt          # real value, git-ignored, local-only
@@ -125,6 +136,33 @@ already-deployed `.env` after `fastapi_backend`/`scripture_scraper` copies
 it, so `SCRIPTURE_INGEST_TOKEN` is deliberately absent from
 `secrets/barrins_api/*.env`/`secrets/barrins_scripture/*.env` themselves —
 see `roles/scripture_ingest_token/README.md`.
+
+Same idea again for the Karn Tablets ingestion secret (the `X-Karn-Token`
+header `barrins_api` checks on `POST /internal/karn/ingest`), shared
+between `barrins_api.yml` and `karn_tablets.yml` via the
+`karn_ingest_token` role — **one value per environment**, not one per
+app:
+
+```bash
+openssl rand -hex 32 | tr -d '\n' > secrets/karn/staging_ingest_token.txt
+openssl rand -hex 32 | tr -d '\n' > secrets/karn/production_ingest_token.txt
+ansible-vault encrypt secrets/karn/staging_ingest_token.txt secrets/karn/production_ingest_token.txt  # optional
+```
+
+`staging_ingest_token.txt` and `production_ingest_token.txt` must hold
+different values, same as the scripture pair. `KARN_INGEST_TOKEN` is
+deliberately absent from `secrets/barrins_api/*.env`/
+`secrets/karn_tablets/*.env` themselves — see
+`roles/karn_ingest_token/README.md`.
+
+`karn_tablets` also needs a **read-only** Postgres role
+(`KARN_TABLETS_DATABASE_URL_RO`, scoped to `SELECT` on `bs_*`/`mj_*`
+only — it never writes to `barrins_api`'s schema). Like the `postgres`
+superuser password, this role is created by hand on the VPS, not by a
+playbook — `secrets/karn_tablets/{staging,production}.env.example` and
+`karn_tablets.yml`'s post-run reminder both carry the exact
+`CREATE ROLE karn_tablets_ro … GRANT SELECT …` snippet. Use a different
+password per environment.
 
 ## Safety
 

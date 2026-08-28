@@ -6,9 +6,25 @@
 | --- | --- | --- |
 | **Target** | `apps/karn_tablets` (new, real basic ML/aggregation component) | / |
 | **Initial date** | 2026-08-27 | Backend + pipeline landed |
-| **Status** | 🟡 In progress — pipeline (`apps/karn_tablets`) + `barrins_api` ingest/read/admin half done 2026-08-27; T7 docs and T8 playbook + Tolaria News frontend wiring outstanding | / |
+| **Status** | 🟡 In progress — pipeline (`apps/karn_tablets`), `barrins_api` ingest/read/admin, and Tolaria News frontend wiring merged via #106 (2026-08-27); T8 deployment playbook done 2026-08-28. Outstanding: T7 docs pages, a real-VPS deploy + UAT, and the `VITE_FEATURE_KARN_TABLETS` flag flip (gated on T7) | / |
 | **Source** | Request item 1; `v2.0.0-bump/index.md` §1.4; [ADR-13](../../../content/ops/architecture/decisions.md#adr-13-karn-tablets-output-data-flow-scope-and-consumption-surface) | / |
 | **Dependency** | I4 (resolved), T2, T3 (real scraped-tournament data to cluster) | Blocks T8 (its playbook) |
+
+---
+
+## Reference material
+
+- [`Karn Tablets Readout (standalone).html`](<./Karn Tablets Readout (standalone).html>)
+  — self-contained verification view of a dev-database clustering run
+  (2026-08-27, `pipeline_version` 0.1.0, k-means). Renders the `kt_*`
+  data read back through the `/bff/tolaria-news/{metagame,archetypes,
+  trends}` routes: "metagame now" for both window modes, per-archetype
+  share across every Duel Commander banlist period since mid-2024, a
+  rolling-30-day cross-check, and the full latest-run cluster table
+  (auto-derived name, representative decklist size, signature cards).
+  Not a published metagame report — kept here as a snapshot of what the
+  pipeline actually computed. Exported from Claude artifact
+  `f83f45b7-9e53-48d4-a7fb-f426f130adbb`.
 
 ---
 
@@ -79,10 +95,17 @@ not the UAT step below).
 **Outstanding:**
 
 - T7 — per-app docs pages under `docs/content/` for `apps/karn_tablets`.
-- T8 — the deployment playbook (`ops/my-server/karn_tablets.yml` + a
-  scheduled-job role mirroring `scripture_scraper`, a `karn_ingest_token`
-  role, `secrets/karn_tablets/*`, CI paths-filter, nginx rate-limit
-  entries for the three new public BFF paths).
+- ~~T8 — the deployment playbook.~~ **Done 2026-08-28**:
+  `ops/my-server/karn_tablets.yml` + `roles/karn_tablets/` (daily
+  `systemd`-timer job, `deploy_env` staging/production, mirrors
+  `scripture_scraper`), `roles/karn_ingest_token/`,
+  `secrets/karn{,_tablets}/*.example`, and a `karn` CI job. The nginx
+  side needed nothing added — `barrins_api.yml`'s existing
+  `location /bff/tolaria-news` rate-limit block is a prefix match that
+  already covers `/metagame`, `/archetypes`, `/trends`. The read-only
+  `KARN_TABLETS_DATABASE_URL_RO` Postgres role is a documented manual
+  `CREATE ROLE … GRANT SELECT` step. Not yet deployed to the real VPS.
+  See [T8](../t8-scripture-karn-playbooks/index.md).
 - Tolaria News frontend — the flag-gated `/metagame`/`/archetypes`/
   `/trends` pages are wired to the real routes and `src/schemas/
   karnTablets.ts` is reconciled against the live `WindowOut`/response
@@ -103,7 +126,7 @@ not the UAT step below).
   lands in ≥33% of the run's archetypes. Momentum now compares to the
   preceding window (works at any stepper position). See
   `docs/content/back/barrins_api/bff/tolaria_news.md`. Still to do: flip
-  `VITE_FEATURE_KARN_TABLETS` (gated on T7 docs / T8 playbook).
+  `VITE_FEATURE_KARN_TABLETS` (gated on T7 docs).
 - **Trends per-period zoom (deferred, needs a data-model decision).**
   Requested 2026-08-27: on the Trends page, zoom into a single
   banlist/rolling period and split it into ~8 sub-points for a
@@ -164,7 +187,9 @@ not the UAT step below).
       S6 admin route + `tests/karn/`.
 - [x] Write real `README.md`/`CHANGELOG.md` content.
 - [ ] T7 — `docs/content/` per-app docs pages.
-- [ ] T8 — deployment playbook + secrets + CI + nginx rate limits.
+- [x] T8 — deployment playbook + secrets + CI (2026-08-28). nginx needed
+      nothing: the existing `/bff/tolaria-news` prefix rate-limit already
+      covers the three new routes. Real-VPS deploy + UAT still pending.
 - [x] Tolaria News frontend wiring + `karnTablets.ts` reconciliation
       (2026-08-27) — `/metagame` bar chart + momentum chip, `/trends`
       sparkline grid, `/archetypes` paginated detail table, banlist-period

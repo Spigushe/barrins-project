@@ -23,6 +23,28 @@ section of the docs site for details.
   `secrets/scripture/{staging,production}_ingest_token.txt` and injects
   it into both `barrins_api.yml`'s and `barrins_scripture.yml`'s deployed
   `.env` files, replacing the original per-app hand-synced-copy decision.
+- `ops/my-server/karn_tablets.yml` + `roles/karn_tablets/` (T8): the Karn
+  Tablets metagame-clustering pipeline (`apps/karn_tablets`) as a daily
+  `systemd` `.service`/`.timer` job on the VPS — same application-level
+  scheduled-job shape as `scripture_scraper`, minus the scraping /
+  Chromium / JSON archive / sweep. Clones the monorepo, `uv sync`s
+  `apps/karn_tablets`, and runs `karn-tablets --window both` at 03:00 UTC
+  (`Persistent`, ±30 min jitter), which reads `bs_*`/`mj_*` over a
+  read-only DB credential and pushes each window's result to
+  `barrins_api`'s `POST /internal/karn/ingest`. `deploy_env`
+  staging/production side-by-side, default staging. `ansible-lint` clean
+  (production profile); not yet deployed to the real VPS.
+- `roles/karn_ingest_token/` (T8, mirrors `scripture_ingest_token`):
+  reads `KARN_INGEST_TOKEN` once per environment from
+  `secrets/karn/{staging,production}_ingest_token.txt` and injects it
+  into both `barrins_api.yml`'s (it validates `X-Karn-Token` on the
+  ingest route) and `karn_tablets.yml`'s deployed `.env`.
+- `secrets/karn_tablets/{staging,production}.env.example` +
+  `secrets/karn/{staging,production}_ingest_token.txt.example`. The
+  pipeline's `KARN_TABLETS_DATABASE_URL_RO` points at a read-only
+  Postgres role created **by hand** (`CREATE ROLE karn_tablets_ro …
+  GRANT SELECT …` — the snippet is in the `.env.example` and the
+  playbook's post-run reminder), like the `postgres` superuser password.
 
 ### Changed
 

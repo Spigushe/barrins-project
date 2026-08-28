@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Managed by Ansible (karn_tablets role) — do not edit on the server,
+# changes will be overwritten on the next deploy.
+#
+# One clustering pass over the requested window mode(s), pushed to
+# barrins_api's POST /internal/karn/ingest. `karn-tablets` never raises
+# past a single window's failure (see apps/karn_tablets/karn_tablets/
+# __main__.py) — it exits non-zero if any push failed, which systemd
+# records as a failed unit for `systemctl status` / journalctl to show.
+# A failed tick isn't retried here; the next daily tick recomputes from
+# scratch (each run is a fresh full-window clustering, idempotent by the
+# ingester's cross-run archetype identity).
+set -euo pipefail
+
+WORK_DIR="{{ karn_tablets_config.work_dir }}"
+UV="/home/{{ username }}/.local/bin/uv"
+
+cd "$WORK_DIR"
+
+# Load the deployed .env (KARN_TABLETS_DATABASE_URL_RO, BARRINS_API_URL,
+# and the injected KARN_INGEST_TOKEN). `karn-tablets` also calls
+# load_dotenv() itself, but sourcing here keeps a hand-run of this script
+# behaving identically to the timer.
+set -a
+# shellcheck disable=SC1091
+source "$WORK_DIR/.env"
+set +a
+
+exec "$UV" run karn-tablets \
+  --window {{ karn_tablets_config.window_mode }} \
+  --algorithm {{ karn_tablets_config.algorithm }}

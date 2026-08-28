@@ -1,0 +1,48 @@
+---
+# Shared by every playbook that needs the Karn Tablets ingestion secret
+# (barrins_api.yml validates it on POST /internal/karn/ingest,
+# karn_tablets.yml sends it) — reads it once from a single local file
+# instead of requiring the same value hand-copied into both
+# secrets/barrins_api/*.env and secrets/karn_tablets/*.env, mirroring the
+# scripture_ingest_token role's pattern (see
+# roles/scripture_ingest_token/tasks/main.yml).
+
+- name: Resolve the shared karn ingest token file path
+  # Keyed by deploy_env (both barrins_api.yml and karn_tablets.yml
+  # already define it) so staging and production keep separate token
+  # values, the same isolation secrets/<app>/{staging,production}.env
+  # already has — only the per-app duplication goes away, not the
+  # per-environment split.
+  ansible.builtin.set_fact:
+    karn_ingest_token_file: >-
+      {{ karn_ingest_token_file | default(playbook_dir + '/secrets/karn/'
+      + deploy_env + '_ingest_token.txt') }}
+
+- name: Check the local karn ingest token file exists
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ karn_ingest_token_file }}"
+  register: karn_ingest_token_stat
+
+- name: Fail fast if it's missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ karn_ingest_token_file }} does not exist. Create it with:
+      openssl rand -hex 32 | tr -d '\n' > {{ karn_ingest_token_file }} &&
+      chmod 600 {{ karn_ingest_token_file }} — see secrets/README.md.
+      Use a DIFFERENT value for staging_ingest_token.txt vs.
+      production_ingest_token.txt, the same isolation SECRET_KEY already
+      requires.
+  when: not karn_ingest_token_stat.stat.exists
+
+- name: Read the local karn ingest token  # noqa: var-naming[no-role-prefix]
+  # Deliberately unprefixed: this is the whole point of the role — a
+  # shared, playbook-level `karn_ingest_token` fact that
+  # barrins_api.yml/karn_tablets.yml both inject into their respective
+  # deployed .env files. Prefixing it would break that contract for
+  # either playbook.
+  become: false
+  no_log: true
+  ansible.builtin.set_fact:
+    karn_ingest_token: "{{ lookup('ansible.builtin.file', karn_ingest_token_file) }}"

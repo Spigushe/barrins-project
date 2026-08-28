@@ -1,0 +1,106 @@
+---
+# Karn Tablets clustering pipeline as a VPS systemd-timer job (T8,
+# ADR-13: a scheduled job, no inbound API, same shape as
+# scripture_scraper). Clones apps/karn_tablets from the monorepo, builds
+# its uv venv, and templates a daily oneshot .service/.timer that runs
+# `karn-tablets --window <mode>` and pushes each window's result to
+# barrins_api's POST /internal/karn/ingest.
+#
+# Unlike scripture_scraper this has no external scraping, no Chromium, no
+# JSON archive and no sweep — it reads bs_*/mj_* over a read-only DB
+# credential and pushes over HTTP, nothing else. ADR-12's move to GitHub
+# Actions was Scripture-specific (mtgo.com blocks this VPS's IP); it does
+# not apply here.
+
+- name: Ensure app root folder is present
+  ansible.builtin.file:
+    state: directory
+    path: "{{ karn_tablets_config.app_root }}"
+    owner: "{{ username }}"
+    mode: "0755"
+
+- name: Clone/update application repository
+  become: false
+  no_log: true
+  ansible.builtin.git:
+    repo: "https://{{ karn_tablets_config.github_token }}@github.com/{{ karn_tablets_config.repo }}.git"
+    dest: "{{ karn_tablets_config.app_root }}"
+    version: "{{ karn_tablets_config.git_branch }}"
+    update: true
+    force: true
+
+- name: Ensure uv is installed
+  become: false
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  args:
+    executable: /bin/bash
+    creates: "/home/{{ username }}/.local/bin/uv"
+  changed_when: true
+
+- name: Ensure Python 3.14 is installed via uv
+  become: false
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv python install 3.14"
+  register: karn_tablets_uv_python_install
+  changed_when: "'Already' not in karn_tablets_uv_python_install.stdout"
+
+- name: Install dependencies with uv
+  become: false
+  ansible.builtin.command: "/home/{{ username }}/.local/bin/uv sync --all-extras --dev"
+  args:
+    chdir: "{{ karn_tablets_config.work_dir }}"
+  changed_when: true
+
+- name: Check whether a local .env file is available for this deploy
+  when: karn_tablets_config.env_file | length > 0
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ karn_tablets_config.env_file }}"
+  register: karn_tablets_env_file_stat
+
+- name: Deploy the local .env file, if available
+  ansible.builtin.copy:
+    src: "{{ karn_tablets_config.env_file }}"
+    dest: "{{ karn_tablets_config.work_dir }}/.env"
+    owner: "{{ username }}"
+    mode: "0600"
+  when: karn_tablets_config.env_file | length > 0 and karn_tablets_env_file_stat.stat.exists
+
+- name: Note — no local .env found, server's existing one (if any) left untouched
+  ansible.builtin.debug:
+    msg: >-
+      {{ karn_tablets_config.env_file }} not found locally, skipping — this file is
+      git-ignored on purpose (see secrets/README.md) and only ever lives on
+      operators' machines. {{ karn_tablets_config.work_dir }}/.env on the server is
+      left as-is. The timer will fail its tick until this is deployed
+      (KARN_TABLETS_DATABASE_URL_RO / BARRINS_API_URL missing).
+  when: karn_tablets_config.env_file | length > 0 and not karn_tablets_env_file_stat.stat.exists
+
+- name: Deploy the run wrapper script
+  ansible.builtin.template:
+    src: karn_tablets_run.sh.j2
+    dest: "{{ karn_tablets_config.run_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the systemd service
+  ansible.builtin.template:
+    src: karn_tablets.service.j2
+    dest: "/etc/systemd/system/{{ karn_tablets_config.service_name }}.service"
+    mode: "0644"
+
+- name: Deploy the systemd timer
+  ansible.builtin.template:
+    src: karn_tablets.timer.j2
+    dest: "/etc/systemd/system/{{ karn_tablets_config.service_name }}.timer"
+    mode: "0644"
+
+- name: Enable and start the timer
+  ansible.builtin.systemd:
+    name: "{{ karn_tablets_config.service_name }}.timer"
+    daemon_reload: true
+    enabled: true
+    state: started

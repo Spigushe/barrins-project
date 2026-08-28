@@ -1267,6 +1267,11 @@ shape until it was concretely needed.
   before it can go live — not yet built. Until that implementation task
   picks and builds an enforcement mechanism, "`admin`/`ml_developer`
   only" is a stated requirement, not yet an enforced access boundary.
+  That implementation task is tracked as **T9**
+  (`docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/`), split out of
+  T8 on 2026-08-28 — T8 shipped the scheduled clustering job only. T9's
+  page carries the auth-mechanism fork and the other sub-decisions
+  deferred here.
 - Follows the same pattern as ADR-1/ADR-5/ADR-13's `KARN_INGEST_TOKEN`,
   `SCRIPTURE_INGEST_TOKEN`, etc.: whatever auth Jupyter ends up using
   (its own token/password, per the pgAdmin precedent) is a secret,

@@ -15,6 +15,11 @@ truth instead of drifting into a second copy.
   FastAPI app under systemd.
 - [GitHub Token](github_token/index.md) — reads the shared GitHub PAT,
   used by every role that clones a private repo.
+- [Karn Ingest Token](karn_ingest_token/index.md) — reads the shared
+  `KARN_INGEST_TOKEN`, injected into both `barrins_api.yml` and
+  `karn_tablets.yml`.
+- [Karn Tablets](karn_tablets/index.md) — the metagame-clustering
+  pipeline as a daily systemd-timer job.
 - [pgAdmin](pgadmin/index.md) — pgAdmin4 in Docker, reverse-proxied with
   TLS.
 - [Postgres Backup](postgres_backup/index.md) — daily `pg_dump`/

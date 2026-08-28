@@ -1,0 +1,14 @@
+[Unit]
+Description=Karn Tablets ({{ karn_tablets_config.app_name }}) — cluster Duel Commander decks and push to barrins_api
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Debian's DefaultTimeoutStartSec (90s) bounds the full ExecStart
+# duration for Type=oneshot, not just process spawn — a clustering pass
+# (PCA + KMeans over a month of decklists, times two window modes) can
+# run past it, same reasoning as scripture_scraper's own override.
+TimeoutStartSec=infinity
+User={{ username }}
+ExecStart={{ karn_tablets_config.run_script_path }}
