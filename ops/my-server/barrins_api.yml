@@ -56,6 +56,8 @@
 
     - role: scripture_ingest_token
 
+    - role: karn_ingest_token
+
     - role: register_ssl
       tags:
         - backend
@@ -127,7 +129,19 @@
         owner: "{{ username }}"
         mode: "0600"
       when: backend_deployed_env_stat.stat.exists
-      notify: Restart the backend so it picks up the injected SCRIPTURE_INGEST_TOKEN
+      notify: Restart the backend so it picks up the injected ingest tokens
+      tags: [backend, deploy]
+
+    - name: Inject the shared KARN_INGEST_TOKEN into the deployed .env
+      no_log: true
+      ansible.builtin.lineinfile:
+        path: "{{ backend_work_dir }}/.env"
+        regexp: "^KARN_INGEST_TOKEN="
+        line: "KARN_INGEST_TOKEN={{ karn_ingest_token }}"
+        owner: "{{ username }}"
+        mode: "0600"
+      when: backend_deployed_env_stat.stat.exists
+      notify: Restart the backend so it picks up the injected ingest tokens
       tags: [backend, deploy]
 
     - name: Reminder — pending steps this playbook does not automate
@@ -162,7 +176,7 @@
       tags: [backend, deploy]
 
   handlers:
-    - name: Restart the backend so it picks up the injected SCRIPTURE_INGEST_TOKEN
+    - name: Restart the backend so it picks up the injected ingest tokens
       # fastapi_backend's own restart (roles/fastapi_backend/tasks/main.yml)
       # runs BEFORE this handler fires, so a token written/changed here is
       # never seen by the process it just restarted without a second restart
