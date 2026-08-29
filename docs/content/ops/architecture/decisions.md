@@ -213,6 +213,17 @@ is not yet settled.
   becomes worth revisiting only if `identity@barrins-codex.org` needs to
   *receive* mail as a real inbox, not just send it.
 
+**Update (2026-08-29):** provider settled — **Brevo**. Identity email
+ownership moves to `barrins_identity` (ADR-16): production runs with
+`REQUIRE_EMAIL_VERIFICATION=true`, `SMTP_FROM_ADDRESS=identity@barrins-codex.org`
+via Brevo's SMTP relay, `barrins-codex.org` authenticated (SPF/DKIM/DMARC)
+in the OVH DNS zone. The full step-by-step — Brevo domain auth, the OVH
+records, an OVH redirection for receiving, the SMTP key, and the staging
+end-to-end check — is in
+[Identity Deployment](../deployment/identity.md#email-verification-mandatory-production-setup-brevo).
+"No self-hosted MTA / no mailbox to maintain" is unchanged — the OVH
+entry is a redirection, not an inbox.
+
 [signup-email-verification]: ../../back/barrins_api/signup_email_verification.md
 
 ## ADR-4: First production release — backup gating, monitoring, Moxfield
@@ -554,6 +565,12 @@ would later need migrating onto `barrins_identity`.
   beforehand.
 - This resolves I1 as "not blocking, with a condition," not "must be
   built before T5/S2 start."
+
+**Update (2026-08-29):** the delay is lifted by
+[ADR-16](#adr-16-adopt-barrins-identity-as-the-rs256-jwks-authority) —
+T9's role-gated Jupyter workbench is the second real consumer this ADR
+was waiting for, so `barrins_identity` is adopted now. The
+no-interim-user-tables condition is unchanged and still holds.
 
 ## ADR-8: Team creation, joining, and ownership model for Tamiyo Scroll
 
@@ -1277,3 +1294,81 @@ shape until it was concretely needed.
   (its own token/password, per the pgAdmin precedent) is a secret,
   handled per ADR-1 — never committed, documented in
   `ops/my-server/secrets/README.md` once it exists.
+
+## ADR-16: Adopt Barrin's Identity as the RS256 JWKS authority
+
+**Context.** ADR-7 (2026-07-25) delayed `barrins_identity` until a second
+real consumer with user management exists — until then it stayed a
+README/CHANGELOG placeholder while every identity-touching feature used
+`barrins_api`'s single `users` table directly. That condition is now met.
+**T9** (the Karn Tablets Jupyter Lab workbench,
+`karn-jupyter.barrins-codex.org`) must restrict access to
+`admin`/`ml_developer` account holders with a live role check, and its
+sub-decision 1 (`docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/`)
+resolves to option (b): a check against `barrins_identity` rather than a
+shared pgAdmin-style password. Option (a) was explicitly the fallback
+"unless Jupyter is the second consumer that finally justifies
+`barrins_identity`"; a `barrins_api`-JWT variant was built and reverted on
+2026-08-15 as incorrect cross-app coupling. Separately, a full service
+(RS256 + JWKS, service accounts, and the account-lifecycle surface a login
+UI needs) is already implemented on `feat/barrins-identity` and
+`claude/barrins-identity-lifecycle-settings-4g2lyh` (~296 tests).
+
+**Alternatives considered.**
+
+1. Keep waiting — gate T9 with option (a) so no second consumer is
+   declared, and revisit `barrins_identity` later.
+2. Recognize T9 as ADR-7's trigger and adopt the already-built service as
+   the ecosystem's RS256 + JWKS identity and service-account authority,
+   with the `barrins_api` cutover as a separate, later, gated phase.
+3. Extract `barrins_api`'s HS256 auth into a shared library instead of a
+   standalone service.
+
+**Trade-offs.** Option 1 leaves a shared-password gate on production
+tooling indefinitely and defers the identity work with no new information
+gained — the "wait for a real consumer to design against" rationale no
+longer applies once T9 is that consumer. Option 3 is the
+forge-vs-verify anti-pattern ADR-7's own reasoning and
+`auth_roles.md`'s backlog already call out — any holder of a shared HS256
+secret can mint tokens, and rotation needs a lockstep redeploy of every
+service. Option 2 is what ADR-7 itself prescribed once the delay
+condition held; the only genuinely risky part, migrating
+`barrins_api`'s live `users` table, is independently deferrable and
+stays gated on a user-confirmed maintenance window.
+
+**Decision.** Option 2, per the user (2026-08-29). `barrins_identity` is
+adopted now as the shared RS256 + JWKS identity and service-account
+authority, and is a prerequisite for T9. It signs with an RSA private key
+and serves the public key at `/.well-known/jwks.json`; every consumer
+verifies locally against a cached key — no shared secret, no per-request
+introspection. It is **not** a full OAuth 2.0 / OIDC provider (no
+authorization-code flow, no third-party client registration), which is
+why the "Future Architecture Proposal" previously on
+`docs/content/back/barrins_identity/platform.md` is superseded rather than
+implemented. `barrins_api` keeps its own local auth until the Phase-9
+cutover ([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+run only in a user-confirmed maintenance window. ADR-7's
+"no interim per-app user tables" condition still holds and is now easier
+to satisfy — there is still only one `users` table to move.
+
+**Consequences.**
+
+- ADR-7's delay is lifted (its trigger fired); its
+  no-divergent-tables principle stands, and ADR-7 carries an Update note
+  pointing here.
+- `ts_teams`/`ts_team_members` (ADR-8) stay interim in `barrins_api`,
+  with the same eventual transfer target; user roles become
+  `barrins_identity`'s concept only once the cutover lands, not before.
+- Executes [ADR-3](#adr-3-production-email-uses-a-transactional-provider-not-self-hosted)
+  for `barrins_identity`: production email verification is mandatory
+  (`REQUIRE_EMAIL_VERIFICATION=true`) via Brevo's SMTP relay with
+  `barrins-codex.org` domain authentication and an OVH redirection for
+  `identity@barrins-codex.org` — step-by-step in
+  [Identity Deployment](../deployment/identity.md#email-verification-mandatory-production-setup-brevo).
+- Documentation lands ahead of the merge: the rewritten
+  `back/barrins_identity/{platform,integration,tests}.md`, the new
+  `front/goblin_guide/` pages, and `ops/deployment/identity.md` each
+  carry a status marker saying they describe a service built on feature
+  branches, not yet on the `proj/v2.0.0-bump` release line.
+- Formally closing T9's sub-decision 1 in its own tracker remains a T9
+  task; this ADR records the dependency, not the enforcement mechanism.

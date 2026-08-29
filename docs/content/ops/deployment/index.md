@@ -5,6 +5,9 @@ each with its own Preparation / Deployment / Validation / Rollback:
 
 - [Backend — barrins_api](backend.md)
 - [Frontend — Tamiyo Scroll / Tolaria News](frontend.md)
+- [Identity — barrins_identity](identity.md) — a second backend
+  (standalone RS256/JWKS identity service), not yet built; includes the
+  mandatory Brevo/OVH email-verification setup.
 - [Database Administration — PostgreSQL & pgAdmin](database.md) —
   infrastructure/admin tooling, not release-tagged.
 - [Docs Site](docs_site.md) — self-hosted mkdocs deployment, same

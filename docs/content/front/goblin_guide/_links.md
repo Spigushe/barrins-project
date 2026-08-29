@@ -1,0 +1,3 @@
+- [Bootstrap](./bootstrap.md)
+- [Barrin's Identity — Integration Contract](../../back/barrins_identity/integration.md)
+- [Barrin's Identity — Platform Architecture](../../back/barrins_identity/platform.md)
