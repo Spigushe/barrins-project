@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       back: ${{ steps.filter.outputs.back }}
+      identity: ${{ steps.filter.outputs.identity }}
       front: ${{ steps.filter.outputs.front }}
       scripture: ${{ steps.filter.outputs.scripture }}
       karn: ${{ steps.filter.outputs.karn }}
@@ -24,8 +25,10 @@ jobs:
           filters: |
             back:
               - 'apps/barrins_api/**'
-              - 'apps/barrins_identity/**'
               - 'libs/dc_calendar/**'
+            identity:
+              - 'apps/barrins_identity/**'
+              - 'libs/identity_client/**'
             front:
               - 'apps/tamiyo_scroll/**'
               - 'apps/tolaria_news/**'
@@ -81,6 +84,51 @@ jobs:
         run: echo "SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: CI checks (lint, security, types, tests)
         run: uv run python scripts/workflow_ci.py --no-fix
+
+  identity:
+    needs: changes
+    if: needs.changes.outputs.identity == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      # barrins_identity owns its own database — never barrins_api's (§26.1).
+      TEST_DATABASE_URL_BASE: postgresql+asyncpg://postgres:postgres@localhost:5432/barrins_identity
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/barrins_identity_test
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7 # TO UPDATE if a newer version exists
+        with:
+          enable-cache: true
+      - name: Install barrins_identity deps
+        run: uv sync --all-extras --dev
+        working-directory: apps/barrins_identity
+      - name: barrins_identity — CI checks (lint, security, types, tests)
+        run: uv run python scripts/workflow_ci.py --no-fix
+        working-directory: apps/barrins_identity
+      - name: Install identity_client deps
+        run: uv sync --all-extras --dev
+        working-directory: libs/identity_client
+      - name: identity_client — lint / format / types / tests
+        working-directory: libs/identity_client
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run ty check
+          uv run pytest
 
   front:
     needs: changes
@@ -174,12 +222,12 @@ jobs:
 
   ci-required:
     if: always()
-    needs: [changes, back, front, scripture, karn, ops, docs]
+    needs: [changes, back, identity, front, scripture, karn, ops, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Verify no triggered job failed
         run: |
-          for r in "${{ needs.back.result }}" "${{ needs.front.result }}" "${{ needs.scripture.result }}" "${{ needs.karn.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
+          for r in "${{ needs.back.result }}" "${{ needs.identity.result }}" "${{ needs.front.result }}" "${{ needs.scripture.result }}" "${{ needs.karn.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
               echo "A required job failed or was cancelled: $r"
               exit 1
