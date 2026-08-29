@@ -83,7 +83,7 @@ python-version = "3.14"
 # dc_calendar is a local editable dependency (uv's setuptools editable
 # install uses a MetaPathFinder .pth hook, which ty -- unlike Python's own
 # import machinery -- can't resolve statically without this hint).
-extra-paths = ["../dc_calendar"]
+extra-paths = ["../../libs/dc_calendar"]
 
 [tool.ty.src]
 exclude = ["tests"]
@@ -145,4 +145,4 @@ exclude_lines = [
 directory = "reports/pytest_html_report"
 
 [tool.uv.sources]
-dc-calendar = { path = "../dc_calendar", editable = true }
+dc-calendar = { path = "../../libs/dc_calendar", editable = true }

@@ -25,6 +25,7 @@ jobs:
             back:
               - 'apps/barrins_api/**'
               - 'apps/barrins_identity/**'
+              - 'libs/dc_calendar/**'
             front:
               - 'apps/tamiyo_scroll/**'
               - 'apps/tolaria_news/**'
@@ -32,7 +33,7 @@ jobs:
               - 'apps/barrins_scripture/**'
             karn:
               - 'apps/karn_tablets/**'
-              - 'apps/dc_calendar/**'
+              - 'libs/dc_calendar/**'
             ops:
               - 'ops/my-server/**'
             docs:

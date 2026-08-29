@@ -48,7 +48,7 @@ mtgo.com blocking this VPS's IP; it does not apply here.
 1. Clones/updates `karn_tablets_repo` (the monorepo) to
    `~/projects/<app_name>/` at `karn_tablets_git_branch` (`force: true`
    — this checkout owns nothing the job writes to). The whole repo is
-   cloned so `apps/karn_tablets`'s `../dc_calendar` path dependency
+   cloned so `apps/karn_tablets`'s `../../libs/dc_calendar` path dependency
    resolves, same as `scripture_scraper`.
 2. Installs `uv`, Python 3.14, and runs `uv sync --all-extras --dev` in
    `apps/karn_tablets`.

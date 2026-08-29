@@ -4,7 +4,7 @@ Ported from the prior attempt at this
 (`barrins-archive/barrins_api/app/services/ml/clustering.py`), with
 `clusterize_by_window` adapted to take a resolved `dc_calendar.windowing.Window`
 instead of re-deriving a rolling window inline -- date-range resolution
-lives in one shared place (`apps/dc_calendar`), not duplicated here.
+lives in one shared place (`libs/dc_calendar`), not duplicated here.
 """
 
 from typing import Literal
