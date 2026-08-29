@@ -1478,5 +1478,14 @@ target)"; `libs/` means "a package other things import."
   now) — `JWKSCache` + `verify_token` + `make_verify_dependency`, 100%
   covered, not yet consumed. `dc_calendar` had already moved to
   `libs/dc_calendar/` (commit `19086dff`).
+- **T11 (2026-08-29)**: the Goblin Guide shape lands — `libs/goblin_guide/`
+  (`@barrins/goblin-guide`, Vite library mode: ES + `.d.ts`, `react` /
+  `react-dom` / `@tanstack/react-query` externalized as peers) and
+  `apps/goblin_guide/` (the standalone shell, consuming the library as a
+  `file:../../libs/goblin_guide` path dependency). Only the login slice
+  (bootstrap `G-03` step 1) is built. The shell's `vite.config.ts` needs
+  `resolve.dedupe` for `react` & co. because the path dependency is
+  symlinked with its own `node_modules`. A dedicated `goblin_guide` CI
+  job (library then shell) is wired into `ci-required`.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

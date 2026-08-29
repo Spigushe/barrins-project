@@ -1,8 +1,14 @@
 <!-- cSpell:ignore JWKS tolaria -->
 # Goblin Guide — Bootstrap
 
-> **Status**: ⬜ Planned — documentation only, nothing implemented.
-> `apps/goblin_guide/` is a placeholder. Shape settled 2026-08-29
+> **Status**: 🟨 Login slice built (T11) — `libs/goblin_guide/`
+> (`@barrins/goblin-guide`, the shared library) and `apps/goblin_guide/`
+> (the standalone shell) exist on the release line with `G-03` step 1:
+> login, in-memory token store, silent refresh, and the `GET /auth/me`
+> account view. Not yet mounted in `tamiyo_scroll` or `tolaria_news`.
+> Signup, password reset, account settings + delete, and admin
+> service-account management are the remaining `G-03` slices, in that
+> order. Shape settled 2026-08-29
 > ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)):
 > a **shared frontend library** plus a thin standalone shell — see §3.
 >
@@ -54,7 +60,7 @@ section that owns its wire format.
 | --- | --- | --- |
 | `G-01` | Stack | **Resolved** (2026-08-29, ADR-17) — the ecosystem default (React 19 + TypeScript + Tailwind + shadcn/ui, constitution §14), built in **Vite library mode**. React Router and TanStack Query are **peer dependencies** the host app provides — the library owns screens, hooks and token handling, not routing or the query client |
 | `G-02` | Standalone app vs. per-app widget | **Resolved** (2026-08-29, ADR-17) — one shared library each frontend mounts, plus a thin standalone shell for `goblin.barrins-codex.org` and the T9 login page. Not a standalone-only app; not a copy-pasted widget |
-| `G-03` | Delivery order | **Proposed** — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete. `username` (platform.md `Q-03`) lands with signup |
+| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. Step 1 is built |
 | `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17) — part of the Goblin Guide library, `admin`-gated. It is identity account management and belongs with the rest, not split into a separate CLI-only surface |
 
 The library boundary (§1) and the token-storage split (§5) are settled;
@@ -89,11 +95,13 @@ authenticated screen.
 - On a `401`, run the silent-refresh flow
   ([Integration Contract §8.2](../../back/barrins_identity/integration.md#82-silent-refresh))
   once, then retry; if `/refresh` also fails, drop to the login screen.
-- **`G-05` (open):** refresh-token storage. Default — keep it in memory
-  too, so a closed tab means re-login. A host app that wants persistent
-  sessions wraps the library with its own BFF that holds the refresh
-  token in an `HttpOnly` cookie; the library must support both without
-  code changes (a pluggable token store).
+- **`G-05` (partly settled):** refresh-token storage. Shipped as a
+  pluggable `TokenStore` interface; the default (`createMemoryTokenStore`)
+  keeps both tokens in memory, so a closed tab means re-login. A host app
+  that wants persistent sessions passes its own implementation — e.g. one
+  backed by a BFF that holds the refresh token in an `HttpOnly` cookie —
+  with no other change to the library. Still open: whether the shell
+  itself ships a persistent store.
 - No JWKS handling in the browser. The frontend never verifies a token;
   it treats the access token as opaque and lets the backend (or the T9
   reverse-proxy gate,
@@ -106,11 +114,14 @@ authenticated screen.
 
 ## 6. Tests-first note
 
-When this app is built, tests come first (constitution §16.4) and cover
-the critical paths (constitution §19.3): login success/failure, silent
-refresh and its dead-session fallback, the signup + verification form
-(including `verification_required=false`), the reset form, and the
-error/loading states for each.
+Each slice ships with tests covering its critical paths (constitution
+§19.3). The login slice (T11) covers: login success/failure with the
+uniform `401`, the client-side empty-field guard, the in-flight lock,
+the session-expired banner, single-flight silent refresh + its
+dead-session fallback (store cleared), and `logout` clearing local
+state even when the request fails. Later slices add the signup +
+verification form (including `verification_required=false`), the reset
+form, and the error/loading states for each.
 
 ---
 
