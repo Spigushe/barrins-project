@@ -1,11 +1,11 @@
 <!-- cSpell:ignore JWKS pyjwt respx conftest tolaria -->
 # Barrin's Identity — Test Plan
 
-> **Status**: 🟨 The suite exists on `feat/barrins-identity` +
-> `claude/barrins-identity-lifecycle-settings-4g2lyh` (~296 tests,
-> ~98.75% overall coverage). Not yet on `proj/v2.0.0-bump`. Constitution
-> §16.4: tests are planned and confirmed, then implemented — this page is
-> the plan of record for the surface in
+> **Status**: 🟩 On `proj/v2.0.0-bump` (T10). 313 tests, 98.72% overall,
+> 100% on `app/models/` and `app/schemas/` — `uv run pytest` green, plus
+> `libs/identity_client/` at 26 tests / 100%. The `barrins_api` contract
+> test in §4 is still ⬜ (it belongs to the cutover). This page stays the
+> plan of record for the surface in
 > [Integration Contract](./integration.md).
 
 ---
@@ -142,11 +142,16 @@ settings (`require_email_verification=True`, `smtp_host=None`).
 
 ## 4. Contract test — `apps/barrins_api`
 
-`tests/test_identity_client_contract.py` (**not built** — the
-`identity_client/` module itself is not built, [platform.md §10](./platform.md#10-cutover))
-verifies that the verification module copied into `barrins_api` stays
-compatible with the token format issued here, using a `respx`-mocked JWKS
-endpoint instead of a live service:
+`tests/test_identity_client_contract.py` (**not built** — it lands with
+the cutover, [platform.md §10](./platform.md#10-cutover); the
+`libs/identity_client/` package itself *is* built and independently
+tested — `libs/identity_client/tests/test_client.py`, 26 tests, 100%,
+`respx`-mocked JWKS + an ephemeral RSA keypair, covering valid user /
+service tokens, expiry, unknown-`kid` refetch, `type` / `account_type`
+mismatch, insufficient scope, cache hit/expiry, and the FastAPI
+dependency's 401/403/200). The `barrins_api` contract test re-checks the
+same compatibility from the consumer side once `identity_client` is wired
+in:
 
 ```python
 """Verifies identity_client stays compatible with barrins-identity's token

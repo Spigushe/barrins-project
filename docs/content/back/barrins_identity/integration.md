@@ -1,9 +1,11 @@
 <!-- cSpell:ignore JWKS pyjwt slowapi respx cutover keypair OIDC domainkey -->
 # Barrin's Identity — Integration Contract
 
-> **Status**: 🟨 Describes the surface built on `feat/barrins-identity` +
-> `claude/barrins-identity-lifecycle-settings-4g2lyh`. Not yet on the
-> `proj/v2.0.0-bump` release line — sourced by reading those branches.
+> **Status**: 🟩 On the `proj/v2.0.0-bump` release line (T10). Every
+> endpoint below is implemented and tested in `apps/barrins_identity/`,
+> and `libs/identity_client/` implements the §3 verification flow. The
+> `username` field (§4.1) is live. ⬜ still: the `barrins_api` cutover,
+> the playbook, and Goblin Guide.
 >
 > **Frontend counterpart**: [Goblin Guide — Bootstrap](../../front/goblin_guide/bootstrap.md)
 > mirrors §8 (Consumer flows) from the client side.
@@ -77,12 +79,15 @@ A stateless verifier does **not** re-check `tkv` per request — only
 own dependencies. A consumer that needs revocation to bite faster than the
 10-minute access TTL must call `barrins-identity` itself.
 
-The verification client (`libs/identity_client/` — JWKS fetch + cache + a
-FastAPI dependency factory, ~150 lines) is **not built yet**. It is one
-shared Python package every backend consumer imports, not a per-app copy
-([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory));
-the `barrins_api` cutover ([platform.md §10](./platform.md#10-cutover))
-creates it.
+The verification client is **built**: `libs/identity_client/` —
+`JWKSCache` (fetch + monotonic-TTL cache + refresh-on-unknown-`kid`),
+the framework-free `verify_token`, and `make_verify_dependency` for
+FastAPI (`401` with `WWW-Authenticate: Bearer` on a bad token, `403` on a
+missing scope). One shared Python package every backend consumer imports,
+not a per-app copy
+([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)).
+It is not yet consumed anywhere — the `barrins_api` cutover
+([platform.md §10](./platform.md#10-cutover)) wires it in.
 
 ---
 
@@ -100,16 +105,16 @@ Prefix `/api/v1/auth`.
 | POST | `/token` | none | form: `username` (the email), `password` | `TokenPair` | `401` uniform `Invalid credentials.`; `429` over `LOGIN_RATE_LIMIT` |
 | POST | `/refresh` | none | `{refresh_token}` | `TokenPair` (both tokens rotated) | `401` expired / malformed / wrong type / `tkv` mismatch |
 | POST | `/logout` | user | — | `204` | `401` |
-| POST | `/register` | admin | `UserCreate` `{email, password, role?, is_verified?, display_name?}` | `UserRead`, `201` | `401` / `403`; `409` email exists |
-| GET | `/me` | user | — | `UserRead` `{id, email, role, is_active, is_verified, display_name}` | `401` |
+| POST | `/register` | admin | `UserCreate` `{email, username, password, role?, is_verified?, display_name?}` | `UserRead`, `201` | `401` / `403`; `409` email **or** username exists; `422` missing/invalid `username` |
+| GET | `/me` | user | — | `UserRead` `{id, email, username, role, is_active, is_verified, display_name}` | `401` |
 
 `TokenPair` = `{access_token, refresh_token, token_type: "bearer"}`.
 
-> **Planned** ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory),
-> 2026-08-29): a unique `username` is added to `UserCreate` / `UserSignup`
-> and to `UserRead`, per constitution §13.2. Whether `POST /auth/token`
-> accepts `username` as well as `email` is
-> [`Q-05`](./platform.md#11-open-questions). Not in the branch code yet.
+A unique `username` (input rule `^[A-Za-z0-9_-]{3,32}$`) is **required**
+on `UserCreate` / `UserSignup` and echoed on `UserRead` (§13.2, T10). A
+taken handle is a `409` with a message distinct from the email conflict.
+`POST /auth/token` still authenticates by `email` only — the form field
+named `username` carries the email ([`Q-05`](./platform.md#11-open-questions)).
 
 | `POST /api/v1/auth/token` | |
 | --- | --- |
@@ -127,7 +132,7 @@ ADR-16). Setup: [Identity Deployment — email](../../ops/deployment/identity.md
 
 | Method | Path | Auth | Request | Response | Errors |
 | --- | --- | --- | --- | --- | --- |
-| POST | `/signup` | none | `UserSignup` `{email, password, display_name?}` | `SignupResponse`, `201` | `409` email exists; `502` (no account created) if the email fails to send |
+| POST | `/signup` | none | `UserSignup` `{email, username, password, display_name?}` | `SignupResponse`, `201` | `409` email **or** username exists (distinct messages); `422` missing/invalid `username`; `502` (no account created) if the email fails to send |
 | POST | `/signup/verify` | none | `{email, code}` (`code` = `^\d{6}$`) | `TokenPair` | `400` invalid/expired code; `409` already verified; `429` over `VERIFICATION_MAX_ATTEMPTS` |
 | POST | `/signup/resend` | none | `{email}` | `ResendVerificationResponse`, `202` | `502` send failure. Always the same generic body otherwise |
 
@@ -140,7 +145,7 @@ Branch on `verification_required`, never on server config:
 | --- | --- |
 | **Purpose** | Public self-registration |
 | **Auth** | None |
-| **Request** | `{email, password, display_name?}`. `role` / `is_verified` are **not** accepted — forced server-side (`extra="forbid"` rejects an attempt with `422`) |
+| **Request** | `{email, username, password, display_name?}`. `role` / `is_verified` are **not** accepted — forced server-side (`extra="forbid"` rejects an attempt with `422`) |
 | **Response** | `201` `SignupResponse` |
 | **Idempotency** | Not idempotent — a second call with the same email is `409` |
 | **Errors** | `409` email already registered; `422` password fails the complexity rule (≥ 12 chars, 1 upper, 1 lower, 1 digit, 1 symbol) or an undeclared field is sent; `502` the verification email could not be sent (the account is rolled back — no orphan) |
@@ -302,7 +307,7 @@ maps its screens onto these anchors.
 
 ### 8.3 Signup and verify
 
-1. `POST /api/v1/auth/signup` `{email, password, display_name?}` → `201`.
+1. `POST /api/v1/auth/signup` `{email, username, password, display_name?}` → `201`.
 2. If `verification_required` is `false`, `tokens` is present — done.
 3. Otherwise collect the 6-digit code and
    `POST /api/v1/auth/signup/verify` `{email, code}` → `TokenPair`.

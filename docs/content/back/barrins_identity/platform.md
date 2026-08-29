@@ -1,12 +1,18 @@
 <!-- cSpell:ignore JWKS pyjwt slowapi argon respx cutover keypair OIDC -->
 # Barrin's Identity — Platform Architecture
 
-> **Status**: 🟨 Built on branches `feat/barrins-identity` (core: login,
-> service accounts, JWKS) and `claude/barrins-identity-lifecycle-settings-4g2lyh`
-> (superset: + signup/verification, password reset, account deletion,
-> account settings, per-app settings). **Not yet merged to the
-> `proj/v2.0.0-bump` release line** — every fact below is sourced by
-> reading those branches, not from code on this branch.
+> **Status**: 🟩 On the `proj/v2.0.0-bump` release line (T10). The service
+> in `apps/barrins_identity/` (login, refresh, logout, register, signup +
+> email verification, password reset, account deletion, account settings,
+> per-app settings, service accounts, JWKS) and the shared
+> `libs/identity_client/` verification package are implemented and tested
+> here — copied over from `feat/barrins-identity` +
+> `claude/barrins-identity-lifecycle-settings-4g2lyh` rather than
+> cherry-picked, then reconciled with current monorepo conventions and
+> extended with the `username` handle (§7, `Q-03`).
+> Still ⬜: the `barrins_api` **cutover** (§10), the
+> `ops/my-server/barrins_identity.yml` playbook, and the Goblin Guide
+> frontend — each a separate, later, gated phase.
 >
 > **App**: `apps/barrins_identity/` · **Frontend**: `apps/goblin_guide/`
 > (Goblin Guide — see [Bootstrap](../../front/goblin_guide/bootstrap.md))
@@ -170,7 +176,7 @@ at runtime, `psycopg2` for Alembic). `app/models/_types.py` provides
 | --- | --- | --- | --- |
 | `id` | `UUID` | PK, `default uuid4` | |
 | `email` | `VARCHAR(255)` | UNIQUE, NOT NULL, INDEX | Login identifier |
-| `username` | `VARCHAR` | UNIQUE, NOT NULL, INDEX | **Planned** (decided 2026-08-29, [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) — the branch model is email-only; §13.2 requires a unique `username`. Not yet in the code or a migration |
+| `username` | `VARCHAR(64)` | UNIQUE, NOT NULL, INDEX | Unique public handle (§13.2, [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)). Added on T10 by migration `f6a7b8c9d0e1`; required in `UserSignup` / `UserCreate` and echoed in `UserRead`. Input rule `^[A-Za-z0-9_-]{3,32}$` (`schemas.auth.USERNAME_PATTERN`); the column is wider so a soft-deleted row can be anonymized to `deleted-<uuid>`. Login still authenticates by `email` — `Q-05` |
 | `hashed_password` | `VARCHAR(255)` | NOT NULL | Argon2id hash (`"!"` for a soft-deleted account — never a valid hash) |
 | `role` | `ENUM userrole` | NOT NULL, server default `user` | |
 | `is_active` | `BOOLEAN` | NOT NULL, server default `true` | Deactivation without deletion; also the soft-delete flag |
@@ -299,17 +305,17 @@ pair. There is no `REQUIRE_EMAIL_VERIFICATION` bypass for reset — it is
 the one flow where the requester has no other credential to fall back on.
 
 **Account deletion.** Chosen: **soft delete** — `is_active=False`,
-`token_version += 1`, `email` and `display_name` anonymized (`email =
-f"deleted-{id}@barrins.invalid"`, `display_name = None`),
-`hashed_password = "!"`. `barrins_identity` is the FK anchor for every
-other app's user-owned data; a hard delete would orphan those rows or
-force every consumer to carry a "deleted user" sentinel from day one.
-Anonymizing frees the original email for reuse without destroying the
-anchor. `DELETE /users/me` re-authenticates with the current password in
-the body (stronger than a token-freshness check, and reuses
-`verify_password`). Cascading cleanup of **app-owned** data is each
-consumer's responsibility (constitution §4.1) — identity never reaches
-into another app's database.
+`token_version += 1`, `email` / `username` / `display_name` anonymized
+(`email = f"deleted-{id}@barrins.invalid"`, `username = f"deleted-{id}"`,
+`display_name = None`), `hashed_password = "!"`. `barrins_identity` is the
+FK anchor for every other app's user-owned data; a hard delete would
+orphan those rows or force every consumer to carry a "deleted user"
+sentinel from day one. Anonymizing frees the original email **and
+username** for reuse without destroying the anchor. `DELETE /users/me`
+re-authenticates with the current password in the body (stronger than a
+token-freshness check, and reuses `verify_password`). Cascading cleanup
+of **app-owned** data is each consumer's responsibility (constitution
+§4.1) — identity never reaches into another app's database.
 
 **Global account settings.** `GET /auth/me` stays the read endpoint; a
 new `/users` router owns account-resource mutation (`PATCH /users/me`,
@@ -335,18 +341,19 @@ an unknown key, deliberately not `422`). A `GET` never creates a row;
 
 ## 10. Cutover
 
-Not implemented on either branch. `apps/barrins_api` changes (one-time,
-not incremental):
+**Not done** — the one deliberately deferred phase. `libs/identity_client/`
+now exists (built on T10, not yet imported anywhere), so the cutover is
+the set of `apps/barrins_api` changes below (one-time, not incremental):
 
 | Action | Files |
 | --- | --- |
 | Create | `scripts/migrate_users_to_identity.py` — copies `users` rows into `barrins-identity`'s database inside a single transaction (`target_engine.begin()`, not `.connect()`, so a mid-loop failure rolls back fully) |
-| Create | `libs/identity_client/` — JWKS fetch + cache + a FastAPI verification dependency. One shared Python package, not a per-app copy ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) |
+| Wire in | `libs/identity_client/` — already built (JWKS fetch + cache + `make_verify_dependency`, one shared package per [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)); the cutover adds it as a `[tool.uv.sources]` path dep and consumes it |
 | Replace | `app/dependencies/auth.py` — verifies via `libs/identity_client`, no local DB user lookup |
 | Delete | `app/models/user.py`, `app/schemas/auth.py`, `app/core/security.py`, `app/api/v1/routers/auth.py`, `scripts/create_admin.py` (all now live here) |
 | Create | An Alembic migration dropping the local `users` table |
 | Modify | `app/config/base.py` — drop local JWT/Argon2 fields, add `identity_service_url`, `identity_jwks_cache_ttl_seconds` |
-| Modify | `pyproject.toml` — drop `python-jose`, `argon2-cffi`; add `pyjwt`, `respx` (test-only) |
+| Modify | `pyproject.toml` — drop `python-jose`, `argon2-cffi`; add `pyjwt`, `respx` (test-only), `identity_client` path dep |
 
 Highest-risk phase (live data cutover). Never run against production data
 without a user-confirmed maintenance window; in dev/CI it can run against
@@ -358,11 +365,11 @@ two test databases with no extra confirmation.
 
 | # | Item | Status |
 | --- | --- | --- |
-| `Q-01` | `identity_client` packaging | **Resolved** (2026-08-29, [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) — one shared `libs/identity_client/` Python package, not copy-per-app |
+| `Q-01` | `identity_client` packaging | **Resolved & built** (T10) — `libs/identity_client/` shared Python package (`JWKSCache` + `verify_token` + `make_verify_dependency`), 100% test coverage, not imported by any consumer until the cutover |
 | `Q-02` | `apps/tolaria_news` scope and timeline — its routes must depend on a `barrins-identity` service-token scope from their first commit | Open — blocked on the Tolaria News frontend spec, not on this service |
-| `Q-03` | `username` field — constitution §13.2 requires a unique `username`; the branch model is email-only | **Resolved** (2026-08-29, ADR-17) — add `username` (unique, indexed) to the `User` model. Implementation task on the feature branch: a migration, plus `username` in `UserSignup` / `UserCreate` |
+| `Q-03` | `username` field — constitution §13.2 requires a unique `username` | **Resolved & built** (T10) — `username` `VARCHAR(64)` UNIQUE NOT NULL INDEX on `users` (migration `f6a7b8c9d0e1`); required in `UserSignup` / `UserCreate`, echoed in `UserRead`, threaded through `/auth/signup`, `/auth/register` and `create_admin.py`; anonymized on soft-delete |
 | `Q-04` | T9 sub-decision 1 (auth-enforcement fork) | **Resolved** — option (b), a live role check against `barrins_identity`; recorded in the T9 tracker (2026-08-29) |
-| `Q-05` | Login credential once `username` exists — accept `username`, `email`, or both on `POST /auth/token`? | Open — a sub-point of `Q-03`. The OAuth2 form field is literally named `username`; today it carries the email |
+| `Q-05` | Login credential — accept `username`, `email`, or both on `POST /auth/token`? | **Open (deferred)**. T10 kept `email` as the sole credential: the OAuth2 form field named `username` carries the email, unchanged, for Swagger / `OAuth2PasswordBearer` compatibility. Accepting the real handle as a login is a later, separate change |
 
 ---
 

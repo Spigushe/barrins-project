@@ -6,10 +6,11 @@ cutover lands). One Barrin's account per person (constitution §13.1),
 issued and signed here, verified everywhere else against a cached public
 key — no shared signing secret.
 
-> **Status**: 🟨 Built on branches `feat/barrins-identity` and
-> `claude/barrins-identity-lifecycle-settings-4g2lyh`; not yet merged to
-> the `proj/v2.0.0-bump` release line. See the Platform doc (linked
-> below) for what that means for each section.
+> **Status**: 🟩 On the `proj/v2.0.0-bump` release line (T10) — the
+> service and the shared `libs/identity_client/` verifier are implemented
+> and tested here. Still deferred: the `barrins_api` cutover, the
+> `ops/my-server/barrins_identity.yml` playbook, and the Goblin Guide
+> frontend. See the Platform doc (linked below) for detail.
 
 ## Tech stack
 
@@ -20,6 +21,7 @@ key — no shared signing secret.
 | Database | PostgreSQL (own database, never shared with `barrins_api`) |
 | ORM / migrations | SQLAlchemy 2.x async (`asyncpg`) + Alembic (hand-written) |
 | Schemas | Pydantic v2 (`extra="forbid"` on every input schema) |
+| Identity | `email` (login) + unique `username` handle, §13.2 |
 | JWT | `PyJWT`, RS256, `kid` header for rotation |
 | Password / secret hashing | `argon2-cffi` (Argon2id) |
 | Rate limiting | `slowapi` (per-IP, on `/auth/token` and password reset) |
@@ -28,8 +30,15 @@ key — no shared signing secret.
 
 ## What's implemented
 
-- **Human login** — `POST /api/v1/auth/token`, `/auth/refresh`,
+- **Human login** — `POST /api/v1/auth/token` (by email), `/auth/refresh`,
   `/auth/logout`, `/auth/register` (admin), `GET /auth/me`.
+- **Unique `username` handle** (constitution §13.2) — required on
+  signup / register, echoed in `UserRead`, anonymized on soft-delete.
+  Login still authenticates by `email` (`Q-05` deferred).
+- **`libs/identity_client/`** — the shared JWKS fetch/cache +
+  `verify_token` + `make_verify_dependency` package every backend
+  consumer will import (ADR-17). Built and tested; not wired into any
+  consumer until the cutover.
 - **Self-registration + email verification**, gated by
   `REQUIRE_EMAIL_VERIFICATION` (default `true`) — `POST /auth/signup`,
   `/auth/signup/verify`, `/auth/signup/resend`. When `false` (no SMTP
@@ -57,14 +66,16 @@ anti-enumeration responses, and the standard Barrin's error envelope.
 
 ## What's NOT in this app yet
 
-- **The `barrins_api` cutover** — migrating its local `users` table here
-  and replacing its local JWT auth with token verification against this
-  service. Highest-risk phase; needs a user-confirmed maintenance window.
-- **The `identity_client/` verification module** consumers would embed.
+- **The `barrins_api` cutover** — migrating its local `users` table here,
+  wiring in `libs/identity_client/`, and dropping its local JWT auth.
+  Highest-risk phase; needs a user-confirmed maintenance window.
+- **The `ops/my-server/barrins_identity.yml` playbook** and any
+  production instance.
 - **`tolaria_news` routes and their scope checks** — the frontend is
   still under specification.
 - **The service-account path for per-app settings** — documented, wired
   for human tokens only for now.
+- **Accepting `username` as a login credential** (`Q-05`).
 
 ## Quickstart
 
@@ -73,7 +84,7 @@ cd apps/barrins_identity
 cp .env.example .env  # fill DATABASE_URL, JWT_PRIVATE_KEY, ALLOWED_ORIGINS
 uv sync --group dev
 uv run alembic upgrade head
-uv run python scripts/create_admin.py --email admin@example.com
+uv run python scripts/create_admin.py --email admin@example.com --username admin
 uv run uvicorn app.main:app --reload --port 8001
 ```
 

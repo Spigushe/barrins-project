@@ -1376,6 +1376,17 @@ to satisfy — there is still only one `users` table to move.
   proxy mechanism (nginx `auth_request` vs. sidecar) stays a T9 build
   detail.
 
+**Update (T10, 2026-08-29).** The **service implementation** landed on
+`proj/v2.0.0-bump`: `apps/barrins_identity/` and the shared
+`libs/identity_client/` verifier were copied over from the two feature
+branches (not cherry-picked), reconciled with current monorepo
+conventions, and extended with the `username` handle (`Q-03`). Tracked as
+`docs/project/v2.0.0-bump/t10-barrins-identity/`. The three phases this
+ADR called separable — the `barrins_api` cutover
+([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+the `ops/my-server/barrins_identity.yml` playbook, and Goblin Guide —
+are not built yet, each still gated as described above.
+
 ## ADR-17: Shared code lives in a top-level libs/ directory
 
 **Context.** ADR-16 adopts `barrins_identity` so that every other app
@@ -1456,8 +1467,16 @@ target)"; `libs/` means "a package other things import."
 - `apps/goblin_guide/` becomes (or contains) the shared library plus the
   shell; its docs describe that shape.
 - `username` is added to the `User` model to match Constitution §13.2
-  (email-only was a gap, not a decision) — an implementation task on the
-  `barrins_identity` feature branch. Whether login accepts `username`,
-  `email`, or both is the one sub-point left open (platform.md `Q-05`).
+  (email-only was a gap, not a decision). **Done on T10**: `VARCHAR(64)`
+  UNIQUE NOT NULL INDEX (migration `f6a7b8c9d0e1`), required in
+  `UserSignup` / `UserCreate`, echoed in `UserRead`, anonymized on
+  soft-delete. Whether login accepts the handle as well as the email
+  stays open (platform.md `Q-05`) — T10 kept `email` as the sole
+  credential.
+- **T10 (2026-08-29)**: `libs/identity_client/` is built (per the "created
+  by the cutover" note above, brought forward so the package is testable
+  now) — `JWKSCache` + `verify_token` + `make_verify_dependency`, 100%
+  covered, not yet consumed. `dc_calendar` had already moved to
+  `libs/dc_calendar/` (commit `19086dff`).
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

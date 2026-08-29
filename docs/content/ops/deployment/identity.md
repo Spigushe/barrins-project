@@ -6,14 +6,13 @@ playbook. Structured per Constitution §37.1; §26.1 (one application, one
 playbook) — this playbook must never touch `barrins_api`'s service,
 vhost, or database.
 
-> **Status**: ⬜ Not built. `apps/barrins_identity/` is on
-> `feat/barrins-identity` +
-> `claude/barrins-identity-lifecycle-settings-4g2lyh`, not on the release
-> line; there is no `ops/my-server/barrins_identity.yml` and no
-> production instance. Concrete values below (port, domain, systemd unit)
-> are **playbook-owned** and marked as such — the one exception is the
-> email setup (below), which is concrete because it is being executed
-> now.
+> **Status**: ⬜ Playbook not built. The **application** landed on
+> `proj/v2.0.0-bump` on T10 (`apps/barrins_identity/` + the shared
+> `libs/identity_client/`), but there is still no
+> `ops/my-server/barrins_identity.yml` and no production or staging
+> instance. Concrete values below (port, domain, systemd unit) are
+> **playbook-owned** and marked as such — the one exception is the email
+> setup (below), which is concrete because it is being executed now.
 
 | | Production | Staging |
 | --- | --- | --- |
@@ -241,7 +240,8 @@ ansible-playbook barrins_identity.yml
 ```
 
 The playbook: clones the release tag, `uv sync`, `alembic upgrade head`,
-seeds the first admin (`scripts/create_admin.py --email …`, one-time),
+seeds the first admin (`scripts/create_admin.py --email … --username …`,
+one-time),
 restarts the systemd unit. It touches nothing belonging to `barrins_api`.
 
 ---
