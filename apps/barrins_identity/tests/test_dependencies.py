@@ -19,6 +19,7 @@ from app.models.user import User, UserRole
 async def regular_user(db_session) -> User:
     user = User(
         email="dep-user@test.com",
+        username="dep-user",
         hashed_password=hash_password("User#Pass1word"),
         role=UserRole.user,
         is_active=True,

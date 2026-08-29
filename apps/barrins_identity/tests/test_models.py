@@ -3,6 +3,8 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.models.app_settings import AppKey, AppSettings
 from app.models.email_change_request import EmailChangeRequest
 from app.models.email_verification import EmailVerification
@@ -35,7 +37,7 @@ class TestUserModel:
         applied by SQLAlchemy at flush time, not at __init__ — see
         db_session-backed assertion here rather than a bare constructor
         check."""
-        user = User(email="a@example.com", hashed_password="hashed")
+        user = User(email="a@example.com", username="user_a", hashed_password="hashed")
         db_session.add(user)
         await db_session.flush()
         await db_session.refresh(user)
@@ -48,8 +50,27 @@ class TestUserModel:
 
     def test_explicit_id(self):
         user_id = uuid.uuid4()
-        user = User(id=user_id, email="b@example.com", hashed_password="hashed")
+        user = User(
+            id=user_id,
+            email="b@example.com",
+            username="user_b",
+            hashed_password="hashed",
+        )
         assert user.id == user_id
+
+    async def test_username_is_unique(self, db_session):
+        """The unique constraint on `username` is enforced at the DB level."""
+        from sqlalchemy.exc import IntegrityError
+
+        db_session.add(
+            User(email="u1@example.com", username="dup", hashed_password="hashed")
+        )
+        await db_session.flush()
+        db_session.add(
+            User(email="u2@example.com", username="dup", hashed_password="hashed")
+        )
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
 
 
 class TestServiceAccountModel:
@@ -81,7 +102,7 @@ class TestServiceAccountModel:
 
 class TestEmailVerificationModel:
     async def test_defaults_after_flush(self, db_session):
-        user = User(email="c@example.com", hashed_password="hashed")
+        user = User(email="c@example.com", username="user_c", hashed_password="hashed")
         db_session.add(user)
         await db_session.flush()
 
@@ -109,7 +130,9 @@ class TestEmailVerificationModel:
 
 class TestPasswordResetCodeModel:
     async def test_defaults_after_flush(self, db_session):
-        user = User(email="reset@example.com", hashed_password="hashed")
+        user = User(
+            email="reset@example.com", username="user_reset", hashed_password="hashed"
+        )
         db_session.add(user)
         await db_session.flush()
 
@@ -137,7 +160,11 @@ class TestPasswordResetCodeModel:
 
 class TestEmailChangeRequestModel:
     async def test_defaults_after_flush(self, db_session):
-        user = User(email="changer@example.com", hashed_password="hashed")
+        user = User(
+            email="changer@example.com",
+            username="user_changer",
+            hashed_password="hashed",
+        )
         db_session.add(user)
         await db_session.flush()
 
@@ -174,7 +201,11 @@ class TestAppKeyEnum:
 
 class TestAppSettingsModel:
     async def test_defaults_after_flush(self, db_session):
-        user = User(email="settings@example.com", hashed_password="hashed")
+        user = User(
+            email="settings@example.com",
+            username="user_settings",
+            hashed_password="hashed",
+        )
         db_session.add(user)
         await db_session.flush()
 

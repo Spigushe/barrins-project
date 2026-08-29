@@ -33,6 +33,7 @@ def _refresh_token_for(user: User) -> str:
 async def admin_user(db_session) -> User:
     user = User(
         email="admin@test.com",
+        username="admin",
         hashed_password=hash_password("Admin#Pass1word"),
         role=UserRole.admin,
         is_active=True,
@@ -49,6 +50,7 @@ async def admin_user(db_session) -> User:
 async def regular_user(db_session) -> User:
     user = User(
         email="user@test.com",
+        username="user",
         hashed_password=hash_password("User#Pass1word"),
         role=UserRole.user,
         is_active=True,
@@ -65,6 +67,7 @@ async def regular_user(db_session) -> User:
 async def inactive_user(db_session) -> User:
     user = User(
         email="inactive@test.com",
+        username="inactive",
         hashed_password=hash_password("Inactive#Pass1"),
         role=UserRole.user,
         is_active=False,
@@ -165,6 +168,7 @@ class TestGetMe:
         assert resp.status_code == 200
         body = resp.json()
         assert body["email"] == "user@test.com"
+        assert body["username"] == "user"
         assert body["role"] == "user"
         assert "hashed_password" not in body
 
@@ -234,12 +238,17 @@ class TestRegister:
         token = _access_token_for(admin_user)
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "newuser@example.com", "password": "NewUser#Pass1"},
+            json={
+                "email": "newuser@example.com",
+                "username": "newuser",
+                "password": "NewUser#Pass1",
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 201
         body = resp.json()
         assert body["email"] == "newuser@example.com"
+        assert body["username"] == "newuser"
         assert body["role"] == "user"
         assert "hashed_password" not in body
 
@@ -249,16 +258,51 @@ class TestRegister:
         token = _access_token_for(admin_user)
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "user@test.com", "password": "AnyValid#1pass"},
+            json={
+                "email": "user@test.com",
+                "username": "dupreg",
+                "password": "AnyValid#1pass",
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 409
+
+    async def test_duplicate_username_returns_409(
+        self, client: AsyncClient, admin_user: User, regular_user: User
+    ):
+        token = _access_token_for(admin_user)
+        resp = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "fresh@example.com",
+                "username": "user",
+                "password": "AnyValid#1pass",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 409
+        assert "username" in resp.json()["error"]["message"].lower()
+
+    async def test_missing_username_returns_422(
+        self, client: AsyncClient, admin_user: User
+    ):
+        token = _access_token_for(admin_user)
+        resp = await client.post(
+            "/api/v1/auth/register",
+            json={"email": "nouser@example.com", "password": "AnyValid#1pass"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 422
 
     async def test_non_admin_returns_403(self, client: AsyncClient, regular_user: User):
         token = _access_token_for(regular_user)
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "x@x.com", "password": "SomeValid#1pass"},
+            json={
+                "email": "x@x.com",
+                "username": "noadmin",
+                "password": "SomeValid#1pass",
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 403
@@ -266,7 +310,11 @@ class TestRegister:
     async def test_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "x@x.com", "password": "SomeValid#1pass"},
+            json={
+                "email": "x@x.com",
+                "username": "noauth",
+                "password": "SomeValid#1pass",
+            },
         )
         assert resp.status_code == 401
 
@@ -276,6 +324,7 @@ class TestRegister:
             "/api/v1/auth/register",
             json={
                 "email": "x2@x.com",
+                "username": "injectt",
                 "password": "SomeValid#1pass",
                 "injected_field": "evil",
             },
@@ -289,7 +338,11 @@ class TestRegister:
         token = _access_token_for(admin_user)
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "weak@x.com", "password": "short"},
+            json={
+                "email": "weak@x.com",
+                "username": "weakreg",
+                "password": "short",
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 422

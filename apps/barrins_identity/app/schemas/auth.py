@@ -45,6 +45,21 @@ PasswordStr = Annotated[
 ]
 
 # ---------------------------------------------------------------------------
+# Username rules (constitution §13.2, ADR-17 / platform.md Q-03)
+# ---------------------------------------------------------------------------
+# 3-32 chars, ASCII letters/digits plus `_` and `-`. Same "single source of
+# truth, exposed via GET /openapi.json" pattern as PASSWORD_PATTERN. A plain
+# character class has no look-arounds, so Field(pattern=...) both documents
+# and enforces it here (unlike the password rule).
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,32}$")
+USERNAME_RULE = "3-32 characters: letters, digits, underscore or hyphen only."
+
+UsernameStr = Annotated[
+    str,
+    Field(pattern=USERNAME_PATTERN.pattern, description=USERNAME_RULE),
+]
+
+# ---------------------------------------------------------------------------
 # User schemas
 # ---------------------------------------------------------------------------
 
@@ -59,6 +74,7 @@ class UserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
+    username: UsernameStr
     password: PasswordStr
     role: UserRole = UserRole.user
     is_verified: bool = False
@@ -78,6 +94,7 @@ class UserSignup(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
+    username: UsernameStr
     password: PasswordStr
     display_name: str | None = None
 
@@ -87,6 +104,7 @@ class UserRead(BaseModel):
 
     id: UUID
     email: EmailStr
+    username: str
     role: UserRole
     is_active: bool
     is_verified: bool

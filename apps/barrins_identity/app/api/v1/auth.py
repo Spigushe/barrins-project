@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.config import settings
 from app.core.rate_limit import limiter
@@ -56,6 +56,29 @@ def _claims(user: User) -> dict[str, str | int]:
     }
 
 
+async def _reject_taken_identity(
+    session: DatabaseSession, *, email: str, username: str
+) -> None:
+    """Raise 409 if `email` or `username` already belongs to an account.
+
+    One query, precise message — email is checked first so the more common
+    "already registered" case keeps its existing wording.
+    """
+    result = await session.execute(
+        select(User).where(or_(User.email == email, User.username == username))
+    )
+    for existing in result.scalars():
+        if existing.email == email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"An account already exists for '{email}'.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The username '{username}' is already taken.",
+        )
+
+
 def _login_rate_limit() -> str:
     """Read lazily so tests can monkeypatch settings.base.login_rate_limit."""
     return settings.base.login_rate_limit
@@ -70,7 +93,11 @@ async def login(
 ) -> TokenPair:
     """Authenticate a user and return a pair of RS256 JWT tokens.
 
-    The `username` field of the OAuth2 form contains the email address.
+    The `username` field of the OAuth2 form contains the email address —
+    this is intentional and required for the Swagger Authorize button /
+    OAuth2PasswordBearer. Whether the real `username` handle also becomes
+    accepted here is platform.md Q-05 (deferred); do not "fix" this to
+    read the handle.
     Rate-limited per IP (settings.base.login_rate_limit).
 
     All failure branches (unknown email, wrong password, inactive account)
@@ -112,17 +139,15 @@ async def register(
 ) -> UserRead:
     """Create a new user account. Accessible to administrators only.
 
-    Returns HTTP 409 if the email is already registered.
+    Returns HTTP 409 if the email or the username is already taken.
     """
-    existing = await session.execute(select(User).where(User.email == payload.email))
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"An account already exists for '{payload.email}'.",
-        )
+    await _reject_taken_identity(
+        session, email=payload.email, username=payload.username
+    )
 
     user = User(
         email=payload.email,
+        username=payload.username,
         hashed_password=hash_password(payload.password),
         role=payload.role,
         is_verified=payload.is_verified,
@@ -218,16 +243,14 @@ async def signup(
     isn't configured): creates an already-verified account and logs the
     user in immediately — no email sent, no `EmailVerification` row created.
     """
-    existing = await session.execute(select(User).where(User.email == payload.email))
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"An account already exists for '{payload.email}'.",
-        )
+    await _reject_taken_identity(
+        session, email=payload.email, username=payload.username
+    )
 
     if not settings.base.require_email_verification:
         user = User(
             email=payload.email,
+            username=payload.username,
             hashed_password=hash_password(payload.password),
             role=UserRole.user,
             is_verified=True,
@@ -247,6 +270,7 @@ async def signup(
 
     user = User(
         email=payload.email,
+        username=payload.username,
         hashed_password=hash_password(payload.password),
         role=UserRole.user,
         is_verified=False,

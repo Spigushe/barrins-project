@@ -54,6 +54,19 @@ class User(Base):
         nullable=False,
         index=True,
     )
+    # Unique handle required by constitution §13.2 (ADR-17 / platform.md
+    # Q-03). Distinct from `email`: `email` stays the login identifier
+    # (the OAuth2 form field carries it — Q-05 is deferred), `username` is
+    # the public handle. No column-level default — every write path
+    # (signup, register, create_admin) supplies it explicitly. The column
+    # is wider than the 3-32 char input rule (schemas.auth.USERNAME_PATTERN)
+    # so a soft-deleted account can be anonymized to `deleted-<uuid>`.
+    username: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="userrole"),

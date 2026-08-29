@@ -45,28 +45,38 @@ from app.schemas.users import (
 
 class TestPasswordStr:
     def test_valid_password_accepted(self):
-        user = UserCreate(email="a@example.com", password="ValidPass#1word")
+        user = UserCreate(
+            email="a@example.com", username="alice", password="ValidPass#1word"
+        )
         assert user.password == "ValidPass#1word"
 
     def test_too_short_rejected(self):
         with pytest.raises(ValidationError, match=PASSWORD_RULE):
-            UserCreate(email="a@example.com", password="Short#1")
+            UserCreate(email="a@example.com", username="alice", password="Short#1")
 
     def test_missing_symbol_rejected(self):
         with pytest.raises(ValidationError):
-            UserCreate(email="a@example.com", password="NoSymbolPass1word")
+            UserCreate(
+                email="a@example.com", username="alice", password="NoSymbolPass1word"
+            )
 
     def test_missing_digit_rejected(self):
         with pytest.raises(ValidationError):
-            UserCreate(email="a@example.com", password="NoDigitPass#word")
+            UserCreate(
+                email="a@example.com", username="alice", password="NoDigitPass#word"
+            )
 
     def test_missing_uppercase_rejected(self):
         with pytest.raises(ValidationError):
-            UserCreate(email="a@example.com", password="nouppercase#1word")
+            UserCreate(
+                email="a@example.com", username="alice", password="nouppercase#1word"
+            )
 
     def test_missing_lowercase_rejected(self):
         with pytest.raises(ValidationError):
-            UserCreate(email="a@example.com", password="NOLOWERCASE#1WORD")
+            UserCreate(
+                email="a@example.com", username="alice", password="NOLOWERCASE#1WORD"
+            )
 
 
 class TestUserCreate:
@@ -75,16 +85,37 @@ class TestUserCreate:
             UserCreate.model_validate(
                 {
                     "email": "a@example.com",
+                    "username": "alice",
                     "password": "ValidPass#1word",
                     "injected": "evil",
                 }
             )
 
     def test_defaults(self):
-        user = UserCreate(email="a@example.com", password="ValidPass#1word")
+        user = UserCreate(
+            email="a@example.com", username="alice", password="ValidPass#1word"
+        )
         assert user.role == "user"
         assert user.is_verified is False
         assert user.display_name is None
+
+    def test_username_missing_rejected(self):
+        with pytest.raises(ValidationError):
+            UserCreate.model_validate(
+                {"email": "a@example.com", "password": "ValidPass#1word"}
+            )
+
+    @pytest.mark.parametrize("bad", ["ab", "a" * 33, "has space", "bad!char", "é"])
+    def test_username_pattern_rejected(self, bad: str):
+        with pytest.raises(ValidationError):
+            UserCreate(email="a@example.com", username=bad, password="ValidPass#1word")
+
+    @pytest.mark.parametrize("ok", ["abc", "a_b-c", "A1z", "user-42", "x" * 32])
+    def test_username_pattern_accepted(self, ok: str):
+        user = UserCreate(
+            email="a@example.com", username=ok, password="ValidPass#1word"
+        )
+        assert user.username == ok
 
 
 class TestUserRead:
@@ -92,6 +123,7 @@ class TestUserRead:
         fake_user = SimpleNamespace(
             id=uuid.uuid4(),
             email="a@example.com",
+            username="alice",
             role="user",
             is_active=True,
             is_verified=True,
@@ -99,6 +131,7 @@ class TestUserRead:
         )
         read = UserRead.model_validate(fake_user)
         assert read.email == "a@example.com"
+        assert read.username == "alice"
 
 
 # ===========================================================================
@@ -198,14 +231,23 @@ class TestUserSignup:
             UserSignup.model_validate(
                 {
                     "email": "a@example.com",
+                    "username": "alice",
                     "password": "ValidPass#1word",
                     "role": "admin",
                 }
             )
 
     def test_valid(self):
-        payload = UserSignup(email="a@example.com", password="ValidPass#1word")
+        payload = UserSignup(
+            email="a@example.com", username="alice", password="ValidPass#1word"
+        )
         assert payload.display_name is None
+
+    def test_username_required(self):
+        with pytest.raises(ValidationError):
+            UserSignup.model_validate(
+                {"email": "a@example.com", "password": "ValidPass#1word"}
+            )
 
 
 class TestSignupResponse:

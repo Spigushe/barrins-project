@@ -272,10 +272,10 @@ async def delete_account(
     """Soft-delete the caller's account.
 
     Requires the current password (re-auth) — HTTP 401 if it doesn't
-    match. Anonymizes `email`/`display_name`, deactivates the account,
-    and bumps `token_version` (platform.md §15). Cascading cleanup of
-    app-owned data is out of scope here — each app owns its own data
-    retention policy (constitution §4.1).
+    match. Anonymizes `email`/`username`/`display_name`, deactivates the
+    account, and bumps `token_version` (platform.md §15). Cascading
+    cleanup of app-owned data is out of scope here — each app owns its
+    own data retention policy (constitution §4.1).
     """
     if not verify_password(payload.current_password, current_user.hashed_password):
         raise HTTPException(
@@ -284,6 +284,7 @@ async def delete_account(
         )
 
     current_user.email = f"deleted-{current_user.id}@barrins.invalid"
+    current_user.username = f"deleted-{current_user.id}"
     current_user.display_name = None
     current_user.hashed_password = "!"  # noqa: S105 — never a valid Argon2id hash
     current_user.is_active = False

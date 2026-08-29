@@ -25,6 +25,7 @@ def _access_token_for(user: User) -> str:
 async def regular_user(db_session) -> User:
     user = User(
         email="user@test.com",
+        username="user",
         hashed_password=hash_password("User#Pass1word"),
         role=UserRole.user,
         is_active=True,
@@ -41,6 +42,7 @@ async def regular_user(db_session) -> User:
 async def other_user(db_session) -> User:
     user = User(
         email="other@test.com",
+        username="other",
         hashed_password=hash_password("Other#Pass1word"),
         role=UserRole.user,
         is_active=True,

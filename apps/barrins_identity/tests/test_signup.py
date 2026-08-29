@@ -64,6 +64,7 @@ async def regular_user(db_session) -> User:
     """Already-verified account — used for the "already registered"/"verified" cases."""
     user = User(
         email="user@test.com",
+        username="user",
         hashed_password=hash_password("User#Pass1word"),
         is_active=True,
         is_verified=True,
@@ -78,9 +79,11 @@ async def _signup(
     client: AsyncClient,
     email: str = "newplayer@example.com",
     password: str = "ValidPass#1word",
+    username: str = "newplayer",
 ) -> None:
     resp = await client.post(
-        "/api/v1/auth/signup", json={"email": email, "password": password}
+        "/api/v1/auth/signup",
+        json={"email": email, "password": password, "username": username},
     )
     assert resp.status_code == 201
 
@@ -140,9 +143,43 @@ class TestSignup:
     ):
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "user@test.com", "password": "AnyValid#1pass"},
+            json={
+                "email": "user@test.com",
+                "username": "dupemail",
+                "password": "AnyValid#1pass",
+            },
         )
         assert resp.status_code == 409
+        assert fake_email_sender.sent == []
+
+    async def test_duplicate_username_returns_409(
+        self,
+        client: AsyncClient,
+        regular_user: User,
+        fake_email_sender: _FakeEmailSender,
+    ):
+        # regular_user holds username "user"; a fresh email but the taken
+        # handle must still be rejected (distinct message from the email case).
+        resp = await client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": "fresh@example.com",
+                "username": "user",
+                "password": "AnyValid#1pass",
+            },
+        )
+        assert resp.status_code == 409
+        assert "username" in resp.json()["error"]["message"].lower()
+        assert fake_email_sender.sent == []
+
+    async def test_missing_username_returns_422(
+        self, client: AsyncClient, fake_email_sender: _FakeEmailSender
+    ):
+        resp = await client.post(
+            "/api/v1/auth/signup",
+            json={"email": "nouser@example.com", "password": "AnyValid#1pass"},
+        )
+        assert resp.status_code == 422
         assert fake_email_sender.sent == []
 
     async def test_extra_field_returns_422(
@@ -150,7 +187,12 @@ class TestSignup:
     ):
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "x@x.com", "password": "SomeValid#1pass", "role": "admin"},
+            json={
+                "email": "x@x.com",
+                "username": "extrafield",
+                "password": "SomeValid#1pass",
+                "role": "admin",
+            },
         )
         assert resp.status_code == 422
         assert fake_email_sender.sent == []
@@ -159,7 +201,8 @@ class TestSignup:
         self, client: AsyncClient, fake_email_sender: _FakeEmailSender
     ):
         resp = await client.post(
-            "/api/v1/auth/signup", json={"email": "weak@x.com", "password": "short"}
+            "/api/v1/auth/signup",
+            json={"email": "weak@x.com", "username": "weakpw", "password": "short"},
         )
         assert resp.status_code == 422
 
@@ -168,7 +211,11 @@ class TestSignup:
     ):
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "unlucky@example.com", "password": "ValidPass#1word"},
+            json={
+                "email": "unlucky@example.com",
+                "username": "unlucky",
+                "password": "ValidPass#1word",
+            },
         )
         assert resp.status_code == 502
 
@@ -192,7 +239,11 @@ class TestSignupWithVerificationDisabled:
 
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "instant@example.com", "password": "ValidPass#1word"},
+            json={
+                "email": "instant@example.com",
+                "username": "instant",
+                "password": "ValidPass#1word",
+            },
         )
         assert resp.status_code == 201
         body = resp.json()
@@ -222,7 +273,11 @@ class TestSignupWithVerificationDisabled:
 
         signup_resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "instant2@example.com", "password": "ValidPass#1word"},
+            json={
+                "email": "instant2@example.com",
+                "username": "instant2",
+                "password": "ValidPass#1word",
+            },
         )
         access_token = signup_resp.json()["tokens"]["access_token"]
 
@@ -244,7 +299,11 @@ class TestSignupWithVerificationDisabled:
 
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "user@test.com", "password": "AnyValid#1pass"},
+            json={
+                "email": "user@test.com",
+                "username": "dupemail2",
+                "password": "AnyValid#1pass",
+            },
         )
         assert resp.status_code == 409
 
@@ -339,6 +398,7 @@ class TestVerifySignup:
     ):
         user = User(
             email="norecord@example.com",
+            username="norecord",
             hashed_password="irrelevant",
             is_verified=False,
         )

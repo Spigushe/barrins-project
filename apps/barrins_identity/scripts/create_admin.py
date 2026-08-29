@@ -2,8 +2,9 @@
 
 Usage
 -----
-    python scripts/create_admin.py --email admin@example.com
-    python scripts/create_admin.py --email admin@example.com --display-name "Alice"
+    python scripts/create_admin.py --email admin@example.com --username admin
+    python scripts/create_admin.py --email admin@example.com --username admin \
+        --display-name "Alice"
 
 The password is always entered interactively via a masked prompt
 (getpass) — never accepted as a command-line argument.
@@ -25,12 +26,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.security import hash_password
 from app.database.connection import AsyncSessionLocal
 from app.models.user import User, UserRole
-from app.schemas.auth import PASSWORD_PATTERN, PASSWORD_RULE
+from app.schemas.auth import (
+    PASSWORD_PATTERN,
+    PASSWORD_RULE,
+    USERNAME_PATTERN,
+    USERNAME_RULE,
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -47,6 +53,12 @@ def _parse_args() -> argparse.Namespace:
         required=True,
         metavar="EMAIL",
         help="Email address of the administrator account.",
+    )
+    parser.add_argument(
+        "--username",
+        required=True,
+        metavar="NAME",
+        help=f"Unique handle for the administrator account. {USERNAME_RULE}",
     )
     parser.add_argument(
         "--display-name",
@@ -74,16 +86,26 @@ def _prompt_password() -> str:
     return password
 
 
-async def _create_admin(email: str, password: str, display_name: str | None) -> None:
-    """Inserts the admin account into the DB. Idempotent: fails if the email exists."""
+async def _create_admin(
+    email: str, username: str, password: str, display_name: str | None
+) -> None:
+    """Inserts the admin account into the DB. Fails if the email or username exists."""
     async with AsyncSessionLocal() as session:
-        existing = await session.execute(select(User).where(User.email == email))
-        if existing.scalar_one_or_none() is not None:
-            print(f"ERROR: an account already exists for '{email}'.", file=sys.stderr)
+        existing = await session.execute(
+            select(User).where(or_(User.email == email, User.username == username))
+        )
+        for row in existing.scalars():
+            field = "email" if row.email == email else "username"
+            value = email if field == "email" else username
+            print(
+                f"ERROR: an account already exists with that {field} ('{value}').",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         admin = User(
             email=email,
+            username=username,
             hashed_password=hash_password(password),
             role=UserRole.admin,
             is_active=True,
@@ -94,13 +116,16 @@ async def _create_admin(email: str, password: str, display_name: str | None) -> 
         await session.commit()
         await session.refresh(admin)
 
-    print(f"Admin account created: {email} (id={admin.id})")
+    print(f"Admin account created: {email} (username={username}, id={admin.id})")
 
 
 def main() -> None:
     args = _parse_args()
+    if not USERNAME_PATTERN.fullmatch(args.username):
+        print(f"ERROR: {USERNAME_RULE}", file=sys.stderr)
+        sys.exit(1)
     password = _prompt_password()
-    asyncio.run(_create_admin(args.email, password, args.display_name))
+    asyncio.run(_create_admin(args.email, args.username, password, args.display_name))
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ def failing_email_sender() -> Generator[_FailingEmailSender, Any]:
 async def regular_user(db_session) -> User:
     user = User(
         email="user@test.com",
+        username="user",
         hashed_password=hash_password("User#Pass1word"),
         role=UserRole.user,
         is_active=True,
@@ -76,6 +77,7 @@ async def regular_user(db_session) -> User:
 async def inactive_user(db_session) -> User:
     user = User(
         email="inactive@test.com",
+        username="inactive",
         hashed_password=hash_password("Inactive#Pass1"),
         role=UserRole.user,
         is_active=False,

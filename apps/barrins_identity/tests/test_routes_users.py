@@ -72,6 +72,7 @@ def _access_token_for(user: User) -> str:
 async def regular_user(db_session) -> User:
     user = User(
         email="user@test.com",
+        username="user",
         hashed_password=hash_password("User#Pass1word"),
         role=UserRole.user,
         is_active=True,
@@ -88,6 +89,7 @@ async def regular_user(db_session) -> User:
 async def other_user(db_session) -> User:
     user = User(
         email="taken@test.com",
+        username="taken",
         hashed_password=hash_password("Other#Pass1word"),
         role=UserRole.user,
         is_active=True,
@@ -653,6 +655,7 @@ class TestDeleteAccount:
         await db_session.refresh(regular_user)
         assert regular_user.is_active is False
         assert regular_user.email == f"deleted-{original_id}@barrins.invalid"
+        assert regular_user.username == f"deleted-{original_id}"
         assert regular_user.display_name is None
         assert not verify_password("User#Pass1word", regular_user.hashed_password)
 
@@ -672,7 +675,7 @@ class TestDeleteAccount:
         )
         assert resp.status_code == 401
 
-    async def test_original_email_reusable_after_deletion(
+    async def test_original_email_and_username_reusable_after_deletion(
         self, client: AsyncClient, db_session, regular_user: User
     ):
         token = _access_token_for(regular_user)
@@ -683,9 +686,15 @@ class TestDeleteAccount:
             headers={"Authorization": f"Bearer {token}"},
         )
 
+        # Soft-delete anonymizes both email and username, so a fresh
+        # signup can reclaim the original values.
         resp = await client.post(
             "/api/v1/auth/signup",
-            json={"email": "user@test.com", "password": "AnotherValid#1"},
+            json={
+                "email": "user@test.com",
+                "username": "user",
+                "password": "AnotherValid#1",
+            },
         )
         assert resp.status_code == 201
 
