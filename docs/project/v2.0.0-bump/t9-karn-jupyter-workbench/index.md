@@ -8,7 +8,7 @@
 | **Initial date** | 2026-08-28 | Split out of T8 |
 | **Status** | 🔲 **Not started** — T8 (2026-08-28) deliberately shipped the scheduled clustering job only; this is the "T8-style implementation task that actually builds it" ADR-15 defers to, which had no tracking page until now | / |
 | **Source** | [ADR-15](../../../content/ops/architecture/decisions.md#adr-15-karn-tablets-observability--job-health-and-jupyter-lab) — the Jupyter Lab half (the run-health half of ADR-15 is closed: folded into D2/F1, no new tracker/endpoint) | / |
-| **Dependency** | T6 (done via #106 — real `bs_*`/`kt_*` data to explore), T8 (done — the read-only DB credential and shared-secret patterns to reuse), `auth_roles.md` (`ml_developer`/`admin` roles + the `MlDeveloperUser` alias already exist) | Blocks nothing further |
+| **Dependency** | T6 (done via #106 — real `bs_*`/`kt_*` data to explore), T8 (done — the read-only DB credential and shared-secret patterns to reuse), `auth_roles.md` (`ml_developer`/`admin` roles + the `MlDeveloperUser` alias already exist), **`barrins_identity` scoped/deployed** (sub-decision 1 → option (b), 2026-08-29 — its `role` claim is the access gate) | Blocks nothing further |
 
 ---
 
@@ -37,26 +37,29 @@ playbook).
 
 ## Open sub-decisions (all inherited from ADR-15's deferral)
 
-1. **Auth enforcement mechanism.**
+1. **Auth enforcement mechanism. — RESOLVED (2026-08-29): option (b).**
+   T9 is the second real consumer ADR-7's delay was waiting for, so
+   `barrins_identity` is adopted now
+   (`../../../content/ops/architecture/decisions.md`, ADR-16) and this
+   workbench's access gate is a **live role check against
+   `barrins_identity`** — a proxy (nginx `auth_request` / small sidecar)
+   that validates a user token and its `role` claim (≥ `ml_developer`) on
+   every request, per the Integration Contract's
+   `back/barrins_identity/integration.md` §8.8 pattern. Scoping
+   `barrins_identity` is therefore a prerequisite of this item. The
+   options as originally framed:
    - (a) **pgAdmin model** — Jupyter's own token/password login, the
      credential shared out-of-band with `admin`/`ml_developer` holders,
-     no `barrins_api` involvement. Lightest; matches the existing
-     precedent exactly. "`admin`/`ml_developer` only" is enforced by
-     *who gets the password*, not by a live role check.
-   - (b) **A live role check against an identity service** — a proxy
-     (nginx `auth_request` / small sidecar) that validates a token and
-     its role claim on every request. **A `barrins_api`-JWT version of
-     this was built once (2026-08-15) and entirely reverted**: it
-     coupled Jupyter to Tamiyo Scroll's login/session, rejected as
-     incorrect cross-app coupling (see `feedback` on not coupling other
-     apps' auth to Tamiyo Scroll). The user's stated direction if this
-     route is taken: build it against `barrins_identity` ("Goblin
-     Guide", `apps/barrins_identity` — currently a stub, delayed by
-     ADR-7 until a second real consumer exists), which would make
-     scoping `barrins_identity` a prerequisite of this option.
-   - Given (b)'s history, **(a) is the low-friction path** unless the
-     team decides Jupyter is the second consumer that finally justifies
-     `barrins_identity`.
+     no identity service. Was the low-friction fallback "unless Jupyter
+     is the second consumer that finally justifies `barrins_identity`";
+     it is.
+   - (b) **A live role check against an identity service** *(chosen)*.
+     **A `barrins_api`-JWT version was built once (2026-08-15) and
+     entirely reverted** as incorrect cross-app coupling to Tamiyo
+     Scroll's session — the replacement is built against
+     `barrins_identity`, not `barrins_api`.
+   - Still a build detail, not a fork: nginx `auth_request` vs. a small
+     sidecar for the proxy.
 2. **Playbook boundary.** Its own `ops/my-server/karn_jupyter.yml` (the
    `postgresql_pgadmin.yml` pattern — a dedicated playbook for a shared
    piece of infra that other playbooks only reference), vs. folding it
@@ -108,9 +111,9 @@ playbook).
 
 ## Tasks
 
-- [ ] Decide sub-decision 1 (auth enforcement) — the one ADR-15 calls
-      out as the real fork. Present (a) vs (b) with trade-offs, get a
-      decision before building.
+- [x] Decide sub-decision 1 (auth enforcement) — **option (b)**, a live
+      role check against `barrins_identity` (2026-08-29, ADR-16). Now
+      gated on `barrins_identity` being scoped/deployed.
 - [ ] Decide sub-decisions 2–6 (playbook boundary, runtime shape, DB
       credential, notebook material, environments) — mostly precedent
       -driven, but confirm.

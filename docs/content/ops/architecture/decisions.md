@@ -1370,5 +1370,94 @@ to satisfy — there is still only one `users` table to move.
   `front/goblin_guide/` pages, and `ops/deployment/identity.md` each
   carry a status marker saying they describe a service built on feature
   branches, not yet on the `proj/v2.0.0-bump` release line.
-- Formally closing T9's sub-decision 1 in its own tracker remains a T9
-  task; this ADR records the dependency, not the enforcement mechanism.
+- T9's sub-decision 1 (its auth-enforcement fork) is settled to option
+  (b) — a live role check against `barrins_identity` — and recorded in
+  the T9 tracker (2026-08-29). This ADR records the dependency; the
+  proxy mechanism (nginx `auth_request` vs. sidecar) stays a T9 build
+  detail.
+
+## ADR-17: Shared code lives in a top-level libs/ directory
+
+**Context.** ADR-16 adopts `barrins_identity` so that every other app
+stops re-implementing authentication, which surfaces two more pieces of
+shared client-side code: `identity_client` (a Python token-verification
+helper — fetch + cache JWKS, a FastAPI dependency validating a token's
+`type`/`account_type`/scope) on every backend consumer, and Goblin Guide
+(the login / account-management UI) on every frontend. The earlier
+`barrins_identity` plan proposed *copying* `identity_client` into each app
+directory, and left Goblin Guide's shape open.
+
+This is not the first shared package. **`dc_calendar`** (banlist-period /
+rolling-window date logic) is already imported by both `apps/barrins_api`
+and `apps/karn_tablets` via `[tool.uv.sources]` path dependencies — but it
+lives under `apps/`, next to deployable applications, even though it is
+neither deployed nor an application. There is no established home for a
+shared library, so each new one improvises.
+
+**Alternatives considered.**
+
+1. Keep improvising — `dc_calendar` stays under `apps/`, `identity_client`
+   is copied per consumer, Goblin Guide is a standalone-only app (or a
+   copy-pasted widget).
+2. Establish a top-level `libs/` directory for shared, non-deployable
+   packages. `apps/dc_calendar/` moves to `libs/dc_calendar/`;
+   `identity_client` is created as `libs/identity_client/`; Goblin Guide
+   ships as a shared frontend library each frontend mounts, plus a thin
+   standalone shell for `goblin.barrins-codex.org` and the T9 proxy login
+   page.
+3. A hybrid — `libs/` for the frontend library, but copy-per-app for
+   `identity_client` because backends deploy independently.
+
+**Trade-offs.** Option 1's duplication is exactly what adopting
+`barrins_identity` exists to remove — a token-format fix would have to be
+applied N times, and drift is silent until a consumer breaks — and it
+leaves `dc_calendar` in the wrong place, so `apps/` no longer means "a
+deployable application." The independent-deploy argument for copy-per-app
+(option 3) does not bite: Constitution §26.1 independence is about
+playbooks and services not restarting each other, not about pinning a
+shared helper to an old version — and every consumer *should* run the same
+token-verification logic. A shared verification helper does not
+reintroduce a shared *secret*; RS256/JWKS trust is unchanged. The shared
+frontend library needs one boundary: routing and the query client stay
+the host app's, provided as peer dependencies.
+
+**Decision.** Option 2, per the user (2026-08-29). A top-level `libs/`
+directory holds shared packages that are imported, never deployed:
+
+- **`libs/dc_calendar/`** — moved from `apps/dc_calendar/`. The package
+  name is unchanged, so no import changes; the `[tool.uv.sources]` path
+  in `apps/barrins_api/pyproject.toml` and `apps/karn_tablets/pyproject.toml`
+  (`../dc_calendar` → `../../libs/dc_calendar`), their `[tool.ty]`
+  `extra-paths`, both `uv.lock` files, and the `apps/dc_calendar/**` CI
+  path filter update with it. Its own commit, with both consumer test
+  suites re-run.
+- **`libs/identity_client/`** — created by the `barrins_api` cutover
+  ([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+  under `libs/`, not `apps/barrins_api/identity_client/`.
+- **Goblin Guide** — a shared frontend library (React 19 + TS + Tailwind +
+  shadcn/ui, Vite library mode; React Router + TanStack Query as peer
+  deps) consumed by `tamiyo_scroll`, `tolaria_news` and future frontends,
+  plus a thin standalone shell app.
+
+`apps/` from now on means "a deployable application (or its playbook's
+target)"; `libs/` means "a package other things import."
+
+**Consequences.**
+
+- Closes `barrins_identity` platform.md `Q-01` (packaging) and the Goblin
+  Guide bootstrap `G-01`/`G-02`/`G-04` shape questions.
+- `dc_calendar` moves to `libs/dc_calendar/` as a standalone follow-up
+  commit — mechanical (path strings + lock files + CI filter), but it
+  changes build config for two apps so it is verified on its own, not
+  folded into a docs change.
+- `docs/hooks/sync_readmes.py` globs `apps/*` for README→docs sync;
+  `libs/*` packages get a docs page only if one is wanted (none today —
+  `dc_calendar` has no docs page).
+- `apps/goblin_guide/` becomes (or contains) the shared library plus the
+  shell; its docs describe that shape.
+- `username` is added to the `User` model to match Constitution §13.2
+  (email-only was a gap, not a decision) — an implementation task on the
+  `barrins_identity` feature branch. Whether login accepts `username`,
+  `email`, or both is the one sub-point left open (platform.md `Q-05`).
+- Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
+  blocked on its frontend spec, not on this decision.

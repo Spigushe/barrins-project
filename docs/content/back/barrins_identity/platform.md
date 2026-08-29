@@ -170,6 +170,7 @@ at runtime, `psycopg2` for Alembic). `app/models/_types.py` provides
 | --- | --- | --- | --- |
 | `id` | `UUID` | PK, `default uuid4` | |
 | `email` | `VARCHAR(255)` | UNIQUE, NOT NULL, INDEX | Login identifier |
+| `username` | `VARCHAR` | UNIQUE, NOT NULL, INDEX | **Planned** (decided 2026-08-29, [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) — the branch model is email-only; §13.2 requires a unique `username`. Not yet in the code or a migration |
 | `hashed_password` | `VARCHAR(255)` | NOT NULL | Argon2id hash (`"!"` for a soft-deleted account — never a valid hash) |
 | `role` | `ENUM userrole` | NOT NULL, server default `user` | |
 | `is_active` | `BOOLEAN` | NOT NULL, server default `true` | Deactivation without deletion; also the soft-delete flag |
@@ -340,8 +341,8 @@ not incremental):
 | Action | Files |
 | --- | --- |
 | Create | `scripts/migrate_users_to_identity.py` — copies `users` rows into `barrins-identity`'s database inside a single transaction (`target_engine.begin()`, not `.connect()`, so a mid-loop failure rolls back fully) |
-| Create | `identity_client/` — JWKS fetch + cache + a FastAPI verification dependency (§11) |
-| Replace | `app/dependencies/auth.py` — verifies via `identity_client`, no local DB user lookup |
+| Create | `libs/identity_client/` — JWKS fetch + cache + a FastAPI verification dependency. One shared Python package, not a per-app copy ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) |
+| Replace | `app/dependencies/auth.py` — verifies via `libs/identity_client`, no local DB user lookup |
 | Delete | `app/models/user.py`, `app/schemas/auth.py`, `app/core/security.py`, `app/api/v1/routers/auth.py`, `scripts/create_admin.py` (all now live here) |
 | Create | An Alembic migration dropping the local `users` table |
 | Modify | `app/config/base.py` — drop local JWT/Argon2 fields, add `identity_service_url`, `identity_jwks_cache_ttl_seconds` |
@@ -355,12 +356,13 @@ two test databases with no extra confirmation.
 
 ## 11. Open questions
 
-| # | Item |
-| --- | --- |
-| `Q-01` | Shared `libs/identity_client/` package vs. copy-per-app. Leaning copy-per-app (all consumers are in this monorepo), not yet decided — needed before the cutover |
-| `Q-02` | `apps/tolaria_news` scope and timeline — its routes must depend on a `barrins-identity` service-token scope from their first commit |
-| `Q-03` | `username` field — constitution §13.2 mentions one; the `User` model here has `email` only. Not added (out of scope); flagged, not silently reconciled |
-| `Q-04` | Formal close of T9 sub-decision 1 in the T9 tracker — this doc set assumes option (b) (a live check against `barrins_identity`); updating the tracker entry stays a T9 task |
+| # | Item | Status |
+| --- | --- | --- |
+| `Q-01` | `identity_client` packaging | **Resolved** (2026-08-29, [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)) — one shared `libs/identity_client/` Python package, not copy-per-app |
+| `Q-02` | `apps/tolaria_news` scope and timeline — its routes must depend on a `barrins-identity` service-token scope from their first commit | Open — blocked on the Tolaria News frontend spec, not on this service |
+| `Q-03` | `username` field — constitution §13.2 requires a unique `username`; the branch model is email-only | **Resolved** (2026-08-29, ADR-17) — add `username` (unique, indexed) to the `User` model. Implementation task on the feature branch: a migration, plus `username` in `UserSignup` / `UserCreate` |
+| `Q-04` | T9 sub-decision 1 (auth-enforcement fork) | **Resolved** — option (b), a live role check against `barrins_identity`; recorded in the T9 tracker (2026-08-29) |
+| `Q-05` | Login credential once `username` exists — accept `username`, `email`, or both on `POST /auth/token`? | Open — a sub-point of `Q-03`. The OAuth2 form field is literally named `username`; today it carries the email |
 
 ---
 
@@ -368,9 +370,10 @@ two test databases with no extra confirmation.
 
 Corrections already reflected here — do not reintroduce:
 
-- `/auth/token` uses `OAuth2PasswordRequestForm` (the `username` field
-  carries the email), not raw parameters — needed for the Swagger
-  Authorize button and `OAuth2PasswordBearer` compatibility.
+- `/auth/token` uses `OAuth2PasswordRequestForm` (the form's `username`
+  field carries the email today — see `Q-05` for once a real `username`
+  column exists), not raw parameters — needed for the Swagger Authorize
+  button and `OAuth2PasswordBearer` compatibility.
 - The RSA public key is derived once at module load, not per decode / per
   JWKS request.
 - The user-migration script uses `target_engine.begin()` for atomicity.

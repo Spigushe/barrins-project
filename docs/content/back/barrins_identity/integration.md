@@ -77,10 +77,12 @@ A stateless verifier does **not** re-check `tkv` per request — only
 own dependencies. A consumer that needs revocation to bite faster than the
 10-minute access TTL must call `barrins-identity` itself.
 
-The verification client (`identity_client/` — JWKS fetch + cache + a
-FastAPI dependency factory, ~150 lines) is **not built yet**; when it is,
-it is copied per consumer app rather than published as a shared package
-(open — [platform.md §11 `Q-01`](./platform.md#11-open-questions)).
+The verification client (`libs/identity_client/` — JWKS fetch + cache + a
+FastAPI dependency factory, ~150 lines) is **not built yet**. It is one
+shared Python package every backend consumer imports, not a per-app copy
+([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory));
+the `barrins_api` cutover ([platform.md §10](./platform.md#10-cutover))
+creates it.
 
 ---
 
@@ -102,6 +104,12 @@ Prefix `/api/v1/auth`.
 | GET | `/me` | user | — | `UserRead` `{id, email, role, is_active, is_verified, display_name}` | `401` |
 
 `TokenPair` = `{access_token, refresh_token, token_type: "bearer"}`.
+
+> **Planned** ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory),
+> 2026-08-29): a unique `username` is added to `UserCreate` / `UserSignup`
+> and to `UserRead`, per constitution §13.2. Whether `POST /auth/token`
+> accepts `username` as well as `email` is
+> [`Q-05`](./platform.md#11-open-questions). Not in the branch code yet.
 
 | `POST /api/v1/auth/token` | |
 | --- | --- |
