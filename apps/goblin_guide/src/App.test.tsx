@@ -123,4 +123,57 @@ describe('<App>', () => {
       await screen.findByRole('heading', { name: 'You’re signed in' }),
     ).toBeInTheDocument()
   })
+
+  it('opens the forgot-password screen from the login link', async () => {
+    const { user } = renderApp('/login', vi.fn())
+
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Send reset code' }),
+    ).toBeInTheDocument()
+  })
+
+  it('requests a reset code then carries the email to the reset screen', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/password-reset/request')) {
+        return jsonResponse(
+          { detail: 'If an account exists, a code has been sent.' },
+          202,
+        )
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/forgot-password', fetchImpl)
+
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.click(screen.getByRole('button', { name: 'Send reset code' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Enter reset code' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Reset password' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('alex@example.com')
+  })
+
+  it('pre-fills the reset screen from a deep link and signs in on success', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/password-reset/confirm')) return jsonResponse(PAIR)
+      if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp(
+      '/reset-password?email=alex@example.com&code=418203',
+      fetchImpl,
+    )
+
+    expect(screen.getByLabelText('Reset code')).toHaveValue('418203')
+    await user.type(screen.getByLabelText('New password'), 'GoblinGuide!23x')
+    await user.click(screen.getByRole('button', { name: 'Reset password' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'You’re signed in' }),
+    ).toBeInTheDocument()
+  })
 })

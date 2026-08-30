@@ -1494,5 +1494,15 @@ target)"; `libs/` means "a package other things import."
   `/signup/verify`, `/signup/resend`, plus `/signup` + `/verify-email`
   routes in the shell. No CI or packaging change — the existing
   `goblin_guide` job and paths filter already cover it.
+- **T13 (2026-08-30)**: the password-reset slice (bootstrap `G-03`
+  step 3) lands in the same two packages — `ForgotPasswordScreen` +
+  `ResetPasswordScreen` and `usePasswordResetRequest` /
+  `usePasswordResetConfirm` over `POST /auth/password-reset/request`,
+  `/password-reset/confirm`, plus `/forgot-password` + `/reset-password`
+  routes in the shell. The password-rule checklist and the digit-masked
+  code field were extracted into shared components (`PasswordRules`,
+  `CodeField`) on their third use, and `SignupScreen` /
+  `VerifyEmailScreen` refactored onto them. Still no CI or packaging
+  change.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

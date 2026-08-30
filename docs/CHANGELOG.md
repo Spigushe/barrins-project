@@ -32,6 +32,13 @@ section of the docs site for details.
   step 2; ADR-17 gains a T12 consequence bullet; new
   `project/v2.0.0-bump/t12-goblin-guide-signup/index.md` tracker and
   project-index row, with the T11 row's "Not done" list pointed at T12.
+- Goblin Guide password-reset slice (T13):
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` row +
+  tests-first note updated for `G-03` step 3; ADR-17 gains a T13
+  consequence bullet; new
+  `project/v2.0.0-bump/t13-goblin-guide-password-reset/index.md`
+  tracker and project-index row, with the T12 row's "Not done" list
+  trimmed.
 - `docs/cspell.json`: technical terms and proper nouns introduced while
   planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,

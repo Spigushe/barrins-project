@@ -409,6 +409,98 @@ describe('resendVerification', () => {
   })
 })
 
+describe('requestPasswordReset', () => {
+  it('posts the email and returns the generic detail on 202', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/password-reset/request`)
+      expect(JSON.parse(String(init?.body))).toEqual({ email: 'alex@example.com' })
+      return json(
+        { detail: 'If an account exists for this address, a reset code has been sent.' },
+        202,
+      )
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.requestPasswordReset('alex@example.com')).resolves.toMatchObject({
+      detail: 'If an account exists for this address, a reset code has been sent.',
+    })
+  })
+
+  it('throws IdentityError on a 502 send failure', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Unable to send the reset email.' } }, 502),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.requestPasswordReset('alex@example.com')).rejects.toBeInstanceOf(
+      IdentityError,
+    )
+  })
+})
+
+describe('confirmPasswordReset', () => {
+  it('posts email + code + new_password and stores the fresh pair', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/password-reset/confirm`)
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: 'alex@example.com',
+        code: '123456',
+        new_password: 'GoblinGuide!23x',
+      })
+      return json(PAIR)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.confirmPasswordReset('alex@example.com', '123456', 'GoblinGuide!23x')
+
+    expect(store.getAccess()).toBe('access-1')
+    expect(store.getRefresh()).toBe('refresh-1')
+  })
+
+  it('throws IdentityError with the single message on a 400 bad code and stores nothing', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Invalid or expired code.' } }, 400),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.confirmPasswordReset('alex@example.com', '000000', 'GoblinGuide!23x'),
+    ).rejects.toMatchObject({ status: 400, message: 'Invalid or expired code.' })
+    expect(store.getAccess()).toBeNull()
+  })
+
+  it('throws IdentityError on a 429 attempt cap', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Too many attempts. Request a new code.' } }, 429),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.confirmPasswordReset('alex@example.com', '000000', 'GoblinGuide!23x'),
+    ).rejects.toMatchObject({ status: 429 })
+  })
+})
+
 describe('readDetail envelope', () => {
   it('prefers error.message and falls back to a bare detail', async () => {
     const withEnvelope = createIdentityClient({

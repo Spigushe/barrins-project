@@ -1,4 +1,6 @@
 import {
+  type PasswordResetRequestResponse,
+  passwordResetRequestResponseSchema,
   type Principal,
   principalSchema,
   type ResendVerificationResponse,
@@ -69,6 +71,21 @@ export interface IdentityClient {
   verifyEmail: (email: string, code: string) => Promise<TokenPair>
   /** `POST /api/v1/auth/signup/resend` — re-send the code (server enforces a cooldown). */
   resendVerification: (email: string) => Promise<ResendVerificationResponse>
+  /**
+   * `POST /api/v1/auth/password-reset/request` — ask for a reset code. The
+   * response is always the same generic body; the server enforces a cooldown.
+   */
+  requestPasswordReset: (email: string) => Promise<PasswordResetRequestResponse>
+  /**
+   * `POST /api/v1/auth/password-reset/confirm` — submit the code + new password.
+   * Stores the returned pair; every previously issued token for the account is
+   * invalidated server-side (`token_version` bump), so this is a fresh login.
+   */
+  confirmPasswordReset: (
+    email: string,
+    code: string,
+    newPassword: string,
+  ) => Promise<TokenPair>
 }
 
 export interface IdentityClientOptions {
@@ -209,5 +226,43 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     return resendVerificationResponseSchema.parse(await response.json())
   }
 
-  return { login, refresh, me, logout, signup, verifyEmail, resendVerification }
+  async function requestPasswordReset(
+    email: string,
+  ): Promise<PasswordResetRequestResponse> {
+    const response = await postJson('/api/v1/auth/password-reset/request', { email })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return passwordResetRequestResponseSchema.parse(await response.json())
+  }
+
+  async function confirmPasswordReset(
+    email: string,
+    code: string,
+    newPassword: string,
+  ): Promise<TokenPair> {
+    const response = await postJson('/api/v1/auth/password-reset/confirm', {
+      email,
+      code,
+      new_password: newPassword,
+    })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    const pair = tokenPairSchema.parse(await response.json())
+    tokenStore.set(pair)
+    return pair
+  }
+
+  return {
+    login,
+    refresh,
+    me,
+    logout,
+    signup,
+    verifyEmail,
+    resendVerification,
+    requestPasswordReset,
+    confirmPasswordReset,
+  }
 }

@@ -7,6 +7,19 @@ section of the docs site for details.
 
 ### Added
 
+- Password-reset slice (T13), Goblin Guide bootstrap `G-03` step 3.
+  `ForgotPasswordScreen` + `ResetPasswordScreen` and
+  `usePasswordResetRequest` / `usePasswordResetConfirm` over
+  `POST /api/v1/auth/password-reset/request` and `/password-reset/confirm`
+  (integration.md §4.3, §8.4). The forgot screen shows the service's
+  generic confirmation verbatim (never confirms whether an account
+  exists); the reset screen reads the `?email=`/`?code=` deep link, and
+  a successful confirm returns a fresh pair (every other session for the
+  account is revoked server-side). The password-rule checklist
+  (`PasswordRules`) and the digit-masked code field (`CodeField`) are
+  now shared components — `SignupScreen` and `VerifyEmailScreen` were
+  refactored onto them rather than keeping a third copy. `icons.tsx`
+  gains `KeyIcon`.
 - Signup + email-verification slice (T12), Goblin Guide bootstrap
   `G-03` step 2. `SignupScreen` + `VerifyEmailScreen` and `useSignup` /
   `useVerifyEmail` / `useResendVerification` over

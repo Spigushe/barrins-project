@@ -65,3 +65,15 @@ export function MailIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/** Password-reset marker — a key. */
+export function KeyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={15} height={15} {...base} {...props}>
+      <circle cx={8.5} cy={14.5} r={4.5} />
+      <path d="M11.7 11.3 20 3" />
+      <path d="m16.5 6.5 2.5 2.5" />
+      <path d="m13.5 9.5 2 2" />
+    </svg>
+  )
+}

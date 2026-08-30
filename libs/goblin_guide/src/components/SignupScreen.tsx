@@ -1,7 +1,8 @@
 import { type FormEvent, useId, useState } from 'react'
 import { IdentityError } from '../auth/client'
 import { useSignup } from '../auth/hooks'
-import { AlertIcon, CheckIcon, DotIcon, ShieldMark, Spinner } from './icons'
+import { AlertIcon, ShieldMark, Spinner } from './icons'
+import { PasswordRules } from './PasswordRules'
 import '../styles.css'
 
 export interface SignupScreenProps {
@@ -29,16 +30,6 @@ const GENERIC_ERROR = 'Something went wrong. Please try again.'
 // Mirrors `USERNAME_PATTERN` in `apps/barrins_identity/app/schemas/auth.py`.
 // Client-side feedback only — the backend is the source of truth on submit.
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]{3,32}$/
-
-// Mirrors `PASSWORD_PATTERN` in `apps/barrins_identity/app/schemas/auth.py`.
-// Client-side feedback only — the backend is the source of truth on submit.
-const PASSWORD_RULES: { label: string; test: (value: string) => boolean }[] = [
-  { label: 'At least 12 characters', test: (value) => value.length >= 12 },
-  { label: 'One uppercase letter', test: (value) => /[A-Z]/.test(value) },
-  { label: 'One lowercase letter', test: (value) => /[a-z]/.test(value) },
-  { label: 'One digit', test: (value) => /\d/.test(value) },
-  { label: 'One symbol', test: (value) => /[^\w\s]/.test(value) },
-]
 
 export function SignupScreen({
   onVerificationRequired,
@@ -171,17 +162,7 @@ export function SignupScreen({
                   setPassword(event.target.value)
                 }}
               />
-              <ul className="gg-rules">
-                {PASSWORD_RULES.map((rule) => {
-                  const met = rule.test(password)
-                  return (
-                    <li key={rule.label} className="gg-rule" data-met={met}>
-                      {met ? <CheckIcon /> : <DotIcon />}
-                      <span>{rule.label}</span>
-                    </li>
-                  )
-                })}
-              </ul>
+              <PasswordRules value={password} />
             </div>
 
             {error !== null && (

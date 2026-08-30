@@ -3,7 +3,7 @@ import { z } from 'zod'
 /**
  * Wire shapes for the Barrin's Identity endpoints Goblin Guide consumes.
  * Login slice — see `docs/content/back/barrins_identity/integration.md` §4.1;
- * signup + email verification — §4.2 / §8.3.
+ * signup + email verification — §4.2 / §8.3; password reset — §4.3 / §8.4.
  */
 
 export const tokenPairSchema = z.object({
@@ -47,3 +47,15 @@ export const resendVerificationResponseSchema = z.object({
   detail: z.string(),
 })
 export type ResendVerificationResponse = z.infer<typeof resendVerificationResponseSchema>
+
+/**
+ * `POST /api/v1/auth/password-reset/request` → `PasswordResetRequestResponse`.
+ * Always the same generic body (§5 anti-enumeration) — never confirms whether
+ * an account exists. `/password-reset/confirm` returns a `TokenPair`.
+ */
+export const passwordResetRequestResponseSchema = z.object({
+  detail: z.string(),
+})
+export type PasswordResetRequestResponse = z.infer<
+  typeof passwordResetRequestResponseSchema
+>

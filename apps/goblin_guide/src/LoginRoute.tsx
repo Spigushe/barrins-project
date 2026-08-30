@@ -14,6 +14,9 @@ export function LoginRoute() {
       onAuthenticated={() => {
         navigate('/', { replace: true })
       }}
+      onForgotPassword={() => {
+        navigate('/forgot-password')
+      }}
       onCreateAccount={() => {
         navigate('/signup')
       }}

@@ -1,17 +1,20 @@
 <!-- cSpell:ignore JWKS tolaria -->
 # Goblin Guide — Bootstrap
 
-> **Status**: 🟨 Login + signup slices built (T11, T12) —
-> `libs/goblin_guide/` (`@barrins/goblin-guide`, the shared library) and
-> `apps/goblin_guide/` (the standalone shell) exist on the release line
-> with `G-03` steps 1–2: login, in-memory token store, silent refresh,
-> the `GET /auth/me` account view, and self-registration + email
-> verification (`SignupScreen` + `VerifyEmailScreen`, the `username`
-> field, the resend cooldown, the `/verify-email?email=&code=` deep
-> link). Not yet mounted in `tamiyo_scroll` or `tolaria_news`. Password
-> reset, account settings + delete, and admin service-account management
-> are the remaining `G-03` slices, in that order. Shape settled
-> 2026-08-29
+> **Status**: 🟨 Login + signup + password-reset slices built (T11, T12,
+> T13) — `libs/goblin_guide/` (`@barrins/goblin-guide`, the shared
+> library) and `apps/goblin_guide/` (the standalone shell) exist on the
+> release line with `G-03` steps 1–3: login, in-memory token store,
+> silent refresh, the `GET /auth/me` account view, self-registration +
+> email verification (`SignupScreen` + `VerifyEmailScreen`, the
+> `username` field, the resend cooldown, the `/verify-email?email=&code=`
+> deep link), and password reset (`ForgotPasswordScreen` +
+> `ResetPasswordScreen`, the generic-confirmation copy, the
+> `/reset-password?email=&code=` deep link). The password-rule checklist
+> and the digit-masked code field are now shared components. Not yet
+> mounted in `tamiyo_scroll` or `tolaria_news`. Account settings +
+> delete, then admin service-account management, are the remaining
+> `G-03` slices, in that order. Shape settled 2026-08-29
 > ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)):
 > a **shared frontend library** plus a thin standalone shell — see §3.
 >
@@ -63,7 +66,7 @@ section that owns its wire format.
 | --- | --- | --- |
 | `G-01` | Stack | **Resolved** (2026-08-29, ADR-17) — the ecosystem default (React 19 + TypeScript + Tailwind + shadcn/ui, constitution §14), built in **Vite library mode**. React Router and TanStack Query are **peer dependencies** the host app provides — the library owns screens, hooks and token handling, not routing or the query client |
 | `G-02` | Standalone app vs. per-app widget | **Resolved** (2026-08-29, ADR-17) — one shared library each frontend mounts, plus a thin standalone shell for `goblin.barrins-codex.org` and the T9 login page. Not a standalone-only app; not a copy-pasted widget |
-| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. Steps 1–2 are built (T11, T12) |
+| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. Steps 1–3 are built (T11, T12, T13) |
 | `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17) — part of the Goblin Guide library, `admin`-gated. It is identity account management and belongs with the rest, not split into a separate CLI-only surface |
 
 The library boundary (§1) and the token-storage split (§5) are settled;
@@ -126,8 +129,15 @@ state even when the request fails. The signup slice (T12) covers:
 `signup` with `verification_required` both ways (tokens stored only
 when present), the `{ error: { message } }` envelope on a `409`, the
 password-rule checklist and empty-field guard, `verifyEmail` success +
-the `400` message, and `resend` starting the mirrored cooldown. Later
-slices add the reset form and the error/loading states for each.
+the `400` message, and `resend` starting the mirrored cooldown. The
+password-reset slice (T13) covers: `requestPasswordReset` returning the
+generic body and its `502`; `confirmPasswordReset` storing the fresh
+pair, plus the single `400` message and the `429` attempt cap; the
+forgot screen's empty-field guard, generic confirmation and "send
+again"; the reset screen's deep-link prefill and six-digit submit
+guard; and the shared `PasswordRules` checklist. Later slices add the
+account-settings and delete forms and the error/loading states for
+each.
 
 ---
 

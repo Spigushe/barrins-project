@@ -9,6 +9,7 @@ import {
 import type { SignupInput } from './client'
 import { useIdentityContext } from './context'
 import type {
+  PasswordResetRequestResponse,
   Principal,
   ResendVerificationResponse,
   SignupResponse,
@@ -118,5 +119,46 @@ export function useResendVerification(): UseMutationResult<
   const { client } = useIdentityContext()
   return useMutation({
     mutationFn: (email: string) => client.resendVerification(email),
+  })
+}
+
+/**
+ * `POST /api/v1/auth/password-reset/request`. Response is always the same
+ * generic body (§5) — it never confirms whether an account exists.
+ */
+export function usePasswordResetRequest(): UseMutationResult<
+  PasswordResetRequestResponse,
+  Error,
+  string
+> {
+  const { client } = useIdentityContext()
+  return useMutation({
+    mutationFn: (email: string) => client.requestPasswordReset(email),
+  })
+}
+
+export interface PasswordResetConfirmVariables {
+  email: string
+  code: string
+  newPassword: string
+}
+
+/**
+ * `POST /api/v1/auth/password-reset/confirm`. On success the token store is
+ * populated with a fresh pair (every other session for the account is revoked).
+ */
+export function usePasswordResetConfirm(): UseMutationResult<
+  TokenPair,
+  Error,
+  PasswordResetConfirmVariables
+> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ email, code, newPassword }: PasswordResetConfirmVariables) =>
+      client.confirmPasswordReset(email, code, newPassword),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
+    },
   })
 }

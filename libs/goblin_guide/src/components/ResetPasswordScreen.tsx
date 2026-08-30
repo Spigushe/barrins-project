@@ -1,17 +1,18 @@
-import { type FormEvent, useEffect, useId, useState } from 'react'
+import { type FormEvent, useId, useState } from 'react'
 import { IdentityError } from '../auth/client'
-import { useResendVerification, useVerifyEmail } from '../auth/hooks'
+import { usePasswordResetConfirm } from '../auth/hooks'
 import { CodeField } from './CodeField'
 import { onlyDigits } from './codeMask'
-import { AlertIcon, CheckIcon, MailIcon, ShieldMark, Spinner } from './icons'
+import { AlertIcon, KeyIcon, ShieldMark, Spinner } from './icons'
+import { PasswordRules } from './PasswordRules'
 import '../styles.css'
 
-export interface VerifyEmailScreenProps {
+export interface ResetPasswordScreenProps {
   /** Pre-fill the email field (e.g. from the `?email=` deep-link param). */
   initialEmail?: string
   /** Pre-fill the code field (e.g. from the `?code=` deep-link param). */
   initialCode?: string
-  /** Called after the code is accepted — the user is now signed in. */
+  /** Called after the password is reset — the user is now signed in. */
   onAuthenticated?: () => void
   /** Render a "Back to sign in" link wired to this handler. */
   onBackToLogin?: () => void
@@ -22,72 +23,38 @@ export interface VerifyEmailScreenProps {
 }
 
 const GENERIC_ERROR = 'Something went wrong. Please try again.'
-// The service enforces this cooldown; the UI mirrors it so the button
-// isn't offered while a request would be rejected.
-const RESEND_COOLDOWN_SECONDS = 60
 
-export function VerifyEmailScreen({
+export function ResetPasswordScreen({
   initialEmail = '',
   initialCode = '',
   onAuthenticated,
   onBackToLogin,
   title = "Barrin's Identity",
-  subtitle = 'Verify your email',
-}: VerifyEmailScreenProps) {
+  subtitle = 'Set a new password',
+}: ResetPasswordScreenProps) {
   const emailId = useId()
   const codeId = useId()
-  const verify = useVerifyEmail()
-  const resend = useResendVerification()
+  const passwordId = useId()
+  const confirm = usePasswordResetConfirm()
   const [email, setEmail] = useState(initialEmail)
   const [code, setCode] = useState(() => onlyDigits(initialCode))
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [resendMessage, setResendMessage] = useState<string | null>(null)
-  const [cooldown, setCooldown] = useState(0)
 
-  const pending = verify.isPending
-
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const timer = setTimeout(() => {
-      setCooldown((seconds) => seconds - 1)
-    }, 1000)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [cooldown])
+  const pending = confirm.isPending
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
 
-    if (email === '' || !/^\d{6}$/.test(code)) {
-      setError('Enter your email and the 6-digit code.')
+    if (email === '' || !/^\d{6}$/.test(code) || password === '') {
+      setError('Enter your email, the 6-digit code, and a new password.')
       return
     }
 
     try {
-      await verify.mutateAsync({ email, code })
+      await confirm.mutateAsync({ email, code, newPassword: password })
       onAuthenticated?.()
-    } catch (err) {
-      setError(err instanceof IdentityError ? err.message : GENERIC_ERROR)
-    }
-  }
-
-  async function handleResend() {
-    setError(null)
-    setResendMessage(null)
-
-    if (email === '') {
-      setError('Enter your email to get a new code.')
-      return
-    }
-
-    try {
-      const response = await resend.mutateAsync(email)
-      // The response is deliberately generic — it never confirms whether an
-      // account exists for this address.
-      setResendMessage(response.detail)
-      setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
       setError(err instanceof IdentityError ? err.message : GENERIC_ERROR)
     }
@@ -104,7 +71,7 @@ export function VerifyEmailScreen({
           </div>
 
           <div className="gg-banner" role="status">
-            <MailIcon style={{ stroke: 'var(--gg-warning)' }} />
+            <KeyIcon style={{ stroke: 'var(--gg-warning)' }} />
             <span>
               Enter the 6-digit code we sent
               {email !== '' ? (
@@ -117,16 +84,9 @@ export function VerifyEmailScreen({
               ) : (
                 ' to your email address'
               )}{' '}
-              to activate your account.
+              and choose a new password.
             </span>
           </div>
-
-          {resendMessage !== null && (
-            <div className="gg-banner" data-tone="success" role="status">
-              <CheckIcon style={{ stroke: 'var(--gg-success)' }} />
-              <span>{resendMessage}</span>
-            </div>
-          )}
 
           <form className="gg-form" onSubmit={handleSubmit} noValidate>
             <div className="gg-field">
@@ -148,12 +108,30 @@ export function VerifyEmailScreen({
 
             <CodeField
               id={codeId}
-              label="Verification code"
+              label="Reset code"
               value={code}
               onChange={setCode}
               disabled={pending}
               invalid={error !== null && !pending}
             />
+
+            <div className="gg-field">
+              <label className="gg-label" htmlFor={passwordId}>
+                New password
+              </label>
+              <input
+                id={passwordId}
+                className="gg-input"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                disabled={pending}
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                }}
+              />
+              <PasswordRules value={password} />
+            </div>
 
             {error !== null && (
               <p className="gg-error" role="alert">
@@ -169,29 +147,9 @@ export function VerifyEmailScreen({
                   style={{ stroke: 'var(--gg-accent-fg)' }}
                 />
               )}
-              {pending ? 'Verifying…' : 'Verify email'}
+              {pending ? 'Resetting…' : 'Reset password'}
             </button>
           </form>
-
-          <p className="gg-aux">
-            {cooldown > 0 ? (
-              <span className="gg-aux-muted">Resend available in {cooldown}s</span>
-            ) : (
-              <>
-                Didn&rsquo;t get the code?{' '}
-                <button
-                  type="button"
-                  className="gg-link"
-                  disabled={resend.isPending}
-                  onClick={() => {
-                    void handleResend()
-                  }}
-                >
-                  Resend code
-                </button>
-              </>
-            )}
-          </p>
 
           {onBackToLogin && (
             <p className="gg-aux">
