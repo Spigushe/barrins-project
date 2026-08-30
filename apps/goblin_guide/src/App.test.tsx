@@ -69,6 +69,55 @@ describe('<App>', () => {
     expect(window.location.search).toContain('next=')
   })
 
+  it('bounces an unauthenticated /service-accounts to the login screen with ?next=', async () => {
+    renderApp('/service-accounts', vi.fn())
+    expect(
+      await screen.findByRole('heading', { name: "Barrin's Identity" }),
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
+    expect(window.location.search).toContain('next=%2Fservice-accounts')
+  })
+
+  it('shows the admin service-accounts screen to an admin and the access panel to others', async () => {
+    const admin = { ...PRINCIPAL, role: 'admin' }
+    const adminFetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/auth/token')) return jsonResponse(PAIR)
+      if (url.endsWith('/auth/me')) return jsonResponse(admin)
+      if (url.endsWith('/api/v1/service-accounts') && (init?.method ?? 'GET') === 'GET') {
+        return jsonResponse([])
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/login?next=/service-accounts', adminFetch)
+
+    await user.type(screen.getByLabelText('Email'), 'root@example.com')
+    await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'New service account' }),
+    ).toBeInTheDocument()
+    // Admin header offers the toggle back to the account screen.
+    expect(screen.getByRole('link', { name: 'Account' })).toBeInTheDocument()
+  })
+
+  it('shows the access panel on /service-accounts for a non-admin', async () => {
+    const nonAdminFetch = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/token')) return jsonResponse(PAIR)
+      if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/login?next=/service-accounts', nonAdminFetch)
+
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Administrator access required' }),
+    ).toBeInTheDocument()
+  })
+
   it('signs in and lands on the account shell', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.endsWith('/auth/token')) return jsonResponse(PAIR)

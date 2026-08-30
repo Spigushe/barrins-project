@@ -14,6 +14,9 @@ export {
   useVerifyEmailChange,
   useResendEmailChange,
   useDeleteAccount,
+  useServiceAccounts,
+  useCreateServiceAccount,
+  useRevokeServiceAccount,
 } from './auth/hooks'
 export type {
   LoginVariables,
@@ -26,6 +29,7 @@ export type {
   IdentityClientOptions,
   SignupInput,
   AccountUpdateInput,
+  ServiceAccountCreateInput,
 } from './auth/client'
 export { createMemoryTokenStore } from './auth/tokenStore'
 export type { TokenStore } from './auth/tokenStore'
@@ -37,6 +41,8 @@ export type {
   ResendVerificationResponse,
   PasswordResetRequestResponse,
   EmailChangeResendResponse,
+  ServiceAccount,
+  ServiceAccountCreated,
 } from './auth/schemas'
 export { LoginScreen } from './components/LoginScreen'
 export type { LoginScreenProps } from './components/LoginScreen'
@@ -50,3 +56,5 @@ export { ResetPasswordScreen } from './components/ResetPasswordScreen'
 export type { ResetPasswordScreenProps } from './components/ResetPasswordScreen'
 export { AccountScreen } from './components/AccountScreen'
 export type { AccountScreenProps } from './components/AccountScreen'
+export { ServiceAccountsScreen } from './components/ServiceAccountsScreen'
+export type { ServiceAccountsScreenProps } from './components/ServiceAccountsScreen'

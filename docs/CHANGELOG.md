@@ -47,6 +47,15 @@ section of the docs site for details.
   tracker and project-index row, with the T13 row's "Not done" list
   trimmed. Records that authenticated password change is out of scope
   (no backend endpoint — use the password-reset flow).
+- Goblin Guide admin service-account slice (T15), completing `G-03`:
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` / `G-04`
+  rows + tests-first note updated for the last slice; ADR-17 gains a
+  T15 consequence bullet; new
+  `project/v2.0.0-bump/t15-goblin-guide-service-accounts/index.md`
+  tracker and project-index row, with the T14 row's "Not done" list
+  trimmed to host mounting + the deploy playbook. Records that
+  `POST /api/v1/service-token` is not surfaced in the UI (a
+  machine-to-machine credential exchange, not an admin action).
 - `docs/cspell.json`: technical terms and proper nouns introduced while
   planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,

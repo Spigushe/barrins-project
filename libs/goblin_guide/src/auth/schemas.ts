@@ -4,7 +4,7 @@ import { z } from 'zod'
  * Wire shapes for the Barrin's Identity endpoints Goblin Guide consumes.
  * Login slice — see `docs/content/back/barrins_identity/integration.md` §4.1;
  * signup + email verification — §4.2 / §8.3; password reset — §4.3 / §8.4;
- * account settings + delete — §4.4 / §8.5 / §8.6.
+ * account settings + delete — §4.4 / §8.5 / §8.6; admin service accounts — §4.6.
  */
 
 export const tokenPairSchema = z.object({
@@ -72,3 +72,30 @@ export const emailChangeResendResponseSchema = z.object({
   detail: z.string(),
 })
 export type EmailChangeResendResponse = z.infer<typeof emailChangeResendResponseSchema>
+
+/**
+ * `GET /api/v1/service-accounts` → `ServiceAccountRead`. The list contains
+ * revoked accounts too (`is_active: false`) — the service keeps them for the
+ * audit trail. Never carries a secret.
+ */
+export const serviceAccountSchema = z.object({
+  id: z.uuid(),
+  client_id: z.string(),
+  description: z.string().nullable(),
+  scopes: z.array(z.string()),
+  is_active: z.boolean(),
+  created_at: z.string(),
+})
+export type ServiceAccount = z.infer<typeof serviceAccountSchema>
+
+export const serviceAccountListSchema = z.array(serviceAccountSchema)
+
+/**
+ * `POST /api/v1/service-accounts` → `ServiceAccountCreated`. Same shape as
+ * {@link serviceAccountSchema} plus the plaintext `client_secret`, which the
+ * service returns exactly once, at creation time.
+ */
+export const serviceAccountCreatedSchema = serviceAccountSchema.extend({
+  client_secret: z.string(),
+})
+export type ServiceAccountCreated = z.infer<typeof serviceAccountCreatedSchema>

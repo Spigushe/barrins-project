@@ -6,18 +6,21 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
-import type { AccountUpdateInput, SignupInput } from './client'
+import type { AccountUpdateInput, ServiceAccountCreateInput, SignupInput } from './client'
 import { useIdentityContext } from './context'
 import type {
   EmailChangeResendResponse,
   PasswordResetRequestResponse,
   Principal,
   ResendVerificationResponse,
+  ServiceAccount,
+  ServiceAccountCreated,
   SignupResponse,
   TokenPair,
 } from './schemas'
 
 const ME_QUERY_KEY = ['goblin-guide', 'me'] as const
+const SERVICE_ACCOUNTS_QUERY_KEY = ['goblin-guide', 'service-accounts'] as const
 
 /** Reactive authentication state, derived from the token store. */
 export function useIdentity(): { isAuthenticated: boolean } {
@@ -217,6 +220,52 @@ export function useDeleteAccount(): UseMutationResult<void, Error, string> {
     mutationFn: (currentPassword: string) => client.deleteAccount(currentPassword),
     onSuccess: () => {
       queryClient.clear()
+    },
+  })
+}
+
+/**
+ * `GET /api/v1/service-accounts` (admin). Enabled once authenticated — the
+ * caller is expected to render this only for an `admin` principal (a
+ * non-admin request comes back `403`).
+ */
+export function useServiceAccounts(): UseQueryResult<ServiceAccount[]> {
+  const { client } = useIdentityContext()
+  const { isAuthenticated } = useIdentity()
+  return useQuery({
+    queryKey: SERVICE_ACCOUNTS_QUERY_KEY,
+    queryFn: () => client.listServiceAccounts(),
+    enabled: isAuthenticated,
+  })
+}
+
+/** `POST /api/v1/service-accounts` (admin). Refreshes the list on success. */
+export function useCreateServiceAccount(): UseMutationResult<
+  ServiceAccountCreated,
+  Error,
+  ServiceAccountCreateInput
+> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ServiceAccountCreateInput) => client.createServiceAccount(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SERVICE_ACCOUNTS_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * `POST /api/v1/service-accounts/{client_id}/revoke` (admin). Refreshes the
+ * list on success — the revoked account stays in it, now `is_active: false`.
+ */
+export function useRevokeServiceAccount(): UseMutationResult<void, Error, string> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (clientId: string) => client.revokeServiceAccount(clientId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SERVICE_ACCOUNTS_QUERY_KEY })
     },
   })
 }

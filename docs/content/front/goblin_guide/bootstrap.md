@@ -1,23 +1,25 @@
 <!-- cSpell:ignore JWKS tolaria -->
 # Goblin Guide — Bootstrap
 
-> **Status**: 🟨 Login + signup + password-reset + account-settings
-> slices built (T11–T14) — `libs/goblin_guide/` (`@barrins/goblin-guide`,
-> the shared library) and `apps/goblin_guide/` (the standalone shell)
-> exist on the release line with `G-03` steps 1–4: login, in-memory
-> token store, silent refresh, the `GET /auth/me` account view,
-> self-registration + email verification (`SignupScreen` +
+> **Status**: 🟨 All five `G-03` slices built (T11–T15) —
+> `libs/goblin_guide/` (`@barrins/goblin-guide`, the shared library) and
+> `apps/goblin_guide/` (the standalone shell) exist on the release line
+> with: login, in-memory token store, silent refresh, the `GET /auth/me`
+> account view, self-registration + email verification (`SignupScreen` +
 > `VerifyEmailScreen`, the `username` field, the resend cooldown, the
 > `/verify-email?email=&code=` deep link), password reset
 > (`ForgotPasswordScreen` + `ResetPasswordScreen`, the
 > generic-confirmation copy, the `/reset-password?email=&code=` deep
-> link), and account management (`AccountScreen` — inline display-name
+> link), account management (`AccountScreen` — inline display-name
 > edit, the two-step email change with a `/confirm-email-change` deep
 > link, and a password-gated account delete; mounted at `/` in the shell
-> in place of the read-only card). The password-rule checklist and the
-> digit-masked code field are shared components. Not yet mounted in
-> `tamiyo_scroll` or `tolaria_news`. Admin service-account management is
-> the last `G-03` slice. Shape settled 2026-08-29
+> in place of the read-only card), and admin service-account management
+> (`ServiceAccountsScreen` — a `useCurrentUser()` gate: `admin` gets the
+> list + create + revoke flows, everyone else an access panel; mounted
+> at `/service-accounts` behind a `?next=`-aware `RequireAuth`). The
+> password-rule checklist and the digit-masked code field are shared
+> components. Not yet mounted in `tamiyo_scroll` or `tolaria_news`; no
+> deploy playbook. Shape settled 2026-08-29
 > ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)):
 > a **shared frontend library** plus a thin standalone shell — see §3.
 >
@@ -69,8 +71,8 @@ section that owns its wire format.
 | --- | --- | --- |
 | `G-01` | Stack | **Resolved** (2026-08-29, ADR-17) — the ecosystem default (React 19 + TypeScript + Tailwind + shadcn/ui, constitution §14), built in **Vite library mode**. React Router and TanStack Query are **peer dependencies** the host app provides — the library owns screens, hooks and token handling, not routing or the query client |
 | `G-02` | Standalone app vs. per-app widget | **Resolved** (2026-08-29, ADR-17) — one shared library each frontend mounts, plus a thin standalone shell for `goblin.barrins-codex.org` and the T9 login page. Not a standalone-only app; not a copy-pasted widget |
-| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. Steps 1–4 are built (T11, T12, T13, T14); admin service-account management is the last slice |
-| `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17) — part of the Goblin Guide library, `admin`-gated. It is identity account management and belongs with the rest, not split into a separate CLI-only surface |
+| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. **All five slices built** (T11–T15) |
+| `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17); **built (T15, 2026-08-30)** — `ServiceAccountsScreen` in the Goblin Guide library, `admin`-gated with an access panel for everyone else, mounted by the shell at `/service-accounts`. Create shows the `client_secret` once; the list keeps revoked accounts; `POST /service-token` is not surfaced (machine-to-machine only) |
 
 The library boundary (§1) and the token-storage split (§5) are settled;
 everything else about page layout / UX is open. Confirm specifics before
@@ -149,7 +151,14 @@ the email-change walk (address → code step with the pending address in
 the banner → back to idle on success), the mirrored 60s resend
 cooldown, the deep-link code prefill, and the password-gated delete
 (empty-field guard, `401` message, `onDeleted` fired with tokens
-cleared). The last slice adds admin service-account management.
+cleared). The admin service-account slice (T15) covers: `client.ts`
+`listServiceAccounts` / `createServiceAccount` (description omitted when
+absent) / `revokeServiceAccount` (`204`; the `404` and the non-admin
+`403`); and `ServiceAccountsScreen`'s non-admin access panel (no list
+fetch), the active/revoked badges with Revoke offered on active
+accounts only, the empty state, the no-scope create guard, the
+create → one-time-secret panel → back-to-list walk with the POST body,
+and the revoke confirm (cancel and confirm paths, the `/revoke` POST).
 
 ---
 

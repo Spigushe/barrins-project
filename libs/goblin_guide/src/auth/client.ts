@@ -7,6 +7,10 @@ import {
   principalSchema,
   type ResendVerificationResponse,
   resendVerificationResponseSchema,
+  type ServiceAccount,
+  type ServiceAccountCreated,
+  serviceAccountCreatedSchema,
+  serviceAccountListSchema,
   type SignupResponse,
   signupResponseSchema,
   type TokenPair,
@@ -47,6 +51,14 @@ export interface SignupInput {
 export interface AccountUpdateInput {
   displayName?: string | null
   email?: string
+}
+
+/** Body for `POST /api/v1/service-accounts` (admin-only). */
+export interface ServiceAccountCreateInput {
+  /** Free-text label shown in the list; omitted from the request when `undefined`. */
+  description?: string | null
+  /** At least one opaque scope string — the service rejects an empty list. */
+  scopes: string[]
 }
 
 async function readDetail(response: Response): Promise<string> {
@@ -124,6 +136,24 @@ export interface IdentityClient {
    * password) → `IdentityError`.
    */
   deleteAccount: (currentPassword: string) => Promise<void>
+  /**
+   * `GET /api/v1/service-accounts` — every service account, revoked ones
+   * included. Admin only (`403` for anyone else). Never carries a secret.
+   */
+  listServiceAccounts: () => Promise<ServiceAccount[]>
+  /**
+   * `POST /api/v1/service-accounts` — create one. Admin only. The response
+   * carries the plaintext `client_secret` once and only once.
+   */
+  createServiceAccount: (
+    input: ServiceAccountCreateInput,
+  ) => Promise<ServiceAccountCreated>
+  /**
+   * `POST /api/v1/service-accounts/{client_id}/revoke` — deactivate an
+   * account and reject its outstanding tokens. Admin only. Resolves on the
+   * `204`; `404` (unknown `client_id`) → `IdentityError`.
+   */
+  revokeServiceAccount: (clientId: string) => Promise<void>
 }
 
 export interface IdentityClientOptions {
@@ -343,6 +373,36 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     tokenStore.clear()
   }
 
+  async function listServiceAccounts(): Promise<ServiceAccount[]> {
+    const response = await authed('/api/v1/service-accounts')
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return serviceAccountListSchema.parse(await response.json())
+  }
+
+  async function createServiceAccount(
+    input: ServiceAccountCreateInput,
+  ): Promise<ServiceAccountCreated> {
+    const body: Record<string, unknown> = { scopes: input.scopes }
+    if (input.description !== undefined) body.description = input.description
+    const response = await authedJson('/api/v1/service-accounts', 'POST', body)
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return serviceAccountCreatedSchema.parse(await response.json())
+  }
+
+  async function revokeServiceAccount(clientId: string): Promise<void> {
+    const response = await authed(
+      `/api/v1/service-accounts/${encodeURIComponent(clientId)}/revoke`,
+      { method: 'POST' },
+    )
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+  }
+
   return {
     login,
     refresh,
@@ -357,5 +417,8 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     verifyEmailChange,
     resendEmailChange,
     deleteAccount,
+    listServiceAccounts,
+    createServiceAccount,
+    revokeServiceAccount,
   }
 }

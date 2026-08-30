@@ -11,14 +11,17 @@ actual screens, hooks and token handling live in the shared library
 a `QueryClientProvider`, an `IdentityProvider`, and the default ("Suivi")
 token theme.
 
-> **Status**: 🟨 Login, signup, password-reset and account-settings
-> slices (Goblin Guide bootstrap `G-03` steps 1–4) — `POST
+> **Status**: 🟨 All five Goblin Guide bootstrap `G-03` slices — `POST
 > /api/v1/auth/token`, an in-memory token store, silent refresh,
 > self-registration with email verification (`/signup`, `/verify-email`),
-> password reset (`/forgot-password`, `/reset-password`), and account
+> password reset (`/forgot-password`, `/reset-password`), account
 > management at `/` (`AccountScreen` — display name, a two-step email
 > change with a `/confirm-email-change` deep-link route, and account
-> delete). Admin service-account management comes in the last slice.
+> delete), and admin service-account management at `/service-accounts`
+> (`ServiceAccountsScreen` — admin-gated list, create, revoke; a
+> `?next=`-aware `RequireAuth` bounce for logged-out visitors, an
+> in-app access panel for non-admins). Not yet mounted in `tamiyo_scroll`
+> or `tolaria_news`; no deploy playbook.
 
 ## What it will never own
 

@@ -7,6 +7,24 @@ section of the docs site for details.
 
 ### Added
 
+- Admin service-account management slice (T15), Goblin Guide bootstrap
+  `G-03` step 5 / `G-04`. `ServiceAccountsScreen` and `useServiceAccounts`
+  / `useCreateServiceAccount` / `useRevokeServiceAccount` over
+  `GET /api/v1/service-accounts`, `POST /api/v1/service-accounts`,
+  `POST /api/v1/service-accounts/{client_id}/revoke` (integration.md
+  §4.6). A `useCurrentUser()` gate: an `admin` principal gets the list +
+  a create form (optional description, an at-least-one scope tag input) +
+  a danger-styled revoke confirmation; anyone else gets an
+  "administrator access required" panel. The `client_secret` returned by
+  create is shown once, on its own panel, with copy buttons. The list
+  keeps revoked accounts (badged, no revoke action). `client.ts` gains
+  `listServiceAccounts` / `createServiceAccount` / `revokeServiceAccount`
+  and the `ServiceAccountCreateInput` type; `schemas.ts` gains
+  `serviceAccountSchema` / `serviceAccountCreatedSchema`. `icons.tsx`
+  gains `CopyIcon` and `CloseIcon`. `styles.css` gains the tag-input,
+  credential-field, and service-account list/status classes (no new
+  token). `POST /api/v1/service-token` is intentionally not surfaced —
+  it is a machine-to-machine credential exchange, not an admin action.
 - Account-settings + delete slice (T14), Goblin Guide bootstrap `G-03`
   step 4. `AccountScreen` and `useUpdateAccount` / `useVerifyEmailChange`
   / `useResendEmailChange` / `useDeleteAccount` over

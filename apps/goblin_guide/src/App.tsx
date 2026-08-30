@@ -5,6 +5,7 @@ import { ConfirmEmailChangeRoute } from './ConfirmEmailChangeRoute'
 import { ForgotPasswordRoute } from './ForgotPasswordRoute'
 import { LoginRoute } from './LoginRoute'
 import { ResetPasswordRoute } from './ResetPasswordRoute'
+import { ServiceAccountsRoute } from './ServiceAccountsRoute'
 import { Shell } from './Shell'
 import { SignupRoute } from './SignupRoute'
 import { VerifyEmailRoute } from './VerifyEmailRoute'
@@ -33,6 +34,14 @@ export function App() {
           element={
             <RequireAuth>
               <ConfirmEmailChangeRoute />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/service-accounts"
+          element={
+            <RequireAuth>
+              <ServiceAccountsRoute />
             </RequireAuth>
           }
         />

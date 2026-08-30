@@ -478,6 +478,208 @@
   stroke: var(--gg-success);
 }
 
+/* --- Service accounts (T15) ------------------------------------------- */
+
+.gg-taginput {
+  min-height: 36px;
+  width: 100%;
+  border: 1px solid var(--gg-border);
+  background: var(--gg-input);
+  border-radius: var(--gg-radius-input);
+  padding: 5px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.gg-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  background: var(--gg-card);
+  border: 1px solid var(--gg-border);
+  border-radius: 6px;
+  padding: 3px 6px 3px 8px;
+  color: var(--gg-fg);
+}
+
+.gg-tag button {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--gg-muted);
+  cursor: pointer;
+}
+
+.gg-tag button:hover:not(:disabled) {
+  color: var(--gg-fg);
+}
+
+.gg-tag button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.gg-tag-field {
+  flex: 1;
+  min-width: 90px;
+  height: 24px;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--gg-fg);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.gg-tag-field::placeholder {
+  color: var(--gg-subtle);
+}
+
+.gg-tag-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.gg-cred {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.gg-cred-val {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--gg-border);
+  background: var(--gg-input);
+  border-radius: var(--gg-radius-input);
+  padding: 0 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  color: var(--gg-fg);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.gg-sa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gg-sa-card {
+  border: 1px solid var(--gg-border);
+  background: var(--gg-input);
+  border-radius: 12px;
+  padding: 14px 14px 16px;
+}
+
+.gg-sa-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gg-sa-id {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gg-fg);
+  word-break: break-all;
+}
+
+.gg-sa-desc {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--gg-muted);
+  line-height: 1.45;
+}
+
+.gg-sa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.gg-sa-chip {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10.5px;
+  border: 1px solid var(--gg-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--gg-muted);
+  background: var(--gg-card);
+}
+
+.gg-sa-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 13px;
+}
+
+.gg-sa-created {
+  font-size: 11px;
+  color: var(--gg-subtle);
+}
+
+.gg-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--gg-subtle);
+}
+
+.gg-status[data-tone='active'] {
+  color: var(--gg-success);
+}
+
+.gg-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.gg-button--sm {
+  margin-top: 0;
+  width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.gg-sa-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 14px 8px 6px;
+}
+
+.gg-sa-empty p {
+  margin: 0;
+  max-width: 340px;
+  font-size: 12.5px;
+  color: var(--gg-muted);
+  line-height: 1.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gg-spinner {
     animation-duration: 0s;

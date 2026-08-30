@@ -1517,5 +1517,20 @@ target)"; `libs/` means "a package other things import."
   change is out of scope: the identity service exposes no endpoint for
   it (integration.md §4.4); users go through the password-reset flow.
   Still no CI or packaging change.
+- **T15 (2026-08-30)**: the admin service-account slice (bootstrap
+  `G-03` step 5 / `G-04`) lands in the same two packages —
+  `ServiceAccountsScreen` and `useServiceAccounts` /
+  `useCreateServiceAccount` / `useRevokeServiceAccount` over
+  `GET`/`POST /service-accounts` and `/service-accounts/{client_id}/revoke`
+  (integration.md §4.6). The screen is a `useCurrentUser()` gate: an
+  `admin` principal gets list + create + revoke; anyone else gets an
+  access panel. The shell extracts the header/frame into `ShellFrame`
+  (shared by the account and service-account routes, the latter carrying
+  an admin-only nav toggle) and mounts the screen at `/service-accounts`
+  behind `RequireAuth`. New styling: the tag-input, credential-field and
+  service-account list/status classes — no new token. `POST
+  /service-token` is deliberately not surfaced (machine-to-machine
+  credential exchange, not an admin action). Still no CI or packaging
+  change — this completes `G-03`.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

@@ -693,6 +693,129 @@ describe('deleteAccount', () => {
   })
 })
 
+describe('service accounts', () => {
+  const ACCOUNT = {
+    id: '22222222-2222-4222-8222-222222222222',
+    client_id: 'sa_3f9a2c7e8b1d4056',
+    description: 'Tolaria News BFF cache warmer',
+    scopes: ['bs:read', 'kt:read'],
+    is_active: true,
+    created_at: '2026-08-12T09:30:00Z',
+  }
+
+  it('lists accounts with a bearer token and parses the array', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/service-accounts`)
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer access-1')
+      return json([
+        ACCOUNT,
+        {
+          ...ACCOUNT,
+          id: '33333333-3333-4333-8333-333333333333',
+          client_id: 'sa_x',
+          is_active: false,
+        },
+      ])
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.listServiceAccounts()).resolves.toHaveLength(2)
+  })
+
+  it('creates an account, sending description + scopes, and returns the one-time secret', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/service-accounts`)
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        description: 'Nightly job',
+        scopes: ['bs:read'],
+      })
+      return json({ ...ACCOUNT, client_secret: 'plaintext-secret-shown-once' }, 201)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.createServiceAccount({ description: 'Nightly job', scopes: ['bs:read'] }),
+    ).resolves.toMatchObject({ client_secret: 'plaintext-secret-shown-once' })
+  })
+
+  it('omits description from the body when it is undefined', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ scopes: ['bs:read'] })
+      return json({ ...ACCOUNT, client_secret: 's' }, 201)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.createServiceAccount({ scopes: ['bs:read'] })
+  })
+
+  it('revokes by client_id and resolves on the 204', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(
+        `${SERVICE_URL}/api/v1/service-accounts/sa_3f9a2c7e8b1d4056/revoke`,
+      )
+      expect(init?.method).toBe('POST')
+      return new Response(null, { status: 204 })
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.revokeServiceAccount('sa_3f9a2c7e8b1d4056'),
+    ).resolves.toBeUndefined()
+  })
+
+  it('throws IdentityError on a 404 for an unknown client_id', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async () =>
+      json({ detail: "No service account found for client_id 'sa_nope'." }, 404),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.revokeServiceAccount('sa_nope')).rejects.toMatchObject({
+      name: 'IdentityError',
+      status: 404,
+    })
+  })
+
+  it('surfaces a 403 for a non-admin caller', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async () =>
+      json({ detail: 'The user does not have the required role.' }, 403),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.listServiceAccounts()).rejects.toMatchObject({ status: 403 })
+  })
+})
+
 describe('readDetail envelope', () => {
   it('prefers error.message and falls back to a bare detail', async () => {
     const withEnvelope = createIdentityClient({

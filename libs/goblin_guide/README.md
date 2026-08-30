@@ -15,7 +15,7 @@ Consumers add it as a path dependency:
 }
 ```
 
-## What's here (Goblin Guide bootstrap `G-03` steps 1–4)
+## What's here (Goblin Guide bootstrap `G-03` steps 1–5)
 
 | Export                                                                                 | Purpose                                                                                                                                              |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -26,16 +26,18 @@ Consumers add it as a path dependency:
 | `ForgotPasswordScreen`                                                                 | `POST /api/v1/auth/password-reset/request` — email entry, then the service's generic confirmation.                                                   |
 | `ResetPasswordScreen`                                                                  | `POST /api/v1/auth/password-reset/confirm` — code + new password from the `?email=`/`?code=` deep link.                                              |
 | `AccountScreen`                                                                        | `PATCH /api/v1/users/me` + email-change verify/resend + `DELETE /users/me` — inline display-name edit, two-step email change, password-gated delete. |
+| `ServiceAccountsScreen`                                                                | `GET`/`POST /api/v1/service-accounts` + `/revoke` — admin list, create with one-time secret panel, revoke confirm; non-admins get an access panel.   |
 | `useLogin`, `useCurrentUser`, `useLogout`, `useIdentity`                               | TanStack Query hooks over the identity endpoints.                                                                                                    |
 | `useSignup`, `useVerifyEmail`, `useResendVerification`                                 | TanStack Query hooks for the signup + email-verification flow.                                                                                       |
 | `usePasswordResetRequest`, `usePasswordResetConfirm`                                   | TanStack Query hooks for the password-reset flow.                                                                                                    |
 | `useUpdateAccount`, `useVerifyEmailChange`, `useResendEmailChange`, `useDeleteAccount` | TanStack Query hooks for the account-management flow.                                                                                                |
+| `useServiceAccounts`, `useCreateServiceAccount`, `useRevokeServiceAccount`             | TanStack Query hooks for admin service-account management.                                                                                           |
 | `createIdentityClient`                                                                 | Framework-free `fetch` client with single-flight silent refresh on `401`.                                                                            |
 | `createMemoryTokenStore`, `TokenStore`                                                 | Pluggable token storage (`G-05`); the default keeps both tokens in memory.                                                                           |
 
-The last slice adds admin service-account management. Authenticated
-password change is not offered here — the identity service has no
-endpoint for it; use the password-reset flow.
+All five `G-03` slices are built. Authenticated password change is not
+offered here — the identity service has no endpoint for it; use the
+password-reset flow.
 
 ## Styling
 
