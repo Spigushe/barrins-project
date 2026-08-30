@@ -17,6 +17,7 @@ docs/graphify-out/
 
 # api logs
 apps/barrins_api/logs/
+apps/barrins_identity/logs/
 
 # api on-disk cache (e.g. Scryfall image cache) — regenerated on demand
 apps/barrins_api/var/cache/
