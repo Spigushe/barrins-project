@@ -59,7 +59,7 @@ not the UAT step below).
 1. **Windowing strategy** → **both** modes ship, selectable: rolling
    30-day *and* banlist-period (last Tuesday of an odd-numbered month →
    last Monday of the following odd-numbered month). The boundary math
-   lives in the standalone, independently tested `apps/dc_calendar`
+   lives in the standalone, independently tested `libs/dc_calendar`
    package (`dc_calendar.windowing`), imported by both the pipeline and
    `barrins_api`.
 2. **Consumption surface** → **Tolaria News BFF *and* the S6 admin
@@ -174,7 +174,7 @@ not the UAT step below).
 - [x] Confirm the consumption surface → Tolaria News + S6 (ADR-13).
 - [x] Choose a clustering approach/library → scikit-learn.
 - [x] Implement the banlist-period boundary calculation as a standalone,
-      tested utility — `apps/dc_calendar` (`dc_calendar.windowing`).
+      tested utility — `libs/dc_calendar` (`dc_calendar.windowing`).
 - [x] Build the clustering pipeline reading from `bs_*` (T2/T3) —
       `apps/karn_tablets`.
 - [x] Build the deck-type aggregation step.

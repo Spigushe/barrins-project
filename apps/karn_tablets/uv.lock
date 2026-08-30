@@ -141,7 +141,7 @@ wheels = [
 [[package]]
 name = "dc-calendar"
 version = "0.1.0"
-source = { editable = "../dc_calendar" }
+source = { editable = "../../libs/dc_calendar" }
 dependencies = [
     { name = "tzdata" },
 ]
@@ -258,7 +258,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dc-calendar", editable = "../dc_calendar" },
+    { name = "dc-calendar", editable = "../../libs/dc_calendar" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "psycopg2-binary" },

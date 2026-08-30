@@ -21,6 +21,11 @@ secrets/
     production.env           # real values, git-ignored, local-only
     staging.env.example
     staging.env
+  barrins_identity/
+    production.env.example   # standalone identity service — its own DB,
+    production.env           # its own RS256 signing key, its own SMTP
+    staging.env.example      # (Brevo) settings. Nothing shared with
+    staging.env              # barrins_api. See identity.md.
   barrins_scripture/
     production.env.example   # SCRIPTURE_INGEST_TOKEN is NOT in these
     production.env           # files — see secrets/scripture/ below.

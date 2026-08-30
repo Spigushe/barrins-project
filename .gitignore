@@ -48,6 +48,7 @@ docs/content/back/barrins_api/index.md
 docs/content/back/barrins_identity/index.md
 docs/content/front/tamiyo_scroll/index.md
 docs/content/front/tolaria_news/index.md
+docs/content/front/goblin_guide/index.md
 docs/content/service/barrins_scripture/index.md
 
 # Generated from ops/my-server/roles/<role>/README.md by docs/hooks/sync_readmes.py

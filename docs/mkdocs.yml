@@ -33,7 +33,9 @@ nav:
                 - Signup & Email Verification: back/barrins_api/signup_email_verification.md
           - Barrin's Identity:
                 - Home: back/barrins_identity/index.md
-                - Platform: back/barrins_identity/platform.md
+                - Platform Architecture: back/barrins_identity/platform.md
+                - Integration Contract: back/barrins_identity/integration.md
+                - Test Plan: back/barrins_identity/tests.md
     - Frontend:
           - Home: front/index.md
           - Tamiyo Scroll:
@@ -47,6 +49,9 @@ nav:
                       - Card tests personal deck id: front/tamiyo_scroll/incidents/2026-07-16-card-tests-personal-deck-id.md
           - Tolaria News:
                 - Home: front/tolaria_news/index.md
+          - Goblin Guide:
+                - Home: front/goblin_guide/index.md
+                - Bootstrap: front/goblin_guide/bootstrap.md
     - Service:
           - Home: service/index.md
           - Barrin's Scripture:
@@ -65,6 +70,7 @@ nav:
                 - Home: ops/deployment/index.md
                 - Backend: ops/deployment/backend.md
                 - Frontend: ops/deployment/frontend.md
+                - Identity: ops/deployment/identity.md
                 - Database (PostgreSQL & pgAdmin): ops/deployment/database.md
                 - Docs Site: ops/deployment/docs_site.md
                 - Backup & Restore: ops/deployment/backup.md

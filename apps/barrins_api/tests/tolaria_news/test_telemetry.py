@@ -1,7 +1,7 @@
 """Tests for /bff/tolaria-news/telemetry -- public, no auth required.
 
 The banlist-period boundary/effective-time math itself is independently
-tested in `apps/dc_calendar` -- these tests only check the endpoint wires
+tested in `libs/dc_calendar` -- these tests only check the endpoint wires
 that math through correctly, not the math's own correctness.
 """
 

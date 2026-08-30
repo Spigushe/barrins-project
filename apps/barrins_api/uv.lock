@@ -174,7 +174,7 @@ test = [
 requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "dc-calendar", editable = "../dc_calendar" },
+    { name = "dc-calendar", editable = "../../libs/dc_calendar" },
     { name = "fastapi", specifier = ">=0.140.13" },
     { name = "httpx", specifier = ">=0.28.1,<1.0" },
     { name = "ijson", specifier = ">=3.5.1" },
@@ -527,7 +527,7 @@ wheels = [
 [[package]]
 name = "dc-calendar"
 version = "0.1.0"
-source = { editable = "../dc_calendar" }
+source = { editable = "../../libs/dc_calendar" }
 dependencies = [
     { name = "tzdata" },
 ]

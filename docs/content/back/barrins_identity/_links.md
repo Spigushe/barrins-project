@@ -1,1 +1,5 @@
-- [Platform](./platform.md)
+- [Platform Architecture](./platform.md)
+- [Integration Contract](./integration.md)
+- [Test Plan](./tests.md)
+- [Identity Deployment](../../ops/deployment/identity.md)
+- [Goblin Guide (frontend)](../../front/goblin_guide/bootstrap.md)

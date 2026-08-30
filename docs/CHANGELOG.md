@@ -7,6 +7,23 @@ section of the docs site for details.
 
 ### Added
 
+- Barrin's Identity integration documentation set, written from
+  `feat/barrins-identity` + `claude/barrins-identity-lifecycle-settings-4g2lyh`
+  (not yet on the release line): a full rewrite of
+  `back/barrins_identity/platform.md`, new `integration.md` (consumer
+  wire contract) and `tests.md`; new `front/goblin_guide/` pages
+  (`bootstrap.md`, `_links.md`) as the paired frontend counterpart; new
+  `ops/deployment/identity.md` including the mandatory Brevo/OVH
+  email-verification setup runbook; ADR-16 (adopt Barrin's Identity as
+  the RS256/JWKS authority — lifts ADR-7 delay) and ADR-17
+  (`identity_client` and Goblin Guide are shared monorepo packages), with
+  ADR-3 and ADR-7 updated in place. Open questions closed with ADR-17:
+  `identity_client` packaging (shared `libs/` package), Goblin Guide
+  shape (shared frontend library + thin shell), and `username` on the
+  `User` model (aligns with §13.2); T9's auth-enforcement fork closed in
+  its tracker (live role check against `barrins_identity`).
+  `docs/cspell.json`: `JWKS`, `pyjwt`, `slowapi`, `argon`, `respx`,
+  `cutover`, `OIDC`, `SPF`, `DKIM`, `domainkey`.
 - `docs/mkdocs.yml`: nav entry for the new Tamiyo Scroll feature roadmap
   page (`front/tamiyo_scroll/roadmap.md`), the source of S12's bundled
   UI/UX polish items.

@@ -213,6 +213,17 @@ is not yet settled.
   becomes worth revisiting only if `identity@barrins-codex.org` needs to
   *receive* mail as a real inbox, not just send it.
 
+**Update (2026-08-29):** provider settled — **Brevo**. Identity email
+ownership moves to `barrins_identity` (ADR-16): production runs with
+`REQUIRE_EMAIL_VERIFICATION=true`, `SMTP_FROM_ADDRESS=identity@barrins-codex.org`
+via Brevo's SMTP relay, `barrins-codex.org` authenticated (SPF/DKIM/DMARC)
+in the OVH DNS zone. The full step-by-step — Brevo domain auth, the OVH
+records, an OVH redirection for receiving, the SMTP key, and the staging
+end-to-end check — is in
+[Identity Deployment](../deployment/identity.md#email-verification-mandatory-production-setup-brevo).
+"No self-hosted MTA / no mailbox to maintain" is unchanged — the OVH
+entry is a redirection, not an inbox.
+
 [signup-email-verification]: ../../back/barrins_api/signup_email_verification.md
 
 ## ADR-4: First production release — backup gating, monitoring, Moxfield
@@ -554,6 +565,12 @@ would later need migrating onto `barrins_identity`.
   beforehand.
 - This resolves I1 as "not blocking, with a condition," not "must be
   built before T5/S2 start."
+
+**Update (2026-08-29):** the delay is lifted by
+[ADR-16](#adr-16-adopt-barrins-identity-as-the-rs256-jwks-authority) —
+T9's role-gated Jupyter workbench is the second real consumer this ADR
+was waiting for, so `barrins_identity` is adopted now. The
+no-interim-user-tables condition is unchanged and still holds.
 
 ## ADR-8: Team creation, joining, and ownership model for Tamiyo Scroll
 
@@ -1277,3 +1294,189 @@ shape until it was concretely needed.
   (its own token/password, per the pgAdmin precedent) is a secret,
   handled per ADR-1 — never committed, documented in
   `ops/my-server/secrets/README.md` once it exists.
+
+## ADR-16: Adopt Barrin's Identity as the RS256 JWKS authority
+
+**Context.** ADR-7 (2026-07-25) delayed `barrins_identity` until a second
+real consumer with user management exists — until then it stayed a
+README/CHANGELOG placeholder while every identity-touching feature used
+`barrins_api`'s single `users` table directly. That condition is now met.
+**T9** (the Karn Tablets Jupyter Lab workbench,
+`karn-jupyter.barrins-codex.org`) must restrict access to
+`admin`/`ml_developer` account holders with a live role check, and its
+sub-decision 1 (`docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/`)
+resolves to option (b): a check against `barrins_identity` rather than a
+shared pgAdmin-style password. Option (a) was explicitly the fallback
+"unless Jupyter is the second consumer that finally justifies
+`barrins_identity`"; a `barrins_api`-JWT variant was built and reverted on
+2026-08-15 as incorrect cross-app coupling. Separately, a full service
+(RS256 + JWKS, service accounts, and the account-lifecycle surface a login
+UI needs) is already implemented on `feat/barrins-identity` and
+`claude/barrins-identity-lifecycle-settings-4g2lyh` (~296 tests).
+
+**Alternatives considered.**
+
+1. Keep waiting — gate T9 with option (a) so no second consumer is
+   declared, and revisit `barrins_identity` later.
+2. Recognize T9 as ADR-7's trigger and adopt the already-built service as
+   the ecosystem's RS256 + JWKS identity and service-account authority,
+   with the `barrins_api` cutover as a separate, later, gated phase.
+3. Extract `barrins_api`'s HS256 auth into a shared library instead of a
+   standalone service.
+
+**Trade-offs.** Option 1 leaves a shared-password gate on production
+tooling indefinitely and defers the identity work with no new information
+gained — the "wait for a real consumer to design against" rationale no
+longer applies once T9 is that consumer. Option 3 is the
+forge-vs-verify anti-pattern ADR-7's own reasoning and
+`auth_roles.md`'s backlog already call out — any holder of a shared HS256
+secret can mint tokens, and rotation needs a lockstep redeploy of every
+service. Option 2 is what ADR-7 itself prescribed once the delay
+condition held; the only genuinely risky part, migrating
+`barrins_api`'s live `users` table, is independently deferrable and
+stays gated on a user-confirmed maintenance window.
+
+**Decision.** Option 2, per the user (2026-08-29). `barrins_identity` is
+adopted now as the shared RS256 + JWKS identity and service-account
+authority, and is a prerequisite for T9. It signs with an RSA private key
+and serves the public key at `/.well-known/jwks.json`; every consumer
+verifies locally against a cached key — no shared secret, no per-request
+introspection. It is **not** a full OAuth 2.0 / OIDC provider (no
+authorization-code flow, no third-party client registration), which is
+why the "Future Architecture Proposal" previously on
+`docs/content/back/barrins_identity/platform.md` is superseded rather than
+implemented. `barrins_api` keeps its own local auth until the Phase-9
+cutover ([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+run only in a user-confirmed maintenance window. ADR-7's
+"no interim per-app user tables" condition still holds and is now easier
+to satisfy — there is still only one `users` table to move.
+
+**Consequences.**
+
+- ADR-7's delay is lifted (its trigger fired); its
+  no-divergent-tables principle stands, and ADR-7 carries an Update note
+  pointing here.
+- `ts_teams`/`ts_team_members` (ADR-8) stay interim in `barrins_api`,
+  with the same eventual transfer target; user roles become
+  `barrins_identity`'s concept only once the cutover lands, not before.
+- Executes [ADR-3](#adr-3-production-email-uses-a-transactional-provider-not-self-hosted)
+  for `barrins_identity`: production email verification is mandatory
+  (`REQUIRE_EMAIL_VERIFICATION=true`) via Brevo's SMTP relay with
+  `barrins-codex.org` domain authentication and an OVH redirection for
+  `identity@barrins-codex.org` — step-by-step in
+  [Identity Deployment](../deployment/identity.md#email-verification-mandatory-production-setup-brevo).
+- Documentation lands ahead of the merge: the rewritten
+  `back/barrins_identity/{platform,integration,tests}.md`, the new
+  `front/goblin_guide/` pages, and `ops/deployment/identity.md` each
+  carry a status marker saying they describe a service built on feature
+  branches, not yet on the `proj/v2.0.0-bump` release line.
+- T9's sub-decision 1 (its auth-enforcement fork) is settled to option
+  (b) — a live role check against `barrins_identity` — and recorded in
+  the T9 tracker (2026-08-29). This ADR records the dependency; the
+  proxy mechanism (nginx `auth_request` vs. sidecar) stays a T9 build
+  detail.
+
+**Update (T10, 2026-08-29).** The **service implementation** landed on
+`proj/v2.0.0-bump`: `apps/barrins_identity/` and the shared
+`libs/identity_client/` verifier were copied over from the two feature
+branches (not cherry-picked), reconciled with current monorepo
+conventions, and extended with the `username` handle (`Q-03`). Tracked as
+`docs/project/v2.0.0-bump/t10-barrins-identity/`. The three phases this
+ADR called separable — the `barrins_api` cutover
+([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+the `ops/my-server/barrins_identity.yml` playbook, and Goblin Guide —
+are not built yet, each still gated as described above.
+
+## ADR-17: Shared code lives in a top-level libs/ directory
+
+**Context.** ADR-16 adopts `barrins_identity` so that every other app
+stops re-implementing authentication, which surfaces two more pieces of
+shared client-side code: `identity_client` (a Python token-verification
+helper — fetch + cache JWKS, a FastAPI dependency validating a token's
+`type`/`account_type`/scope) on every backend consumer, and Goblin Guide
+(the login / account-management UI) on every frontend. The earlier
+`barrins_identity` plan proposed *copying* `identity_client` into each app
+directory, and left Goblin Guide's shape open.
+
+This is not the first shared package. **`dc_calendar`** (banlist-period /
+rolling-window date logic) is already imported by both `apps/barrins_api`
+and `apps/karn_tablets` via `[tool.uv.sources]` path dependencies — but it
+lives under `apps/`, next to deployable applications, even though it is
+neither deployed nor an application. There is no established home for a
+shared library, so each new one improvises.
+
+**Alternatives considered.**
+
+1. Keep improvising — `dc_calendar` stays under `apps/`, `identity_client`
+   is copied per consumer, Goblin Guide is a standalone-only app (or a
+   copy-pasted widget).
+2. Establish a top-level `libs/` directory for shared, non-deployable
+   packages. `apps/dc_calendar/` moves to `libs/dc_calendar/`;
+   `identity_client` is created as `libs/identity_client/`; Goblin Guide
+   ships as a shared frontend library each frontend mounts, plus a thin
+   standalone shell for `goblin.barrins-codex.org` and the T9 proxy login
+   page.
+3. A hybrid — `libs/` for the frontend library, but copy-per-app for
+   `identity_client` because backends deploy independently.
+
+**Trade-offs.** Option 1's duplication is exactly what adopting
+`barrins_identity` exists to remove — a token-format fix would have to be
+applied N times, and drift is silent until a consumer breaks — and it
+leaves `dc_calendar` in the wrong place, so `apps/` no longer means "a
+deployable application." The independent-deploy argument for copy-per-app
+(option 3) does not bite: Constitution §26.1 independence is about
+playbooks and services not restarting each other, not about pinning a
+shared helper to an old version — and every consumer *should* run the same
+token-verification logic. A shared verification helper does not
+reintroduce a shared *secret*; RS256/JWKS trust is unchanged. The shared
+frontend library needs one boundary: routing and the query client stay
+the host app's, provided as peer dependencies.
+
+**Decision.** Option 2, per the user (2026-08-29). A top-level `libs/`
+directory holds shared packages that are imported, never deployed:
+
+- **`libs/dc_calendar/`** — moved from `apps/dc_calendar/`. The package
+  name is unchanged, so no import changes; the `[tool.uv.sources]` path
+  in `apps/barrins_api/pyproject.toml` and `apps/karn_tablets/pyproject.toml`
+  (`../dc_calendar` → `../../libs/dc_calendar`), their `[tool.ty]`
+  `extra-paths`, both `uv.lock` files, and the `apps/dc_calendar/**` CI
+  path filter update with it. Its own commit, with both consumer test
+  suites re-run.
+- **`libs/identity_client/`** — created by the `barrins_api` cutover
+  ([platform.md §10](../../back/barrins_identity/platform.md#10-cutover)),
+  under `libs/`, not `apps/barrins_api/identity_client/`.
+- **Goblin Guide** — a shared frontend library (React 19 + TS + Tailwind +
+  shadcn/ui, Vite library mode; React Router + TanStack Query as peer
+  deps) consumed by `tamiyo_scroll`, `tolaria_news` and future frontends,
+  plus a thin standalone shell app.
+
+`apps/` from now on means "a deployable application (or its playbook's
+target)"; `libs/` means "a package other things import."
+
+**Consequences.**
+
+- Closes `barrins_identity` platform.md `Q-01` (packaging) and the Goblin
+  Guide bootstrap `G-01`/`G-02`/`G-04` shape questions.
+- `dc_calendar` moves to `libs/dc_calendar/` as a standalone follow-up
+  commit — mechanical (path strings + lock files + CI filter), but it
+  changes build config for two apps so it is verified on its own, not
+  folded into a docs change.
+- `docs/hooks/sync_readmes.py` globs `apps/*` for README→docs sync;
+  `libs/*` packages get a docs page only if one is wanted (none today —
+  `dc_calendar` has no docs page).
+- `apps/goblin_guide/` becomes (or contains) the shared library plus the
+  shell; its docs describe that shape.
+- `username` is added to the `User` model to match Constitution §13.2
+  (email-only was a gap, not a decision). **Done on T10**: `VARCHAR(64)`
+  UNIQUE NOT NULL INDEX (migration `f6a7b8c9d0e1`), required in
+  `UserSignup` / `UserCreate`, echoed in `UserRead`, anonymized on
+  soft-delete. Whether login accepts the handle as well as the email
+  stays open (platform.md `Q-05`) — T10 kept `email` as the sole
+  credential.
+- **T10 (2026-08-29)**: `libs/identity_client/` is built (per the "created
+  by the cutover" note above, brought forward so the package is testable
+  now) — `JWKSCache` + `verify_token` + `make_verify_dependency`, 100%
+  covered, not yet consumed. `dc_calendar` had already moved to
+  `libs/dc_calendar/` (commit `19086dff`).
+- Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
+  blocked on its frontend spec, not on this decision.
