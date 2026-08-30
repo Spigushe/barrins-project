@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useIdentity } from '@barrins/goblin-guide'
 import { LoginRoute } from './LoginRoute'
 import { Shell } from './Shell'
+import { SignupRoute } from './SignupRoute'
+import { VerifyEmailRoute } from './VerifyEmailRoute'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useIdentity()
@@ -15,6 +17,8 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
+        <Route path="/signup" element={<SignupRoute />} />
+        <Route path="/verify-email" element={<VerifyEmailRoute />} />
         <Route
           path="/"
           element={

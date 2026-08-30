@@ -38,3 +38,30 @@ export function Spinner(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+/** A met password rule. */
+export function CheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={13} height={13} {...base} strokeWidth={2.6} {...props}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
+/** An unmet password rule. */
+export function DotIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={13} height={13} {...base} strokeWidth={2} {...props}>
+      <circle cx={12} cy={12} r={3.5} />
+    </svg>
+  )
+}
+
+export function MailIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={15} height={15} {...base} {...props}>
+      <rect x={3} y={5} width={18} height={14} rx={2} />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  )
+}

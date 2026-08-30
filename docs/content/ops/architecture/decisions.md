@@ -1487,5 +1487,12 @@ target)"; `libs/` means "a package other things import."
   `resolve.dedupe` for `react` & co. because the path dependency is
   symlinked with its own `node_modules`. A dedicated `goblin_guide` CI
   job (library then shell) is wired into `ci-required`.
+- **T12 (2026-08-30)**: the signup + email-verification slice
+  (bootstrap `G-03` step 2) lands in the same two packages —
+  `SignupScreen` + `VerifyEmailScreen` and `useSignup` /
+  `useVerifyEmail` / `useResendVerification` over `POST /auth/signup`,
+  `/signup/verify`, `/signup/resend`, plus `/signup` + `/verify-email`
+  routes in the shell. No CI or packaging change — the existing
+  `goblin_guide` job and paths filter already cover it.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

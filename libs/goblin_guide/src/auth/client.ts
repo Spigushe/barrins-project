@@ -1,12 +1,16 @@
 import {
   type Principal,
   principalSchema,
+  type ResendVerificationResponse,
+  resendVerificationResponseSchema,
+  type SignupResponse,
+  signupResponseSchema,
   type TokenPair,
   tokenPairSchema,
 } from './schemas'
 import type { TokenStore } from './tokenStore'
 
-/** A `4xx`/`5xx` from Barrin's Identity, carrying the parsed `detail`. */
+/** A `4xx`/`5xx` from Barrin's Identity, carrying the parsed message. */
 export class IdentityError extends Error {
   status: number
 
@@ -23,9 +27,23 @@ export class IdentityError extends Error {
  */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
+/** Fields the signup form collects (`POST /api/v1/auth/signup`). */
+export interface SignupInput {
+  email: string
+  username: string
+  password: string
+  displayName?: string
+}
+
 async function readDetail(response: Response): Promise<string> {
   try {
-    const data = (await response.json()) as { detail?: unknown }
+    const data = (await response.json()) as {
+      detail?: unknown
+      error?: { message?: unknown }
+    }
+    // Barrin's Identity wraps raised errors as `{"error": {"message", ...}}`
+    // (`app/core/error_handlers.py`); older services use a bare `detail`.
+    if (typeof data.error?.message === 'string') return data.error.message
     if (typeof data.detail === 'string') return data.detail
   } catch {
     // fall through to the generic message
@@ -42,6 +60,15 @@ export interface IdentityClient {
   me: () => Promise<Principal>
   /** `POST /api/v1/auth/logout` — best-effort; local token state is cleared regardless. */
   logout: () => Promise<void>
+  /**
+   * `POST /api/v1/auth/signup` — self-registration. When the response carries
+   * `tokens` (email verification disabled server-side) they are stored.
+   */
+  signup: (input: SignupInput) => Promise<SignupResponse>
+  /** `POST /api/v1/auth/signup/verify` — submit the emailed code; stores the pair. */
+  verifyEmail: (email: string, code: string) => Promise<TokenPair>
+  /** `POST /api/v1/auth/signup/resend` — re-send the code (server enforces a cooldown). */
+  resendVerification: (email: string) => Promise<ResendVerificationResponse>
 }
 
 export interface IdentityClientOptions {
@@ -140,5 +167,47 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     }
   }
 
-  return { login, refresh, me, logout }
+  function postJson(path: string, body: unknown): Promise<Response> {
+    return doFetch(`${base}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  async function signup(input: SignupInput): Promise<SignupResponse> {
+    const body: Record<string, string> = {
+      email: input.email,
+      username: input.username,
+      password: input.password,
+    }
+    if (input.displayName !== undefined) body.display_name = input.displayName
+    const response = await postJson('/api/v1/auth/signup', body)
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    const result = signupResponseSchema.parse(await response.json())
+    if (result.tokens !== null) tokenStore.set(result.tokens)
+    return result
+  }
+
+  async function verifyEmail(email: string, code: string): Promise<TokenPair> {
+    const response = await postJson('/api/v1/auth/signup/verify', { email, code })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    const pair = tokenPairSchema.parse(await response.json())
+    tokenStore.set(pair)
+    return pair
+  }
+
+  async function resendVerification(email: string): Promise<ResendVerificationResponse> {
+    const response = await postJson('/api/v1/auth/signup/resend', { email })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return resendVerificationResponseSchema.parse(await response.json())
+  }
+
+  return { login, refresh, me, logout, signup, verifyEmail, resendVerification }
 }

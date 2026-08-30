@@ -15,18 +15,21 @@ Consumers add it as a path dependency:
 }
 ```
 
-## What's here (login slice — Goblin Guide bootstrap `G-03` step 1)
+## What's here (Goblin Guide bootstrap `G-03` steps 1–2)
 
 | Export                                                   | Purpose                                                                                               |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `IdentityProvider`                                       | Context wiring the hooks to a service URL + token store. Sits under the host's `QueryClientProvider`. |
 | `LoginScreen`                                            | `POST /api/v1/auth/token` form — default / error / pending / session-expired states.                  |
+| `SignupScreen`                                           | `POST /api/v1/auth/signup` form — `username` field + client-side password-rule checklist (UX only).   |
+| `VerifyEmailScreen`                                      | `POST /api/v1/auth/signup/verify` — 6-digit code entry, resend with a mirrored 60-second cooldown.    |
 | `useLogin`, `useCurrentUser`, `useLogout`, `useIdentity` | TanStack Query hooks over the identity endpoints.                                                     |
+| `useSignup`, `useVerifyEmail`, `useResendVerification`   | TanStack Query hooks for the signup + email-verification flow.                                        |
 | `createIdentityClient`                                   | Framework-free `fetch` client with single-flight silent refresh on `401`.                             |
 | `createMemoryTokenStore`, `TokenStore`                   | Pluggable token storage (`G-05`); the default keeps both tokens in memory.                            |
 
-Later slices add signup + email verification, password reset, account
-settings + delete, and admin service-account management, in that order.
+Later slices add password reset, account settings + delete, and admin
+service-account management, in that order.
 
 ## Styling
 

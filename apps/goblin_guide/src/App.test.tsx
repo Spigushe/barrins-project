@@ -70,4 +70,57 @@ describe('<App>', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('alex_bishop')).toBeInTheDocument()
   })
+
+  it('opens the signup screen from the login link', async () => {
+    const { user } = renderApp('/login', vi.fn())
+
+    await user.click(screen.getByRole('button', { name: 'Create an account' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Create account' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Username')).toBeInTheDocument()
+  })
+
+  it('takes a new signup to the verification screen with the email carried over', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/signup')) {
+        return jsonResponse(
+          { detail: 'check your inbox', verification_required: true, tokens: null },
+          201,
+        )
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/signup', fetchImpl)
+
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.type(screen.getByLabelText('Username'), 'alex_bishop')
+    await user.type(screen.getByLabelText('Password'), 'GoblinGuide!23x')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Verify email' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('alex@example.com')
+  })
+
+  it('pre-fills the verification screen from a deep link and signs in on success', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/signup/verify')) return jsonResponse(PAIR)
+      if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp(
+      '/verify-email?email=alex@example.com&code=123456',
+      fetchImpl,
+    )
+
+    expect(screen.getByLabelText('Verification code')).toHaveValue('123456')
+    await user.click(screen.getByRole('button', { name: 'Verify email' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'You’re signed in' }),
+    ).toBeInTheDocument()
+  })
 })

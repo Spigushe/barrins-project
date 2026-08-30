@@ -193,3 +193,240 @@ describe('logout', () => {
     expect(store.getAccess()).toBeNull()
   })
 })
+
+describe('signup', () => {
+  it('posts JSON and returns the response when verification is required', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/signup`)
+      expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: 'alex@example.com',
+        username: 'alex_bishop',
+        password: 'GoblinGuide!23x',
+        display_name: 'Alex Bishop',
+      })
+      return json(
+        {
+          detail: 'Account created. Check your inbox to activate your account.',
+          verification_required: true,
+          tokens: null,
+        },
+        201,
+      )
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    const result = await client.signup({
+      email: 'alex@example.com',
+      username: 'alex_bishop',
+      password: 'GoblinGuide!23x',
+      displayName: 'Alex Bishop',
+    })
+
+    expect(result.verification_required).toBe(true)
+    expect(result.tokens).toBeNull()
+    expect(store.getAccess()).toBeNull()
+  })
+
+  it('omits display_name when it is not provided', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: 'alex@example.com',
+        username: 'alex_bishop',
+        password: 'GoblinGuide!23x',
+      })
+      return json({ detail: 'ok', verification_required: true, tokens: null }, 201)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.signup({
+      email: 'alex@example.com',
+      username: 'alex_bishop',
+      password: 'GoblinGuide!23x',
+    })
+  })
+
+  it('stores the pair when the server returns tokens (verification disabled)', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json(
+        { detail: 'Account created.', verification_required: false, tokens: PAIR },
+        201,
+      ),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    const result = await client.signup({
+      email: 'alex@example.com',
+      username: 'alex_bishop',
+      password: 'GoblinGuide!23x',
+    })
+
+    expect(result.tokens).not.toBeNull()
+    expect(store.getAccess()).toBe('access-1')
+  })
+
+  it('surfaces the { error: { message } } envelope on 409', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json(
+        {
+          error: {
+            code: 'CONFLICT',
+            message: "The username 'alex_bishop' is already taken.",
+          },
+        },
+        409,
+      ),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.signup({
+        email: 'alex@example.com',
+        username: 'alex_bishop',
+        password: 'GoblinGuide!23x',
+      }),
+    ).rejects.toMatchObject({
+      name: 'IdentityError',
+      status: 409,
+      message: "The username 'alex_bishop' is already taken.",
+    })
+    expect(store.getAccess()).toBeNull()
+  })
+
+  it('throws IdentityError on a 422 validation failure', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Request validation failed' } }, 422),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.signup({ email: 'a@example.com', username: 'x', password: 'short' }),
+    ).rejects.toBeInstanceOf(IdentityError)
+  })
+})
+
+describe('verifyEmail', () => {
+  it('posts the code and stores the returned pair', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/signup/verify`)
+      expect(JSON.parse(String(init?.body))).toEqual({
+        email: 'alex@example.com',
+        code: '123456',
+      })
+      return json(PAIR)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.verifyEmail('alex@example.com', '123456')
+
+    expect(store.getAccess()).toBe('access-1')
+    expect(store.getRefresh()).toBe('refresh-1')
+  })
+
+  it('throws IdentityError with the message on 400', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Invalid or expired code.' } }, 400),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.verifyEmail('alex@example.com', '000000')).rejects.toMatchObject({
+      status: 400,
+      message: 'Invalid or expired code.',
+    })
+    expect(store.getAccess()).toBeNull()
+  })
+})
+
+describe('resendVerification', () => {
+  it('posts the email and returns the generic detail on 202', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/signup/resend`)
+      expect(JSON.parse(String(init?.body))).toEqual({ email: 'alex@example.com' })
+      return json(
+        { detail: 'If an account exists for this address, a new code has been sent.' },
+        202,
+      )
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.resendVerification('alex@example.com')).resolves.toMatchObject({
+      detail: 'If an account exists for this address, a new code has been sent.',
+    })
+  })
+
+  it('throws IdentityError on a 502 send failure', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json(
+        {
+          error: {
+            message: 'Unable to send the verification email. Please try again later.',
+          },
+        },
+        502,
+      ),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.resendVerification('alex@example.com')).rejects.toBeInstanceOf(
+      IdentityError,
+    )
+  })
+})
+
+describe('readDetail envelope', () => {
+  it('prefers error.message and falls back to a bare detail', async () => {
+    const withEnvelope = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: createMemoryTokenStore(),
+      fetchImpl: vi.fn(async () => json({ error: { message: 'X' }, detail: 'Y' }, 400)),
+    })
+    await expect(
+      withEnvelope.verifyEmail('a@example.com', '000000'),
+    ).rejects.toMatchObject({ message: 'X' })
+
+    const bareDetail = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: createMemoryTokenStore(),
+      fetchImpl: vi.fn(async () => json({ detail: 'Y' }, 400)),
+    })
+    await expect(bareDetail.verifyEmail('a@example.com', '000000')).rejects.toMatchObject(
+      { message: 'Y' },
+    )
+  })
+})

@@ -27,6 +27,11 @@ section of the docs site for details.
 - `docs/mkdocs.yml`: nav entry for the new Tamiyo Scroll feature roadmap
   page (`front/tamiyo_scroll/roadmap.md`), the source of S12's bundled
   UI/UX polish items.
+- Goblin Guide signup slice (T12): `front/goblin_guide/bootstrap.md`
+  status banner + `G-03` row + tests-first note updated for `G-03`
+  step 2; ADR-17 gains a T12 consequence bullet; new
+  `project/v2.0.0-bump/t12-goblin-guide-signup/index.md` tracker and
+  project-index row, with the T11 row's "Not done" list pointed at T12.
 - `docs/cspell.json`: technical terms and proper nouns introduced while
   planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,

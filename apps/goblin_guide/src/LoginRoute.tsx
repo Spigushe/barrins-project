@@ -14,6 +14,9 @@ export function LoginRoute() {
       onAuthenticated={() => {
         navigate('/', { replace: true })
       }}
+      onCreateAccount={() => {
+        navigate('/signup')
+      }}
     />
   )
 }
