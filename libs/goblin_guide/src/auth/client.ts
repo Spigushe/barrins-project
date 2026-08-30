@@ -1,4 +1,6 @@
 import {
+  type EmailChangeResendResponse,
+  emailChangeResendResponseSchema,
   type PasswordResetRequestResponse,
   passwordResetRequestResponseSchema,
   type Principal,
@@ -35,6 +37,16 @@ export interface SignupInput {
   username: string
   password: string
   displayName?: string
+}
+
+/**
+ * Partial update for `PATCH /api/v1/users/me`. A field left `undefined` is
+ * omitted from the request (server leaves it untouched); `displayName: null`
+ * clears the display name.
+ */
+export interface AccountUpdateInput {
+  displayName?: string | null
+  email?: string
 }
 
 async function readDetail(response: Response): Promise<string> {
@@ -86,6 +98,32 @@ export interface IdentityClient {
     code: string,
     newPassword: string,
   ) => Promise<TokenPair>
+  /**
+   * `PATCH /api/v1/users/me` — update the caller's profile. `displayName`
+   * maps to `display_name` (`null` clears it); a new `email` starts an
+   * email-change: while the server requires email verification the response
+   * still carries the *old* address and a code is sent to the new one.
+   * `409` (email taken) / `502` (code send failed) → `IdentityError`.
+   */
+  updateAccount: (input: AccountUpdateInput) => Promise<Principal>
+  /**
+   * `POST /api/v1/users/me/email-change/verify` — confirm a pending email
+   * change with its 6-digit code. Resolves to the principal with the new
+   * email; existing tokens keep working.
+   */
+  verifyEmailChange: (code: string) => Promise<Principal>
+  /**
+   * `POST /api/v1/users/me/email-change/resend` — re-send the pending code.
+   * The server enforces a cooldown and returns the same body regardless.
+   */
+  resendEmailChange: () => Promise<EmailChangeResendResponse>
+  /**
+   * `DELETE /api/v1/users/me` — soft-delete the account, re-authenticating
+   * with the current password. Clears local token state on success; every
+   * token for the account is invalidated server-side. `401` (wrong
+   * password) → `IdentityError`.
+   */
+  deleteAccount: (currentPassword: string) => Promise<void>
 }
 
 export interface IdentityClientOptions {
@@ -146,6 +184,15 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
 
     await refreshOnce()
     return send()
+  }
+
+  /** `authed`, plus a JSON body and `Content-Type` header. */
+  function authedJson(path: string, method: string, body: unknown): Promise<Response> {
+    return authed(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
   }
 
   async function login(email: string, password: string): Promise<TokenPair> {
@@ -254,6 +301,48 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     return pair
   }
 
+  async function updateAccount(input: AccountUpdateInput): Promise<Principal> {
+    const body: Record<string, unknown> = {}
+    if (input.displayName !== undefined) body.display_name = input.displayName
+    if (input.email !== undefined) body.email = input.email
+    const response = await authedJson('/api/v1/users/me', 'PATCH', body)
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return principalSchema.parse(await response.json())
+  }
+
+  async function verifyEmailChange(code: string): Promise<Principal> {
+    const response = await authedJson('/api/v1/users/me/email-change/verify', 'POST', {
+      code,
+    })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return principalSchema.parse(await response.json())
+  }
+
+  async function resendEmailChange(): Promise<EmailChangeResendResponse> {
+    const response = await authed('/api/v1/users/me/email-change/resend', {
+      method: 'POST',
+    })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return emailChangeResendResponseSchema.parse(await response.json())
+  }
+
+  async function deleteAccount(currentPassword: string): Promise<void> {
+    const response = await authedJson('/api/v1/users/me', 'DELETE', {
+      current_password: currentPassword,
+    })
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    // Every token for the account is invalidated server-side; drop ours too.
+    tokenStore.clear()
+  }
+
   return {
     login,
     refresh,
@@ -264,5 +353,9 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     resendVerification,
     requestPasswordReset,
     confirmPasswordReset,
+    updateAccount,
+    verifyEmailChange,
+    resendEmailChange,
+    deleteAccount,
   }
 }

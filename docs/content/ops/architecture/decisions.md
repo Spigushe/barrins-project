@@ -1504,5 +1504,18 @@ target)"; `libs/` means "a package other things import."
   `CodeField`) on their third use, and `SignupScreen` /
   `VerifyEmailScreen` refactored onto them. Still no CI or packaging
   change.
+- **T14 (2026-08-30)**: the account-settings + delete slice (bootstrap
+  `G-03` step 4) lands in the same two packages — `AccountScreen` and
+  `useUpdateAccount` / `useVerifyEmailChange` / `useResendEmailChange` /
+  `useDeleteAccount` over `PATCH /users/me`,
+  `/users/me/email-change/verify` + `/resend`, `DELETE /users/me`. The
+  shell mounts `AccountScreen` at `/` (replacing the read-only card) and
+  adds a `/confirm-email-change` deep-link route behind `RequireAuth`
+  (`RequireAuth` now carries a `?next=` return path). One new token,
+  `--gg-danger`, plus `.gg-button-danger` — the only styling additions
+  beyond the account-screen layout classes. Authenticated password
+  change is out of scope: the identity service exposes no endpoint for
+  it (integration.md §4.4); users go through the password-reset flow.
+  Still no CI or packaging change.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.

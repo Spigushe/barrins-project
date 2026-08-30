@@ -37,6 +37,11 @@ describe('<LoginScreen>', () => {
     expect(screen.getByRole('button', { name: 'Log in' })).toBeEnabled()
   })
 
+  it('shows the account-deleted banner when the prop is set', () => {
+    renderLogin({ accountDeleted: true }, vi.fn())
+    expect(screen.getByRole('status')).toHaveTextContent('Your account has been deleted.')
+  })
+
   it('blocks an empty submit with a client-side message and no request', async () => {
     const fetchImpl = vi.fn()
     const { user } = renderLogin({}, fetchImpl)

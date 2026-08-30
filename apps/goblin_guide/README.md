@@ -11,12 +11,14 @@ actual screens, hooks and token handling live in the shared library
 a `QueryClientProvider`, an `IdentityProvider`, and the default ("Suivi")
 token theme.
 
-> **Status**: 🟨 Login, signup and password-reset slices (Goblin Guide
-> bootstrap `G-03` steps 1–3) — `POST /api/v1/auth/token`, an in-memory
-> token store, silent refresh, the `GET /auth/me` account view,
+> **Status**: 🟨 Login, signup, password-reset and account-settings
+> slices (Goblin Guide bootstrap `G-03` steps 1–4) — `POST
+> /api/v1/auth/token`, an in-memory token store, silent refresh,
 > self-registration with email verification (`/signup`, `/verify-email`),
-> and password reset (`/forgot-password`, `/reset-password`). Account
-> settings and admin service-account management come in later slices.
+> password reset (`/forgot-password`, `/reset-password`), and account
+> management at `/` (`AccountScreen` — display name, a two-step email
+> change with a `/confirm-email-change` deep-link route, and account
+> delete). Admin service-account management comes in the last slice.
 
 ## What it will never own
 

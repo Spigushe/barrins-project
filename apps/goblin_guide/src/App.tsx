@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useIdentity } from '@barrins/goblin-guide'
+import { ConfirmEmailChangeRoute } from './ConfirmEmailChangeRoute'
 import { ForgotPasswordRoute } from './ForgotPasswordRoute'
 import { LoginRoute } from './LoginRoute'
 import { ResetPasswordRoute } from './ResetPasswordRoute'
@@ -10,7 +11,11 @@ import { VerifyEmailRoute } from './VerifyEmailRoute'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useIdentity()
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!isAuthenticated) {
+    const next = encodeURIComponent(location.pathname + location.search)
+    return <Navigate to={`/login?next=${next}`} replace />
+  }
   return children
 }
 
@@ -23,6 +28,14 @@ export function App() {
         <Route path="/verify-email" element={<VerifyEmailRoute />} />
         <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
         <Route path="/reset-password" element={<ResetPasswordRoute />} />
+        <Route
+          path="/confirm-email-change"
+          element={
+            <RequireAuth>
+              <ConfirmEmailChangeRoute />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/"
           element={

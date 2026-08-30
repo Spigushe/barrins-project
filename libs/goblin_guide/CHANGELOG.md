@@ -7,6 +7,24 @@ section of the docs site for details.
 
 ### Added
 
+- Account-settings + delete slice (T14), Goblin Guide bootstrap `G-03`
+  step 4. `AccountScreen` and `useUpdateAccount` / `useVerifyEmailChange`
+  / `useResendEmailChange` / `useDeleteAccount` over
+  `PATCH /api/v1/users/me`, `/users/me/email-change/verify` + `/resend`,
+  `DELETE /api/v1/users/me` (integration.md §4.4, §8.5–§8.6). Inline
+  display-name edit (a check-button commit); a two-step email change
+  that keeps the pending address apart from `user.email`, reuses the
+  shared `CodeField`, and mirrors a 60-second resend cooldown; a
+  password-gated account delete that clears the token store on `204`.
+  `client.ts` gains `updateAccount` / `verifyEmailChange` /
+  `resendEmailChange` / `deleteAccount` (all authenticated, so they get
+  the single silent-refresh retry) and the `AccountUpdateInput` type;
+  `schemas.ts` gains `emailChangeResendResponseSchema`. `LoginScreen`
+  gains an `accountDeleted` banner prop. `styles.css` gains one new
+  token, `--gg-danger`, plus `.gg-button-danger` and the account-screen
+  layout classes. Authenticated password change is intentionally absent
+  — the identity service has no endpoint for it; users go through the
+  password-reset flow.
 - Password-reset slice (T13), Goblin Guide bootstrap `G-03` step 3.
   `ForgotPasswordScreen` + `ResetPasswordScreen` and
   `usePasswordResetRequest` / `usePasswordResetConfirm` over

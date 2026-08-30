@@ -9,6 +9,8 @@ export interface LoginScreenProps {
   onAuthenticated?: () => void
   /** Show the "your session has ended" banner above the form. */
   sessionExpired?: boolean
+  /** Show the "your account has been deleted" banner above the form. */
+  accountDeleted?: boolean
   /** Wordmark heading. */
   title?: string
   /** Line under the wordmark. */
@@ -24,6 +26,7 @@ const GENERIC_ERROR = 'Something went wrong. Please try again.'
 export function LoginScreen({
   onAuthenticated,
   sessionExpired = false,
+  accountDeleted = false,
   title = "Barrin's Identity",
   subtitle = "Sign in to your Barrin's account",
   onForgotPassword,
@@ -69,6 +72,15 @@ export function LoginScreen({
             <div className="gg-banner" role="status">
               <AlertIcon style={{ stroke: 'var(--gg-warning)' }} />
               <span>Your session has ended. Please sign in again to continue.</span>
+            </div>
+          )}
+
+          {accountDeleted && (
+            <div className="gg-banner" role="status">
+              <AlertIcon style={{ stroke: 'var(--gg-warning)' }} />
+              <span>
+                Your account has been deleted. You can create a new one any time.
+              </span>
             </div>
           )}
 

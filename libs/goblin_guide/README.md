@@ -15,24 +15,27 @@ Consumers add it as a path dependency:
 }
 ```
 
-## What's here (Goblin Guide bootstrap `G-03` steps 1–3)
+## What's here (Goblin Guide bootstrap `G-03` steps 1–4)
 
-| Export                                                   | Purpose                                                                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `IdentityProvider`                                       | Context wiring the hooks to a service URL + token store. Sits under the host's `QueryClientProvider`.   |
-| `LoginScreen`                                            | `POST /api/v1/auth/token` form — default / error / pending / session-expired states.                    |
-| `SignupScreen`                                           | `POST /api/v1/auth/signup` form — `username` field + client-side password-rule checklist (UX only).     |
-| `VerifyEmailScreen`                                      | `POST /api/v1/auth/signup/verify` — 6-digit code entry, resend with a mirrored 60-second cooldown.      |
-| `ForgotPasswordScreen`                                   | `POST /api/v1/auth/password-reset/request` — email entry, then the service's generic confirmation.      |
-| `ResetPasswordScreen`                                    | `POST /api/v1/auth/password-reset/confirm` — code + new password from the `?email=`/`?code=` deep link. |
-| `useLogin`, `useCurrentUser`, `useLogout`, `useIdentity` | TanStack Query hooks over the identity endpoints.                                                       |
-| `useSignup`, `useVerifyEmail`, `useResendVerification`   | TanStack Query hooks for the signup + email-verification flow.                                          |
-| `usePasswordResetRequest`, `usePasswordResetConfirm`     | TanStack Query hooks for the password-reset flow.                                                       |
-| `createIdentityClient`                                   | Framework-free `fetch` client with single-flight silent refresh on `401`.                               |
-| `createMemoryTokenStore`, `TokenStore`                   | Pluggable token storage (`G-05`); the default keeps both tokens in memory.                              |
+| Export                                                                                 | Purpose                                                                                                                                              |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IdentityProvider`                                                                     | Context wiring the hooks to a service URL + token store. Sits under the host's `QueryClientProvider`.                                                |
+| `LoginScreen`                                                                          | `POST /api/v1/auth/token` form — default / error / pending / session-expired / account-deleted states.                                               |
+| `SignupScreen`                                                                         | `POST /api/v1/auth/signup` form — `username` field + client-side password-rule checklist (UX only).                                                  |
+| `VerifyEmailScreen`                                                                    | `POST /api/v1/auth/signup/verify` — 6-digit code entry, resend with a mirrored 60-second cooldown.                                                   |
+| `ForgotPasswordScreen`                                                                 | `POST /api/v1/auth/password-reset/request` — email entry, then the service's generic confirmation.                                                   |
+| `ResetPasswordScreen`                                                                  | `POST /api/v1/auth/password-reset/confirm` — code + new password from the `?email=`/`?code=` deep link.                                              |
+| `AccountScreen`                                                                        | `PATCH /api/v1/users/me` + email-change verify/resend + `DELETE /users/me` — inline display-name edit, two-step email change, password-gated delete. |
+| `useLogin`, `useCurrentUser`, `useLogout`, `useIdentity`                               | TanStack Query hooks over the identity endpoints.                                                                                                    |
+| `useSignup`, `useVerifyEmail`, `useResendVerification`                                 | TanStack Query hooks for the signup + email-verification flow.                                                                                       |
+| `usePasswordResetRequest`, `usePasswordResetConfirm`                                   | TanStack Query hooks for the password-reset flow.                                                                                                    |
+| `useUpdateAccount`, `useVerifyEmailChange`, `useResendEmailChange`, `useDeleteAccount` | TanStack Query hooks for the account-management flow.                                                                                                |
+| `createIdentityClient`                                                                 | Framework-free `fetch` client with single-flight silent refresh on `401`.                                                                            |
+| `createMemoryTokenStore`, `TokenStore`                                                 | Pluggable token storage (`G-05`); the default keeps both tokens in memory.                                                                           |
 
-Later slices add account settings + delete, then admin service-account
-management, in that order.
+The last slice adds admin service-account management. Authenticated
+password change is not offered here — the identity service has no
+endpoint for it; use the password-reset flow.
 
 ## Styling
 

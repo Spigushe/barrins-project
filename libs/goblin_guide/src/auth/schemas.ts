@@ -3,7 +3,8 @@ import { z } from 'zod'
 /**
  * Wire shapes for the Barrin's Identity endpoints Goblin Guide consumes.
  * Login slice — see `docs/content/back/barrins_identity/integration.md` §4.1;
- * signup + email verification — §4.2 / §8.3; password reset — §4.3 / §8.4.
+ * signup + email verification — §4.2 / §8.3; password reset — §4.3 / §8.4;
+ * account settings + delete — §4.4 / §8.5 / §8.6.
  */
 
 export const tokenPairSchema = z.object({
@@ -59,3 +60,15 @@ export const passwordResetRequestResponseSchema = z.object({
 export type PasswordResetRequestResponse = z.infer<
   typeof passwordResetRequestResponseSchema
 >
+
+/**
+ * `POST /api/v1/users/me/email-change/resend` → `EmailChangeResendResponse`.
+ * The caller is already authenticated, so — unlike the signup resend — this
+ * message is specific rather than anti-enumeration generic. `PATCH
+ * /api/v1/users/me` and `/users/me/email-change/verify` both return the
+ * existing `principalSchema`.
+ */
+export const emailChangeResendResponseSchema = z.object({
+  detail: z.string(),
+})
+export type EmailChangeResendResponse = z.infer<typeof emailChangeResendResponseSchema>

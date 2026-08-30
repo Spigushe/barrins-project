@@ -53,6 +53,22 @@ describe('<App>', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Your session has ended.')
   })
 
+  it('shows the account-deleted banner on /login?deleted=1', async () => {
+    renderApp('/login?deleted=1', vi.fn())
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Your account has been deleted.',
+    )
+  })
+
+  it('bounces an unauthenticated /confirm-email-change to the login screen', async () => {
+    renderApp('/confirm-email-change?email=new@example.com&code=123456', vi.fn())
+    expect(
+      await screen.findByRole('heading', { name: "Barrin's Identity" }),
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
+    expect(window.location.search).toContain('next=')
+  })
+
   it('signs in and lands on the account shell', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.endsWith('/auth/token')) return jsonResponse(PAIR)
@@ -65,9 +81,7 @@ describe('<App>', () => {
     await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-    expect(
-      await screen.findByRole('heading', { name: 'You’re signed in' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
     expect(screen.getByText('alex_bishop')).toBeInTheDocument()
   })
 
@@ -119,9 +133,7 @@ describe('<App>', () => {
     expect(screen.getByLabelText('Verification code')).toHaveValue('123456')
     await user.click(screen.getByRole('button', { name: 'Verify email' }))
 
-    expect(
-      await screen.findByRole('heading', { name: 'You’re signed in' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
   })
 
   it('opens the forgot-password screen from the login link', async () => {
@@ -172,8 +184,6 @@ describe('<App>', () => {
     await user.type(screen.getByLabelText('New password'), 'GoblinGuide!23x')
     await user.click(screen.getByRole('button', { name: 'Reset password' }))
 
-    expect(
-      await screen.findByRole('heading', { name: 'You’re signed in' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
   })
 })

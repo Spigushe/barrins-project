@@ -501,6 +501,198 @@ describe('confirmPasswordReset', () => {
   })
 })
 
+describe('updateAccount', () => {
+  it('PATCHes display_name with a bearer token and returns the principal', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/users/me`)
+      expect(init?.method).toBe('PATCH')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer access-1')
+      expect(JSON.parse(String(init?.body))).toEqual({ display_name: 'Ajax' })
+      return json({ ...PRINCIPAL, display_name: 'Ajax' })
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.updateAccount({ displayName: 'Ajax' })).resolves.toMatchObject({
+      display_name: 'Ajax',
+    })
+  })
+
+  it('sends display_name: null to clear it, and omits fields left undefined', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ display_name: null })
+      return json({ ...PRINCIPAL, display_name: null })
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.updateAccount({ displayName: null })
+  })
+
+  it('PATCHes a new email on its own; the response still shows the old address', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ email: 'new@example.com' })
+      return json(PRINCIPAL)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.updateAccount({ email: 'new@example.com' }),
+    ).resolves.toMatchObject({ email: 'alex@example.com' })
+  })
+
+  it('throws IdentityError on a 409 when the new email is already registered', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async () =>
+      json(
+        { error: { message: "An account already exists for 'new@example.com'." } },
+        409,
+      ),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(
+      client.updateAccount({ email: 'new@example.com' }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+})
+
+describe('verifyEmailChange', () => {
+  it('posts just the code and returns the principal with the new email', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/users/me/email-change/verify`)
+      expect(JSON.parse(String(init?.body))).toEqual({ code: '123456' })
+      return json({ ...PRINCIPAL, email: 'new@example.com' })
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.verifyEmailChange('123456')).resolves.toMatchObject({
+      email: 'new@example.com',
+    })
+  })
+
+  it('throws IdentityError with the message on a 400 bad code', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'Invalid or expired code.' } }, 400),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.verifyEmailChange('000000')).rejects.toMatchObject({
+      status: 400,
+      message: 'Invalid or expired code.',
+    })
+  })
+})
+
+describe('resendEmailChange', () => {
+  it('posts with no body and returns the detail on 202', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/users/me/email-change/resend`)
+      expect(init?.method).toBe('POST')
+      expect(init?.body).toBeUndefined()
+      return json(
+        { detail: 'A new code has been sent to the pending email address.' },
+        202,
+      )
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.resendEmailChange()).resolves.toMatchObject({
+      detail: 'A new code has been sent to the pending email address.',
+    })
+  })
+
+  it('throws IdentityError on a 404 when there is no pending change', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async () =>
+      json({ error: { message: 'No pending email change.' } }, 404),
+    )
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.resendEmailChange()).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('deleteAccount', () => {
+  it('sends the current password and clears the token store on 204', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/users/me`)
+      expect(init?.method).toBe('DELETE')
+      expect(JSON.parse(String(init?.body))).toEqual({
+        current_password: 'hunter2hunter2',
+      })
+      return new Response(null, { status: 204 })
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.deleteAccount('hunter2hunter2')).resolves.toBeUndefined()
+    expect(store.getAccess()).toBeNull()
+    expect(store.getRefresh()).toBeNull()
+  })
+
+  it('surfaces a wrong-password 401 (after the silent-refresh retry) and keeps a session', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/refresh')) return json(PAIR_2)
+      // Both the first DELETE and the post-refresh retry answer 401 — the
+      // password is wrong, not the token.
+      return json({ error: { message: 'Invalid password.' } }, 401)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.deleteAccount('nope')).rejects.toMatchObject({
+      status: 401,
+      message: 'Invalid password.',
+    })
+    expect(store.getAccess()).toBe('access-2')
+  })
+})
+
 describe('readDetail envelope', () => {
   it('prefers error.message and falls back to a bare detail', async () => {
     const withEnvelope = createIdentityClient({

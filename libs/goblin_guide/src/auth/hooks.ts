@@ -6,9 +6,10 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
-import type { SignupInput } from './client'
+import type { AccountUpdateInput, SignupInput } from './client'
 import { useIdentityContext } from './context'
 import type {
+  EmailChangeResendResponse,
   PasswordResetRequestResponse,
   Principal,
   ResendVerificationResponse,
@@ -159,6 +160,63 @@ export function usePasswordResetConfirm(): UseMutationResult<
       client.confirmPasswordReset(email, code, newPassword),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
+    },
+  })
+}
+
+/** `PATCH /api/v1/users/me`. Refreshes `me` on success. */
+export function useUpdateAccount(): UseMutationResult<
+  Principal,
+  Error,
+  AccountUpdateInput
+> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: AccountUpdateInput) => client.updateAccount(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
+    },
+  })
+}
+
+/** `POST /api/v1/users/me/email-change/verify`. Refreshes `me` on success. */
+export function useVerifyEmailChange(): UseMutationResult<Principal, Error, string> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (code: string) => client.verifyEmailChange(code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
+    },
+  })
+}
+
+/** `POST /api/v1/users/me/email-change/resend`. */
+export function useResendEmailChange(): UseMutationResult<
+  EmailChangeResendResponse,
+  Error,
+  void
+> {
+  const { client } = useIdentityContext()
+  return useMutation({
+    mutationFn: () => client.resendEmailChange(),
+  })
+}
+
+/**
+ * `DELETE /api/v1/users/me`. On success the client has already cleared local
+ * token state; this drops every cached query so the app falls back to the
+ * login screen. A failed attempt (e.g. wrong password) leaves the cache
+ * untouched so the confirmation form stays put.
+ */
+export function useDeleteAccount(): UseMutationResult<void, Error, string> {
+  const { client } = useIdentityContext()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (currentPassword: string) => client.deleteAccount(currentPassword),
+    onSuccess: () => {
+      queryClient.clear()
     },
   })
 }

@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCurrentUser, useLogout } from '@barrins/goblin-guide'
+import { AccountScreen, useCurrentUser, useLogout } from '@barrins/goblin-guide'
 
 const page: CSSProperties = {
   minHeight: '100svh',
@@ -10,16 +10,14 @@ const page: CSSProperties = {
   color: 'var(--color-foreground)',
 }
 
-const row: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 16,
-  padding: '11px 16px',
-  borderBottom: '1px solid var(--color-border)',
-  fontSize: 12.5,
+export interface ShellProps {
+  /** Deep-link `?code=` — opens the account email-change confirmation step. */
+  initialEmailChangeCode?: string
+  /** Deep-link `?email=` — the pending address, shown in the confirmation banner. */
+  initialPendingEmail?: string
 }
 
-export function Shell() {
+export function Shell({ initialEmailChangeCode, initialPendingEmail }: ShellProps = {}) {
   const navigate = useNavigate()
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
@@ -107,76 +105,13 @@ export function Shell() {
           padding: '56px 24px',
         }}
       >
-        <div style={{ width: '100%', maxWidth: 520 }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
-            You&rsquo;re signed in
-          </h2>
-          <p
-            style={{
-              margin: '8px 0 0',
-              fontSize: 13,
-              color: 'var(--color-muted-foreground)',
-              lineHeight: 1.5,
-            }}
-          >
-            This is your Barrin&rsquo;s account home. It also serves the sign-in page that
-            the Karn Tablets Jupyter workbench redirects to.
-          </p>
-
-          <div
-            style={{
-              marginTop: 24,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-card)',
-              borderRadius: 'var(--radius-card, 12px)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                ...row,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                fontSize: 11,
-                color: 'var(--color-subtle-foreground, var(--color-muted-foreground))',
-              }}
-            >
-              Account
-            </div>
-            <div style={row}>
-              <span style={{ color: 'var(--color-muted-foreground)' }}>Username</span>
-              <span>{user.username}</span>
-            </div>
-            <div style={row}>
-              <span style={{ color: 'var(--color-muted-foreground)' }}>Display name</span>
-              <span>{user.display_name ?? '—'}</span>
-            </div>
-            <div style={row}>
-              <span style={{ color: 'var(--color-muted-foreground)' }}>Email</span>
-              <span>
-                {user.email}
-                {user.is_verified ? ' ✓' : ' (unverified)'}
-              </span>
-            </div>
-            <div style={{ ...row, borderBottom: 'none' }}>
-              <span style={{ color: 'var(--color-muted-foreground)' }}>Role</span>
-              <span>{user.role}</span>
-            </div>
-          </div>
-
-          <p
-            style={{
-              margin: '16px 0 0',
-              fontSize: 11.5,
-              color: 'var(--color-subtle-foreground, var(--color-muted-foreground))',
-              lineHeight: 1.5,
-            }}
-          >
-            Changing your email or password, and deleting your account, arrive in a later
-            release.
-          </p>
-        </div>
+        <AccountScreen
+          initialEmailChangeCode={initialEmailChangeCode}
+          initialPendingEmail={initialPendingEmail}
+          onDeleted={() => {
+            navigate('/login?deleted=1', { replace: true })
+          }}
+        />
       </main>
     </div>
   )

@@ -39,6 +39,14 @@ section of the docs site for details.
   `project/v2.0.0-bump/t13-goblin-guide-password-reset/index.md`
   tracker and project-index row, with the T12 row's "Not done" list
   trimmed.
+- Goblin Guide account-settings + delete slice (T14):
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` row +
+  tests-first note updated for `G-03` step 4; ADR-17 gains a T14
+  consequence bullet; new
+  `project/v2.0.0-bump/t14-goblin-guide-account-settings/index.md`
+  tracker and project-index row, with the T13 row's "Not done" list
+  trimmed. Records that authenticated password change is out of scope
+  (no backend endpoint — use the password-reset flow).
 - `docs/cspell.json`: technical terms and proper nouns introduced while
   planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,
