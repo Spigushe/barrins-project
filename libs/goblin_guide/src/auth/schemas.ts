@@ -102,3 +102,32 @@ export const serviceAccountCreatedSchema = serviceAccountSchema.extend({
   client_secret: z.string(),
 })
 export type ServiceAccountCreated = z.infer<typeof serviceAccountCreatedSchema>
+
+/**
+ * `GET /api/v1/applications` → one card of the role-aware app directory
+ * (ADR-19). `access` is computed by the backend for the caller — the SPA
+ * only renders it (constitution §4.1):
+ * - `open` — can be opened now;
+ * - `login_required` — a members app the caller must sign in for;
+ * - `role_denied` — signed in, but role below `min_role`.
+ *
+ * `logo_svg` is inline SVG markup served from the identity DB; render it as
+ * an `<img>` data URI (an `<img>`-loaded SVG can't run scripts), never with
+ * `dangerouslySetInnerHTML`. `min_role` is null unless the app is
+ * role-restricted.
+ */
+export const applicationAccessSchema = z.enum(['open', 'login_required', 'role_denied'])
+export type ApplicationAccess = z.infer<typeof applicationAccessSchema>
+
+export const applicationSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  description: z.string(),
+  url: z.string(),
+  logo_svg: z.string(),
+  access: applicationAccessSchema,
+  min_role: userRoleSchema.nullable(),
+})
+export type Application = z.infer<typeof applicationSchema>
+
+export const applicationListSchema = z.array(applicationSchema)

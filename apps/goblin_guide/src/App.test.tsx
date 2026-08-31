@@ -160,6 +160,56 @@ describe('<App>', () => {
     expect(screen.getByText('alex_bishop')).toBeInTheDocument()
   })
 
+  it('signs in and lands on the app directory, without Goblin Guide itself', async () => {
+    const apps = [
+      {
+        key: 'goblin_guide',
+        name: 'Goblin Guide',
+        description: 'Account.',
+        url: 'https://goblin.test',
+        logo_svg: '<svg/>',
+        access: 'open',
+        min_role: null,
+      },
+      {
+        key: 'tamiyo_scroll',
+        name: 'Tamiyo Scroll',
+        description: 'Decks.',
+        url: 'https://tamiyo.test',
+        logo_svg: '<svg/>',
+        access: 'open',
+        min_role: null,
+      },
+      {
+        key: 'karn_jupyter',
+        name: 'Karn Tablets',
+        description: 'ML.',
+        url: 'https://karn.test',
+        logo_svg: '<svg/>',
+        access: 'role_denied',
+        min_role: 'ml_developer',
+      },
+    ]
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/auth/token')) return jsonResponse(PAIR)
+      if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+      if (url.endsWith('/api/v1/applications')) return jsonResponse(apps)
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/login?next=/apps', fetchImpl)
+
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Barrin’s applications' }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Tamiyo Scroll')).toBeInTheDocument()
+    expect(screen.getByText('Needs ml_developer')).toBeInTheDocument()
+    expect(screen.queryByText('Goblin Guide')).not.toBeInTheDocument()
+  })
+
   it('opens the signup screen from the login link', async () => {
     const { user } = renderApp('/login', vi.fn())
 

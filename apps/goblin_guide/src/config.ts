@@ -10,3 +10,9 @@ export const IDENTITY_SERVICE_URL: string =
  * app's origin in `ALLOWED_ORIGINS`.
  */
 export const IDENTITY_COOKIE_MODE = true
+
+/**
+ * This shell's own `Application.key` — the app directory (`/apps`) drops
+ * this card so Goblin Guide doesn't list itself (ADR-19).
+ */
+export const CURRENT_APP_KEY = 'goblin_guide'

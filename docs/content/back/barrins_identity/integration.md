@@ -241,7 +241,26 @@ Mounted at `/api/v1` (no extra prefix).
 | **Response** | `200` `{access_token, token_type: "bearer", expires_in}` — `expires_in` = `SERVICE_TOKEN_EXPIRE_MINUTES * 60` (900) |
 | **Errors** | `401 Invalid client credentials.` for an unknown `client_id`, a wrong secret, **and** a revoked account — same body, dummy verify on an unknown id |
 
-### 4.7 Discovery and health
+### 4.7 Application directory (ADR-19)
+
+Mounted at `/api/v1` (no extra prefix). The role-aware cross-app launcher
+for Goblin Guide — "which apps can this user open" is a backend decision
+(constitution §4.1).
+
+| Method | Path | Auth | Response | Errors |
+| --- | --- | --- | --- | --- |
+| GET | `/applications` | optional bearer | `[ApplicationRead]` | `401` for a supplied-but-invalid token |
+
+| `GET /api/v1/applications` | |
+| --- | --- |
+| **Purpose** | List the Barrin's apps with a per-caller `access` state |
+| **Auth** | Optional. No `Authorization` header ⇒ treated as anonymous. A header that is present but invalid still `401`s (so the client can silent-refresh) |
+| **Response** | `200` `[{key, name, description, url, logo_svg, access, min_role}]`, ordered by `sort_order`. Inactive apps omitted. `logo_svg` is inline SVG markup — render it as an `<img>` `data:` URI, never `dangerouslySetInnerHTML`. `min_role` is `null` unless the app is role-restricted |
+| **`access`** | `open` — caller can open it now · `login_required` — a members app the caller must sign in for · `role_denied` — signed in but role below `min_role` |
+| **Rule** | `!needs_authentication` → `open`. Else anonymous → `login_required`. Else `!is_role_restricted` → `open`. Else `role.level >= min_role.level` → `open`, otherwise `role_denied` |
+| **Current app** | Not filtered server-side — a host SPA drops its own `key` (`currentAppKey`) |
+
+### 4.8 Discovery and health
 
 | Method | Path | Auth | Response |
 | --- | --- | --- | --- |

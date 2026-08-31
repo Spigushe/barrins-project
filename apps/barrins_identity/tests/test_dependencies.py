@@ -10,7 +10,11 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.security import create_access_token, create_service_token, hash_password
-from app.dependencies.auth import get_current_service_account, get_current_user
+from app.dependencies.auth import (
+    get_current_service_account,
+    get_current_user,
+    get_optional_current_user,
+)
 from app.models.service_account import ServiceAccount
 from app.models.user import User, UserRole
 
@@ -102,6 +106,29 @@ class TestGetCurrentUser:
 
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(token, db_session)
+        assert exc_info.value.status_code == 401
+
+
+class TestGetOptionalCurrentUser:
+    async def test_no_token_returns_none(self, db_session):
+        assert await get_optional_current_user(None, db_session) is None
+
+    async def test_valid_token_returns_user(self, db_session, regular_user: User):
+        token = create_access_token(
+            {
+                "sub": str(regular_user.id),
+                "role": regular_user.role.value,
+                "email": regular_user.email,
+                "tkv": regular_user.token_version,
+            }
+        )
+        user = await get_optional_current_user(token, db_session)
+        assert user is not None
+        assert user.id == regular_user.id
+
+    async def test_supplied_but_invalid_token_still_raises_401(self, db_session):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_optional_current_user("not.a.jwt", db_session)
         assert exc_info.value.status_code == 401
 
 

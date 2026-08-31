@@ -19,9 +19,9 @@ is running. Phase 1 is the keystone — do it first, do it fully.
 ```text
 Phase 1     Deploy barrins_identity (staging -> prod + email)   <- DO FIRST
 Phase 2     ADR-18 + docs (identity cookie mode, no BFF app)    (parallel with 1B)
-Phase 3     Add HttpOnly-cookie auth mode to barrins_identity
-Phase 4     Wire libs/goblin_guide to identity (direct + cookie)
-Phase 4bis  Application directory (identity table + endpoint + SPA screen)
+Phase 3     Add HttpOnly-cookie auth mode to barrins_identity   [committed]
+Phase 4     Wire libs/goblin_guide to identity (direct + cookie) [committed]
+Phase 4bis  Application directory (identity table + endpoint + screen) [built, uncommitted]
 Phase 5     Deploy goblin_guide SPA
 Phase 6     Live UAT T11-T15
 Phase 7     Mount in tamiyo_scroll + tolaria_news
@@ -352,36 +352,29 @@ and `apps/goblin_guide`. (A CRLF checkout can break local
 
 ---
 
-## Phase 4bis — Application directory
+## Phase 4bis — Application directory ✅ (built 2026-08-31, uncommitted)
 
 A role-aware cross-app launcher in Goblin Guide. **"Which apps can this
 user open" is a business rule → backend** (§4.1: identity returns the
 list + a computed access state per app; the SPA only renders cards).
 Ships with Phase 5 so the UX lands in the same deploy (user, 2026-08-31).
+Design locked as [ADR-19](../../content/ops/architecture/decisions.md#adr-19-barrins_identity-owns-the-cross-app-directory).
 
-### `barrins_identity`
+### `barrins_identity` — done
 
-- **New table `applications`** (Alembic migration + seed):
-
-  | column | type | notes |
-  | --- | --- | --- |
-  | `id` | UUID PK | |
-  | `key` | str, unique | slug — `tamiyo_scroll`, `tolaria_news`, … |
-  | `name` | str | card title |
-  | `description` | str | one-liner |
-  | `url` | str | where the card links |
-  | `logo_key` | str | maps to a SPA-bundled asset |
-  | `needs_authentication` | bool, default `true` | |
-  | `is_role_restricted` | bool, default `false` | implies `needs_authentication` |
-  | `min_role` | `Enum(UserRole)` nullable | required iff `is_role_restricted` |
-  | `sort_order` | int, default `0` | |
-  | `is_active` | bool, default `true` | |
-  | `created_at` / `updated_at` | tz-aware | |
-
-  CHECK / validator: `is_role_restricted` ⇒ `min_role IS NOT NULL` and
-  `needs_authentication = true`.
-
-- **Seed** (user-approved 2026-08-31):
+- **New table `applications`** — migration `a7b8c9d0e1f2` (create + seed).
+  Columns: `key` (unique slug), `name`, `description`, `url`, `logo_svg`
+  (`TEXT`, inline SVG — see below), `needs_authentication` (default
+  `true`), `is_role_restricted` (default `false`), `min_role`
+  (`Enum userrole`, nullable, reuses `users.role`'s type), `sort_order`,
+  `is_active`, timestamps. DB `CHECK`: `is_role_restricted ⇒ min_role IS
+  NOT NULL AND needs_authentication`.
+- **Logos in the DB, not duplicated asset files** (revises decision B of
+  2026-08-31 — "store in DB", user). `logo_svg` holds inline SVG markup;
+  the SPA renders it as an `<img>` `data:` URI, so untrusted markup still
+  can't run scripts. Migration seeds small house-style marks.
+- **Seed** (user-approved 2026-08-31; `docs` deliberately excluded —
+  "ne pas afficher docs dans goblin guide", user):
 
   | key | name | policy |
   | --- | --- | --- |
@@ -389,43 +382,54 @@ Ships with Phase 5 so the UX lands in the same deploy (user, 2026-08-31).
   | `tamiyo_scroll` | Tamiyo Scroll | `needs_authentication` |
   | `tolaria_news` | Tolaria News | public |
   | `karn_jupyter` | Karn Tablets | `is_role_restricted`, `min_role = ml_developer` |
-  | `docs` | Barrin's Codex (docs) | public |
 
-- **Endpoint `GET /api/v1/applications`** — optional bearer. Returns every
-  `is_active` app ordered by `sort_order`, each as
-  `{ key, name, description, url, logo_key, access }` where the backend
+- **Endpoint `GET /api/v1/applications`** — optional bearer
+  (`get_optional_current_user`: absent header ⇒ anonymous; present-but-
+  invalid ⇒ `401`). Returns every `is_active` app ordered by
+  `sort_order` then `name`, as
+  `{ key, name, description, url, logo_svg, access, min_role }`. Backend
   computes `access`:
   - `!needs_authentication` → `open`
   - `needs_authentication && !is_role_restricted` → `open` if
     authenticated, else `login_required`
-  - `is_role_restricted` → `open` if authenticated and
-    `user.role.level >= min_role.level`; `role_denied` if authenticated
-    and below; `login_required` if anonymous
-  - the endpoint does **not** filter the current app — the SPA does.
-- Schema + service + tests (anon / `user` / `ml_developer` / `admin`);
-  API doc per §21.1; **ADR-19** for the registry design.
+  - `is_role_restricted` → `open` if `role.level >= min_role.level`;
+    `role_denied` if authenticated and below; `login_required` if anon
+  - does **not** filter the current app — the SPA does.
+- `app/models/application.py`, `app/schemas/applications.py`,
+  `app/services/applications.py` (`compute_access` + `list_applications`),
+  `app/api/v1/applications.py`; router wired. Tests: `test_models`,
+  `test_services_applications`, `test_routes_applications`,
+  `test_dependencies` (optional-user). Full suite **349 passed, 98.83%**.
+  API doc: [integration.md §4.7](../../content/back/barrins_identity/integration.md#47-application-directory-adr-19),
+  [platform.md §7 `applications`](../../content/back/barrins_identity/platform.md).
 
-### `libs/goblin_guide`
+### `libs/goblin_guide` — done
 
-- `src/api/applications.ts` — `getApplications()` + Zod `ApplicationSchema`
-  (`access` ∈ `open | login_required | role_denied`).
-- `src/components/ApplicationsScreen.tsx` — prop `currentAppKey?: string`;
-  fetches, drops the row whose `key === currentAppKey`, groups by access
-  ("Ouvert à tous" / "Connexion requise" / "Réservé — rôle ≥ X"), renders
-  cards (logo, name, description, access badge).
-- `src/assets/app-logos/` — **copies** of each frontend's logo
-  (`tamiyo_scroll.*`, `tolaria_news.*`, `karn_jupyter.*`, `docs.*`,
-  `goblin_guide.*`); a `logo_key` → import map.
-- Tests: three groups render, current app filtered, badge states.
+- `applicationSchema` / `applicationListSchema` in `auth/schemas.ts`
+  (`access` ∈ `open | login_required | role_denied`); `listApplications()`
+  on `IdentityClient` (via `authed` — works signed out); `useApplications()`
+  hook (always enabled, re-keyed on auth state).
+- `components/ApplicationsScreen.tsx` — prop `currentAppKey?: string`;
+  drops the row whose `key === currentAppKey`, groups by `access`
+  (**Available** / **Sign in to open** / **Restricted**), renders cards
+  (logo `<img>` data URI, name, description, badge — "Sign in" /
+  "Needs `<role>`").
+- Tests: `ApplicationsScreen.test.tsx` (groups, current-app filter, badge
+  states, error/empty), `client.test.ts` (`listApplications` signed-out /
+  signed-in / error). Lib `npm test` **103 passed**.
 
-### `apps/goblin_guide`
+### `apps/goblin_guide` — done
 
-- Route (`/apps`, or the home) mounted in the Shell, passing
-  `currentAppKey="goblin_guide"` from `config.ts`.
+- `AppsRoute.tsx` → `<ApplicationsScreen currentAppKey={CURRENT_APP_KEY} />`
+  in `ShellFrame`; `/apps` route behind `RequireAuth` in `App.tsx`;
+  `CURRENT_APP_KEY = 'goblin_guide'` in `config.ts`; an "Applications"
+  nav link in `ShellFrame`. Shell `npm test` **16 passed**, `tsc` + lint
+  clean.
 
-**Gate 4bis:** `uv run pytest` (identity) green; `npm test` + `tsc` + lint
-green; anon / user / `ml_developer` / admin each render the right cards
-with the right badges; `goblin_guide` absent from its own list.
+**Gate 4bis:** ✅ `uv run pytest` (identity) green (349, 98.83%);
+`npm test` + `tsc` + lint green in lib and shell; anon / user /
+`ml_developer` / admin each render the right cards with the right badges;
+`goblin_guide` absent from its own list.
 
 ---
 

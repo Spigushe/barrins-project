@@ -1638,3 +1638,67 @@ an opt-in cookie mode:
 - The token endpoints are now CORS-credentialed for browser origins; the
   allow-list must stay exact (§33) and is Agent 3's to verify per
   environment.
+
+---
+
+## ADR-19: barrins_identity owns the cross-app directory
+
+**Context.** Goblin Guide gets a launcher screen listing the Barrin's
+applications a user can reach — some public, some members-only, some
+gated on role (Karn Tablets needs `ml_developer`+). "Which apps can this
+user open" is an authorization decision, so by constitution §4.1 it
+cannot live in the SPA. It needs a home.
+
+**Alternatives.**
+
+1. Hard-code the list + the access rules in each frontend. Rejected:
+   duplicates an authorization rule across apps (§4.2), and every policy
+   change is a redeploy of every SPA.
+2. A static JSON asset served by the reverse proxy. Rejected: still no
+   per-user `access` computation; drifts from the real role model.
+3. A table in `barrins_api`. Rejected: `barrins_api` is not the identity
+   authority (ADR-16) and Goblin Guide must not couple to a Tamiyo-Scroll
+   BFF (rollout Phase 7 note).
+4. **A table in `barrins_identity` + one endpoint that returns the list
+   with a backend-computed `access` state per caller.** Chosen.
+
+**Decision.**
+
+- New table `applications` (`key`, `name`, `description`, `url`,
+  `logo_svg`, `needs_authentication`, `is_role_restricted`, `min_role`,
+  `sort_order`, `is_active`, timestamps). A CHECK enforces
+  `is_role_restricted ⇒ min_role IS NOT NULL AND needs_authentication`.
+  Seeded by the migration; no runtime write path yet (admins edit rows
+  directly — a management UI is out of scope).
+- `GET /api/v1/applications` — **optional** bearer. Returns every active
+  app ordered by `sort_order`, each as
+  `{ key, name, description, url, logo_svg, access, min_role }`. The
+  backend computes `access ∈ {open, login_required, role_denied}`:
+  public → always `open`; members-only → `open` if signed in else
+  `login_required`; role-gated → `open` at/above `min_role`,
+  `role_denied` below, `login_required` if anonymous. A supplied-but-
+  invalid token still `401`s (lets the SPA silent-refresh); only a wholly
+  absent credential is treated as anonymous.
+- The endpoint does **not** drop the caller's current app — a host SPA
+  filters its own `key` (`currentAppKey`), because "which app am I
+  embedded in" is the only piece the backend can't know.
+- **Logos live in the DB as inline SVG** (`logo_svg`), not duplicated
+  frontend asset files (revises the 2026-08-31 "duplicate the logos"
+  note). The SPA renders each as an `<img>` `data:` URI — an
+  `<img>`-loaded SVG can't run scripts or fetch, so the markup can't XSS
+  the launcher even though it bypasses React escaping. One source of
+  truth, no cross-origin image fetch, no asset-pipeline coupling between
+  apps.
+
+**Consequences.**
+
+- `libs/goblin_guide` gains `useApplications()` +
+  `<ApplicationsScreen currentAppKey>` (groups by `access`, renders
+  cards). The `goblin_guide` shell mounts it at `/apps`.
+- Policy changes (add an app, raise a `min_role`) are a row edit +
+  nothing else — no redeploy of any SPA.
+- Ships with rollout Phase 4bis, before the Phase 5 deploy, so the
+  directory lands in the same release as cookie mode.
+- Seed list: `goblin_guide`, `tamiyo_scroll` (members), `tolaria_news`
+  (public), `karn_jupyter` (`ml_developer`+). `docs` is deliberately not
+  listed (user, 2026-08-31).

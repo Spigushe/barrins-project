@@ -816,6 +816,60 @@ describe('service accounts', () => {
   })
 })
 
+describe('listApplications', () => {
+  const APP = {
+    key: 'tamiyo_scroll',
+    name: 'Tamiyo Scroll',
+    description: 'Decks.',
+    url: 'https://tamiyo.test',
+    logo_svg: '<svg/>',
+    access: 'open',
+    min_role: null,
+  }
+
+  it('GETs the directory without a token when signed out and parses it', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/applications`)
+      expect(new Headers(init?.headers).get('Authorization')).toBeNull()
+      return json([APP])
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.listApplications()).resolves.toEqual([APP])
+  })
+
+  it('sends the bearer token when there is a session', async () => {
+    store.set(PAIR)
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer access-1')
+      return json([{ ...APP, access: 'role_denied', min_role: 'ml_developer' }])
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    const [row] = await client.listApplications()
+    expect(row.access).toBe('role_denied')
+  })
+
+  it('throws IdentityError on a non-ok response', async () => {
+    const fetchImpl = vi.fn(async () => json({ detail: 'nope' }, 500))
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await expect(client.listApplications()).rejects.toBeInstanceOf(IdentityError)
+  })
+})
+
 describe('cookie mode (ADR-18)', () => {
   const cookieClient = (fetchImpl: FetchLike) =>
     createIdentityClient({

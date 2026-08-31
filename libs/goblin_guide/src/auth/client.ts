@@ -1,4 +1,6 @@
 import {
+  type Application,
+  applicationListSchema,
   type EmailChangeResendResponse,
   emailChangeResendResponseSchema,
   type PasswordResetRequestResponse,
@@ -136,6 +138,13 @@ export interface IdentityClient {
    * password) → `IdentityError`.
    */
   deleteAccount: (currentPassword: string) => Promise<void>
+  /**
+   * `GET /api/v1/applications` — the role-aware app directory (ADR-19).
+   * Auth is optional: works signed out (members apps come back
+   * `login_required`); with a session, `access` reflects the caller's role.
+   * The caller's own app is included — filter it client-side.
+   */
+  listApplications: () => Promise<Application[]>
   /**
    * `GET /api/v1/service-accounts` — every service account, revoked ones
    * included. Admin only (`403` for anyone else). Never carries a secret.
@@ -405,6 +414,16 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     tokenStore.clear()
   }
 
+  async function listApplications(): Promise<Application[]> {
+    // `authed` sends the bearer token only when there is one, and this
+    // endpoint allows anonymous — so it works signed out too.
+    const response = await authed('/api/v1/applications')
+    if (!response.ok) {
+      throw new IdentityError(response.status, await readDetail(response))
+    }
+    return applicationListSchema.parse(await response.json())
+  }
+
   async function listServiceAccounts(): Promise<ServiceAccount[]> {
     const response = await authed('/api/v1/service-accounts')
     if (!response.ok) {
@@ -449,6 +468,7 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
     verifyEmailChange,
     resendEmailChange,
     deleteAccount,
+    listApplications,
     listServiceAccounts,
     createServiceAccount,
     revokeServiceAccount,

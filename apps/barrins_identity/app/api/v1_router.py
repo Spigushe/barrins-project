@@ -2,11 +2,12 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, service_accounts, users, well_known
+from app.api.v1 import applications, auth, service_accounts, users, well_known
 
 router = APIRouter(prefix="/api/v1")
 
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
+router.include_router(applications.router, tags=["applications"])
 router.include_router(service_accounts.router, tags=["service-accounts"])
 router.include_router(users.router, prefix="/users", tags=["users"])
 

@@ -9,6 +9,7 @@ import {
 import type { AccountUpdateInput, ServiceAccountCreateInput, SignupInput } from './client'
 import { useIdentityContext } from './context'
 import type {
+  Application,
   EmailChangeResendResponse,
   PasswordResetRequestResponse,
   Principal,
@@ -20,6 +21,7 @@ import type {
 } from './schemas'
 
 const ME_QUERY_KEY = ['goblin-guide', 'me'] as const
+const APPLICATIONS_QUERY_KEY = ['goblin-guide', 'applications'] as const
 const SERVICE_ACCOUNTS_QUERY_KEY = ['goblin-guide', 'service-accounts'] as const
 
 /** Reactive authentication state, derived from the token store. */
@@ -221,6 +223,21 @@ export function useDeleteAccount(): UseMutationResult<void, Error, string> {
     onSuccess: () => {
       queryClient.clear()
     },
+  })
+}
+
+/**
+ * `GET /api/v1/applications` — the role-aware app directory (ADR-19).
+ * Always enabled: it works signed out, and re-runs when the session
+ * changes so `access` badges stay right after login/logout.
+ */
+export function useApplications(): UseQueryResult<Application[]> {
+  const { client } = useIdentityContext()
+  const { isAuthenticated } = useIdentity()
+  return useQuery({
+    queryKey: [...APPLICATIONS_QUERY_KEY, { authed: isAuthenticated }],
+    queryFn: () => client.listApplications(),
+    staleTime: 5 * 60_000,
   })
 }
 

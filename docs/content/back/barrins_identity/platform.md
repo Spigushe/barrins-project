@@ -120,7 +120,8 @@ recreates the hard synchronous coupling JWKS exists to avoid.
 ```text
 barrins-identity  (apps/barrins_identity/, own process, own database)
   DB: users, service_accounts, auth_email_verifications,
-      auth_password_reset_codes, auth_email_change_requests, app_settings
+      auth_password_reset_codes, auth_email_change_requests, app_settings,
+      applications
   |
   |-- JWKS (public key, cached ~1h) --------> every consumer
   |                                            (verifies locally)
@@ -180,7 +181,8 @@ at runtime, `psycopg2` for Alembic). `app/models/_types.py` provides
 `barrins_api`. Migrations are hand-written and chained linearly:
 `a1b2c3d4e5f6` (users + service_accounts) → `b2c3d4e5f6a7`
 (email_verifications) → `c3d4e5f6a7b8` (password_reset_codes) →
-`d4e5f6a7b8c9` (email_change_requests) → `e5f6a7b8c9d0` (app_settings).
+`d4e5f6a7b8c9` (email_change_requests) → `e5f6a7b8c9d0` (app_settings) →
+`f6a7b8c9d0e1` (username on users) → `a7b8c9d0e1f2` (applications + seed).
 
 ### `users`
 
@@ -242,6 +244,30 @@ functional gain (§9).
 | `data` | `JSONBCompat` | NOT NULL, default `{}` | Opaque per-app blob |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | NOT NULL | |
 | — | | `UNIQUE(user_id, app_key)` | |
+
+### `applications`
+
+The cross-app directory
+([ADR-19](../../ops/architecture/decisions.md#adr-19-barrins_identity-owns-the-cross-app-directory))
+— seeded by migration `a7b8c9d0e1f2`, no runtime write path yet.
+
+| Column | Type | Constraint | Description |
+| --- | --- | --- | --- |
+| `id` | `UUID` | PK | |
+| `key` | `VARCHAR(64)` | UNIQUE, NOT NULL, INDEX | Stable slug; a host SPA filters its own |
+| `name` / `description` / `url` | `VARCHAR` | NOT NULL | Card content |
+| `logo_svg` | `TEXT` | NOT NULL | Inline SVG; SPA renders it as an `<img>` `data:` URI |
+| `needs_authentication` | `BOOLEAN` | NOT NULL, server default `true` | |
+| `is_role_restricted` | `BOOLEAN` | NOT NULL, server default `false` | Implies `needs_authentication` |
+| `min_role` | `ENUM userrole` | NULLABLE | Reuses the `users.role` type; required iff `is_role_restricted` |
+| `sort_order` | `INTEGER` | NOT NULL, server default `0` | |
+| `is_active` | `BOOLEAN` | NOT NULL, server default `true` | Inactive rows are omitted from the API |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | NOT NULL | |
+| — | | `CHECK is_role_restricted ⇒ min_role IS NOT NULL AND needs_authentication` | |
+
+`GET /api/v1/applications` (optional bearer) returns these with a
+backend-computed `access` state per caller — see
+[integration.md §4.7](integration.md#47-application-directory-adr-19).
 
 ---
 
