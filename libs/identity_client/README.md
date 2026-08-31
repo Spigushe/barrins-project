@@ -41,7 +41,7 @@ loading. Consumers read `IDENTITY_SERVICE_URL` /
 ```python
 from identity_client import JWKSCache, make_verify_dependency
 
-identity = JWKSCache("https://id.barrins-codex.org", cache_ttl_seconds=3600)
+identity = JWKSCache("https://identity.barrins-codex.org", cache_ttl_seconds=3600)
 
 RequireTolariaRead = make_verify_dependency(
     identity, expected_account_type="service", required_scope="tolaria:read"

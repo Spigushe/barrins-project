@@ -16,7 +16,7 @@ vhost, or database.
 
 | | Production | Staging |
 | --- | --- | --- |
-| Domain | `id.barrins-codex.org` *(playbook-owned)* | `id-staging.barrins-codex.org` *(playbook-owned)* |
+| Domain | `identity.barrins-codex.org` *(playbook-owned)* | `identity-staging.barrins-codex.org` *(playbook-owned)* |
 | Local port (`uvicorn`, `127.0.0.1`) | a free port in the `80NN` scheme, e.g. `8021` *(playbook-owned — `barrins_api` holds `8011`)* | `85NN`, e.g. `8521` *(playbook-owned)* |
 | systemd unit | `identity` *(playbook-owned)* | `identity-staging` *(playbook-owned)* |
 | Source | latest GitHub release tag (ADR-2) | `develop` branch |
@@ -196,7 +196,7 @@ Provider: **Brevo** (transactional SMTP relay, EU-hosted). Sender:
 7. **End-to-end check on staging first.** With staging pointed at Brevo:
 
    ```bash
-   curl -X POST https://id-staging.barrins-codex.org/api/v1/auth/signup \
+   curl -X POST https://identity-staging.barrins-codex.org/api/v1/auth/signup \
      -H "Content-Type: application/json" \
      -d '{"email":"<a real inbox>","password":"Sufficiently-Long-1!"}'
    ```
@@ -206,7 +206,7 @@ Provider: **Brevo** (transactional SMTP relay, EU-hosted). Sender:
    shows the message *delivered*. Then:
 
    ```bash
-   curl -X POST https://id-staging.barrins-codex.org/api/v1/auth/signup/verify \
+   curl -X POST https://identity-staging.barrins-codex.org/api/v1/auth/signup/verify \
      -H "Content-Type: application/json" \
      -d '{"email":"<the same inbox>","code":"<6 digits>"}'
    ```
@@ -248,8 +248,8 @@ restarts the systemd unit. It touches nothing belonging to `barrins_api`.
 
 ## Validation
 
-- `curl -fsS https://id.barrins-codex.org/health` → `{"status": "ok"}`.
-- `curl -fsS https://id.barrins-codex.org/.well-known/jwks.json` → a
+- `curl -fsS https://identity.barrins-codex.org/health` → `{"status": "ok"}`.
+- `curl -fsS https://identity.barrins-codex.org/.well-known/jwks.json` → a
   single-key JWKS document with the expected `kid`.
 - `POST /api/v1/auth/token` with the seeded admin → a token pair;
   `POST /api/v1/auth/refresh` → a new pair; `POST /api/v1/auth/logout`
