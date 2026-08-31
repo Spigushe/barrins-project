@@ -1612,9 +1612,11 @@ an opt-in cookie mode:
 - Without the opt-in signal the endpoints behave exactly as today
   (refresh token in the body).
 - New config: `REFRESH_COOKIE_ENABLED` (default `false`),
-  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`);
-  the CORS middleware gains `Access-Control-Allow-Credentials: true` for
-  allowed origins.
+  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`). The
+  CORS side needs nothing new — `app/main.py` already wires
+  `CORSMiddleware` with `allow_credentials=True` against the concrete
+  `ALLOWED_ORIGINS`, so `Access-Control-Allow-Credentials: true` is
+  already echoed for an allowed origin.
 - No `apps/goblin_guide_bff`. No new CI job — the existing `identity` job
   covers it.
 
@@ -1627,9 +1629,9 @@ an opt-in cookie mode:
   `VITE_IDENTITY_SERVICE_URL` with `credentials: 'include'` and the
   opt-in header, and no refresh-token store. `createMemoryTokenStore()`
   stays the default for hosts not in cookie mode.
-- Operators set `REFRESH_COOKIE_*` and `ACCESS_CONTROL_ALLOW_CREDENTIALS`
-  in `secrets/barrins_identity/{staging,production}.env`, confirm the
-  Goblin origin is in `ALLOWED_ORIGINS`, then redeploy identity via
+- Operators set `REFRESH_COOKIE_*` in
+  `secrets/barrins_identity/{staging,production}.env`, confirm the Goblin
+  origin is in `ALLOWED_ORIGINS`, then redeploy identity via
   `barrins_identity.yml` — its own playbook (§26.1).
 - Tamiyo Scroll and Tolaria News can opt into the same cookie mode later
   once their origin is allow-listed; no per-app BFF (rollout Phase 7).

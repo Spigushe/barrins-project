@@ -298,21 +298,28 @@ Agent 1. A backward-compatible extension of the existing auth contract
 (§4.4) — the JSON `refresh_token` stays in the body by default; cookie
 mode is opt-in per request so other consumers are untouched.
 
-- `POST /api/v1/auth/token`, `/auth/refresh`, `/auth/logout` gain cookie
-  behaviour when the caller opts in (header `X-Client: web`, or a
-  dedicated `/auth/token?cookie=1` — decide in the ADR):
-  - `token` → sets `refresh_token` cookie
-    `HttpOnly; Secure; SameSite=None; Domain=<REFRESH_COOKIE_DOMAIN>;
-    Path=/api/v1/auth`; response body omits `refresh_token`.
-  - `refresh` → reads the cookie, rotates it, returns a new access token.
-  - `logout` → clears the cookie.
+- **All five endpoints that mint a `TokenPair`** — `/auth/token`,
+  `/auth/refresh`, `/auth/signup` (the `REQUIRE_EMAIL_VERIFICATION=false`
+  branch), `/auth/signup/verify`, `/auth/password-reset/confirm` — plus
+  `/auth/logout`, route through one helper (`app/core/cookies.py`) and
+  gain cookie behaviour when the caller opts in (`X-Client: web`):
+  - the token-minters set the `refresh_token` cookie
+    (`HttpOnly; Secure; SameSite=<REFRESH_COOKIE_SAMESITE>;
+    Domain=<REFRESH_COOKIE_DOMAIN>; Path=/api/v1/auth`) and omit
+    `refresh_token` from the body (`response_model_exclude_none=True`).
+  - `refresh` reads the cookie (body still accepted), rotates it.
+  - `logout` clears the cookie.
 - Non-cookie callers (no opt-in header) keep today's body-only behaviour.
 - Config: `REFRESH_COOKIE_ENABLED` (default `false`),
-  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`),
-  and `ACCESS_CONTROL_ALLOW_CREDENTIALS` wired into the CORS middleware.
-- Tests (`app/tests`) — cookie set / rotated / cleared, body still carries
-  `refresh_token` without the opt-in, CORS credentials header present for
-  an allowed origin only. Coverage ≥ the repo bar.
+  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`). The
+  CORS side needs nothing new — `app/main.py` already runs
+  `CORSMiddleware` with `allow_credentials=True` against a concrete
+  `ALLOWED_ORIGINS`.
+- Tests (`tests/test_routes_auth.py` + signup / reset flows) — cookie set
+  / rotated / cleared, body still carries `refresh_token` without the
+  opt-in, opt-in ignored when the feature is off, `/refresh` by cookie and
+  by body, CORS credentials header present for an allowed origin only.
+  Coverage ≥ the repo bar.
 - **Docs:** extend the auth section of
   [platform.md](../../content/back/barrins_identity/platform.md) /
   [integration.md](../../content/back/barrins_identity/integration.md)
@@ -437,8 +444,8 @@ Claude authors, operator runs.
 - **Operator:**
   - DNS A records `goblin` + `goblin-staging` → `146.59.146.57`.
   - In `secrets/barrins_identity/{staging,production}.env`: set
-    `REFRESH_COOKIE_ENABLED=true`, `REFRESH_COOKIE_DOMAIN`,
-    `ACCESS_CONTROL_ALLOW_CREDENTIALS=true`, and confirm the Goblin
+    `REFRESH_COOKIE_ENABLED=true`, `REFRESH_COOKIE_DOMAIN`
+    (`identity{,-staging}.barrins-codex.org`), and confirm the Goblin
     origin is in `ALLOWED_ORIGINS`. Then **redeploy identity** from a ref
     carrying Phases 3 + 4bis (`ansible-playbook barrins_identity.yml` —
     its own playbook, no cross-touch).

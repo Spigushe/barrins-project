@@ -124,9 +124,8 @@ cp secrets/barrins_identity/production.env.example \
 | `DATABASE_URL` | The dedicated DB above. **Never** `barrins_api`'s. Different value per environment |
 | `JWT_PRIVATE_KEY` | RSA PEM, per environment. Startup fails on a non-RSA / malformed key |
 | `JWT_KID` | Bump when rotating (publish the new public key under the new `kid` in JWKS *before* switching the private key) |
-| `ALLOWED_ORIGINS` | JSON array, no wildcard. Goblin Guide's origin (and any other frontend calling identity directly) — the `-staging` origins on staging |
-| `ACCESS_CONTROL_ALLOW_CREDENTIALS` | `true` for the Goblin Guide cookie flow (ADR-18) — lets CORS echo `Access-Control-Allow-Credentials: true` for an allowed origin. Leave `false` if no browser SPA uses cookie mode |
-| `REFRESH_COOKIE_ENABLED` / `REFRESH_COOKIE_DOMAIN` / `REFRESH_COOKIE_SAMESITE` | Cookie mode on `/auth/token`\|`/refresh`\|`/logout` (ADR-18). `ENABLED=true`, `DOMAIN=identity{,-staging}.barrins-codex.org`, `SAMESITE=none` (cross-site SPA ⇒ also `Secure`, set automatically) |
+| `ALLOWED_ORIGINS` | JSON array, no wildcard. Goblin Guide's origin (and any other frontend calling identity directly) — the `-staging` origins on staging. CORS already runs `allow_credentials=True`, so an allowed origin gets `Access-Control-Allow-Credentials: true` for free — nothing extra for cookie mode |
+| `REFRESH_COOKIE_ENABLED` / `REFRESH_COOKIE_DOMAIN` / `REFRESH_COOKIE_SAMESITE` | Cookie mode on the token-minting endpoints (ADR-18). `ENABLED=true`, `DOMAIN=identity{,-staging}.barrins-codex.org`, `SAMESITE=none` (cross-site SPA ⇒ `Secure` is set automatically) |
 | `ENVIRONMENT` | `production` / `staging`. Gates the strict SMTP/`FRONTEND_BASE_URL` startup check |
 | `REQUIRE_EMAIL_VERIFICATION` | **`true` in production** (ADR-3, ADR-16). See the next section |
 | `SMTP_*`, `SMTP_FROM_ADDRESS`, `FRONTEND_BASE_URL` | Filled by the email setup below |

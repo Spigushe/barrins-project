@@ -119,17 +119,26 @@ class UserRead(BaseModel):
 
 
 class TokenPair(BaseModel):
-    """Pair of tokens returned by POST /auth/token and POST /auth/refresh."""
+    """Pair of tokens returned by POST /auth/token and POST /auth/refresh.
+
+    In cookie mode (ADR-18) `refresh_token` is `None` — the token is in an
+    HttpOnly cookie instead — and the routes serialize with
+    `response_model_exclude_none=True` so the key is omitted entirely.
+    """
 
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"  # noqa: S105
 
 
 class RefreshRequest(BaseModel):
-    """Body of POST /auth/refresh."""
+    """Body of POST /auth/refresh.
 
-    refresh_token: str
+    Optional: in cookie mode the refresh token comes from the HttpOnly
+    cookie and the body is absent.
+    """
+
+    refresh_token: str | None = None
 
 
 class TokenData(BaseModel):

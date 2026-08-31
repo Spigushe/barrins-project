@@ -69,8 +69,35 @@ class BaseAppSettings(BaseSettings):
         description="slowapi rate limit spec applied to POST /auth/token, per IP.",
     )
 
-    # CORS — required, no wildcard (constitution §33.1).
+    # CORS — required, no wildcard (constitution §33.1). CORSMiddleware is
+    # wired with allow_credentials=True (app/main.py) so a concrete origin
+    # in this list is echoed with Access-Control-Allow-Credentials: true —
+    # that is all the Goblin Guide cookie flow needs on the CORS side.
     allowed_origins: list[str] = Field(description="Allowed origins for CORS.")
+
+    # --- Goblin Guide refresh-token cookie (ADR-18) ---
+    # Opt-in per request via `X-Client: web`. When enabled, the endpoints
+    # that mint a token pair set the refresh token as an HttpOnly cookie
+    # instead of returning it in the body; /auth/refresh reads it and
+    # /auth/logout clears it. Callers without the header are unchanged.
+    refresh_cookie_enabled: bool = Field(
+        default=False,
+        description="Enable the opt-in HttpOnly refresh-token cookie (ADR-18).",
+    )
+    refresh_cookie_domain: str | None = Field(
+        default=None,
+        description=(
+            "Domain attribute of the refresh cookie, e.g. "
+            "identity-staging.barrins-codex.org. None => host-only."
+        ),
+    )
+    refresh_cookie_samesite: Literal["none", "lax", "strict"] = Field(
+        default="none",
+        description=(
+            "SameSite attribute of the refresh cookie. 'none' (cross-site "
+            "SPA) is always paired with Secure."
+        ),
+    )
 
     # Environment
     environment: Literal["development", "staging", "production"] = Field(

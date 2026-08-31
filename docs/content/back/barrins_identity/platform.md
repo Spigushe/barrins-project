@@ -264,9 +264,8 @@ secrets file is `ops/my-server/secrets/barrins_identity/{production,staging}.env
 | `SERVICE_TOKEN_EXPIRE_MINUTES` | `15` | |
 | `ARGON2_MEMORY_COST_KIB` / `_TIME_COST` / `_PARALLELISM` | `65536` / `3` / `4` | |
 | `LOGIN_RATE_LIMIT` | `5/minute` | `slowapi` spec, per IP, on `POST /auth/token` |
-| `ALLOWED_ORIGINS` | *required* | `list[str]`, no wildcard (constitution §33). Must list the Goblin Guide SPA origin |
-| `ACCESS_CONTROL_ALLOW_CREDENTIALS` | `false` | `true` lets the CORS middleware echo `Access-Control-Allow-Credentials: true` for an allowed origin — required for the SPA's cookie-mode calls (ADR-18) |
-| `REFRESH_COOKIE_ENABLED` | `false` | Master switch for cookie mode on `/auth/token` \| `/auth/refresh` \| `/auth/logout` (opt-in per request via `X-Client: web`) |
+| `ALLOWED_ORIGINS` | *required* | `list[str]`, no wildcard (constitution §33). Must list the Goblin Guide SPA origin. `CORSMiddleware` is already wired `allow_credentials=True`, so an allowed origin is echoed with `Access-Control-Allow-Credentials: true` — nothing extra for cookie mode |
+| `REFRESH_COOKIE_ENABLED` | `false` | Master switch for cookie mode on the token-minting endpoints (opt-in per request via `X-Client: web`) |
 | `REFRESH_COOKIE_DOMAIN` | *(empty)* | `Domain` attribute of the refresh cookie, e.g. `identity-staging.barrins-codex.org` |
 | `REFRESH_COOKIE_SAMESITE` | `none` | `none` (cross-site SPA, needs `Secure`) \| `lax` \| `strict` |
 | `ENVIRONMENT` | `development` | `development` \| `staging` \| `production` |

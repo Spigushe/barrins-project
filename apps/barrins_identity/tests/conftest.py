@@ -97,6 +97,9 @@ def _stable_test_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings.base, "require_email_verification", True)
     monkeypatch.setattr(settings.base, "smtp_host", None)
     monkeypatch.setattr(settings.base, "frontend_base_url", "http://localhost:5173")
+    # Cookie mode (ADR-18) is off unless a test opts in — never inherit the
+    # repo's local .env, which may have REFRESH_COOKIE_ENABLED=true.
+    monkeypatch.setattr(settings.base, "refresh_cookie_enabled", False)
 
 
 # ---------------------------------------------------------------------------
