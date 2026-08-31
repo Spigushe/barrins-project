@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createIdentityClient, IdentityError } from './client'
+import { createIdentityClient, type FetchLike, IdentityError } from './client'
 import { createMemoryTokenStore, type TokenStore } from './tokenStore'
 
 const SERVICE_URL = 'https://identity.test'
@@ -813,6 +813,137 @@ describe('service accounts', () => {
     })
 
     await expect(client.listServiceAccounts()).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('cookie mode (ADR-18)', () => {
+  const cookieClient = (fetchImpl: FetchLike) =>
+    createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+      cookieMode: true,
+    })
+
+  it('login sends X-Client: web + credentials and stores only the access token', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/token`)
+      expect(new Headers(init?.headers).get('X-Client')).toBe('web')
+      expect(init?.credentials).toBe('include')
+      // Identity omits the refresh token from the body in cookie mode.
+      return json({ access_token: 'access-1', token_type: 'bearer' })
+    })
+
+    await cookieClient(fetchImpl).login('alex@example.com', 'hunter2hunter2')
+
+    expect(store.getAccess()).toBe('access-1')
+    expect(store.getRefresh()).toBeNull()
+  })
+
+  it('refresh posts no body, relies on the cookie, and rotates the access token', async () => {
+    store.set({ access_token: 'access-1' })
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/refresh`)
+      expect(init?.method).toBe('POST')
+      expect(init?.body).toBeUndefined()
+      expect(init?.credentials).toBe('include')
+      expect(new Headers(init?.headers).get('X-Client')).toBe('web')
+      return json({ access_token: 'access-2', token_type: 'bearer' })
+    })
+
+    const pair = await cookieClient(fetchImpl).refresh()
+
+    expect(pair.access_token).toBe('access-2')
+    expect(pair.refresh_token).toBeUndefined()
+    expect(store.getAccess()).toBe('access-2')
+  })
+
+  it('me silently refreshes via the cookie on a 401 and retries once', async () => {
+    store.set({ access_token: 'access-1' })
+    const calls: string[] = []
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(url)
+      if (url.endsWith('/auth/refresh')) {
+        expect(init?.body).toBeUndefined()
+        return json({ access_token: 'access-2', token_type: 'bearer' })
+      }
+      const token = new Headers(init?.headers).get('Authorization')
+      return token === 'Bearer access-2'
+        ? json(PRINCIPAL)
+        : json({ detail: 'expired' }, 401)
+    })
+
+    await expect(cookieClient(fetchImpl).me()).resolves.toMatchObject({
+      username: 'alex_bishop',
+    })
+    expect(calls.filter((u) => u.endsWith('/auth/refresh'))).toHaveLength(1)
+    expect(store.getAccess()).toBe('access-2')
+  })
+
+  it('clears local state and throws when the cookie refresh is rejected', async () => {
+    store.set({ access_token: 'access-1' })
+    const fetchImpl = vi.fn(async (url: string) =>
+      url.endsWith('/auth/refresh')
+        ? json({ detail: 'nope' }, 401)
+        : json({ detail: 'expired' }, 401),
+    )
+
+    await expect(cookieClient(fetchImpl).me()).rejects.toBeInstanceOf(IdentityError)
+    expect(store.getAccess()).toBeNull()
+  })
+
+  it('logout sends credentials and clears local state', async () => {
+    store.set({ access_token: 'access-1' })
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(`${SERVICE_URL}/api/v1/auth/logout`)
+      expect(init?.credentials).toBe('include')
+      return new Response(null, { status: 204 })
+    })
+
+    await cookieClient(fetchImpl).logout()
+
+    expect(store.getAccess()).toBeNull()
+  })
+
+  it('signup without verification stores only the access token', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json(
+        {
+          detail: 'Account created.',
+          verification_required: false,
+          tokens: { access_token: 'access-1', token_type: 'bearer' },
+        },
+        201,
+      ),
+    )
+
+    await cookieClient(fetchImpl).signup({
+      email: 'alex@example.com',
+      username: 'alex_bishop',
+      password: 'GoblinGuide!23x',
+    })
+
+    expect(store.getAccess()).toBe('access-1')
+    expect(store.getRefresh()).toBeNull()
+  })
+})
+
+describe('body mode (default)', () => {
+  it('sends neither the opt-in header nor credentials, and keeps the body refresh token', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('X-Client')).toBeNull()
+      expect(init?.credentials).toBeUndefined()
+      return json(PAIR)
+    })
+    const client = createIdentityClient({
+      serviceUrl: SERVICE_URL,
+      tokenStore: store,
+      fetchImpl,
+    })
+
+    await client.login('alex@example.com', 'hunter2hunter2')
+
+    expect(store.getRefresh()).toBe('refresh-1')
   })
 })
 

@@ -13,6 +13,14 @@ export interface IdentityConfig {
   tokenStore?: TokenStore
   /** Injectable `fetch` for tests. */
   fetchImpl?: FetchLike
+  /**
+   * Browser SPA cookie mode (ADR-18). When `true`, the refresh token is kept
+   * in an `HttpOnly` cookie by Barrin's Identity and never touches JS; this
+   * app holds only the in-memory access token. The identity service must run
+   * with `REFRESH_COOKIE_ENABLED=true` and this app's origin in
+   * `ALLOWED_ORIGINS`.
+   */
+  cookieMode?: boolean
 }
 
 export interface IdentityProviderProps {
@@ -32,9 +40,10 @@ export function IdentityProvider({ config, children }: IdentityProviderProps) {
       serviceUrl: config.serviceUrl,
       tokenStore,
       fetchImpl: config.fetchImpl,
+      cookieMode: config.cookieMode,
     })
     return { client, tokenStore }
-  }, [config.serviceUrl, config.tokenStore, config.fetchImpl])
+  }, [config.serviceUrl, config.tokenStore, config.fetchImpl, config.cookieMode])
 
   return <IdentityContext.Provider value={value}>{children}</IdentityContext.Provider>
 }

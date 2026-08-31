@@ -37,6 +37,12 @@ decides permissions (constitution §4.1, §13.5).
 
 See `.env.example`.
 
+This shell runs in **cookie mode** (ADR-18): it calls Barrin's Identity
+directly with `credentials: 'include'`, and the refresh token lives in an
+`HttpOnly` cookie set by the service — never in JS. The identity
+deployment it points at must set `REFRESH_COOKIE_ENABLED=true` and list
+this app's origin in `ALLOWED_ORIGINS`.
+
 ## Scripts
 
 ```bash

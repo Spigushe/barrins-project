@@ -9,7 +9,10 @@ import { z } from 'zod'
 
 export const tokenPairSchema = z.object({
   access_token: z.string(),
-  refresh_token: z.string(),
+  // Absent in cookie mode (ADR-18): Barrin's Identity puts the refresh token
+  // in an HttpOnly cookie and drops it from the body
+  // (`response_model_exclude_none`). Body mode still carries a string.
+  refresh_token: z.string().nullish(),
   token_type: z.string(),
 })
 export type TokenPair = z.infer<typeof tokenPairSchema>

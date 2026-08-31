@@ -25,14 +25,16 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>
 
-function renderApp(path: string, fetchImpl: FetchImpl) {
+function renderApp(path: string, fetchImpl: FetchImpl, cookieMode = false) {
   window.history.pushState({}, '', path)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return {
     user: userEvent.setup(),
     ...render(
       <QueryClientProvider client={queryClient}>
-        <IdentityProvider config={{ serviceUrl: 'https://identity.test', fetchImpl }}>
+        <IdentityProvider
+          config={{ serviceUrl: 'https://identity.test', fetchImpl, cookieMode }}
+        >
           <App />
         </IdentityProvider>
       </QueryClientProvider>,
@@ -125,6 +127,30 @@ describe('<App>', () => {
       throw new Error(`unexpected ${url}`)
     })
     const { user } = renderApp('/login', fetchImpl)
+
+    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
+    expect(screen.getByText('alex_bishop')).toBeInTheDocument()
+  })
+
+  it('signs in in cookie mode: opt-in header + credentials, no body refresh token', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/auth/token')) {
+        expect(new Headers(init?.headers).get('X-Client')).toBe('web')
+        expect(init?.credentials).toBe('include')
+        // Identity keeps the refresh token in the HttpOnly cookie (ADR-18).
+        return jsonResponse({ access_token: 'a', token_type: 'bearer' })
+      }
+      if (url.endsWith('/auth/me')) {
+        expect(init?.credentials).toBe('include')
+        return jsonResponse(PRINCIPAL)
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    const { user } = renderApp('/login', fetchImpl, true)
 
     await user.type(screen.getByLabelText('Email'), 'alex@example.com')
     await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')

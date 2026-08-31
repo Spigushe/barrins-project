@@ -5,7 +5,7 @@ import { IdentityProvider } from '@barrins/goblin-guide'
 import '@barrins/goblin-guide/styles.css'
 import './index.css'
 import { App } from './App'
-import { IDENTITY_SERVICE_URL } from './config'
+import { IDENTITY_COOKIE_MODE, IDENTITY_SERVICE_URL } from './config'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,7 +16,10 @@ const queryClient = new QueryClient({
   },
 })
 
-const identityConfig = { serviceUrl: IDENTITY_SERVICE_URL }
+const identityConfig = {
+  serviceUrl: IDENTITY_SERVICE_URL,
+  cookieMode: IDENTITY_COOKIE_MODE,
+}
 
 const rootElement = document.getElementById('root')
 if (rootElement === null) throw new Error('#root not found')

@@ -115,9 +115,11 @@ authenticated screen.
   `barrins_identity` itself holds the refresh token in an
   `HttpOnly; Secure; SameSite=None` cookie
   ([Integration Contract §4.1](../../back/barrins_identity/integration.md#41-human-login-and-session)).
-  In cookie mode there is no refresh token in JS and no store for it. The
-  `goblin_guide` shell ships in cookie mode; other host apps opt in once
-  their origin is in identity's `ALLOWED_ORIGINS`.
+  In cookie mode there is no refresh token in JS and no store for it. A
+  host app opts in with `cookieMode: true` on the `IdentityProvider`
+  config; the `goblin_guide` shell ships that way. It works only once the
+  app's origin is in identity's `ALLOWED_ORIGINS` and the deployment sets
+  `REFRESH_COOKIE_ENABLED=true`.
 - No JWKS handling in the browser. The frontend never verifies a token;
   it treats the access token as opaque and lets the backend (or the T9
   reverse-proxy gate,

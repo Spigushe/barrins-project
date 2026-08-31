@@ -162,34 +162,66 @@ export interface IdentityClientOptions {
   tokenStore: TokenStore
   /** Injectable for tests; defaults to the global `fetch`. */
   fetchImpl?: FetchLike
+  /**
+   * Browser SPA cookie mode (ADR-18). When `true`, the refresh token lives in
+   * an `HttpOnly` cookie set by Barrin's Identity: every request goes out with
+   * `credentials: 'include'` and the `X-Client: web` opt-in header, `refresh()`
+   * sends no body and relies on the cookie, and only the access token is kept
+   * in `tokenStore`. Requires the service to run with
+   * `REFRESH_COOKIE_ENABLED=true` and this app's origin in `ALLOWED_ORIGINS`.
+   */
+  cookieMode?: boolean
 }
 
 export function createIdentityClient(options: IdentityClientOptions): IdentityClient {
   const { tokenStore } = options
-  const doFetch: FetchLike =
+  const cookieMode = options.cookieMode ?? false
+  const rawFetch: FetchLike =
     options.fetchImpl ?? ((url, init) => globalThis.fetch(url, init))
+  // Cookie mode: send and receive the identity cookie on every call, and opt
+  // in server-side. Body mode leaves requests untouched.
+  const doFetch: FetchLike = cookieMode
+    ? (url, init = {}) => {
+        const headers = new Headers(init.headers)
+        headers.set('X-Client', 'web')
+        return rawFetch(url, { ...init, headers, credentials: 'include' })
+      }
+    : rawFetch
   const base = options.serviceUrl.replace(/\/+$/, '')
+
+  /**
+   * Persist a freshly issued pair. In cookie mode the body has no
+   * `refresh_token` (it is in the cookie); only the access token is stored.
+   */
+  function persist(pair: TokenPair): void {
+    tokenStore.set(pair)
+  }
 
   // Only one refresh in flight — concurrent 401s await the same promise.
   let refreshInFlight: Promise<TokenPair> | null = null
 
+  const sessionEnded = (): IdentityError => {
+    tokenStore.clear()
+    return new IdentityError(401, 'Your session has ended. Please sign in again.')
+  }
+
   async function refresh(): Promise<TokenPair> {
-    const refreshToken = tokenStore.getRefresh()
-    if (refreshToken === null) {
-      tokenStore.clear()
-      throw new IdentityError(401, 'Your session has ended. Please sign in again.')
+    let response: Response
+    if (cookieMode) {
+      // The refresh token rides in the HttpOnly cookie; no body to send.
+      response = await doFetch(`${base}/api/v1/auth/refresh`, { method: 'POST' })
+    } else {
+      const refreshToken = tokenStore.getRefresh()
+      if (refreshToken === null) throw sessionEnded()
+      response = await doFetch(`${base}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
     }
-    const response = await doFetch(`${base}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    })
-    if (!response.ok) {
-      tokenStore.clear()
-      throw new IdentityError(401, 'Your session has ended. Please sign in again.')
-    }
+    if (!response.ok) throw sessionEnded()
     const pair = tokenPairSchema.parse(await response.json())
-    tokenStore.set(pair)
+    persist(pair)
     return pair
   }
 
@@ -237,7 +269,7 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
       throw new IdentityError(response.status, await readDetail(response))
     }
     const pair = tokenPairSchema.parse(await response.json())
-    tokenStore.set(pair)
+    persist(pair)
     return pair
   }
 
@@ -281,7 +313,7 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
       throw new IdentityError(response.status, await readDetail(response))
     }
     const result = signupResponseSchema.parse(await response.json())
-    if (result.tokens !== null) tokenStore.set(result.tokens)
+    if (result.tokens !== null) persist(result.tokens)
     return result
   }
 
@@ -291,7 +323,7 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
       throw new IdentityError(response.status, await readDetail(response))
     }
     const pair = tokenPairSchema.parse(await response.json())
-    tokenStore.set(pair)
+    persist(pair)
     return pair
   }
 
@@ -327,7 +359,7 @@ export function createIdentityClient(options: IdentityClientOptions): IdentityCl
       throw new IdentityError(response.status, await readDetail(response))
     }
     const pair = tokenPairSchema.parse(await response.json())
-    tokenStore.set(pair)
+    persist(pair)
     return pair
   }
 
