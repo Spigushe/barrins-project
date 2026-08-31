@@ -1,0 +1,106 @@
+---
+# Dedicated playbook for the barrins_identity backend — the single place
+# that deploys/restarts it (Constitution §26.1: one application, one
+# playbook). It stands up its own systemd unit, its own nginx vhost and
+# its own database; it never touches barrins_api's. Consumer apps (the
+# Goblin Guide BFF, and later Tamiyo Scroll / Tolaria News) only point
+# their config at whatever this playbook already has running — they must
+# never redeploy identity themselves.
+- name: Deploy/restart the shared barrins_identity backend
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    # Defaults to a full production deploy — the latest GitHub release tag
+    # of the monorepo (Constitution §25/§27: production only ever deploys
+    # released versions). Pass -e deploy_env=staging for a side-by-side
+    # staging instance, from the staging branch by default:
+    #   ansible-playbook barrins_identity.yml -e deploy_env=staging
+    # During the v2.0.0 rollout, until barrins_identity reaches the staging
+    # branch, point staging at the rollout branch:
+    #   ansible-playbook barrins_identity.yml -e deploy_env=staging \
+    #     -e fastapi_backend_git_branch=proj/v2.0.0-bump
+    # Roll production back to an older release:
+    #   ansible-playbook barrins_identity.yml -e fastapi_backend_release_tag=v1.2.3
+    deploy_env: production
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    identity_port: "{{ 8521 if deploy_env == 'staging' else 8021 }}"
+    identity_domain: "identity{{ env_suffix }}.barrins-codex.org"
+    # Local, git-ignored .env — deployed to
+    # ~/projects/{{ identity_domain }}/apps/barrins_identity/.env on every
+    # run if present on this machine, skipped otherwise. See
+    # secrets/README.md to create it.
+    identity_env_file: "{{ playbook_dir }}/secrets/barrins_identity/{{ deploy_env }}.env"
+    # Mirrors fastapi_backend's work_dir (app_root + repo_subdir), computed
+    # from play-level vars so post_tasks can reference it — the role's own
+    # fastapi_backend_config.work_dir is a lazily-templated string that
+    # falls out of scope once the role finishes (same note as
+    # barrins_api.yml).
+    identity_work_dir: "/home/{{ username }}/projects/{{ identity_domain }}/apps/barrins_identity"
+
+  roles:
+    - role: github_token
+
+    - role: register_ssl
+      tags:
+        - backend
+        - certs
+      register_ssl_server_name: "{{ identity_domain }}"
+      register_ssl_contact_name: martin.cuchet@gmail.com
+
+    - role: fastapi_backend
+      tags:
+        - backend
+      # This monorepo (Spigushe/barrins-project), not a dedicated repo —
+      # barrins_identity lives at apps/barrins_identity within it. The role
+      # already runs `uv sync` + `uv run alembic upgrade head` and writes
+      # the systemd unit identity{{ env_suffix }}.
+      fastapi_backend_repo: Spigushe/barrins-project
+      fastapi_backend_repo_subdir: apps/barrins_identity
+      fastapi_backend_server_name: "{{ identity_domain }}"
+      fastapi_backend_app_name: "identity{{ env_suffix }}"
+      fastapi_backend_port: "{{ identity_port }}"
+      fastapi_backend_use_release_tag: "{{ deploy_env == 'production' }}"
+      fastapi_backend_git_branch: "{{ env_branch }}"
+      fastapi_backend_entrypoint: "app.main:app"
+      fastapi_backend_env_file: "{{ identity_env_file }}"
+
+    - role: backend_website
+      tags:
+        - backend
+      backend_website_server_name: "{{ identity_domain }}"
+      backend_website_port: "{{ identity_port }}"
+      # identity throttles auth in-app (LOGIN_RATE_LIMIT /
+      # PASSWORD_RESET_RATE_LIMIT in its .env), so no nginx-level path
+      # zones here.
+      backend_website_rate_limited_paths: []
+
+  post_tasks:
+    - name: Reminder — one-time admin seed this playbook does not automate
+      ansible.builtin.debug:
+        msg:
+          - "This playbook never seeds the first admin. SSH in and run once,"
+          - "from {{ identity_work_dir }}:"
+          - "'uv run python scripts/create_admin.py --email <you> --username admin'"
+          - "(interactive — needs a TTY for the password prompt)."
+      tags: [backend, deploy]
+
+    - name: Reminder — identity's allowed origins must list every consumer
+      ansible.builtin.debug:
+        msg:
+          - "ALLOWED_ORIGINS and FRONTEND_BASE_URL in {{ identity_env_file }}"
+          - "must list the Goblin Guide origin (and any later consumer:"
+          - "Tamiyo Scroll, Tolaria News). See"
+          - "docs/content/ops/deployment/identity.md."
+      tags: [backend, deploy]
+
+    - name: Reminder — .env is local-only, not managed by git
+      ansible.builtin.debug:
+        msg:
+          - "{{ identity_env_file }} is git-ignored (Constitution §34) — if"
+          - "this is a fresh checkout and that file doesn't exist yet on this"
+          - "machine, the .env step was skipped and the server's existing"
+          - ".env (if any) was left untouched. See secrets/README.md."
+      tags: [backend, deploy]
