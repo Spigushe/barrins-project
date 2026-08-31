@@ -15,8 +15,15 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Synchronous URL (psycopg2) derived from settings — no hardcoded credentials
-config.set_main_option("sqlalchemy.url", str(settings.base.database_url_sync))
+# Synchronous URL (psycopg2) derived from settings — no hardcoded credentials.
+# `set_main_option` runs the value through ConfigParser, which treats `%` as
+# interpolation syntax: a percent-encoded password (e.g. `==` rendered as
+# `%3D%3D` once the DSN is stringified) makes `alembic upgrade` fail with
+# "invalid interpolation syntax". Doubling `%` escapes it — ConfigParser
+# collapses `%%` back to `%` when the value is read.
+config.set_main_option(
+    "sqlalchemy.url", str(settings.base.database_url_sync).replace("%", "%%")
+)
 
 target_metadata = Base.metadata
 
