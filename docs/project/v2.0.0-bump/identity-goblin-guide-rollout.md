@@ -7,7 +7,7 @@
 | **Purpose** | Close the two deferred T10 phases (deploy playbook + email, then the `barrins_api` cutover) and get Goblin Guide mounted and deployed. |
 | **Created** | 2026-08-30 |
 | **Release line** | `proj/v2.0.0-bump` — same as [T10](./t10-barrins-identity/index.md). Work each phase on a short `feat/*` branch off it, one logical commit per phase (Constitution §18.3). |
-| **Locked decision** | Goblin Guide persistent sessions → a **dedicated auth BFF** holding the refresh token in an `HttpOnly` cookie (user, 2026-08-30). The SPA only ever handles short-lived access tokens. |
+| **Locked decision** | Goblin Guide persistent sessions → **`barrins_identity` itself** issues the refresh token as an `HttpOnly` cookie; the SPA calls identity directly and only ever handles short-lived access tokens. **No separate BFF app** (user, 2026-08-31 — supersedes the 2026-08-30 "dedicated auth BFF" decision). SPA and identity are on different sub-domains ⇒ the cookie is `HttpOnly; Secure; SameSite=None` and identity returns `Access-Control-Allow-Credentials: true` for the SPA origin. |
 
 **Critical fact:** Phases 3–8 are all blocked until a real `barrins_identity`
 is running. Phase 1 is the keystone — do it first, do it fully.
@@ -17,15 +17,20 @@ is running. Phase 1 is the keystone — do it first, do it fully.
 ## One-glance sequence
 
 ```text
-Phase 1  Deploy barrins_identity (staging -> prod + email)   <- DO FIRST
-Phase 2  ADR-18 + BFF docs                                    (parallel with 1B)
-Phase 3  Build apps/goblin_guide_bff
-Phase 4  Wire libs/goblin_guide to the BFF
-Phase 5  Deploy goblin_guide (SPA + BFF playbook)
-Phase 6  Live UAT T11-T15
-Phase 7  Mount in tamiyo_scroll + tolaria_news
-Phase 8  barrins_api cutover                                  <- DO LAST
+Phase 1     Deploy barrins_identity (staging -> prod + email)   <- DO FIRST
+Phase 2     ADR-18 + docs (identity cookie mode, no BFF app)    (parallel with 1B)
+Phase 3     Add HttpOnly-cookie auth mode to barrins_identity
+Phase 4     Wire libs/goblin_guide to identity (direct + cookie)
+Phase 4bis  Application directory (identity table + endpoint + SPA screen)
+Phase 5     Deploy goblin_guide SPA
+Phase 6     Live UAT T11-T15
+Phase 7     Mount in tamiyo_scroll + tolaria_news
+Phase 8     barrins_api cutover                                 <- DO LAST
 ```
+
+Phases 2 → 4bis all land on staging before Phase 5; production (identity
+Phase 1D + Goblin Guide Phase 5-prod) is promoted only once staging is
+complete (user, 2026-08-31).
 
 Deferred, **not** on this path: `Q-02` (tolaria_news scope), `Q-05`
 (username-as-credential), [integration.md](../../content/back/barrins_identity/integration.md)
@@ -45,12 +50,15 @@ like `barrins_api.yml`. The only gap is the one-time `create_admin.py`
 seed — a `post_tasks` reminder, run by hand on the VPS (needs a TTY).
 No new role.
 
-### 0.2 — BFF endpoint scope (decide at Phase 3, not now)
+### 0.2 — Auth persistence: BFF app vs identity-native cookie
 
-| Option | Effect |
-| --- | --- |
-| (a) BFF proxies **all** identity endpoints | SPA has one origin; BFF grows |
-| (b) BFF exposes **only** `/auth/token`, `/auth/refresh`, `/auth/logout` | Smallest BFF; signup/reset/settings/delete/service-accounts go SPA → identity directly, so identity `ALLOWED_ORIGINS` must list the SPA origin |
+**Decision (user, 2026-08-31): identity-native cookie, no BFF app.**
+`barrins_identity` itself grows an opt-in cookie mode on `/auth/token`,
+`/auth/refresh`, `/auth/logout` (Phase 3); every other flow (signup,
+reset, settings, delete, service-accounts) already goes SPA → identity
+directly, so identity's `ALLOWED_ORIGINS` must list the SPA origin and
+CORS must allow credentials. Supersedes the 2026-08-30 "dedicated auth
+BFF app" decision; recorded in ADR-18.
 
 Leaning **(b)**. Record the choice in ADR-18 (Phase 2).
 
@@ -96,8 +104,7 @@ Work through [identity.md](../../content/ops/deployment/identity.md)
   - Brevo → SMTP & API → generate an SMTP key. Note the login +
     `smtp-relay.brevo.com:587`. The **SMTP key** is `SMTP_PASSWORD`, not
     the account password.
-- [X
-] **Secrets files** — from the templates already in the repo:
+- [X] **Secrets files** — from the templates already in the repo:
 
   ```bash
   cd ops/my-server/secrets/barrins_identity
@@ -239,7 +246,7 @@ Cut a `proj/v2.0.0-bump` release tag first (§27.1 — production only
 deploys releases), then:
 
 ```bash
-ansible-playbook barrins_identity.yml      # defaults to production + latest release tag
+ansible-playbook barrins_identity.yml   # production + latest release tag
 # one-time create_admin on ~/projects/identity.barrins-codex.org/... as above
 ```
 
@@ -255,69 +262,80 @@ to [the T10 tracker](./t10-barrins-identity/index.md).
 
 ---
 
-## Phase 2 — ADR + docs for the Goblin Guide BFF
+## Phase 2 — ADR + docs for identity cookie mode
 
 Can run in parallel with Phase 1B.
 
-- **New** `### ADR-18: Goblin Guide auth BFF holds the refresh token in an
-  HttpOnly cookie` in
+- **New** `### ADR-18: barrins_identity issues the refresh token as an
+  HttpOnly cookie (no separate BFF app)` in
   [decisions.md](../../content/ops/architecture/decisions.md) — Context /
-  Alternatives (in-memory only; `localStorage`; BFF) / Trade-offs /
-  Decision / Consequences (§16.3). Resolve decision 0.2 here and record it.
+  Alternatives (in-memory only; `localStorage`; dedicated BFF app;
+  identity-native cookie) / Trade-offs / Decision / Consequences (§16.3).
+  Record: identity-native cookie chosen; supersedes the 2026-08-30
+  "dedicated auth BFF" decision. Cross-site (SPA on
+  `goblin{-staging}.barrins-codex.org`, identity on
+  `identity{-staging}.barrins-codex.org`) ⇒ `SameSite=None; Secure` +
+  `Access-Control-Allow-Credentials: true` for the exact SPA origin (no
+  wildcard, §33).
 - **Update:**
   - [bootstrap.md](../../content/front/goblin_guide/bootstrap.md) —
-    session-persistence section
+    session-persistence section (cookie from identity, not a BFF)
   - [platform.md §5](../../content/back/barrins_identity/platform.md) —
-    add the BFF hop to the diagram
+    the SPA calls identity directly; note the refresh cookie
   - [integration.md](../../content/back/barrins_identity/integration.md) —
-    note the BFF as a consumer
+    the browser SPA as a first-party cookie consumer
   - [identity.md](../../content/ops/deployment/identity.md) —
-    `ALLOWED_ORIGINS` includes the SPA origin (if 0.2 = option b)
+    `ALLOWED_ORIGINS` includes the SPA origin; add
+    `Access-Control-Allow-Credentials` and the cookie-mode env vars
 
 **Gate 2:** `mkdocs build --strict` + `markdownlint` + `cspell` clean.
 
 ---
 
-## Phase 3 — Build the Goblin Guide auth BFF
+## Phase 3 — Add HttpOnly-cookie auth mode to `barrins_identity`
 
-- **New app** `apps/goblin_guide_bff/` — FastAPI, stack per §11.2 (`uv`,
-  `ty`, `ruff`). Structure mirrors `apps/barrins_identity/app/`.
-  - Endpoints (scope per decision 0.2):
-    - `POST /auth/token` → forwards credentials to
-      `IDENTITY_SERVICE_URL/api/v1/auth/token`; on success sets
-      `refresh_token` as `HttpOnly; Secure; SameSite=Lax` cookie (path
-      `/auth`), returns only `{access_token, expires_in}` to the SPA.
-    - `POST /auth/refresh` → reads the cookie, calls identity
-      `/auth/refresh`, rotates the cookie, returns the new access token.
-    - `POST /auth/logout` → calls identity `/auth/logout`, clears the
-      cookie.
-    - (option a only) transparent proxy for the lifecycle routes.
-  - Config: `IDENTITY_SERVICE_URL`, `ALLOWED_ORIGINS` (the SPA origin),
-    `COOKIE_DOMAIN`, `COOKIE_SECURE=true`.
-  - `GET /health` → `{"status":"ok"}`.
-  - Tests with `respx` mocking identity (≥ the repo's coverage bar).
-- **CI:** add a `goblin_guide_bff` job + paths-filter entry in
-  `.github/workflows/CI.yml`, wire it into `ci-required` (same pattern as
-  the `identity` job added in T10).
-- **Docs:** new `docs/content/front/goblin_guide/bff.md` — every endpoint
-  per §21.1 (method, path, purpose, auth, request, response, errors).
+Agent 1. A backward-compatible extension of the existing auth contract
+(§4.4) — the JSON `refresh_token` stays in the body by default; cookie
+mode is opt-in per request so other consumers are untouched.
 
-**Gate 3:** `uv run pytest` green; `ruff` / `ty` clean; CI job passing.
+- `POST /api/v1/auth/token`, `/auth/refresh`, `/auth/logout` gain cookie
+  behaviour when the caller opts in (header `X-Client: web`, or a
+  dedicated `/auth/token?cookie=1` — decide in the ADR):
+  - `token` → sets `refresh_token` cookie
+    `HttpOnly; Secure; SameSite=None; Domain=<REFRESH_COOKIE_DOMAIN>;
+    Path=/api/v1/auth`; response body omits `refresh_token`.
+  - `refresh` → reads the cookie, rotates it, returns a new access token.
+  - `logout` → clears the cookie.
+- Non-cookie callers (no opt-in header) keep today's body-only behaviour.
+- Config: `REFRESH_COOKIE_ENABLED` (default `false`),
+  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`),
+  and `ACCESS_CONTROL_ALLOW_CREDENTIALS` wired into the CORS middleware.
+- Tests (`app/tests`) — cookie set / rotated / cleared, body still carries
+  `refresh_token` without the opt-in, CORS credentials header present for
+  an allowed origin only. Coverage ≥ the repo bar.
+- **Docs:** extend the auth section of
+  [platform.md](../../content/back/barrins_identity/platform.md) /
+  [integration.md](../../content/back/barrins_identity/integration.md)
+  per §21.1.
+- **CI:** the existing `identity` job covers it — no new job.
+
+**Gate 3:** `uv run pytest` green; `ruff` / `ty` clean; `identity` CI job
+passing.
 
 ---
 
-## Phase 4 — Wire `libs/goblin_guide` to the BFF
+## Phase 4 — Wire `libs/goblin_guide` to identity (direct + cookie)
 
 - In `libs/goblin_guide/src/auth/client.ts` /
-  `libs/goblin_guide/src/auth/IdentityProvider.tsx`: add a "BFF mode"
-  where the base URL points at the BFF, `credentials: 'include'` on
-  fetches, and refresh is driven by the BFF cookie rather than a stored
-  refresh token.
-- Keep `createMemoryTokenStore()` as the default for host apps that don't
-  run a BFF; BFF mode simply doesn't need a token store for the refresh
+  `libs/goblin_guide/src/auth/IdentityProvider.tsx`: add a "cookie mode"
+  where auth calls go straight to `IDENTITY_SERVICE_URL` with
+  `credentials: 'include'` and the `X-Client: web` opt-in header, and
+  refresh relies on the identity cookie rather than a stored refresh
   token.
-- Update `apps/goblin_guide/src/config.ts` to BFF mode; the shell
-  `.env.example` gets `VITE_BFF_BASE_URL`.
+- Keep `createMemoryTokenStore()` as the default for host apps not in
+  cookie mode; cookie mode needs no store for the refresh token.
+- Update `apps/goblin_guide/src/config.ts` to cookie mode; the shell
+  `.env.example` gets `VITE_IDENTITY_SERVICE_URL`.
 - Tests: `libs/goblin_guide/src/auth/client.test.ts` + shell tests for
   the cookie flow.
 
@@ -327,34 +345,110 @@ and `apps/goblin_guide`. (A CRLF checkout can break local
 
 ---
 
-## Phase 5 — Goblin Guide deploy playbook
+## Phase 4bis — Application directory
+
+A role-aware cross-app launcher in Goblin Guide. **"Which apps can this
+user open" is a business rule → backend** (§4.1: identity returns the
+list + a computed access state per app; the SPA only renders cards).
+Ships with Phase 5 so the UX lands in the same deploy (user, 2026-08-31).
+
+### `barrins_identity`
+
+- **New table `applications`** (Alembic migration + seed):
+
+  | column | type | notes |
+  | --- | --- | --- |
+  | `id` | UUID PK | |
+  | `key` | str, unique | slug — `tamiyo_scroll`, `tolaria_news`, … |
+  | `name` | str | card title |
+  | `description` | str | one-liner |
+  | `url` | str | where the card links |
+  | `logo_key` | str | maps to a SPA-bundled asset |
+  | `needs_authentication` | bool, default `true` | |
+  | `is_role_restricted` | bool, default `false` | implies `needs_authentication` |
+  | `min_role` | `Enum(UserRole)` nullable | required iff `is_role_restricted` |
+  | `sort_order` | int, default `0` | |
+  | `is_active` | bool, default `true` | |
+  | `created_at` / `updated_at` | tz-aware | |
+
+  CHECK / validator: `is_role_restricted` ⇒ `min_role IS NOT NULL` and
+  `needs_authentication = true`.
+
+- **Seed** (user-approved 2026-08-31):
+
+  | key | name | policy |
+  | --- | --- | --- |
+  | `goblin_guide` | Goblin Guide | `needs_authentication` |
+  | `tamiyo_scroll` | Tamiyo Scroll | `needs_authentication` |
+  | `tolaria_news` | Tolaria News | public |
+  | `karn_jupyter` | Karn Tablets | `is_role_restricted`, `min_role = ml_developer` |
+  | `docs` | Barrin's Codex (docs) | public |
+
+- **Endpoint `GET /api/v1/applications`** — optional bearer. Returns every
+  `is_active` app ordered by `sort_order`, each as
+  `{ key, name, description, url, logo_key, access }` where the backend
+  computes `access`:
+  - `!needs_authentication` → `open`
+  - `needs_authentication && !is_role_restricted` → `open` if
+    authenticated, else `login_required`
+  - `is_role_restricted` → `open` if authenticated and
+    `user.role.level >= min_role.level`; `role_denied` if authenticated
+    and below; `login_required` if anonymous
+  - the endpoint does **not** filter the current app — the SPA does.
+- Schema + service + tests (anon / `user` / `ml_developer` / `admin`);
+  API doc per §21.1; **ADR-19** for the registry design.
+
+### `libs/goblin_guide`
+
+- `src/api/applications.ts` — `getApplications()` + Zod `ApplicationSchema`
+  (`access` ∈ `open | login_required | role_denied`).
+- `src/components/ApplicationsScreen.tsx` — prop `currentAppKey?: string`;
+  fetches, drops the row whose `key === currentAppKey`, groups by access
+  ("Ouvert à tous" / "Connexion requise" / "Réservé — rôle ≥ X"), renders
+  cards (logo, name, description, access badge).
+- `src/assets/app-logos/` — **copies** of each frontend's logo
+  (`tamiyo_scroll.*`, `tolaria_news.*`, `karn_jupyter.*`, `docs.*`,
+  `goblin_guide.*`); a `logo_key` → import map.
+- Tests: three groups render, current app filtered, badge states.
+
+### `apps/goblin_guide`
+
+- Route (`/apps`, or the home) mounted in the Shell, passing
+  `currentAppKey="goblin_guide"` from `config.ts`.
+
+**Gate 4bis:** `uv run pytest` (identity) green; `npm test` + `tsc` + lint
+green; anon / user / `ml_developer` / admin each render the right cards
+with the right badges; `goblin_guide` absent from its own list.
+
+---
+
+## Phase 5 — Goblin Guide deploy playbook (SPA only)
 
 Claude authors, operator runs.
 
-- **New file** `ops/my-server/goblin_guide.yml` — **one playbook for the
-  app** (SPA + its BFF = one application, §26.1); never touches identity
-  or `barrins_api`.
+- **New file** `ops/my-server/goblin_guide.yml` — **one playbook, one app**
+  (the SPA; §26.1). No backend role, no systemd unit, **never touches
+  identity or `barrins_api`**.
   - `register_ssl` for `goblin{{ env_suffix }}.barrins-codex.org`.
-  - `fastapi_backend` for `apps/goblin_guide_bff` → systemd unit
-    `goblin-bff{{ env_suffix }}`, port e.g. `8022` / `8522`,
-    `env_file: secrets/goblin_guide_bff/{{ deploy_env }}.env`.
-  - `react_frontend` for `apps/goblin_guide` with
-    `react_frontend_build_env: { VITE_BFF_BASE_URL: "https://goblin{{ env_suffix }}.barrins-codex.org" }`
-    (SPA routing / `index.html` fallback via that role's `https.conf.j2`).
-  - nginx: `/auth` (or `/api`) → BFF port, `/` → static build. May need a
-    small vhost tweak or the `backend_website` role alongside
-    `react_frontend` — decide when authoring.
-- **Operator:** DNS A records `goblin` + `goblin-staging` →
-  `146.59.146.57`; `cp` + fill
-  `secrets/goblin_guide_bff/{staging,production}.env`; add both Goblin
-  origins to identity's `ALLOWED_ORIGINS` and redeploy identity
-  (`ansible-playbook barrins_identity.yml` — its own playbook, no
-  cross-touch).
-- Deploy staging → prod, each release-tagged.
+  - `react_frontend` for `apps/goblin_guide`; set its build env
+    `VITE_IDENTITY_SERVICE_URL` to
+    `https://identity{{ env_suffix }}.barrins-codex.org` (SPA routing /
+    `index.html` fallback via that role's `https.conf.j2`).
+- **Operator:**
+  - DNS A records `goblin` + `goblin-staging` → `146.59.146.57`.
+  - In `secrets/barrins_identity/{staging,production}.env`: set
+    `REFRESH_COOKIE_ENABLED=true`, `REFRESH_COOKIE_DOMAIN`,
+    `ACCESS_CONTROL_ALLOW_CREDENTIALS=true`, and confirm the Goblin
+    origin is in `ALLOWED_ORIGINS`. Then **redeploy identity** from a ref
+    carrying Phases 3 + 4bis (`ansible-playbook barrins_identity.yml` —
+    its own playbook, no cross-touch).
+  - Deploy the SPA: staging → prod, each release-tagged.
 
 **Gate 5:** `https://goblin-staging.barrins-codex.org` loads; login sets
-an `HttpOnly` cookie (DevTools → Application → Cookies); closing and
-reopening the tab keeps you logged in; `ansible-lint` clean.
+an `HttpOnly; SameSite=None` cookie on `identity-staging…` (DevTools →
+Application → Cookies); cross-site refresh works; closing and reopening
+the tab keeps you logged in; the app directory renders; `ansible-lint`
+clean.
 
 ---
 
@@ -385,8 +479,10 @@ Tick the boxes in each `docs/project/v2.0.0-bump/t1{1..5}-*/index.md`.
   `@barrins/goblin-guide` dependency, mount its `IdentityProvider` +
   screens, replace any local auth UI.
 - Session persistence per app is a **separate decision** — they can start
-  with the in-memory store (re-login on tab close) or get their own BFF
-  later. Note it in each app's tracker; don't block Phase 7 on it.
+  with the in-memory store (re-login on tab close) or opt into identity
+  cookie mode (Phase 3) later, once their origin is in identity's
+  `ALLOWED_ORIGINS`. Note it in each app's tracker; don't block Phase 7
+  on it.
 - Update `tamiyo_scroll.yml` / `tolaria_news.yml` build env if they need
   `VITE_IDENTITY_BASE_URL`.
 
@@ -403,7 +499,14 @@ for a while. Full checklist in
 
 1. **Claude:** `apps/barrins_api/scripts/migrate_users_to_identity.py` —
    copies `users` rows into identity's database inside a single
-   `target_engine.begin()` transaction.
+   `target_engine.begin()` transaction. **Dedup on `email`:** when a
+   `barrins_api` user's email already exists in identity, do **not**
+   insert a second account — keep the identity account and only bump its
+   `role` to the higher of the two (by `UserRole.level`:
+   `user` < `moderator` < `ml_developer` < `admin`); all other identity
+   fields stay untouched. Non-colliding users are inserted normally.
+   Username collisions (same username, different email) are written to a
+   collisions report and resolved by hand before the cutover.
 2. **Claude:** add `libs/identity_client` as a `[tool.uv.sources]` path
    dep; rewrite `app/dependencies/auth.py` to JWKS verification; delete
    `app/models/user.py`, `app/schemas/auth.py`, `app/core/security.py`,
