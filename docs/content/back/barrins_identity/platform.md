@@ -128,13 +128,25 @@ barrins-identity  (apps/barrins_identity/, own process, own database)
   |                                            later tamiyo_scroll
   |-- service-token (client_credentials) ---> barrins_api, T9 Jupyter proxy
   |-- account lifecycle (signup, reset, ----> goblin_guide
-  |   settings, delete)
+  |   settings, delete)                        (browser SPA, first-party)
 ```
 
 Network calls to `barrins-identity` happen only at: human login, refresh,
 periodic JWKS refresh, service-token issuance, and the account-lifecycle
 actions. Every protected request elsewhere is verified against the cached
 public key with no call back here.
+
+The Goblin Guide SPA calls `barrins-identity` **directly** from the
+browser for every one of those flows — there is no BFF in front of it
+(ADR-18). For persistent sessions it opts into *cookie mode* on
+`/auth/token` / `/auth/refresh` / `/auth/logout` (`X-Client: web`):
+identity sets the refresh token as an `HttpOnly; Secure; SameSite=None`
+cookie scoped to `/api/v1/auth` and keeps it out of the response body.
+Because the SPA and identity sit on different sub-domains the calls are
+cross-site, so identity also returns `Access-Control-Allow-Credentials:
+true` for the exact SPA origin (§8, §33). Non-browser consumers
+(`barrins_api`, service accounts) send no opt-in header and keep getting
+the refresh token in the body.
 
 ---
 
@@ -252,7 +264,11 @@ secrets file is `ops/my-server/secrets/barrins_identity/{production,staging}.env
 | `SERVICE_TOKEN_EXPIRE_MINUTES` | `15` | |
 | `ARGON2_MEMORY_COST_KIB` / `_TIME_COST` / `_PARALLELISM` | `65536` / `3` / `4` | |
 | `LOGIN_RATE_LIMIT` | `5/minute` | `slowapi` spec, per IP, on `POST /auth/token` |
-| `ALLOWED_ORIGINS` | *required* | `list[str]`, no wildcard (constitution §33) |
+| `ALLOWED_ORIGINS` | *required* | `list[str]`, no wildcard (constitution §33). Must list the Goblin Guide SPA origin |
+| `ACCESS_CONTROL_ALLOW_CREDENTIALS` | `false` | `true` lets the CORS middleware echo `Access-Control-Allow-Credentials: true` for an allowed origin — required for the SPA's cookie-mode calls (ADR-18) |
+| `REFRESH_COOKIE_ENABLED` | `false` | Master switch for cookie mode on `/auth/token` \| `/auth/refresh` \| `/auth/logout` (opt-in per request via `X-Client: web`) |
+| `REFRESH_COOKIE_DOMAIN` | *(empty)* | `Domain` attribute of the refresh cookie, e.g. `identity-staging.barrins-codex.org` |
+| `REFRESH_COOKIE_SAMESITE` | `none` | `none` (cross-site SPA, needs `Secure`) \| `lax` \| `strict` |
 | `ENVIRONMENT` | `development` | `development` \| `staging` \| `production` |
 | `DEBUG` | `false` | |
 | `REQUIRE_EMAIL_VERIFICATION` | `true` | **Production must run `true`** ([ADR-3](../../ops/architecture/decisions.md#adr-3-production-email-uses-a-transactional-provider-not-self-hosted), ADR-16). `false` makes `/auth/signup` and the email-change flow apply immediately with no code — a dev/staging-only fallback, never the resting prod state |

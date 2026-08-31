@@ -1534,3 +1534,105 @@ target)"; `libs/` means "a package other things import."
   change — this completes `G-03`.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.
+
+## ADR-18: barrins_identity issues the refresh token as an HttpOnly cookie
+
+**Context.** Goblin Guide (ADR-17) needs persistent sessions — a user who
+closes the tab should stay logged in. The T11–T15 slices ship the SPA
+holding both tokens in an in-memory store (`createMemoryTokenStore()`),
+so today the user re-logs-in on every tab close. A refresh token in
+`localStorage` would persist but is readable by any XSS. The 2026-08-30
+rollout plan locked "a dedicated auth BFF app holding the refresh token
+in an `HttpOnly` cookie; the SPA only handles short-lived access tokens."
+On 2026-08-31, as that BFF (`apps/goblin_guide_bff`) came up for
+implementation, the question was reopened: does the cookie logic need its
+own deployable?
+
+The BFF as specified is a ~3-endpoint FastAPI proxy (`/auth/token`,
+`/auth/refresh`, `/auth/logout`) that forwards to `barrins_identity` and
+translates the refresh token to and from a cookie. Every *other* Goblin
+Guide flow — signup, email verification, password reset, account
+settings, delete, service accounts — already calls `barrins_identity`
+directly from the browser; identity is a first-party, browser-facing
+service and its `ALLOWED_ORIGINS` already lists the SPA origin.
+
+**Alternatives considered.**
+
+1. In-memory only (status quo) — re-login on tab close. No new surface,
+   but it does not meet the persistence requirement.
+2. Refresh token in `localStorage` — persists, zero backend change, but
+   readable by any injected script (XSS); rejected on §23.2 grounds.
+3. Dedicated BFF app (`apps/goblin_guide_bff`) — the refresh token never
+   reaches the browser, but it is a whole new deployable (systemd unit,
+   playbook, CI job, `.env`, port) whose only job is a cookie translation
+   in front of a service the SPA already talks to directly.
+4. Identity-native cookie — `barrins_identity` sets and reads the
+   `HttpOnly` refresh cookie itself on `/auth/token` / `/auth/refresh` /
+   `/auth/logout`, opt-in per request so existing consumers are
+   unaffected.
+
+**Trade-offs.** Option 3's isolation benefit is thin here: the SPA is
+already a first-party caller of identity for six other flows, so "don't
+expose identity to the browser" is not a property this system has or
+wants. The BFF adds a second network hop, a second thing to deploy and
+keep in lockstep with identity's auth contract, and a second CI job —
+real operational weight for a translation layer. Option 4 keeps the
+refresh token equally out of JS (`HttpOnly` either way) with no new
+deployable; the cost is that identity gains a browser-shaped concern
+(cookies, CORS credentials) in its auth routes, and the SPA↔identity
+calls are cross-site (SPA on `goblin{,-staging}.barrins-codex.org`,
+identity on `identity{,-staging}.barrins-codex.org`), so the cookie must
+be `SameSite=None; Secure` and identity must return
+`Access-Control-Allow-Credentials: true` for the exact SPA origin (never
+`*`, §33). `SameSite=None` is broadly supported and, combined with
+`Secure` + `HttpOnly` + a strict origin allow-list, does not materially
+widen CSRF exposure on an endpoint that already requires credentials.
+Backward compatibility is preserved by making the cookie behavior
+opt-in (a request header) so `barrins_api` and other token consumers keep
+receiving the refresh token in the JSON body (§4.4).
+
+The same-site alternative — serve the SPA under
+`identity{,-staging}.barrins-codex.org/app` so the cookie can be
+`SameSite=Lax` — was set aside: it couples the SPA's deployment to
+identity's vhost, muddies "one app, one playbook" (§26.1), and
+complicates independent frontend releases (§27.2).
+
+**Decision.** Option 4, per the user (2026-08-31). This **supersedes the
+2026-08-30 "dedicated auth BFF app" decision.** `barrins_identity` gains
+an opt-in cookie mode:
+
+- `POST /api/v1/auth/token`, `/auth/refresh`, `/auth/logout` accept an
+  opt-in signal (an `X-Client: web` header — final form settled when the
+  mode is built). With it:
+  - `token` sets `refresh_token` as
+    `HttpOnly; Secure; SameSite=None; Domain=<REFRESH_COOKIE_DOMAIN>;
+    Path=/api/v1/auth` and omits `refresh_token` from the response body.
+  - `refresh` reads the cookie, rotates it, returns a new access token.
+  - `logout` clears the cookie.
+- Without the opt-in signal the endpoints behave exactly as today
+  (refresh token in the body).
+- New config: `REFRESH_COOKIE_ENABLED` (default `false`),
+  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`);
+  the CORS middleware gains `Access-Control-Allow-Credentials: true` for
+  allowed origins.
+- No `apps/goblin_guide_bff`. No new CI job — the existing `identity` job
+  covers it.
+
+**Consequences.**
+
+- Rollout runbook Phase 3 becomes "add cookie mode to `barrins_identity`",
+  not "build a BFF"; Phase 5 deploys only the SPA
+  (`ops/my-server/goblin_guide.yml` carries no backend role).
+- `libs/goblin_guide` gains a "cookie mode": auth calls go to
+  `VITE_IDENTITY_SERVICE_URL` with `credentials: 'include'` and the
+  opt-in header, and no refresh-token store. `createMemoryTokenStore()`
+  stays the default for hosts not in cookie mode.
+- Operators set `REFRESH_COOKIE_*` and `ACCESS_CONTROL_ALLOW_CREDENTIALS`
+  in `secrets/barrins_identity/{staging,production}.env`, confirm the
+  Goblin origin is in `ALLOWED_ORIGINS`, then redeploy identity via
+  `barrins_identity.yml` — its own playbook (§26.1).
+- Tamiyo Scroll and Tolaria News can opt into the same cookie mode later
+  once their origin is allow-listed; no per-app BFF (rollout Phase 7).
+- The token endpoints are now CORS-credentialed for browser origins; the
+  allow-list must stay exact (§33) and is Agent 3's to verify per
+  environment.

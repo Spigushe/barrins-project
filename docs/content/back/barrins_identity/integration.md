@@ -24,7 +24,7 @@ Base path: `/api/v1`. JWKS is served at the domain root
 | Consumer | What it uses | Notes |
 | --- | --- | --- |
 | `barrins_api` | JWKS (verify user + service tokens locally), `POST /service-token` | Post-cutover ([platform.md §10](./platform.md#10-cutover)) it stops issuing its own tokens |
-| Goblin Guide (`apps/goblin_guide/`) | Human login + the full account-lifecycle surface (§4.1–§4.5) | The login / account-management UI |
+| Goblin Guide (`apps/goblin_guide/`) | Human login + the full account-lifecycle surface (§4.1–§4.5) | Browser SPA, calls this service **directly** (no BFF, ADR-18); opts into cookie mode on `/auth/token`\|`/refresh`\|`/logout` for persistent sessions |
 | T9 Jupyter workbench proxy | A reverse-proxy role gate (§8.8) against a user token's `role` claim | `karn-jupyter.barrins-codex.org` — see `docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/` and [ADR-15](../../ops/architecture/decisions.md#adr-15-karn-tablets-observability-job-health-and-jupyter-lab) |
 | `tolaria_news`, `tamiyo_scroll` | JWKS + service tokens, once built / cut over | Future |
 
@@ -109,6 +109,18 @@ Prefix `/api/v1/auth`.
 | GET | `/me` | user | — | `UserRead` `{id, email, username, role, is_active, is_verified, display_name}` | `401` |
 
 `TokenPair` = `{access_token, refresh_token, token_type: "bearer"}`.
+
+**Cookie mode (ADR-18).** A browser SPA sends `X-Client: web` on `/token`,
+`/refresh` and `/logout`. With it and `REFRESH_COOKIE_ENABLED=true`,
+`/token` and `/refresh` set the refresh token as an
+`HttpOnly; Secure; SameSite=<REFRESH_COOKIE_SAMESITE>;
+Domain=<REFRESH_COOKIE_DOMAIN>; Path=/api/v1/auth` cookie and drop
+`refresh_token` from the body (`access_token` only); `/refresh` reads the
+cookie instead of a body field; `/logout` clears it. Cross-site callers
+must send `credentials: 'include'`; the response carries
+`Access-Control-Allow-Credentials: true` only when the `Origin` is in
+`ALLOWED_ORIGINS`. Without the header the endpoints are unchanged
+(refresh token in the body).
 
 A unique `username` (input rule `^[A-Za-z0-9_-]{3,32}$`) is **required**
 on `UserCreate` / `UserSignup` and echoed on `UserRead` (§13.2, T10). A

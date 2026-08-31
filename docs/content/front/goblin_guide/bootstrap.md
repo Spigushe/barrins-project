@@ -106,13 +106,18 @@ authenticated screen.
 - On a `401`, run the silent-refresh flow
   ([Integration Contract §8.2](../../back/barrins_identity/integration.md#82-silent-refresh))
   once, then retry; if `/refresh` also fails, drop to the login screen.
-- **`G-05` (partly settled):** refresh-token storage. Shipped as a
+- **`G-05` (settled — ADR-18):** refresh-token storage. Shipped as a
   pluggable `TokenStore` interface; the default (`createMemoryTokenStore`)
-  keeps both tokens in memory, so a closed tab means re-login. A host app
-  that wants persistent sessions passes its own implementation — e.g. one
-  backed by a BFF that holds the refresh token in an `HttpOnly` cookie —
-  with no other change to the library. Still open: whether the shell
-  itself ships a persistent store.
+  keeps both tokens in memory, so a closed tab means re-login. For
+  persistent sessions the library has a **cookie mode**: auth calls go to
+  `VITE_IDENTITY_SERVICE_URL` directly (no BFF) with
+  `credentials: 'include'` and an `X-Client: web` header, and
+  `barrins_identity` itself holds the refresh token in an
+  `HttpOnly; Secure; SameSite=None` cookie
+  ([Integration Contract §4.1](../../back/barrins_identity/integration.md#41-human-login-and-session)).
+  In cookie mode there is no refresh token in JS and no store for it. The
+  `goblin_guide` shell ships in cookie mode; other host apps opt in once
+  their origin is in identity's `ALLOWED_ORIGINS`.
 - No JWKS handling in the browser. The frontend never verifies a token;
   it treats the access token as opaque and lets the backend (or the T9
   reverse-proxy gate,
