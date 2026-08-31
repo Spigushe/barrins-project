@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useIdentity } from '@barrins/goblin-guide'
-import { AppsRoute } from './AppsRoute'
 import { ConfirmEmailChangeRoute } from './ConfirmEmailChangeRoute'
 import { ForgotPasswordRoute } from './ForgotPasswordRoute'
 import { LoginRoute } from './LoginRoute'
@@ -35,14 +34,6 @@ export function App() {
           element={
             <RequireAuth>
               <ConfirmEmailChangeRoute />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/apps"
-          element={
-            <RequireAuth>
-              <AppsRoute />
             </RequireAuth>
           }
         />

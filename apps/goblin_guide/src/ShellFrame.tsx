@@ -49,7 +49,6 @@ export function ShellFrame({ children }: { children: ReactNode }) {
   }
 
   const onServiceAccounts = location.pathname === '/service-accounts'
-  const onApps = location.pathname === '/apps'
 
   return (
     <div style={page}>
@@ -88,9 +87,6 @@ export function ShellFrame({ children }: { children: ReactNode }) {
           >
             {user.role}
           </span>
-          <Link to={onApps ? '/' : '/apps'} style={navButton}>
-            {onApps ? 'Account' : 'Applications'}
-          </Link>
           {user.role === 'admin' && (
             <Link to={onServiceAccounts ? '/' : '/service-accounts'} style={navButton}>
               {onServiceAccounts ? 'Account' : 'Service accounts'}

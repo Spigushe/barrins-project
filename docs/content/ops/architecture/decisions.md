@@ -1694,7 +1694,9 @@ cannot live in the SPA. It needs a home.
 
 - `libs/goblin_guide` gains `useApplications()` +
   `<ApplicationsScreen currentAppKey>` (groups by `access`, renders
-  cards). The `goblin_guide` shell mounts it at `/apps`.
+  cards). The `goblin_guide` shell renders it as the **second column of
+  the home page**, beside the account screen (user, 2026-08-31) — no
+  separate route.
 - Policy changes (add an app, raise a `min_role`) are a row edit +
   nothing else — no redeploy of any SPA.
 - Ships with rollout Phase 4bis, before the Phase 5 deploy, so the

@@ -28,12 +28,26 @@ type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>
 function renderApp(path: string, fetchImpl: FetchImpl, cookieMode = false) {
   window.history.pushState({}, '', path)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // The home page now renders the app directory (ADR-19) alongside the
+  // account screen; tests that don't care about it get an empty list.
+  const withApps: FetchImpl = async (url, init) => {
+    try {
+      return await fetchImpl(url, init)
+    } catch (err) {
+      if (url.endsWith('/api/v1/applications')) return jsonResponse([])
+      throw err
+    }
+  }
   return {
     user: userEvent.setup(),
     ...render(
       <QueryClientProvider client={queryClient}>
         <IdentityProvider
-          config={{ serviceUrl: 'https://identity.test', fetchImpl, cookieMode }}
+          config={{
+            serviceUrl: 'https://identity.test',
+            fetchImpl: withApps,
+            cookieMode,
+          }}
         >
           <App />
         </IdentityProvider>
@@ -160,7 +174,7 @@ describe('<App>', () => {
     expect(screen.getByText('alex_bishop')).toBeInTheDocument()
   })
 
-  it('signs in and lands on the app directory, without Goblin Guide itself', async () => {
+  it('shows the app directory as the home second column, without Goblin Guide itself', async () => {
     const apps = [
       {
         key: 'goblin_guide',
@@ -196,12 +210,14 @@ describe('<App>', () => {
       if (url.endsWith('/api/v1/applications')) return jsonResponse(apps)
       throw new Error(`unexpected ${url}`)
     })
-    const { user } = renderApp('/login?next=/apps', fetchImpl)
+    const { user } = renderApp('/login', fetchImpl)
 
     await user.type(screen.getByLabelText('Email'), 'alex@example.com')
     await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
+    // Account column and directory column both on the home page.
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
     expect(
       await screen.findByRole('heading', { name: 'Barrin’s applications' }),
     ).toBeInTheDocument()

@@ -401,38 +401,51 @@ function ServiceAccountsAdmin({ title, subtitle }: AdminProps) {
             <label className="gg-label" htmlFor={scopeId}>
               Scopes
             </label>
-            <div className="gg-taginput">
-              {scopes.map((scope) => (
-                <span key={scope} className="gg-tag">
-                  {scope}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${scope}`}
-                    disabled={create.isPending}
-                    onClick={() => {
-                      setScopes(scopes.filter((s) => s !== scope))
-                    }}
-                  >
-                    <CloseIcon />
-                  </button>
-                </span>
-              ))}
-              <input
-                id={scopeId}
-                className="gg-tag-field"
-                type="text"
-                value={scopeDraft}
-                disabled={create.isPending}
-                placeholder={scopes.length === 0 ? 'e.g. bs:read' : ''}
-                onChange={(event) => {
-                  setScopeDraft(event.target.value)
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              <div className="gg-taginput" style={{ flex: 1 }}>
+                {scopes.map((scope) => (
+                  <span key={scope} className="gg-tag">
+                    {scope}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${scope}`}
+                      disabled={create.isPending}
+                      onClick={() => {
+                        setScopes(scopes.filter((s) => s !== scope))
+                      }}
+                    >
+                      <CloseIcon />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id={scopeId}
+                  className="gg-tag-field"
+                  type="text"
+                  value={scopeDraft}
+                  disabled={create.isPending}
+                  placeholder={scopes.length === 0 ? 'e.g. bs:read' : 'Add another'}
+                  onChange={(event) => {
+                    setScopeDraft(event.target.value)
+                  }}
+                  onKeyDown={onScopeKeyDown}
+                />
+              </div>
+              <button
+                type="button"
+                className="gg-button gg-button--sm gg-button--secondary"
+                disabled={create.isPending || scopeDraft.trim() === ''}
+                onClick={() => {
+                  addScope(scopeDraft)
                 }}
-                onKeyDown={onScopeKeyDown}
-              />
+              >
+                Add
+              </button>
             </div>
             <span className="gg-hint">
-              At least one. Press Enter to add each scope; scopes are opaque strings the
-              consuming service checks.
+              A scope is a permission string the target service checks — e.g.{' '}
+              <code>bs:read</code>, <code>kt:read</code>. Type one and press Enter (or
+              click Add); repeat for more. At least one is required.
             </span>
           </div>
 

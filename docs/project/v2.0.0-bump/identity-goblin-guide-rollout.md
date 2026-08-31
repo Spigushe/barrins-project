@@ -420,11 +420,11 @@ Design locked as [ADR-19](../../content/ops/architecture/decisions.md#adr-19-bar
 
 ### `apps/goblin_guide` — done
 
-- `AppsRoute.tsx` → `<ApplicationsScreen currentAppKey={CURRENT_APP_KEY} />`
-  in `ShellFrame`; `/apps` route behind `RequireAuth` in `App.tsx`;
-  `CURRENT_APP_KEY = 'goblin_guide'` in `config.ts`; an "Applications"
-  nav link in `ShellFrame`. Shell `npm test` **16 passed**, `tsc` + lint
-  clean.
+- The home page (`/` → `Shell`) is now **two columns**: `<AccountScreen>`
+  and `<ApplicationsScreen currentAppKey={CURRENT_APP_KEY} />` in a
+  responsive grid (stacks on narrow screens). No separate route (user,
+  2026-08-31). `CURRENT_APP_KEY = 'goblin_guide'` in `config.ts`. Shell
+  `npm test` **16 passed**, `tsc` + lint clean.
 
 **Gate 4bis:** ✅ `uv run pytest` (identity) green (349, 98.83%);
 `npm test` + `tsc` + lint green in lib and shell; anon / user /

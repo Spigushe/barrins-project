@@ -254,18 +254,20 @@ function AccountScreenForm({
             />
             <button
               type="button"
-              className="gg-icon-btn"
+              className="gg-button gg-button--sm"
               aria-label="Save display name"
               disabled={!displayNameDirty || savingProfile}
               onClick={() => {
                 void saveDisplayName()
               }}
             >
-              {savingProfile ? (
-                <Spinner className="gg-spinner" style={{ stroke: 'var(--gg-accent)' }} />
-              ) : (
-                <CheckIcon width={16} height={16} />
+              {savingProfile && (
+                <Spinner
+                  className="gg-spinner"
+                  style={{ stroke: 'var(--gg-accent-fg)' }}
+                />
               )}
+              {savingProfile ? 'Saving…' : 'Save'}
             </button>
           </div>
           <span className="gg-hint">Shown across the ecosystem.</span>
