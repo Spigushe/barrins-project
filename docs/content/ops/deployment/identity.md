@@ -78,9 +78,25 @@ system packages.
 **Database** — a dedicated PostgreSQL database and role,
 **separate from `barrins_api`'s**. Created by hand on the VPS (like the
 `postgres` superuser and `karn_tablets`'s read-only role), not by the
-playbook: `CREATE DATABASE barrins_identity; CREATE ROLE barrins_identity
-LOGIN PASSWORD '...'; GRANT ALL ON DATABASE barrins_identity TO
-barrins_identity;`. Different password per environment.
+playbook:
+
+```sql
+CREATE DATABASE barrins_identity;
+CREATE ROLE barrins_identity LOGIN PASSWORD '<hex-password>';
+GRANT ALL ON DATABASE barrins_identity TO barrins_identity;
+-- PostgreSQL 15+: GRANT ALL ON DATABASE does NOT grant table creation on
+-- schema public. Without the next two lines, `alembic upgrade head` fails
+-- with "permission denied for schema public".
+ALTER DATABASE barrins_identity OWNER TO barrins_identity;
+\c barrins_identity
+ALTER SCHEMA public OWNER TO barrins_identity;
+```
+
+Different password per environment. **Use a hex password**
+(`openssl rand -hex 32`): it keeps the DSN free of percent-encoding.
+`alembic/env.py` escapes `%` before handing the URL to `ConfigParser`, so
+a percent-encoded password (`==` → `%3D%3D` once the DSN is stringified)
+also works now — but hex sidesteps that edge case entirely.
 
 **Signing key** — generate an RSA private key per environment and put it
 in the secrets file, never in git (Constitution §34,

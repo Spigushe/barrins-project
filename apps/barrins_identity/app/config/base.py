@@ -44,7 +44,7 @@ class BaseAppSettings(BaseSettings):
         ),
     )
     jwt_kid: str = Field(
-        default="2026-07", description="Current signing key id (rotation)."
+        default="2026-08", description="Current signing key id (rotation)."
     )
     access_token_expire_minutes: int = Field(
         default=10, description="User access token validity duration in minutes."

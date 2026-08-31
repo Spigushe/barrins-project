@@ -81,7 +81,7 @@ class TestBaseAppSettingsValidators:
             jwt_private_key=_rsa_pem(),
             allowed_origins=["http://localhost:5173"],
         )
-        assert s.jwt_kid == "2026-07"
+        assert s.jwt_kid == "2026-08"
 
     def test_database_url_sync_replaces_asyncpg(self):
         from app.config.base import BaseAppSettings

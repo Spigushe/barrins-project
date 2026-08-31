@@ -246,7 +246,7 @@ secrets file is `ops/my-server/secrets/barrins_identity/{production,staging}.env
 | `DATABASE_URL` | *required* | `PostgresDsn`; own database, never shared. `database_url_sync` (asyncpg → psycopg2) is computed for Alembic |
 | `DATABASE_ECHO` | `false` | |
 | `JWT_PRIVATE_KEY` | *required* | `SecretStr`, RSA PEM; validated at startup |
-| `JWT_KID` | `2026-07` | Current signing key id (rotation) |
+| `JWT_KID` | `2026-08` | Current signing key id (rotation) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `10` | |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | |
 | `SERVICE_TOKEN_EXPIRE_MINUTES` | `15` | |
