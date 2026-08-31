@@ -12,7 +12,7 @@ a `QueryClientProvider`, an `IdentityProvider`, and the default ("Suivi")
 token theme.
 
 > **Status**: 🟨 All five Goblin Guide bootstrap `G-03` slices — `POST
-> /api/v1/auth/token`, an in-memory token store, silent refresh,
+/api/v1/auth/token`, an in-memory token store, silent refresh,
 > self-registration with email verification (`/signup`, `/verify-email`),
 > password reset (`/forgot-password`, `/reset-password`), account
 > management at `/` (`AccountScreen` — display name, a two-step email

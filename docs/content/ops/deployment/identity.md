@@ -222,7 +222,8 @@ Provider: **Brevo** (transactional SMTP relay, EU-hosted). Sender:
    shows the message *delivered*. Then:
 
    ```bash
-   curl -X POST https://identity-staging.barrins-codex.org/api/v1/auth/signup/verify \
+   curl -X POST \
+     https://identity-staging.barrins-codex.org/api/v1/auth/signup/verify \
      -H "Content-Type: application/json" \
      -d '{"email":"<the same inbox>","code":"<6 digits>"}'
    ```
