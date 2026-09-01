@@ -64,6 +64,36 @@ describe('<App>', () => {
     ).toBeInTheDocument()
   })
 
+  it('restores a cookie-mode session from the refresh cookie on a fresh load of /', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/v1/auth/refresh')) {
+        expect(init?.credentials).toBe('include')
+        return jsonResponse({ access_token: 'a', token_type: 'bearer' })
+      }
+      if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+      throw new Error(`unexpected ${url}`)
+    })
+    renderApp('/', fetchImpl, true)
+
+    // No login interaction — the session comes straight back from the cookie.
+    expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
+    expect(screen.getByText('alex_bishop')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+  })
+
+  it('sends a cookie-mode visitor with no session to the login screen', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/api/v1/auth/refresh')) return jsonResponse({ detail: 'no' }, 401)
+      throw new Error(`unexpected ${url}`)
+    })
+    renderApp('/', fetchImpl, true)
+
+    expect(
+      await screen.findByRole('heading', { name: "Barrin's Identity" }),
+    ).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
+  })
+
   it('shows the session-expired banner on /login?expired=1', async () => {
     renderApp('/login?expired=1', vi.fn())
     expect(await screen.findByRole('status')).toHaveTextContent('Your session has ended.')
@@ -162,11 +192,14 @@ describe('<App>', () => {
         expect(init?.credentials).toBe('include')
         return jsonResponse(PRINCIPAL)
       }
+      // Fresh load with no cookie: the on-mount restore attempt (ADR-18)
+      // comes back 401 and the login form takes over.
+      if (url.endsWith('/api/v1/auth/refresh')) return jsonResponse({ detail: 'no' }, 401)
       throw new Error(`unexpected ${url}`)
     })
     const { user } = renderApp('/login', fetchImpl, true)
 
-    await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await user.type(await screen.findByLabelText('Email'), 'alex@example.com')
     await user.type(screen.getByLabelText('Password'), 'hunter2hunter2')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 

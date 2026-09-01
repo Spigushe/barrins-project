@@ -24,15 +24,23 @@ const ME_QUERY_KEY = ['goblin-guide', 'me'] as const
 const APPLICATIONS_QUERY_KEY = ['goblin-guide', 'applications'] as const
 const SERVICE_ACCOUNTS_QUERY_KEY = ['goblin-guide', 'service-accounts'] as const
 
-/** Reactive authentication state, derived from the token store. */
-export function useIdentity(): { isAuthenticated: boolean } {
-  const { tokenStore } = useIdentityContext()
+/**
+ * Reactive authentication state, derived from the token store.
+ *
+ * `isBootstrapping` is `true` only in cookie mode (ADR-18) while the
+ * provider makes its one-shot session-restore call on page load; callers
+ * that route between the app and the login screen should render a neutral
+ * loading state until it clears, so a valid cookie doesn't flash the login
+ * screen on reload. It is always `false` in body mode.
+ */
+export function useIdentity(): { isAuthenticated: boolean; isBootstrapping: boolean } {
+  const { tokenStore, isBootstrapping } = useIdentityContext()
   const access = useSyncExternalStore(
     tokenStore.subscribe,
     tokenStore.getAccess,
     tokenStore.getAccess,
   )
-  return { isAuthenticated: access !== null }
+  return { isAuthenticated: access !== null, isBootstrapping }
 }
 
 /** `GET /api/v1/auth/me`, enabled once there is an access token. */

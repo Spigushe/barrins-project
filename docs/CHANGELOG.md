@@ -70,6 +70,16 @@ section of the docs site for details.
   `ops/deployment/rollback.md`. `identity-goblin-guide-rollout.md`
   Phase 5 marked authoring-done, operator run pending.
 
+### Fixed
+
+- `front/goblin_guide/bootstrap.md` §5: documents the cookie-mode
+  session-restore step — `IdentityProvider` makes one `POST /auth/refresh`
+  on page load to rehydrate from the `HttpOnly` cookie, with a
+  `useIdentity().isBootstrapping` loading state. Phase 4 shipped the
+  cookie plumbing without this, so a reload dropped to the login screen;
+  found in Phase 6 UAT. `identity-goblin-guide-rollout.md` Phase 6 T11
+  row notes the fix.
+
 ## [1.0.0] "WorldWake" - 2026-07-24
 
 ### Added

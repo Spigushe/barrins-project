@@ -6,13 +6,17 @@ import { ForgotPasswordRoute } from './ForgotPasswordRoute'
 import { LoginRoute } from './LoginRoute'
 import { ResetPasswordRoute } from './ResetPasswordRoute'
 import { ServiceAccountsRoute } from './ServiceAccountsRoute'
+import { SessionBootSplash } from './SessionBootSplash'
 import { Shell } from './Shell'
 import { SignupRoute } from './SignupRoute'
 import { VerifyEmailRoute } from './VerifyEmailRoute'
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useIdentity()
+  const { isAuthenticated, isBootstrapping } = useIdentity()
   const location = useLocation()
+  // Cookie mode restores the session from the HttpOnly cookie on load — wait
+  // for that before deciding, or a reload flashes the login screen.
+  if (isBootstrapping) return <SessionBootSplash />
   if (!isAuthenticated) {
     const next = encodeURIComponent(location.pathname + location.search)
     return <Navigate to={`/login?next=${next}`} replace />

@@ -106,6 +106,13 @@ authenticated screen.
 - On a `401`, run the silent-refresh flow
   ([Integration Contract §8.2](../../back/barrins_identity/integration.md#82-silent-refresh))
   once, then retry; if `/refresh` also fails, drop to the login screen.
+- **On page load in cookie mode**, `IdentityProvider` makes one
+  `POST /auth/refresh` attempt to restore the session from the `HttpOnly`
+  cookie (the `401`-retry above never fires on a fresh load — nothing is
+  authenticated yet). `useIdentity()` reports `isBootstrapping: true` until
+  that settles; the shell shows a neutral splash so a valid cookie doesn't
+  flash the login screen on reload. Body mode skips this — a closed tab is
+  a finished session there by design.
 - **`G-05` (settled — ADR-18):** refresh-token storage. Shipped as a
   pluggable `TokenStore` interface; the default (`createMemoryTokenStore`)
   keeps both tokens in memory, so a closed tab means re-login. For

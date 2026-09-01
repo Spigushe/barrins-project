@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { createIdentityClient, type FetchLike } from './client'
 import { IdentityContext, type IdentityContextValue } from './context'
 import { createMemoryTokenStore, type TokenStore } from './tokenStore'
@@ -34,16 +34,46 @@ export interface IdentityProviderProps {
  * dependency).
  */
 export function IdentityProvider({ config, children }: IdentityProviderProps) {
-  const value = useMemo<IdentityContextValue>(() => {
-    const tokenStore = config.tokenStore ?? createMemoryTokenStore()
-    const client = createIdentityClient({
-      serviceUrl: config.serviceUrl,
-      tokenStore,
-      fetchImpl: config.fetchImpl,
-      cookieMode: config.cookieMode,
-    })
-    return { client, tokenStore }
+  const cookieMode = config.cookieMode ?? false
+
+  const { client, tokenStore } = useMemo(() => {
+    const store = config.tokenStore ?? createMemoryTokenStore()
+    return {
+      client: createIdentityClient({
+        serviceUrl: config.serviceUrl,
+        tokenStore: store,
+        fetchImpl: config.fetchImpl,
+        cookieMode: config.cookieMode,
+      }),
+      tokenStore: store,
+    }
   }, [config.serviceUrl, config.tokenStore, config.fetchImpl, config.cookieMode])
+
+  // Cookie mode (ADR-18): the refresh token lives in an HttpOnly cookie, so on
+  // a fresh page load nothing is in the in-memory store yet. Make one
+  // `POST /auth/refresh` attempt to trade the cookie for an access token —
+  // this is what makes a closed tab / F5 keep the session. Body mode never
+  // persists across a reload by design, so it skips this entirely.
+  const [isBootstrapping, setIsBootstrapping] = useState(cookieMode)
+  const bootstrapped = useRef(false)
+  useEffect(() => {
+    if (!cookieMode || bootstrapped.current) return
+    bootstrapped.current = true
+    void client
+      .refresh()
+      .catch(() => {
+        // No valid refresh cookie (never logged in, or it expired) — the
+        // client has cleared any partial state; start on the login screen.
+      })
+      .finally(() => {
+        setIsBootstrapping(false)
+      })
+  }, [client, cookieMode])
+
+  const value = useMemo<IdentityContextValue>(
+    () => ({ client, tokenStore, isBootstrapping }),
+    [client, tokenStore, isBootstrapping],
+  )
 
   return <IdentityContext.Provider value={value}>{children}</IdentityContext.Provider>
 }

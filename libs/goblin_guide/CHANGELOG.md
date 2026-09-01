@@ -80,6 +80,16 @@ section of the docs site for details.
 
 ### Fixed
 
+- Cookie mode (ADR-18) now actually persists a session across a page
+  reload / closed tab. `IdentityProvider` makes one
+  `POST /api/v1/auth/refresh` attempt on mount to trade the `HttpOnly`
+  refresh cookie for an access token; previously nothing used the cookie
+  on load, so every reload dropped to the login screen (the silent-refresh
+  retry only ever fired on a `401` from an already-authenticated request,
+  and every hook is gated on there being an access token). `useIdentity()`
+  gains `isBootstrapping` (always `false` in body mode) so routers can
+  show a neutral loading state instead of flashing the login screen while
+  that call is in flight. Surfaced by Phase 6 UAT of the rollout runbook.
 - `IdentityError` messages now read the `{ "error": { "message" } }`
   envelope Barrin's Identity actually returns (previously only a bare
   `detail` was read, so real-server errors fell back to a generic

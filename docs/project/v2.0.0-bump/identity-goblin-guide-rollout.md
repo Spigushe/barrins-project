@@ -477,7 +477,11 @@ clean.
 Against `goblin-staging`, walk each tracker's unchecked "run against a
 live barrins_identity" box:
 
-- [ ] **T11** login — bad creds, good creds, token refresh after 10 min
+- [ ] **T11** login — bad creds, good creds, token refresh after 10 min,
+      **reload / reopen tab keeps you logged in** (cookie-mode session
+      restore on load — Phase 4 shipped the cookie plumbing but not the
+      on-load restore; fixed after UAT, `libs/goblin_guide`
+      `IdentityProvider` + `useIdentity().isBootstrapping`)
 - [ ] **T12** signup + email verification — real inbox, resend cooldown,
       wrong code
 - [ ] **T13** password reset — request → email → confirm → old token `401`
