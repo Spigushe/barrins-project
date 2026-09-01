@@ -136,11 +136,12 @@ This slice is frontend only; no backend change.
 - [x] `cd apps/goblin_guide && npm run build` + `npm test` — 14 passed.
 - [x] `npm run lint` + `prettier --check` — clean in both packages
       (line endings aside — this Windows checkout is CRLF; CI runs LF).
-- [ ] Run the shell against a live `barrins_identity` (`npm run dev`,
-      sign in as an `admin`, create a service account and copy the
-      one-time secret, revoke it, confirm a non-admin sees the access
-      panel) — deferred to the cutover/playbook phase; no live service
-      is running yet.
+- [x] Run the shell against a live `barrins_identity` — validated on
+      `https://goblin-staging.barrins-codex.org` + `identity-staging`
+      during rollout Phase 6 (2026-09-01): signed in as `admin`, created
+      a service account and copied the one-time secret, listed it,
+      revoked it; a non-admin sees the "administrator access required"
+      panel and no list fetch is made.
 
 ## Non-regression tests
 

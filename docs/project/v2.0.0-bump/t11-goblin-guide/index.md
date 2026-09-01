@@ -113,9 +113,11 @@ all UX as "confirm before building".
       `@barrins/goblin-guide` → `../../libs/goblin_guide`;
       `npm run build` + `npm test` — 3 passed.
 - [x] `npm run lint` + `npx prettier --check .` — clean in both packages.
-- [ ] Run the shell against a live `barrins_identity` (`npm run dev`,
-      `VITE_IDENTITY_SERVICE_URL` pointed at a local instance) — deferred
-      to the cutover/playbook phase; no live service is running yet.
+- [x] Run the shell against a live `barrins_identity` — validated on
+      `https://goblin-staging.barrins-codex.org` + `identity-staging`
+      during rollout Phase 6 (2026-09-01): bad creds, good creds, token
+      refresh after 10 min, reload / reopen tab keeps the session
+      (cookie-mode on-load restore).
 
 ## Non-regression tests
 

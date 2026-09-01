@@ -109,12 +109,11 @@ This slice is frontend only; no backend change.
       `npm test` — 6 passed.
 - [x] `npm run lint` + `npx prettier --check .` — clean in both
       packages.
-- [ ] Run the shell against a live `barrins_identity` (`npm run dev`,
-      `REQUIRE_EMAIL_VERIFICATION` both ways, and the emailed
-      `/verify-email?email=&code=` deep link) — deferred to the
-      cutover/playbook phase; no live service is running yet, and the
-      identity service's `FRONTEND_BASE_URL` must point at the shell
-      origin for the deep link to resolve here.
+- [x] Run the shell against a live `barrins_identity` — validated on
+      `https://goblin-staging.barrins-codex.org` + `identity-staging`
+      during rollout Phase 6 (2026-09-01): signup → real inbox → emailed
+      `/verify-email?email=&code=` deep link, resend cooldown, wrong
+      code.
 
 ## Non-regression tests
 

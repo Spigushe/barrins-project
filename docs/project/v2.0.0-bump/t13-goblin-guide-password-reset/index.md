@@ -111,12 +111,11 @@ This slice is frontend only; no backend change.
 - [x] `cd apps/goblin_guide && npm run build` + `npm test` — 9 passed.
 - [x] `npm run lint` + `npx prettier --check .` — clean in both
       packages.
-- [ ] Run the shell against a live `barrins_identity` (`npm run dev`,
-      the emailed `/reset-password?email=&code=` deep link, and the
-      per-address resend cooldown) — deferred to the cutover/playbook
-      phase; no live service is running yet, and the identity service's
-      `FRONTEND_BASE_URL` must point at the shell origin for the deep
-      link to resolve here.
+- [x] Run the shell against a live `barrins_identity` — validated on
+      `https://goblin-staging.barrins-codex.org` + `identity-staging`
+      during rollout Phase 6 (2026-09-01): request → email →
+      `/reset-password?email=&code=` deep link → confirm → old token
+      `401`, per-address resend cooldown.
 
 ## Non-regression tests
 

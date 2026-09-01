@@ -144,12 +144,13 @@ This slice is frontend only; no backend change.
 - [x] `cd libs/goblin_guide && npm test` — 73 passed.
 - [x] `cd apps/goblin_guide && npm run build` + `npm test` — 11 passed.
 - [x] `npm run lint` + `prettier --check` — clean in both packages.
-- [ ] Run the shell against a live `barrins_identity` (`npm run dev`,
-      the emailed `/confirm-email-change?email=&code=` deep link, the
-      per-address resend cooldown, and a real delete → `/login?deleted=1`)
-      — deferred to the cutover/playbook phase; no live service is
-      running yet, and the identity service's `FRONTEND_BASE_URL` must
-      point at the shell origin for the deep link to resolve here.
+- [x] Run the shell against a live `barrins_identity` — validated on
+      `https://goblin-staging.barrins-codex.org` + `identity-staging`
+      during rollout Phase 6 (2026-09-01): display-name change (empty
+      field clears it — stores NULL), email-change verified at the new
+      address via the `/confirm-email-change?email=&code=` deep link,
+      per-address resend cooldown, real delete → `/login?deleted=1` then
+      handle / email reuse.
 
 ## Non-regression tests
 

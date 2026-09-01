@@ -22,8 +22,8 @@ Phase 2     ADR-18 + docs (identity cookie mode, no BFF app)    (parallel with 1
 Phase 3     Add HttpOnly-cookie auth mode to barrins_identity   [committed]
 Phase 4     Wire libs/goblin_guide to identity (direct + cookie) [committed]
 Phase 4bis  Application directory (identity table + endpoint + screen) [built, uncommitted]
-Phase 5     Deploy goblin_guide SPA (playbook+docs done; operator run pending)
-Phase 6     Live UAT T11-T15
+Phase 5     Deploy goblin_guide SPA (staging done + smoke-tested; PROD LAST)
+Phase 6     Live UAT T11-T15                                    [validated 2026-09-01]
 Phase 7     Mount in tamiyo_scroll + tolaria_news
 Phase 8     barrins_api cutover                                 <- DO LAST
 ```
@@ -31,6 +31,10 @@ Phase 8     barrins_api cutover                                 <- DO LAST
 Phases 2 → 4bis all land on staging before Phase 5; production (identity
 Phase 1D + Goblin Guide Phase 5-prod) is promoted only once staging is
 complete (user, 2026-08-31).
+
+**Goblin Guide's production deploy (Phase 5-prod) is done last of all**
+(user, 2026-09-01) — after Phases 6–8, as the final step of the rollout.
+Staging carries everything until then.
 
 Deferred, **not** on this path: `Q-02` (tolaria_news scope), `Q-05`
 (username-as-credential), [integration.md](../../content/back/barrins_identity/integration.md)
@@ -435,11 +439,15 @@ Design locked as [ADR-19](../../content/ops/architecture/decisions.md#adr-19-bar
 
 ## Phase 5 — Goblin Guide deploy playbook (SPA only)
 
-Claude authors, operator runs. **Authoring done** (this commit):
+Claude authors, operator runs. **Authoring done & committed:**
 `ops/my-server/goblin_guide.yml` + the
 [Goblin Guide deployment guide](../../content/ops/deployment/goblin-guide.md)
-(wired into the docs nav, deployment index and `rollback.md`). Operator
-steps below still pending.
+(wired into the docs nav, deployment index and `rollback.md`).
+**Staging deployed and smoke-tested 2026-09-01** (SPA loads, cross-site
+`HttpOnly` cookie set, reload keeps the session — the cookie-mode
+session-restore gap found here is fixed, see Phase 6 T11). **Production
+deploy is deferred to the very end of the rollout** (after Phases 6–8 —
+user, 2026-09-01); staging carries all remaining work.
 
 - **New file** `ops/my-server/goblin_guide.yml` ✅ — **one playbook, one
   app** (the SPA; §26.1). No backend role, no systemd unit, **never
@@ -464,11 +472,13 @@ steps below still pending.
     its own playbook, no cross-touch).
   - Deploy the SPA: staging → prod, each release-tagged.
 
-**Gate 5:** `https://goblin-staging.barrins-codex.org` loads; login sets
-an `HttpOnly; SameSite=None` cookie on `identity-staging…` (DevTools →
+**Gate 5:** ✅ staging (2026-09-01) —
+`https://goblin-staging.barrins-codex.org` loads; login sets an
+`HttpOnly; SameSite=None` cookie on `identity-staging…` (DevTools →
 Application → Cookies); cross-site refresh works; closing and reopening
 the tab keeps you logged in; the app directory renders; `ansible-lint`
-clean.
+clean. **Production deploy deferred to the end of the rollout (after
+Phases 6–8).**
 
 ---
 
@@ -477,23 +487,25 @@ clean.
 Against `goblin-staging`, walk each tracker's unchecked "run against a
 live barrins_identity" box:
 
-- [ ] **T11** login — bad creds, good creds, token refresh after 10 min,
+- [X] **T11** login — bad creds, good creds, token refresh after 10 min,
       **reload / reopen tab keeps you logged in** (cookie-mode session
       restore on load — Phase 4 shipped the cookie plumbing but not the
       on-load restore; fixed after UAT, `libs/goblin_guide`
       `IdentityProvider` + `useIdentity().isBootstrapping`)
-- [ ] **T12** signup + email verification — real inbox, resend cooldown,
+- [X] **T12** signup + email verification — real inbox, resend cooldown,
       wrong code
-- [ ] **T13** password reset — request → email → confirm → old token `401`
-- [ ] **T14** account settings + delete — display-name change,
+- [X] **T13** password reset — request → email → confirm → old token `401`
+- [X] **T14** account settings + delete — display-name change,
       email-change (verify at the new address), soft-delete then
       handle / email reuse
-- [ ] **T15** admin service accounts — create (secret shown once), list,
+- [X] **T15** admin service accounts — create (secret shown once), list,
       revoke
 
 Tick the boxes in each `docs/project/v2.0.0-bump/t1{1..5}-*/index.md`.
 
-**Gate 6:** all five trackers fully checked.
+**Gate 6:** ✅ closed 2026-09-01 — all five flows exercised against
+`https://goblin-staging.barrins-codex.org` + `identity-staging`; every
+T11–T15 tracker's "run against a live `barrins_identity`" box ticked.
 
 ---
 
