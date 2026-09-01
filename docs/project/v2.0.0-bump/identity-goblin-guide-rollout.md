@@ -22,7 +22,7 @@ Phase 2     ADR-18 + docs (identity cookie mode, no BFF app)    (parallel with 1
 Phase 3     Add HttpOnly-cookie auth mode to barrins_identity   [committed]
 Phase 4     Wire libs/goblin_guide to identity (direct + cookie) [committed]
 Phase 4bis  Application directory (identity table + endpoint + screen) [built, uncommitted]
-Phase 5     Deploy goblin_guide SPA
+Phase 5     Deploy goblin_guide SPA (playbook+docs done; operator run pending)
 Phase 6     Live UAT T11-T15
 Phase 7     Mount in tamiyo_scroll + tolaria_news
 Phase 8     barrins_api cutover                                 <- DO LAST
@@ -435,16 +435,25 @@ Design locked as [ADR-19](../../content/ops/architecture/decisions.md#adr-19-bar
 
 ## Phase 5 — Goblin Guide deploy playbook (SPA only)
 
-Claude authors, operator runs.
+Claude authors, operator runs. **Authoring done** (this commit):
+`ops/my-server/goblin_guide.yml` + the
+[Goblin Guide deployment guide](../../content/ops/deployment/goblin-guide.md)
+(wired into the docs nav, deployment index and `rollback.md`). Operator
+steps below still pending.
 
-- **New file** `ops/my-server/goblin_guide.yml` — **one playbook, one app**
-  (the SPA; §26.1). No backend role, no systemd unit, **never touches
-  identity or `barrins_api`**.
+- **New file** `ops/my-server/goblin_guide.yml` ✅ — **one playbook, one
+  app** (the SPA; §26.1). No backend role, no systemd unit, **never
+  touches identity or `barrins_api`**.
   - `register_ssl` for `goblin{{ env_suffix }}.barrins-codex.org`.
-  - `react_frontend` for `apps/goblin_guide`; set its build env
-    `VITE_IDENTITY_SERVICE_URL` to
-    `https://identity{{ env_suffix }}.barrins-codex.org` (SPA routing /
-    `index.html` fallback via that role's `https.conf.j2`).
+  - `react_frontend` for `apps/goblin_guide`; build env
+    `VITE_IDENTITY_SERVICE_URL` = `https://identity{{ env_suffix
+    }}.barrins-codex.org` (SPA routing / `index.html` fallback via that
+    role's `https.conf.j2`).
+  - `react_frontend_build_command` overridden: `apps/goblin_guide` pulls
+    `libs/goblin_guide` (`@barrins/goblin-guide`) as a `file:` dep whose
+    `dist/` is git-ignored, so the command runs
+    `npm --prefix ../../libs/goblin_guide install && … run build` before
+    `npm run build` for the shell.
 - **Operator:**
   - DNS A records `goblin` + `goblin-staging` → `146.59.146.57`.
   - In `secrets/barrins_identity/{staging,production}.env`: set

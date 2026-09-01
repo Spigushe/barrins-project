@@ -61,6 +61,14 @@ section of the docs site for details.
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,
   `skillset`, `unvalidated`, `Weasy`/`weasyprint`, `workstreams`, among
   others).
+- Goblin Guide deploy playbook (rollout Phase 5): new
+  `ops/deployment/goblin-guide.md` deployment guide (Preparation /
+  Deployment / Validation / Rollback / Troubleshooting per §37.2) for
+  `ops/my-server/goblin_guide.yml` — a frontend-only SPA playbook that
+  calls `barrins_identity` in cookie mode (ADR-18), not `barrins_api`;
+  wired into `mkdocs.yml` nav, `ops/deployment/index.md` and
+  `ops/deployment/rollback.md`. `identity-goblin-guide-rollout.md`
+  Phase 5 marked authoring-done, operator run pending.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 
