@@ -35,6 +35,7 @@ nav:
                 - Home: back/barrins_identity/index.md
                 - Platform Architecture: back/barrins_identity/platform.md
                 - Integration Contract: back/barrins_identity/integration.md
+                - Service Accounts: back/barrins_identity/service-accounts.md
                 - Test Plan: back/barrins_identity/tests.md
     - Frontend:
           - Home: front/index.md

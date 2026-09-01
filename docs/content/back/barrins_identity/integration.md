@@ -224,7 +224,9 @@ Prefix `/api/v1/users`. `{app_key}` ∈ `{tamiyo_scroll, tolaria_news}`.
 
 ### 4.6 Service accounts
 
-Mounted at `/api/v1` (no extra prefix).
+Mounted at `/api/v1` (no extra prefix). Step-by-step create / use /
+revoke / rotate and the scope model:
+[Service Accounts](service-accounts.md).
 
 | Method | Path | Auth | Request | Response | Errors |
 | --- | --- | --- | --- | --- | --- |
