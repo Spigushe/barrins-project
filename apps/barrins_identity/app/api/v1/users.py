@@ -24,7 +24,7 @@ from app.core.security import (
     verify_verification_code,
 )
 from app.database.session import DatabaseSession
-from app.dependencies.auth import CurrentUser
+from app.dependencies.auth import CurrentUser, UsersDirectoryReader
 from app.models.app_settings import AppKey, AppSettings
 from app.models.email_change_request import EmailChangeRequest
 from app.models.user import User
@@ -35,8 +35,11 @@ from app.schemas.users import (
     AccountSettingsUpdate,
     EmailChangeResendResponse,
     EmailChangeVerifyRequest,
+    UserLookupRead,
+    UsersLookupRequest,
 )
 from app.services.email import EmailSenderDep
+from app.services.users_directory import lookup_users
 
 router = APIRouter()
 
@@ -370,3 +373,25 @@ async def put_app_settings(
     await session.commit()
     await session.refresh(row)
     return AppSettingsRead(data=row.data)
+
+
+# ---------------------------------------------------------------------------
+# Batch user directory lookup (ADR-20)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/lookup", response_model=list[UserLookupRead])
+async def lookup_user_labels(
+    payload: UsersLookupRequest,
+    session: DatabaseSession,
+    _reader: UsersDirectoryReader,
+) -> list[UserLookupRead]:
+    """Public label attributes (`username`, `display_name`) for a batch of
+    identity user ids.
+
+    Service-token only, scope `identity:users:read`. For consumer backends
+    (`barrins_api`) that reference identity users on their own domain rows
+    without a local copy of the `users` table. Unknown or deactivated ids
+    are omitted; never returns email, role, or status.
+    """
+    return await lookup_users(session, payload.ids)

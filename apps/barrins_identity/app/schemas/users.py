@@ -1,5 +1,7 @@
 """Pydantic schemas for account-resource management (platform.md §15-§17)."""
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -52,3 +54,38 @@ class EmailChangeResendResponse(BaseModel):
     """
 
     detail: str = "A new code has been sent to the pending email address."
+
+
+# ---------------------------------------------------------------------------
+# Batch user directory lookup (ADR-20)
+# ---------------------------------------------------------------------------
+
+USERS_LOOKUP_MAX_IDS = 200
+
+
+class UsersLookupRequest(BaseModel):
+    """Payload for POST /users/lookup — a batch of identity user ids.
+
+    A consumer backend (`barrins_api`) resolves display labels for other
+    users it references (team rosters, chat authors) without holding a
+    local copy of the `users` table. Service-token + `identity:users:read`
+    scoped.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[UUID] = Field(min_length=1, max_length=USERS_LOOKUP_MAX_IDS)
+
+
+class UserLookupRead(BaseModel):
+    """One row of the POST /users/lookup response.
+
+    Public label attributes only — deliberately no email, no role, no
+    status flags.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    username: str
+    display_name: str | None = None

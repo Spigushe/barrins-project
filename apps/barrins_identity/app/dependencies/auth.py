@@ -122,9 +122,34 @@ async def get_current_service_account(
     return account
 
 
+def require_service_scope(
+    scope: str,
+) -> Callable[..., Awaitable[ServiceAccount]]:
+    """Dependency factory: a service-account token whose `scopes` include `scope`.
+
+    `403` when the token is a valid service token but lacks the scope
+    (mirrors `libs/identity_client`'s `InsufficientScope` → `403`).
+    """
+
+    async def _check(
+        account: Annotated[ServiceAccount, Depends(get_current_service_account)],
+    ) -> ServiceAccount:
+        if scope not in account.scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required scope: {scope!r}.",
+            )
+        return account
+
+    return _check
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
 ModeratorUser = Annotated[User, Depends(require_role(UserRole.moderator))]
 MLDevUser = Annotated[User, Depends(require_role(UserRole.ml_developer))]
 AdminUser = Annotated[User, Depends(require_role(UserRole.admin))]
 CurrentServiceAccount = Annotated[ServiceAccount, Depends(get_current_service_account)]
+UsersDirectoryReader = Annotated[
+    ServiceAccount, Depends(require_service_scope("identity:users:read"))
+]
