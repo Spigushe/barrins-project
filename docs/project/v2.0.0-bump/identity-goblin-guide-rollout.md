@@ -23,9 +23,9 @@ Phase 3     Add HttpOnly-cookie auth mode to barrins_identity   [committed]
 Phase 4     Wire libs/goblin_guide to identity (direct + cookie) [committed]
 Phase 4bis  Application directory (identity table + endpoint + screen) [built, uncommitted]
 Phase 5     Deploy goblin_guide SPA (staging done + smoke-tested; PROD LAST)
-Phase 6     Live UAT T11-T15                                    [validated 2026-09-01]
-Phase 7     Mount in tamiyo_scroll + tolaria_news
-Phase 8     barrins_api cutover                                 <- DO LAST
+Phase 6     Live UAT T11-T15                          [validated 2026-09-01]
+Phase 7+8   tamiyo_scroll swap + barrins_api cutover  [code complete 2026-09-02]
+            (merged; tolaria_news deferred, Q-02 open; operator migration pending)
 ```
 
 Phases 2 → 4bis all land on staging before Phase 5; production (identity
@@ -509,56 +509,53 @@ T11–T15 tracker's "run against a live `barrins_identity`" box ticked.
 
 ---
 
-## Phase 7 — Mount Goblin Guide in the two frontends
+## Phase 7 + 8 — `tamiyo_scroll` swap + `barrins_api` cutover (merged)
 
-- `apps/tamiyo_scroll` + `apps/tolaria_news`: add the
-  `@barrins/goblin-guide` dependency, mount its `IdentityProvider` +
-  screens, replace any local auth UI.
-- Session persistence per app is a **separate decision** — they can start
-  with the in-memory store (re-login on tab close) or opt into identity
-  cookie mode (Phase 3) later, once their origin is in identity's
-  `ALLOWED_ORIGINS`. Note it in each app's tracker; don't block Phase 7
-  on it.
-- Update `tamiyo_scroll.yml` / `tolaria_news.yml` build env if they need
-  `VITE_IDENTITY_BASE_URL`.
+**Merged** (user, 2026-09-01): a `tamiyo_scroll` access token is the
+`Bearer` on every `barrins_api` data call, so the frontend swap and the
+backend JWKS cutover ship as one change on `feat/goblin-guide-login`.
+`tolaria_news` is **deferred entirely** (no auth today — `Q-02` open).
+Cookie mode, like Goblin Guide. Full plan +
+[ADR-20](../../content/ops/architecture/decisions.md#adr-20-barrins_api-trusts-barrins_identity-jwks-drops-its-users-table).
 
-**Gate 7:** both apps build + test green; login works against production
-identity.
+**Code complete 2026-09-02** on `feat/goblin-guide-login`:
 
----
+- `barrins_api`: JWKS verification (`app/dependencies/auth.py` +
+  `service_auth.py` on `libs/identity_client`), `app/core/roles.py`
+  (`placeholder` → `moderator`), local auth surface deleted, Alembic
+  `d9e1a2c3b4f5` (drops 12 FKs + `auth_email_verifications` + `users` +
+  `userrole`), `app/services/identity_directory.py` (batch label lookup,
+  TTL cache), `resolve_owner` → opaque `ts_user_settings` key,
+  `ResponseTeamMember.email` → `username`, admin "total accounts" metric
+  dropped, config + `pyproject.toml` swap. Full suite green (530,
+  95.4%). `scripts/migrate_users_to_identity.py` + tests (7, two
+  throwaway DBs).
+- `barrins_identity`: `POST /api/v1/users/lookup` (service token, scope
+  `identity:users:read`) + tests (9).
+- `apps/tamiyo_scroll`: `@barrins/goblin-guide` mounted — `IdentityProvider`
+  (cookie mode), library `<LoginScreen>` / `<SignupScreen>` /
+  `<VerifyEmailScreen>` / `<ForgotPasswordScreen>` / `<ResetPasswordScreen>` /
+  `<AccountScreen>` with the "Try the demo" entry point, `api/client.ts`
+  on `identityTokenStore` + `identityClient.refresh()`, `AdminMetricsPage`
+  without the accounts tile.
+- Ops: `tamiyo_scroll.yml` gains `VITE_IDENTITY_SERVICE_URL` +
+  `libs/goblin_guide` prebuild; `barrins_api.yml` / secrets swap
+  `SECRET_KEY` → `IDENTITY_SERVICE_URL` + the service-account pair.
 
-## Phase 8 — `barrins_api` cutover (highest risk)
+**Operator, in a maintenance window** — see the
+[identity-cutover runbook](../../content/ops/deployment/identity-cutover.md):
+add the Tamiyo origins to identity `ALLOWED_ORIGINS` + redeploy identity;
+`pg_dump` both DBs; run `migrate_users_to_identity.py` (`--dry-run`, then
+real); deploy `barrins_api.yml` + `tamiyo_scroll.yml` for staging from
+the branch; validate every auth path + Tamiyo login; rollback = restore
+both dumps + redeploy the previous `barrins_api` release tag.
 
-Only after Phases 1–7 are done and identity has run clean in production
-for a while. Full checklist in
-[platform.md §10](../../content/back/barrins_identity/platform.md):
+**Gate 7+8:** `barrins_api` authenticates purely via identity JWKS; the
+local `users` table is gone; `tamiyo_scroll` logs in through the Goblin
+Guide screens in cookie mode; `/demo` still works. **T10 closed once the
+operator migration + Goblin Guide prod deploy land.**
 
-1. **Claude:** `apps/barrins_api/scripts/migrate_users_to_identity.py` —
-   copies `users` rows into identity's database inside a single
-   `target_engine.begin()` transaction. **Dedup on `email`:** when a
-   `barrins_api` user's email already exists in identity, do **not**
-   insert a second account — keep the identity account and only bump its
-   `role` to the higher of the two (by `UserRole.level`:
-   `user` < `moderator` < `ml_developer` < `admin`); all other identity
-   fields stay untouched. Non-colliding users are inserted normally.
-   Username collisions (same username, different email) are written to a
-   collisions report and resolved by hand before the cutover.
-2. **Claude:** add `libs/identity_client` as a `[tool.uv.sources]` path
-   dep; rewrite `app/dependencies/auth.py` to JWKS verification; delete
-   `app/models/user.py`, `app/schemas/auth.py`, `app/core/security.py`,
-   `app/api/v1/routers/auth.py`, `scripts/create_admin.py`; Alembic
-   migration dropping the local `users` table; swap `python-jose` /
-   `argon2-cffi` → `pyjwt` + `respx` (test-only); config swap in
-   `app/config/base.py`.
-3. **Test** the migration script against two throwaway databases in
-   CI / dev (no confirmation needed there).
-4. **Operator:** declare a maintenance window. `pg_dump` both databases.
-   Run the migration against production data. Deploy the cutover release.
-   Validate every `barrins_api` auth path + the Tolaria News / Tamiyo
-   Scroll logins.
-5. **Rollback:** restore the `pg_dump` + redeploy the previous
-   `barrins_api` release tag.
-
-**Gate 8:** `barrins_api` authenticates purely via identity JWKS; the
-local `users` table is gone; both frontends still log in. **T10 fully
-closed.**
+> **Phase 8** (the standalone `barrins_api` cutover) was **merged into
+> Phase 7** above for `tamiyo_scroll` (user, 2026-09-01). The operator
+> data-migration checklist that used to live here is now the
+> [identity-cutover runbook](../../content/ops/deployment/identity-cutover.md).

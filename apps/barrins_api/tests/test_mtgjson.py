@@ -20,11 +20,11 @@ from pydantic import SecretStr
 from sqlalchemy import func, select, update
 
 from app.config import settings
-from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models.mtgjson import Card, MTGSet
-from app.models.user import User, UserRole
 from app.services.mtgjson import get_mtgjson_client, import_all_printings
+from tests.identity_auth import FakeUser as User
+from tests.identity_auth import auth_headers as _auth_headers
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _FIXTURE_PATH = _FIXTURES_DIR / "mtgjson_sample.json"
@@ -48,45 +48,16 @@ class FakeMTGJSONClient:
             yield set_code, set_data
 
 
-def _auth_headers(user: User) -> dict[str, str]:
-    token = create_access_token(
-        {
-            "sub": str(user.id),
-            "role": user.role.value,
-            "email": user.email,
-            "tkv": user.token_version,
-        }
+@pytest.fixture()
+def admin_user() -> User:
+    return User(
+        email="admin@mtgjson.example.com", role="admin", username="mtgjson-admin"
     )
-    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()
-async def admin_user(db_session) -> User:
-    user = User(
-        email="admin@mtgjson.example.com",
-        hashed_password=hash_password("Admin#Pass1word"),
-        role=UserRole.admin,
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture()
-async def plain_user(db_session) -> User:
-    user = User(
-        email="user@mtgjson.example.com",
-        hashed_password=hash_password("User#Pass1word"),
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
+def plain_user() -> User:
+    return User(email="user@mtgjson.example.com", role="user", username="mtgjson-user")
 
 
 class TestImportGate:

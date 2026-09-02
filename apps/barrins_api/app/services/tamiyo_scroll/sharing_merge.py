@@ -40,7 +40,7 @@ from app.models.tamiyo_scroll import (
     TSPersonalDeck,
     TSUserSettings,
 )
-from app.models.user import User
+from app.services.identity_directory import IdentityDirectory
 
 
 def _norm(name: str) -> str:
@@ -50,9 +50,12 @@ def _norm(name: str) -> str:
 _ANONYMOUS_SHARER_LABEL = "a kind user"
 
 
-def _sharer_label(sharer: User) -> str:
-    """Never the email — falls back to a generic label, not personal data."""
-    return sharer.display_name or _ANONYMOUS_SHARER_LABEL
+def _sharer_label(display_name: str | None) -> str:
+    """Only ever the sharer's chosen `display_name` — never the handle or
+    email — falling back to a generic label, so no personal data is
+    disclosed beyond what the sharer opted to set (GDPR, module docstring).
+    """
+    return display_name or _ANONYMOUS_SHARER_LABEL
 
 
 @dataclass(frozen=True)
@@ -172,17 +175,18 @@ class MergedView:
 
 async def build_merged_view(
     session: DatabaseSession,
-    current_user: User,
+    directory: IdentityDirectory,
+    current_user_id: UUID,
     *,
     personal_deck_id: UUID | None = None,
 ) -> MergedView:
     """Own matches/roster, plus any name-matched sharer data merged in read-only."""
     own_meta_decks_result = await session.execute(
-        select(TSMetaDeck).where(TSMetaDeck.owner_id == current_user.id)
+        select(TSMetaDeck).where(TSMetaDeck.owner_id == current_user_id)
     )
     own_meta_decks = list(own_meta_decks_result.scalars().all())
 
-    own_matches_stmt = select(TSMatch).where(TSMatch.owner_id == current_user.id)
+    own_matches_stmt = select(TSMatch).where(TSMatch.owner_id == current_user_id)
     if personal_deck_id is not None:
         own_matches_stmt = own_matches_stmt.where(
             TSMatch.personal_deck_id == personal_deck_id
@@ -199,14 +203,14 @@ async def build_merged_view(
     empty_view = MergedView(matches=effective_matches, meta_decks=effective_meta_decks)
 
     viewer_settings_result = await session.execute(
-        select(TSUserSettings).where(TSUserSettings.user_id == current_user.id)
+        select(TSUserSettings).where(TSUserSettings.user_id == current_user_id)
     )
     viewer_settings = viewer_settings_result.scalar_one_or_none()
     if viewer_settings is None or not viewer_settings.receive_shared_data:
         return empty_view
 
     own_decks_stmt = select(TSPersonalDeck).where(
-        TSPersonalDeck.owner_id == current_user.id
+        TSPersonalDeck.owner_id == current_user_id
     )
     if personal_deck_id is not None:
         own_decks_stmt = own_decks_stmt.where(TSPersonalDeck.id == personal_deck_id)
@@ -219,20 +223,25 @@ async def build_merged_view(
     for deck in own_decks:
         own_deck_id_by_name.setdefault(_norm(deck.name), deck.id)
 
-    sharers_result = await session.execute(
-        select(User)
-        .join(TSUserSettings, TSUserSettings.user_id == User.id)
-        .where(TSUserSettings.data_shared.is_(True), User.id != current_user.id)
+    sharer_ids_result = await session.execute(
+        select(TSUserSettings.user_id).where(
+            TSUserSettings.data_shared.is_(True),
+            TSUserSettings.user_id != current_user_id,
+        )
     )
-    sharers = list(sharers_result.scalars().all())
-    if not sharers:
+    sharer_ids = list(sharer_ids_result.scalars().all())
+    if not sharer_ids:
         return empty_view
-    sharer_label_by_id = {s.id: _sharer_label(s) for s in sharers}
+    sharer_refs = await directory.lookup(sharer_ids)
+    sharer_label_by_id = {
+        sid: _sharer_label(
+            sharer_refs[sid].display_name if sid in sharer_refs else None
+        )
+        for sid in sharer_ids
+    }
 
     sharer_decks_result = await session.execute(
-        select(TSPersonalDeck).where(
-            TSPersonalDeck.owner_id.in_([s.id for s in sharers])
-        )
+        select(TSPersonalDeck).where(TSPersonalDeck.owner_id.in_(sharer_ids))
     )
     matched_sharer_deck_own_id: dict[UUID, UUID] = {}
     sharer_deck_owner: dict[UUID, UUID] = {}

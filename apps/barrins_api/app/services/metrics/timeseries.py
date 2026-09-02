@@ -1,12 +1,12 @@
 """Time-bucketed comparison for the S6 admin dashboard (added 2026-08-02).
 
-Extends `aggregates.py`'s three flat all-time counts with the same three
-counts broken down per period — day-by-day (last 30 days), weekly (last
+Extends `aggregates.py`'s flat all-time counts with the same counts
+broken down per period — day-by-day (last 30 days), weekly (last
 12 weeks), and monthly (last 12 months) — per `docs/project/v2.0.0-bump/
 s6-admin-metrics-dashboard/index.md`'s "Added requirement (2026-08-02)".
-Not a new metric: same three sources (`User`, `TSPersonalDeck`,
-`TSMatch`), just grouped by `created_at` bucket instead of collapsed to
-one number.
+Not a new metric: same sources (`TSPersonalDeck`, `TSMatch`), just
+grouped by `created_at` bucket instead of collapsed to one number. The
+accounts series went away with the local `users` table (ADR-20).
 
 Same performance discipline as `aggregates.py`: every bucket is computed
 server-side via `GROUP BY func.date_trunc(...)`, never a row-fetching
@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.models.tamiyo_scroll import TSMatch, TSPersonalDeck
-from app.models.user import User
 
 Granularity = Literal["day", "week", "month"]
 
@@ -60,7 +59,6 @@ class MetricTimeseries:
 
 @dataclass(frozen=True)
 class PlatformMetricsTimeseries:
-    accounts: MetricTimeseries
     personal_decks: MetricTimeseries
     matches: MetricTimeseries
 
@@ -112,14 +110,13 @@ async def _compute_metric_timeseries(
 async def compute_platform_metrics_timeseries(
     session: AsyncSession,
 ) -> PlatformMetricsTimeseries:
-    """Day/week/month bucketed counts for accounts, personal decks, matches.
+    """Day/week/month bucketed counts for personal decks and matches.
 
-    Each of the three metrics' `created_at` is bucketed independently by
-    day (last 30 days), week (last 12 weeks), and month (last 12 months).
+    Each metric's `created_at` is bucketed independently by day (last 30
+    days), week (last 12 weeks), and month (last 12 months).
     """
     now = datetime.now(UTC)
     return PlatformMetricsTimeseries(
-        accounts=await _compute_metric_timeseries(session, User.created_at, now),
         personal_decks=await _compute_metric_timeseries(
             session, TSPersonalDeck.created_at, now
         ),

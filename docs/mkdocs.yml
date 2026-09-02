@@ -73,6 +73,7 @@ nav:
                 - Frontend: ops/deployment/frontend.md
                 - Goblin Guide: ops/deployment/goblin-guide.md
                 - Identity: ops/deployment/identity.md
+                - Identity Cutover (barrins_api): ops/deployment/identity-cutover.md
                 - Database (PostgreSQL & pgAdmin): ops/deployment/database.md
                 - Docs Site: ops/deployment/docs_site.md
                 - Backup & Restore: ops/deployment/backup.md

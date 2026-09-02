@@ -16,6 +16,7 @@ from app.models.tamiyo_scroll import (
 )
 from app.schemas.responses_tamiyo_scroll import ResponseMatch
 from app.schemas.tamiyo_scroll import MatchWrite
+from app.services.identity_directory import IdentityDirectoryDep
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 
 router = APIRouter()
@@ -142,6 +143,7 @@ def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
 async def list_matches(
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
     personal_deck_id: uuid.UUID | None = None,
 ) -> list[ResponseMatch]:
     """Match log for the active personal deck — never other decks'.
@@ -153,7 +155,7 @@ async def list_matches(
     automatic.
     """
     view = await build_merged_view(
-        session, current_user, personal_deck_id=personal_deck_id
+        session, directory, current_user.id, personal_deck_id=personal_deck_id
     )
     matches = sorted(view.matches, key=lambda m: m.created_at, reverse=True)
     return [ResponseMatch.model_validate(m) for m in matches]

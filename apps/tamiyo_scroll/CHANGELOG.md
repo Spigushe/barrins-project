@@ -7,6 +7,15 @@ section of the docs site for details.
 
 ### Added
 
+- Barrin's Identity login via the shared `@barrins/goblin-guide` library
+  (rollout Phase 7+8, ADR-20). `main.tsx` wraps the app in
+  `<IdentityProvider>` (cookie mode, ADR-18 — a reload / reopened tab
+  stays signed in); `src/config.ts` + `src/identity.ts` hold the service
+  URL and the shared token store / client. New route wrappers around the
+  library screens: `/login` (`LoginRoute`, keeps the "Try the demo"
+  entry point), `/signup`, `/verify-email`, `/forgot-password`,
+  `/reset-password`. `SessionBootSplash` covers the cookie-mode restore.
+- `.env.example`: `VITE_IDENTITY_SERVICE_URL`.
 - Decklist view (`CurrentDecklistSection`) rebuilt around the backend's
   new structured `ResponseDecklistView` (S4): a Commander table (when
   the decklist has one) plus one table per card-type section
@@ -20,11 +29,34 @@ section of the docs site for details.
 
 ### Changed
 
+- Authentication is now entirely `barrins_identity`'s: `api/client.ts`
+  reads its `Bearer` from the shared identity token store and does its
+  `401` refresh through the identity client; `ProtectedRoute` /
+  `AdminRoute` / `AppShell` / `useAdmin` / `TeamPage` / `CardTestsSection`
+  read the current user from `@barrins/goblin-guide`'s `useCurrentUser`
+  (role enum: `moderator`, not `placeholder`).
+- `AccountSettingsDialog` embeds the shared `<AccountScreen>` for
+  identity-owned account management (display name, email change, account
+  deletion). The Tamiyo-only sharing toggles, the four `localStorage`
+  display preferences, and the test-team section are unchanged.
+- Team roster (`ResponseTeamMember`): shows the identity handle
+  (`username`) + display name only — the email column is gone (ADR-20).
+- `AdminMetricsPage`: the "Accounts created" tile and the "New accounts"
+  time-series chart are dropped — `barrins_api` no longer owns a `users`
+  table to count. To be restored via a `barrins_identity` admin count
+  endpoint.
 - `getDecklistView`'s Zod schema (`decklistViewSchema`) replaces the old
   flat `decklistLineSchema.array()`; the demo-mode API
   (`demo/api/personalDecks.ts`) mirrors the backend's grouping logic
   client-side (no `mj_cards` in the browser, so demo cards always
   categorize as "other").
+
+### Removed
+
+- `src/api/auth.ts`, `src/api/session.ts`, `src/hooks/useAuth.ts`,
+  `src/schemas/auth.ts`, `src/pages/LoginPage.tsx`,
+  `src/pages/VerifyEmailPage.tsx` — all superseded by
+  `@barrins/goblin-guide`.
 
 ## [2.0.0-alpha] - 2026-08-03
 

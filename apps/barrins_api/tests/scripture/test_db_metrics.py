@@ -9,8 +9,8 @@ from httpx import AsyncClient
 from pydantic import SecretStr
 
 from app.config import settings
-from app.core.security import create_access_token, hash_password
-from app.models.user import User, UserRole
+from tests.identity_auth import FakeUser as User
+from tests.identity_auth import auth_headers as _auth_headers
 
 _TOKEN = "test-scripture-token"  # noqa: S105
 _URL = "/internal/scripture/db-metrics"
@@ -30,45 +30,18 @@ def _configured_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings.base, "scripture_ingest_token", SecretStr(_TOKEN))
 
 
-def _auth_headers(user: User) -> dict[str, str]:
-    token = create_access_token(
-        {
-            "sub": str(user.id),
-            "role": user.role.value,
-            "email": user.email,
-            "tkv": user.token_version,
-        }
+@pytest.fixture()
+def admin_user() -> User:
+    return User(
+        email="admin@scripture.example.com", role="admin", username="scripture-admin"
     )
-    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()
-async def admin_user(db_session) -> User:
-    user = User(
-        email="admin@scripture.example.com",
-        hashed_password=hash_password("Admin#Pass1word"),
-        role=UserRole.admin,
-        is_active=True,
-        is_verified=True,
+def regular_user() -> User:
+    return User(
+        email="user@scripture.example.com", role="user", username="scripture-user"
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture()
-async def regular_user(db_session) -> User:
-    user = User(
-        email="user@scripture.example.com",
-        hashed_password=hash_password("User#Pass1word"),
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
 
 
 class TestDbMetricsAuth:

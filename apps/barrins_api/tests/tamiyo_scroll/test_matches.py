@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlalchemy import update
 
 from app.models.tamiyo_scroll import TSPersonalDeck
-from app.models.user import User
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
@@ -521,12 +521,20 @@ class TestSharedDataMerge:
         assert body[0]["personal_deck_id"] == owner_personal
 
     async def test_shared_by_uses_display_name_when_set(
-        self, client: AsyncClient, owner_user: User, other_user: User
+        self,
+        client: AsyncClient,
+        owner_user: User,
+        other_user: User,
+        identity_directory,
     ):
-        other_headers = auth_headers(other_user)
-        await client.patch(
-            "/api/v1/auth/me", json={"display_name": "Bob"}, headers=other_headers
+        from app.services.identity_directory import UserRef
+
+        # Post-ADR-20 the sharer's display name comes from identity, not a
+        # barrins_api profile row — model it on the directory.
+        identity_directory._extra[other_user.id] = UserRef(
+            username="other", display_name="Bob"
         )
+        other_headers = auth_headers(other_user)
         other_personal, other_meta = await _setup_decks(client, other_user)
         await client.post(
             f"{BASE}/matches",

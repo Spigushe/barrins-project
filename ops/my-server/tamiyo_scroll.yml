@@ -4,6 +4,16 @@
 # barrins_api.yml's job exclusively (run it at least once, and again
 # whenever barrins_api itself changes; see the root README's "Multiple
 # frontends sharing one backend" section and docs/content/ops/deployment/frontend.md).
+#
+# Since the identity cutover (ADR-20) Tamiyo Scroll's login / signup /
+# reset / account UI is the shared @barrins/goblin-guide library talking
+# to barrins_identity directly in cookie mode, and its barrins_api calls
+# carry an identity access token. This playbook therefore also needs
+# identity's public origin at build time (VITE_IDENTITY_SERVICE_URL) and
+# prebuilds libs/goblin_guide, exactly like goblin_guide.yml. It still
+# never deploys or restarts barrins_identity or barrins_api — run each of
+# their own playbooks separately. Rollout context:
+# docs/project/v2.0.0-bump/identity-goblin-guide-rollout.md (Phase 7+8).
 - name: Deploy the Tamiyo Scroll frontend
   hosts: spigushe
   become: true
@@ -26,6 +36,7 @@
     backend_port: "{{ 8511 if deploy_env == 'staging' else 8011 }}"
     backend_domain: "api{{ env_suffix }}.barrins-codex.org"
     frontend_domain: "tamiyo{{ env_suffix }}.barrins-codex.org"
+    identity_domain: "identity{{ env_suffix }}.barrins-codex.org"
 
   roles:
     - role: github_token
@@ -45,8 +56,19 @@
       react_frontend_app_name: "tamiyo{{ env_suffix }}"
       react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"
       react_frontend_git_branch: "{{ env_branch }}"
+      # apps/tamiyo_scroll depends on the shared library libs/goblin_guide
+      # (@barrins/goblin-guide) as a `file:../../libs/goblin_guide` path
+      # dep whose dist/ is git-ignored, so it must be installed and built
+      # before the shell can compile — same shape as goblin_guide.yml.
+      react_frontend_build_command: >-
+        npm --prefix ../../libs/goblin_guide install
+        && npm --prefix ../../libs/goblin_guide run build
+        && npm run build
       react_frontend_build_env:
         VITE_API_BASE_URL: "https://{{ backend_domain }}"
+        # Cookie mode (ADR-18/ADR-20): the login/account UI calls
+        # barrins_identity directly. A bare origin, no path.
+        VITE_IDENTITY_SERVICE_URL: "https://{{ identity_domain }}"
 
   post_tasks:
     - name: Reminder — this playbook does not deploy barrins_api
@@ -60,4 +82,17 @@
           - "barrins_api's ALLOWED_ORIGINS (in"
           - "secrets/barrins_api/{{ deploy_env }}.env, see"
           - "secrets/README.md) must include https://{{ frontend_domain }}."
+      tags: [frontend, deploy]
+
+    - name: Reminder — identity must allow this origin (cookie mode)
+      ansible.builtin.debug:
+        msg:
+          - "Tamiyo Scroll now logs in via barrins_identity directly"
+          - "(ADR-20). In secrets/barrins_identity/{{ deploy_env }}.env,"
+          - "https://{{ frontend_domain }} must be in ALLOWED_ORIGINS, and"
+          - "identity must be in cookie mode (REFRESH_COOKIE_ENABLED=true,"
+          - "REFRESH_COOKIE_DOMAIN={{ identity_domain }}). Then redeploy"
+          - "identity: 'ansible-playbook barrins_identity.yml{{ ' -e deploy_env=staging' if deploy_env == 'staging' else '' }}'."
+          - "barrins_api must be cut over too — see"
+          - "docs/content/ops/deployment/identity-cutover.md."
       tags: [frontend, deploy]

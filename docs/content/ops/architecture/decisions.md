@@ -1704,3 +1704,96 @@ cannot live in the SPA. It needs a home.
 - Seed list: `goblin_guide`, `tamiyo_scroll` (members), `tolaria_news`
   (public), `karn_jupyter` (`ml_developer`+). `docs` is deliberately not
   listed (user, 2026-08-31).
+
+## ADR-20: `barrins_api` trusts `barrins_identity` JWKS, drops its `users` table
+
+**Context.** ADR-16 adopted `barrins_identity` as the RS256 + JWKS
+authority and named the `barrins_api` cutover as "a separate, later,
+gated phase". ADR-7's placeholder era left `barrins_api` owning the
+single `users` table every identity-touching feature read directly:
+HS256 tokens minted in `app/core/security.py`, a `/auth` router doing
+login / signup / email-verification, `ForeignKey("users.id")` on twelve
+Tamiyo Scroll domain tables, and an admin "total accounts" metric.
+`barrins_identity` has since run clean on staging (Phases 1–6), Goblin
+Guide is mounted, and `libs/identity_client` (ADR-17) provides the shared
+JWKS verifier. This ADR closes the cutover for `tamiyo_scroll` (rollout
+Phases 7 and 8, merged — a Tamiyo access token is the `Bearer` on every
+`barrins_api` data call, so the frontend swap and the backend cutover
+cannot ship apart). `tolaria_news` is out of scope (it has no auth today
+— `Q-02` stays open).
+
+**Alternatives considered.**
+
+1. Keep `barrins_api` issuing its own HS256 tokens and only *also*
+   accept identity RS256 tokens (dual verify) indefinitely.
+2. Keep the local `users` table as a read-through cache of identity,
+   synced on login.
+3. **Verify identity JWTs locally via `libs/identity_client`, delete the
+   local `users` table, and treat every `user_id` / `owner_id` column as
+   an opaque identity reference.** Chosen.
+
+**Trade-offs.** Option 1 leaves two token formats, two secrets, and two
+revocation models in one service forever, and never lets the `users`
+table go. Option 2 reintroduces a sync path and a "user might not be
+cached yet" failure mode — exactly the coupling ADR-16 set out to
+remove. Option 3 needs a one-time data migration and a batch
+label-lookup endpoint (team rosters still need *other* users' display
+names, which the caller's own token does not carry), but afterwards
+`barrins_api` holds no identity state at all.
+
+**Decision.**
+
+- `app/dependencies/auth.py` verifies the `Bearer` locally against
+  identity's JWKS (`libs/identity_client`, one process-wide `JWKSCache`).
+  `AuthenticatedUser {id: UUID, role: str, email: str | None}` is built
+  from the verified claims — `.id` stays a `UUID` so the ~60 call sites
+  are untouched. `service_auth.py`'s admin-JWT fallbacks verify the same
+  way. Role ordering moves to `app/core/roles.py` (a plain `StrEnum`),
+  renaming `placeholder` → `moderator` to match identity's `role` claim.
+- The local auth surface is deleted: `app/api/general/auth.py`,
+  `app/core/security.py`, `app/schemas/auth.py`, `app/models/user.py`,
+  `app/models/email_verification.py`, `scripts/create_admin.py`.
+- Alembic `d9e1a2c3b4f5` drops the twelve `ForeignKey("users.id")`
+  constraints, `auth_email_verifications`, `users`, and the `userrole`
+  enum. The `owner_id` / `user_id` / `author_id` / `flagged_by` columns
+  stay as plain `UUID` — **FK-less opaque references** to identity user
+  ids. `barrins_api` never enumerates, counts, or "checks existence" of
+  users: `resolve_owner` treats `owner_id` purely as a key into
+  `ts_user_settings` (unknown id ⇒ 403 "does not share", never 404).
+- Other users' display labels come from a new identity endpoint
+  `POST /api/v1/users/lookup` (service token, scope
+  `identity:users:read`, returns `{id, username, display_name}` — no
+  email), consumed by `app/services/identity_directory.py` with a
+  service-token acquisition + a ~5-minute in-process TTL cache, degrading
+  to a generic placeholder when no service-account credentials are
+  configured. Team rosters drop the email column
+  (`ResponseTeamMember.email` → `username`).
+- The admin "total accounts" metric is removed from `barrins_api`
+  aggregates + timeseries and from Tamiyo's `AdminMetricsPage` (its data
+  source is gone). Restore later via a `barrins_identity` admin count
+  endpoint — decks / matches / sessions metrics are unaffected.
+- `scripts/migrate_users_to_identity.py` copies `users` rows into
+  identity's database in one `target_engine.begin()` transaction,
+  UUID-preserving; on an email already present in identity it inserts
+  nothing and only raises that row's `role` to the higher of the two;
+  it synthesises the required unique `username` from the email local
+  part and writes every synthesised / suffixed handle to a `--report`
+  file. CI-tested against two throwaway databases. The live production
+  run is an operator step inside a maintenance window
+  ([identity-cutover runbook](../deployment/identity-cutover.md)).
+
+**Consequences.**
+
+- `barrins_api` authenticates purely via identity JWKS; one token
+  format, one authority, one revocation model in the ecosystem.
+- `pyproject.toml` drops `python-jose` + `argon2-cffi`, adds `pyjwt`,
+  `respx` (test), and the `identity-client` path dep. `config/base.py`
+  drops `secret_key` / `algorithm` / token-TTL fields and adds
+  `identity_service_url`, `identity_jwks_cache_ttl_seconds`,
+  `identity_service_client_id` / `_secret`. Deploy config swaps
+  `SECRET_KEY` → `IDENTITY_SERVICE_URL` (+ the service-account pair).
+- A stateless verifier does not re-check `tkv`; revocation bites at the
+  access-token TTL (10 min), matching every other JWKS consumer
+  (integration.md §3). Acceptable for `barrins_api`'s data routes.
+- `tolaria_news` still runs unauthenticated; when it grows auth it
+  becomes the second JWKS consumer with no further `barrins_api` change.

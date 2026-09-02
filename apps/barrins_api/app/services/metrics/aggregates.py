@@ -1,9 +1,11 @@
 """Aggregate usage counts for the admin dashboard (S6).
 
-Only three numbers ship in v2.0.0 (`docs/project/v2.0.0-bump/
-s6-admin-metrics-dashboard/index.md`): total accounts, total personal
-decks, total matches — deeper metrics (active users, sharing adoption,
-retention...) are explicitly deferred, not built here.
+Two numbers ship after the identity cutover (ADR-20): total personal
+decks, total matches. "Total accounts" was dropped along with the local
+`users` table — `barrins_api` no longer stores or counts users. Restoring
+it means a dedicated `barrins_identity` admin count endpoint (future
+work). Deeper metrics (active users, sharing adoption, retention...) are
+explicitly deferred, not built here.
 
 Unlike `services/tamiyo_scroll/stats.py` (pure functions over
 already-loaded ORM objects), these are plain `COUNT(*)` aggregates over
@@ -22,7 +24,6 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tamiyo_scroll import TSMatch, TSPersonalDeck
-from app.models.user import User
 
 # v2.0.0 only ever populates "tamiyo_scroll" — every current account,
 # personal deck, and match belongs to this one app. The literal exists so
@@ -47,7 +48,6 @@ class AggregateMetric:
 
 @dataclass(frozen=True)
 class PlatformMetrics:
-    total_accounts: AggregateMetric
     total_personal_decks: AggregateMetric
     total_matches: AggregateMetric
 
@@ -58,7 +58,7 @@ def _count_statement(model: type) -> Select[tuple[int]]:
 
 
 async def compute_platform_metrics(session: AsyncSession) -> PlatformMetrics:
-    """Total accounts/personal decks/matches ever created.
+    """Total personal decks / matches ever created.
 
     Each number is one `COUNT(*)` executed server-side. Personal decks
     and matches are never hard-deleted in this domain (personal decks
@@ -67,14 +67,10 @@ async def compute_platform_metrics(session: AsyncSession) -> PlatformMetrics:
     created," matching the spec's wording exactly — no extra filtering
     needed.
     """
-    total_accounts = await session.scalar(_count_statement(User))
     total_personal_decks = await session.scalar(_count_statement(TSPersonalDeck))
     total_matches = await session.scalar(_count_statement(TSMatch))
 
     return PlatformMetrics(
-        total_accounts=AggregateMetric(
-            value=total_accounts or 0, source="tamiyo_scroll"
-        ),
         total_personal_decks=AggregateMetric(
             value=total_personal_decks or 0, source="tamiyo_scroll"
         ),

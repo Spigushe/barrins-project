@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { useCurrentUser } from '@barrins/goblin-guide'
 import * as adminApi from '@/api/admin'
-import { useCurrentUser } from './useAuth'
 
 export function usePlatformMetrics() {
   const { data: currentUser } = useCurrentUser()

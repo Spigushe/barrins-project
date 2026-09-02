@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy import update
 
 from app.models.tamiyo_scroll import TSMatch, TSSession
-from app.models.user import User
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 

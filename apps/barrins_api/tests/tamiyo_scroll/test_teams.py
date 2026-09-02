@@ -13,7 +13,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy import update
 
 from app.models.tamiyo_scroll import TSInviteAttempt
-from app.models.user import User
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
@@ -470,9 +470,7 @@ class TestFlagDeckName:
         assert resp.status_code == 201
         body = resp.json()
         assert body["deck_name"] == "Boros Aggro"
-        assert body["owners"] == [
-            {"deck_id": deck_id, "display": other_user.display_name or other_user.email}
-        ]
+        assert body["owners"] == [{"deck_id": deck_id, "display": other_user.username}]
 
     async def test_non_owner_cannot_flag(
         self, client: AsyncClient, owner_user: User, other_user: User
@@ -594,10 +592,7 @@ class TestNameBasedAutoSharing:
         assert resp.status_code == 200
         assert len(resp.json()) == 1
         owner_displays = {o["display"] for o in resp.json()[0]["owners"]}
-        assert owner_displays == {
-            owner_user.display_name or owner_user.email,
-            other_user.display_name or other_user.email,
-        }
+        assert owner_displays == {owner_user.username, other_user.username}
 
     async def test_renaming_into_a_flagged_name_joins_the_team_deck(
         self, client: AsyncClient, owner_user: User, other_user: User
@@ -621,7 +616,7 @@ class TestNameBasedAutoSharing:
             f"{BASE}/teams/{team['id']}/decks", headers=auth_headers(owner_user)
         )
         owner_displays = {o["display"] for o in resp.json()[0]["owners"]}
-        assert (other_user.display_name or other_user.email) in owner_displays
+        assert other_user.username in owner_displays
 
 
 class TestTeamDeckReport:

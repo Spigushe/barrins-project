@@ -23,7 +23,7 @@ Base path: `/api/v1`. JWKS is served at the domain root
 
 | Consumer | What it uses | Notes |
 | --- | --- | --- |
-| `barrins_api` | JWKS (verify user + service tokens locally), `POST /service-token` | Post-cutover ([platform.md §10](./platform.md#10-cutover)) it stops issuing its own tokens |
+| `barrins_api` | JWKS (verify user + service tokens locally), `POST /service-token` → `POST /users/lookup` (§4.9) for team-roster / sharing display labels | **First JWKS consumer.** Cut over ([platform.md §10](./platform.md#10-cutover), ADR-20): no local `users` table, issues no tokens of its own, never enumerates or counts users |
 | Goblin Guide (`apps/goblin_guide/`) | Human login + the full account-lifecycle surface (§4.1–§4.5) | Browser SPA, calls this service **directly** (no BFF, ADR-18); opts into cookie mode on `/auth/token`\|`/refresh`\|`/logout` for persistent sessions |
 | T9 Jupyter workbench proxy | A reverse-proxy role gate (§8.8) against a user token's `role` claim | `karn-jupyter.barrins-codex.org` — see `docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/` and [ADR-15](../../ops/architecture/decisions.md#adr-15-karn-tablets-observability-job-health-and-jupyter-lab) |
 | `tolaria_news`, `tamiyo_scroll` | JWKS + service tokens, once built / cut over | Future |
@@ -269,6 +269,26 @@ for Goblin Guide — "which apps can this user open" is a backend decision
 | GET | `/.well-known/jwks.json` | none | JWKS document (RFC 7517), domain root |
 | GET | `/health` | none | `{"status": "ok"}` |
 | GET | `/` | none | `301` → `/docs` |
+
+### 4.9 Batch user directory (ADR-20)
+
+Mounted at `/api/v1/users`. Lets a JWKS consumer that stores identity
+user ids on its own domain rows (`barrins_api` after the cutover — team
+rosters, chat authors, "shared with you" labels) resolve display labels
+without a local copy of the `users` table.
+
+| Method | Path | Auth | Request | Response | Errors |
+| --- | --- | --- | --- | --- | --- |
+| POST | `/users/lookup` | service token, scope `identity:users:read` | `{ids: [UUID] (1..200)}` | `[{id, username, display_name}]` | `401` no/invalid/ user token; `403` valid service token without the scope; `422` empty list or > 200 ids |
+
+| `POST /api/v1/users/lookup` | |
+| --- | --- |
+| **Purpose** | Batch-resolve public label attributes for a set of identity user ids |
+| **Auth** | Service token only (`account_type: "service"`), and its `scopes` must contain `identity:users:read`. A user token is rejected `401` |
+| **Request** | `{ "ids": ["<uuid>", …] }` — 1 to 200 ids; duplicates are collapsed |
+| **Response** | `200` `[{id, username, display_name}]` for the **active** accounts among `ids`. Unknown ids and deactivated / soft-deleted accounts are simply omitted (no error, no placeholder row) |
+| **Privacy** | The response carries the public handle and optional display name **only** — never `email`, `role`, `is_active`, or any timestamp. Consumers that show a label fall back to a generic string (`"a kind user"`) for an omitted id |
+| **Consumer** | `barrins_api`'s `app/services/identity_directory.py` — acquires a service token via `POST /service-token`, calls this endpoint in ≤ 200-id batches, and caches `{id: {username, display_name}}` in-process (~5 min TTL). Empty service-account credentials ⇒ the directory is disabled and every label falls back |
 
 ---
 

@@ -70,12 +70,15 @@ Copy `.env.example` to `.env` and fill in the variables:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/barrins
-SECRET_KEY=<openssl rand -hex 32>
+IDENTITY_SERVICE_URL=http://localhost:8001
 ENVIRONMENT=development
 ```
 
-> In production, `SECRET_KEY` must **never** keep its default
-> value — the application startup fails explicitly if it does.
+> Since the identity cutover (ADR-20) `barrins_api` no longer issues or
+> decodes its own JWTs, has no `users` table, and sends no email —
+> authentication, signup, verification and admin bootstrap all live in
+> `apps/barrins_identity`. `barrins_api` verifies the `Bearer` locally
+> against `IDENTITY_SERVICE_URL`'s JWKS (`libs/identity_client`).
 
 ## Migrations
 
@@ -85,13 +88,6 @@ alembic upgrade head
 
 # Roll back one migration
 alembic downgrade -1
-```
-
-## Bootstrap — first admin account
-
-```bash
-python scripts/create_admin.py --email admin@example.com --display-name "Alice"
-# The password is entered interactively (getpass)
 ```
 
 ## Tests
@@ -110,27 +106,23 @@ The minimum coverage threshold is set at **90%** (global) and **100%** on `app/m
 
 ```text
 app/
-  api/v1/routers/            # auth
-  api/v1/tamiyo_scroll_routers/  # Tamiyo Scroll BFF: settings, personal_decks,
-                              # meta_decks, matches, card_tests, stats
+  api/general/               # health, mtgjson, card-images, karn-internal
+  api/tamiyo_scroll/         # Tamiyo Scroll BFF: settings, personal_decks,
+                             # meta_decks, matches, card_tests, stats, teams
   config/             # Pydantic Settings (BaseAppSettings, AppSettings)
-  core/               # JWT, hashing, error handling, logging
+  core/               # roles (StrEnum), error handling, logging
   database/           # SQLAlchemy connection, session
-  dependencies/       # get_current_user, require_role
-  models/             # ORM: User, EmailVerification, TS* (Tamiyo Scroll)
-  schemas/            # Pydantic: auth, Tamiyo Scroll
+  dependencies/       # get_current_user (identity JWKS), require_role
+  models/             # ORM: TS* (Tamiyo Scroll), bs_*, mj_*, kt_*
+  schemas/            # Pydantic response/request models
   services/
-    email/            # Sending verification codes (SMTP or console in dev)
-    tamiyo_scroll/     # ownership (read-only sharing), stats, decklist coloring
-alembic/versions/     # Migrations (3 in total: users, auth_email_verifications, ts_*)
+    identity_directory.py  # batch {username, display_name} lookup vs barrins_identity
+    tamiyo_scroll/          # ownership (read-only sharing), stats, decklist coloring
+alembic/versions/     # Migrations
 scripts/
-  create_admin.py           # First admin bootstrap
-  workflow_ci.py            # Local CI pipeline (ruff, ty, pytest)
+  migrate_users_to_identity.py  # one-shot users -> barrins_identity copy (ADR-20)
+  workflow_ci.py                # Local CI pipeline (ruff, ty, pytest)
 tests/
-docs/
-  auth_roles/               # JWT implementation plan and log
-  signup_email_verification/ # Self-registration implementation plan and log
-  tamiyo_scroll_tracker/     # Tamiyo Scroll BFF implementation plan and log
 ```
 
 ## Roles and access levels

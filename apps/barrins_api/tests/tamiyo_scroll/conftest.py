@@ -1,67 +1,34 @@
-"""Shared pytest fixtures for the Tamiyo Scroll domain tests."""
+"""Shared pytest fixtures for the Tamiyo Scroll domain tests.
+
+Since the identity cutover (ADR-20) these tests no longer insert `users`
+rows: `owner_user` / `other_user` / `third_user` come from the top-level
+`conftest.py` as `FakeUser` values, `auth_headers` mints an RS256 identity
+token, and team-roster / sharing display labels are served by a
+`FakeIdentityDirectory` overriding the real `get_identity_directory`.
+"""
 
 import pytest
 
-from app.core.security import create_access_token, hash_password
-from app.models.user import User
+from app.services.identity_directory import get_identity_directory
+from tests.identity_auth import FakeIdentityDirectory, FakeUser, auth_headers
+
+__all__ = ["BASE", "FakeUser", "auth_headers"]
 
 BASE = "/bff/tamiyo-scroll"
 
 
-def _claims(user: User) -> dict[str, str | int]:
-    return {
-        "sub": str(user.id),
-        "role": user.role.value,
-        "email": user.email,
-        "tkv": user.token_version,
-    }
+@pytest.fixture(autouse=True)
+def identity_directory(request: pytest.FixtureRequest) -> FakeIdentityDirectory:
+    """Serve display labels from `_USER_REGISTRY` instead of calling identity.
 
+    A test that needs a specific label (e.g. a sharer with a display name)
+    can request this fixture and populate `identity_directory._extra`.
+    """
+    fake = FakeIdentityDirectory()
+    from app.main import app
 
-def auth_headers(user: User) -> dict[str, str]:
-    token = create_access_token(_claims(user))
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture()
-async def owner_user(db_session) -> User:
-    """Main user — owner of the data created in the tests."""
-    user = User(
-        email="owner@tamiyo-scroll.example.com",
-        hashed_password=hash_password("Owner#Pass1word"),
-        is_active=True,
-        is_verified=True,
+    app.dependency_overrides[get_identity_directory] = lambda: fake
+    request.addfinalizer(
+        lambda: app.dependency_overrides.pop(get_identity_directory, None)
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture()
-async def other_user(db_session) -> User:
-    """Second user — for sharing / cross-owner scenarios."""
-    user = User(
-        email="other@tamiyo-scroll.example.com",
-        hashed_password=hash_password("Other#Pass1word"),
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture()
-async def third_user(db_session) -> User:
-    """Third user — for scenarios needing two distinct sharers at once."""
-    user = User(
-        email="third@tamiyo-scroll.example.com",
-        hashed_password=hash_password("Third#Pass1word"),
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
+    return fake

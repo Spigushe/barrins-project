@@ -2,9 +2,15 @@
 
 Cf. docs/tamiyo_scroll_tracker/00_plan_general.md, Option B: this parameter is
 never accepted on write routes — only GET routes use it.
+
+Since the identity cutover (ADR-20) `barrins_api` has no `users` table, so
+`owner_id` is treated as an opaque key into `ts_user_settings` (the
+sharing opt-in preference row). There is no "user not found" case — an
+`owner_id` with no shared settings row is simply "does not share".
 """
 
 import uuid
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -13,33 +19,32 @@ from sqlalchemy import select
 from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import TSUserSettings
-from app.models.user import User
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerRef:
+    """The user whose data a read request targets — just the id."""
+
+    id: uuid.UUID
 
 
 async def resolve_owner(
     session: DatabaseSession,
     current_user: CurrentUser,
     owner_id: uuid.UUID | None = None,
-) -> User:
+) -> OwnerRef:
     """Resolve the user whose data must be read.
 
-    `owner_id` missing or equal to `current_user.id` -> returns `current_user`.
-    `owner_id` different -> requires that the target exists (404 otherwise), has
-    enabled sharing (`ts_user_settings.data_shared = True`), and that
-    `current_user` has enabled receiving shared data
+    `owner_id` missing or equal to `current_user.id` -> the caller.
+    `owner_id` different -> requires that the target has enabled sharing
+    (`ts_user_settings.data_shared = True`) and that `current_user` has
+    enabled receiving shared data
     (`ts_user_settings.receive_shared_data = True`) — 403 otherwise for
     either condition. Single global toggles on both sides (account-settings
     popup handoff), not a per-sharer opt-in.
     """
     if owner_id is None or owner_id == current_user.id:
-        return current_user
-
-    result = await session.execute(select(User).where(User.id == owner_id))
-    target = result.scalar_one_or_none()
-    if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
-        )
+        return OwnerRef(id=current_user.id)
 
     settings_result = await session.execute(
         select(TSUserSettings).where(TSUserSettings.user_id == owner_id)
@@ -61,7 +66,7 @@ async def resolve_owner(
             detail="You have not enabled receiving shared data.",
         )
 
-    return target
+    return OwnerRef(id=owner_id)
 
 
-ResolvedOwner = Annotated[User, Depends(resolve_owner)]
+ResolvedOwner = Annotated[OwnerRef, Depends(resolve_owner)]

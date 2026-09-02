@@ -35,6 +35,7 @@ from app.database.session import get_db
 from app.main import app
 from app.services.scripture.card_resolver import invalidate_name_cache
 from tests.helpers import ensure_test_db_exists
+from tests.identity_auth import FakeUser, install_test_jwks
 
 # ---------------------------------------------------------------------------
 # Test database URL
@@ -54,15 +55,62 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
-def _stable_test_settings(monkeypatch: pytest.MonkeyPatch):
-    """Forces reproducible test defaults for the auth routes.
+def _identity_jwks() -> None:
+    """Point the app's `JWKSCache` at the test signing key (ADR-20).
 
-    Tests must control their own application configuration and must not
-    depend on the repo's `.env` file to behave correctly.
+    Every test authenticates with an RS256 token minted by
+    `tests.identity_auth`; this loads the matching public key so
+    `identity_client` verifies it locally without any network call.
     """
-    monkeypatch.setattr(settings.base, "require_email_verification", True)
-    monkeypatch.setattr(settings.base, "smtp_host", None)
-    monkeypatch.setattr(settings.base, "frontend_base_url", "http://localhost:5173")
+    install_test_jwks()
+
+
+# ---------------------------------------------------------------------------
+# Identity users (no DB — barrins_api has no `users` table post-ADR-20)
+# ---------------------------------------------------------------------------
+@pytest.fixture()
+def regular_user() -> FakeUser:
+    """A plain `user`-role identity caller."""
+    return FakeUser(email="regular@example.test", role="user", username="regular")
+
+
+# `plain_user` is the same thing under the name some suites already use.
+@pytest.fixture()
+def plain_user() -> FakeUser:
+    return FakeUser(email="plain@example.test", role="user", username="plain")
+
+
+@pytest.fixture()
+def admin_user() -> FakeUser:
+    return FakeUser(email="admin@example.test", role="admin", username="admin")
+
+
+@pytest.fixture()
+def owner_user() -> FakeUser:
+    """Main user — owner of the data created in the Tamiyo Scroll tests.
+
+    No `display_name` — a fresh identity account has none until the user
+    sets one; the directory then labels this user by `username`.
+    """
+    return FakeUser(
+        email="owner@tamiyo-scroll.example.com", role="user", username="owner"
+    )
+
+
+@pytest.fixture()
+def other_user() -> FakeUser:
+    """Second user — for sharing / cross-owner scenarios."""
+    return FakeUser(
+        email="other@tamiyo-scroll.example.com", role="user", username="other"
+    )
+
+
+@pytest.fixture()
+def third_user() -> FakeUser:
+    """Third user — for scenarios needing two distinct sharers at once."""
+    return FakeUser(
+        email="third@tamiyo-scroll.example.com", role="user", username="third"
+    )
 
 
 @pytest.fixture(autouse=True)

@@ -1,11 +1,15 @@
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import { useIdentity } from '@barrins/goblin-guide'
 import { AdminRoute } from '@/components/layout/AdminRoute'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
-import { useSession } from '@/hooks/useAuth'
+import { SessionBootSplash } from '@/components/layout/SessionBootSplash'
 import { Button } from '@/components/ui/button'
-import { LoginPage } from '@/pages/LoginPage'
-import { VerifyEmailPage } from '@/pages/VerifyEmailPage'
+import { LoginRoute } from '@/pages/LoginRoute'
+import { SignupRoute } from '@/pages/SignupRoute'
+import { VerifyEmailRoute } from '@/pages/VerifyEmailRoute'
+import { ForgotPasswordRoute } from '@/pages/ForgotPasswordRoute'
+import { ResetPasswordRoute } from '@/pages/ResetPasswordRoute'
 import { MetagameTab } from '@/pages/MetagameTab'
 import { SessionsTab } from '@/pages/SessionsTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
@@ -18,9 +22,13 @@ import { AdminMetricsPage } from '@/pages/AdminMetricsPage'
 import { DemoPage } from '@/demo/DemoPage'
 
 function RootRedirect() {
-  const session = useSession()
+  const { isAuthenticated, isBootstrapping } = useIdentity()
 
-  if (session.accessToken !== null) {
+  // Cookie mode restores the session from the HttpOnly cookie on load (ADR-18)
+  // — wait for that before deciding, or a reload flashes this landing page.
+  if (isBootstrapping) return <SessionBootSplash />
+
+  if (isAuthenticated) {
     return <Navigate to="/app/metagame" replace />
   }
 
@@ -50,8 +58,11 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/signup" element={<SignupRoute />} />
+        <Route path="/verify-email" element={<VerifyEmailRoute />} />
+        <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
+        <Route path="/reset-password" element={<ResetPasswordRoute />} />
         <Route path="/demo" element={<DemoPage />} />
 
         <Route

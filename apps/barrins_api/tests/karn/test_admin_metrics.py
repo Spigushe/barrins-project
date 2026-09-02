@@ -7,36 +7,21 @@ service).
 import pytest
 from httpx import AsyncClient
 
-from app.core.security import hash_password
-from app.models.user import User, UserRole
+from tests.identity_auth import FakeUser as User
 from tests.karn.conftest import INGEST_URL, archetype, headers, payload
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 ADMIN_URL = f"{BASE}/admin/metrics/karn-tablets"
 
 
-async def _make_user(db_session, email: str, role: UserRole) -> User:
-    user = User(
-        email=email,
-        hashed_password=hash_password("Admin#Pass1word"),
-        role=role,
-        is_active=True,
-        is_verified=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
+@pytest.fixture()
+def admin_user() -> User:
+    return User(email="admin@karn.example.com", role="admin", username="karn-admin")
 
 
 @pytest.fixture()
-async def admin_user(db_session) -> User:
-    return await _make_user(db_session, "admin@karn.example.com", UserRole.admin)
-
-
-@pytest.fixture()
-async def regular_user(db_session) -> User:
-    return await _make_user(db_session, "user@karn.example.com", UserRole.user)
+def regular_user() -> User:
+    return User(email="user@karn.example.com", role="user", username="karn-user")
 
 
 class TestAdminGate:

@@ -23,7 +23,6 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
 ]
 dependencies = [
-    "argon2-cffi>=25.1.0",
     "asyncpg>=0.31.0",
     "fastapi>=0.140.13",
     "httpx>=0.28.1,<1.0",
@@ -32,15 +31,16 @@ dependencies = [
     "ijson>=3.5.1",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
-    "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.14.2",
-    "python-jose>=3.5.0",
-    "python-multipart>=0.0.32",
+    "pyjwt>=2.10.1",
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.51.0",
     # >=69.0: includes fixes for both CVE-2025-68616 and CVE-2026-49452 (see S5 ADR/I8).
     "weasyprint>=69.0",
     "dc-calendar",
+    # Shared JWKS verification for identity tokens (ADR-17, ADR-20). Replaces
+    # this app's old local python-jose / argon2 JWT + password stack.
+    "identity-client",
 ]
 
 [dependency-groups]
@@ -50,6 +50,8 @@ test = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    # Mocks the identity JWKS endpoint in auth tests.
+    "respx>=0.22.0",
 ]
 dev = [
     { include-group = "test" },
@@ -110,10 +112,11 @@ docstring-code-line-length = "dynamic"
 
 [tool.ty.environment]
 python-version = "3.14"
-# dc_calendar is a local editable dependency (uv's setuptools editable
-# install uses a MetaPathFinder .pth hook, which ty -- unlike Python's own
-# import machinery -- can't resolve statically without this hint).
-extra-paths = ["../../libs/dc_calendar"]
+# dc_calendar and identity_client are local editable dependencies (uv's
+# setuptools editable install uses a MetaPathFinder .pth hook, which ty --
+# unlike Python's own import machinery -- can't resolve statically without
+# this hint).
+extra-paths = ["../../libs/dc_calendar", "../../libs/identity_client"]
 
 [tool.ty.src]
 exclude = ["tests"]
@@ -192,3 +195,4 @@ directory = "reports/pytest_html_report"
 
 [tool.uv.sources]
 dc-calendar = { path = "../../libs/dc_calendar", editable = true }
+identity-client = { path = "../../libs/identity_client", editable = true }

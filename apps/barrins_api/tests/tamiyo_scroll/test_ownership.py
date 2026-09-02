@@ -6,7 +6,7 @@ never accepted by write routes, even when explicitly passed.
 
 from httpx import AsyncClient
 
-from app.models.user import User
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
@@ -20,14 +20,17 @@ class TestReadAccessWithoutSharing:
         )
         assert resp.status_code == 403
 
-    async def test_unknown_owner_id_returns_404(
+    async def test_unknown_owner_id_returns_403(
         self, client: AsyncClient, owner_user: User
     ):
+        """Post-ADR-20 there is no `users` table, so an `owner_id` with no
+        `ts_user_settings` row is indistinguishable from "does not share" —
+        403, never a 404."""
         resp = await client.get(
             f"{BASE}/personal-decks?owner_id=00000000-0000-0000-0000-000000000000",
             headers=auth_headers(owner_user),
         )
-        assert resp.status_code == 404
+        assert resp.status_code == 403
 
     async def test_shared_but_not_receiving_returns_403(
         self, client: AsyncClient, owner_user: User, other_user: User

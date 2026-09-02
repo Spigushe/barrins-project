@@ -17,7 +17,6 @@ from app.models.tamiyo_scroll import (
     TSPersonalDeck,
     TSPersonalDecklistVersion,
 )
-from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
     ResponseDecklistVersion,
     ResponseDecklistView,
@@ -29,6 +28,7 @@ from app.schemas.tamiyo_scroll import (
     PersonalDeckCreate,
     PersonalDeckPatch,
 )
+from app.services.identity_directory import IdentityDirectoryDep
 from app.services.moxfield import MoxfieldClientDep
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
 from app.services.tamiyo_scroll.decklist_view import build_decklist_view
@@ -371,6 +371,7 @@ async def get_deck_period_report(
     deck_id: uuid.UUID,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> Response:
     """Server-rendered PDF report for a deck, no session required (S5).
 
@@ -387,12 +388,6 @@ async def get_deck_period_report(
     owner would see themselves, never their own unrelated stats.
     """
     deck = await resolve_team_deck_access(session, deck_id, current_user)
-    deck_owner = current_user
-    if deck.owner_id != current_user.id:
-        deck_owner_result = await session.execute(
-            select(User).where(User.id == deck.owner_id)
-        )
-        deck_owner = deck_owner_result.scalar_one()
     period_end = datetime.now(UTC)
     period_start = period_end - REPORT_ROLLING_WINDOW
 
@@ -402,7 +397,9 @@ async def get_deck_period_report(
     # split here into period/baseline by timestamp since `build_merged_view`
     # itself has no time-window concept (a session's matches are scoped by
     # explicit membership instead — see `sessions.get_session_report`).
-    view = await build_merged_view(session, deck_owner, personal_deck_id=deck.id)
+    view = await build_merged_view(
+        session, directory, deck.owner_id, personal_deck_id=deck.id
+    )
     period_matches = [m for m in view.matches if m.created_at >= period_start]
     baseline_matches = [m for m in view.matches if m.created_at < period_start]
 

@@ -7,6 +7,7 @@ import { MetagameTab } from '@/pages/MetagameTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
 import { resetDemoStore } from '../demoStore'
 import { DemoModeProvider } from '../DemoModeProvider'
+import { TestIdentityProvider } from '@/test/identity'
 import {
   expectDecklistTabRendersFixtureData,
   expectMetagameTabRendersFixtureData,
@@ -34,7 +35,9 @@ beforeEach(() => {
 function renderInDemoMode(ui: ReactElement) {
   return render(
     <MemoryRouter>
-      <DemoModeProvider>{ui}</DemoModeProvider>
+      <DemoModeProvider>
+        <TestIdentityProvider>{ui}</TestIdentityProvider>
+      </DemoModeProvider>
     </MemoryRouter>,
   )
 }

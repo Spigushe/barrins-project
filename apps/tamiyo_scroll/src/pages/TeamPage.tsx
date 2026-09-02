@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useCurrentUser } from '@/hooks/useAuth'
+import { useCurrentUser } from '@barrins/goblin-guide'
 import {
   useDownloadTeamDeckReport,
   useEnableTeamDeckThread,
@@ -120,39 +120,46 @@ export function TeamPageContent({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {team.members.map((member) => (
-              <TableRow key={member.user_id}>
-                <TableCell>{member.display_name ?? member.email}</TableCell>
-                <TableCell>
-                  <Badge variant={member.is_owner ? 'owner' : 'default'}>
-                    {member.is_owner ? 'Owner' : 'Member'}
-                  </Badge>
-                </TableCell>
-                <TableCell>{member.activity_count}</TableCell>
-                <TableCell>{formatDateTime(member.joined_at)}</TableCell>
-                {isOwner && (
+            {team.members.map((member) => {
+              // Since the identity cutover (ADR-20) the roster carries the
+              // identity handle + display name only — never the email. A null
+              // username means an inactive / removed identity account.
+              const memberLabel =
+                member.display_name ?? member.username ?? 'Unknown member'
+              return (
+                <TableRow key={member.user_id}>
+                  <TableCell>{memberLabel}</TableCell>
                   <TableCell>
-                    {!member.is_owner && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6"
-                        aria-label={`Remove ${member.display_name ?? member.email}`}
-                        onClick={() => {
-                          setPendingRemove({
-                            userId: member.user_id,
-                            label: member.display_name ?? member.email,
-                          })
-                        }}
-                      >
-                        ✕
-                      </Button>
-                    )}
+                    <Badge variant={member.is_owner ? 'owner' : 'default'}>
+                      {member.is_owner ? 'Owner' : 'Member'}
+                    </Badge>
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
+                  <TableCell>{member.activity_count}</TableCell>
+                  <TableCell>{formatDateTime(member.joined_at)}</TableCell>
+                  {isOwner && (
+                    <TableCell>
+                      {!member.is_owner && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          aria-label={`Remove ${memberLabel}`}
+                          onClick={() => {
+                            setPendingRemove({
+                              userId: member.user_id,
+                              label: memberLabel,
+                            })
+                          }}
+                        >
+                          ✕
+                        </Button>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </Card>

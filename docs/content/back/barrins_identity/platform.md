@@ -10,9 +10,12 @@
 > `claude/barrins-identity-lifecycle-settings-4g2lyh` rather than
 > cherry-picked, then reconciled with current monorepo conventions and
 > extended with the `username` handle (§7, `Q-03`).
-> Still ⬜: the `barrins_api` **cutover** (§10), the
-> `ops/my-server/barrins_identity.yml` playbook, and the Goblin Guide
-> frontend — each a separate, later, gated phase.
+> The `barrins_api` **cutover** (§10) and the
+> `ops/my-server/barrins_identity.yml` playbook are done; Goblin Guide is
+> deployed to staging. Still ⬜: the operator-run live user-data migration
+> (in a maintenance window,
+> [runbook](../../ops/deployment/identity-cutover.md)) and the Goblin
+> Guide production deploy — the final gated steps of the rollout.
 >
 > **App**: `apps/barrins_identity/` · **Frontend**: `apps/goblin_guide/`
 > (Goblin Guide — see [Bootstrap](../../front/goblin_guide/bootstrap.md))
@@ -361,7 +364,13 @@ of **app-owned** data is each consumer's responsibility (constitution
 **Global account settings.** `GET /auth/me` stays the read endpoint; a
 new `/users` router owns account-resource mutation (`PATCH /users/me`,
 `DELETE /users/me`, `GET`/`PUT /users/me/settings/{app_key}`) — a
-route-surface split on the same `User` row, not duplicated logic.
+route-surface split on the same `User` row, not duplicated logic. The
+same router also carries `POST /users/lookup` (ADR-20) — a
+service-token, `identity:users:read`-scoped **batch label** read
+(`{id, username, display_name}`, active accounts only, no email/role) for
+a consumer backend that stores identity user ids on its own rows and has
+no local `users` copy. See
+[integration.md §4.9](integration.md#49-batch-user-directory-adr-20).
 `display_name` changes apply immediately. A new `email` is applied
 immediately only when `REQUIRE_EMAIL_VERIFICATION=false`; otherwise an
 `EmailChangeRequest` row is written, a code is sent to the **new**
@@ -382,23 +391,27 @@ an unknown key, deliberately not `422`). A `GET` never creates a row;
 
 ## 10. Cutover
 
-**Not done** — the one deliberately deferred phase. `libs/identity_client/`
-now exists (built on T10, not yet imported anywhere), so the cutover is
-the set of `apps/barrins_api` changes below (one-time, not incremental):
+**Code complete** on `feat/goblin-guide-login` (rollout Phase 7+8, merged
+for `tamiyo_scroll`; `tolaria_news` deferred, `Q-02` still open). ADR-20
+records the decision. The one remaining step is operator-run: the live
+data migration inside a maintenance window
+([identity-cutover runbook](../../ops/deployment/identity-cutover.md)).
 
-| Action | Files |
-| --- | --- |
-| Create | `scripts/migrate_users_to_identity.py` — copies `users` rows into `barrins-identity`'s database inside a single transaction (`target_engine.begin()`, not `.connect()`, so a mid-loop failure rolls back fully) |
-| Wire in | `libs/identity_client/` — already built (JWKS fetch + cache + `make_verify_dependency`, one shared package per [ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)); the cutover adds it as a `[tool.uv.sources]` path dep and consumes it |
-| Replace | `app/dependencies/auth.py` — verifies via `libs/identity_client`, no local DB user lookup |
-| Delete | `app/models/user.py`, `app/schemas/auth.py`, `app/core/security.py`, `app/api/v1/routers/auth.py`, `scripts/create_admin.py` (all now live here) |
-| Create | An Alembic migration dropping the local `users` table |
-| Modify | `app/config/base.py` — drop local JWT/Argon2 fields, add `identity_service_url`, `identity_jwks_cache_ttl_seconds` |
-| Modify | `pyproject.toml` — drop `python-jose`, `argon2-cffi`; add `pyjwt`, `respx` (test-only), `identity_client` path dep |
+| Action | Files | Status |
+| --- | --- | --- |
+| Create | `apps/barrins_api/scripts/migrate_users_to_identity.py` — copies `users` rows into `barrins-identity`'s DB in one `target_engine.begin()` transaction; UUID-preserving; email-dedup raises role to the higher; synthesises + reports `username` | done (CI-tested against two throwaway DBs) |
+| Wire in | `libs/identity_client/` as a `[tool.uv.sources]` path dep, consumed by `app/dependencies/auth.py` + `app/dependencies/service_auth.py` | done |
+| Replace | `app/dependencies/auth.py` — JWKS verification, `AuthenticatedUser`, `require_role` off `app/core/roles.py` (`placeholder` → `moderator`); no DB user lookup | done |
+| Delete | `app/api/general/auth.py`, `app/core/security.py`, `app/schemas/auth.py`, `app/models/user.py`, `app/models/email_verification.py`, `scripts/create_admin.py` | done |
+| Create | Alembic `d9e1a2c3b4f5` — drops the 12 `users.id` FK constraints, `auth_email_verifications`, `users`, and the `userrole` enum | done |
+| Add | `POST /api/v1/users/lookup` here + `app/services/identity_directory.py` in `barrins_api` (team-roster / sharing labels; `ResponseTeamMember.email` → `username`) | done |
+| Drop | Admin "total accounts" metric (no `users` table) from `barrins_api` + Tamiyo's `AdminMetricsPage` — restore later via an identity admin count endpoint | done |
+| Modify | `app/config/base.py` — drop `secret_key` / `algorithm` / token-TTL fields; add `identity_service_url`, `identity_jwks_cache_ttl_seconds`, `identity_service_client_id/_secret` | done |
+| Modify | `pyproject.toml` — drop `python-jose`, `argon2-cffi`; add `pyjwt`, `respx` (test), `identity-client` path dep | done |
 
-Highest-risk phase (live data cutover). Never run against production data
-without a user-confirmed maintenance window; in dev/CI it can run against
-two test databases with no extra confirmation.
+Highest-risk phase (live data cutover). Never run the migration against
+production data without a user-confirmed maintenance window; in dev/CI it
+runs against two throwaway databases with no extra confirmation.
 
 ---
 

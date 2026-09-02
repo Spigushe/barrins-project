@@ -26,7 +26,8 @@ beforeEach(() => {
   team = undefined
 })
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@barrins/goblin-guide', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@barrins/goblin-guide')>()),
   useCurrentUser: () => ({ data: { id: CURRENT_USER_ID, email: 'alice@example.com' } }),
 }))
 

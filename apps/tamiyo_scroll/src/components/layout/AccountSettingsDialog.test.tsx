@@ -4,19 +4,22 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountSettingsDialog } from './AccountSettingsDialog'
 
-const updateProfileMutateAsync = vi.fn().mockResolvedValue(undefined)
 const updateSettingsMutateAsync = vi.fn().mockResolvedValue(undefined)
 
 beforeEach(() => {
-  updateProfileMutateAsync.mockClear()
   updateSettingsMutateAsync.mockClear()
 })
 
-vi.mock('@/hooks/useAuth', () => ({
+// Identity-owned account management (display name / email / delete) is the
+// shared Goblin Guide `<AccountScreen>` — stubbed here so this test stays
+// on the Tamiyo-only sections below it. `useCurrentUser` is consumed by the
+// nested `AccountSettingsTeamSection` for the owner check.
+vi.mock('@barrins/goblin-guide', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@barrins/goblin-guide')>()),
+  AccountScreen: () => <div>Barrin&rsquo;s account (managed screen)</div>,
   useCurrentUser: () => ({
     data: { id: 'user-alice', email: 'alice@example.com', display_name: 'Alice' },
   }),
-  useUpdateProfile: () => ({ mutateAsync: updateProfileMutateAsync, isPending: false }),
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
@@ -52,15 +55,19 @@ describe('AccountSettingsDialog', () => {
     expect(screen.queryByText('Account settings')).not.toBeInTheDocument()
   })
 
+  it('embeds the shared Barrin’s account screen', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(screen.getByText(/managed screen/)).toBeInTheDocument()
+  })
+
   it('explains that sharing is matched by deck name', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
     expect(screen.getByText(/matched by deck name/)).toBeInTheDocument()
   })
 
-  it('pre-fills display name and toggle state from current data', () => {
+  it('pre-fills the sharing toggle state from current data', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
 
-    expect(screen.getByLabelText('Display name')).toHaveValue('Alice')
     expect(screen.getByRole('switch', { name: 'Share my data' })).toHaveAttribute(
       'aria-checked',
       'true',
@@ -77,9 +84,8 @@ describe('AccountSettingsDialog', () => {
     expect(screen.getByText('Create a team')).toBeInTheDocument()
   })
 
-  it('renders separators between the display name, sharing, display and team sections', () => {
+  it('renders separators between the account, sharing, display and team sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Display name / Share my data / Display (S12) / Team de test.
     expect(screen.getAllByRole('separator')).toHaveLength(3)
   })
 
@@ -111,32 +117,19 @@ describe('AccountSettingsDialog', () => {
     expect(receiveSwitch).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('saves the display name and both toggles together', async () => {
+  it('saves both sharing toggles together and closes', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     renderDialog({ open: true, onOpenChange })
 
-    await user.clear(screen.getByLabelText('Display name'))
-    await user.type(screen.getByLabelText('Display name'), 'Jace')
     await user.click(screen.getByRole('switch', { name: 'Receive shared data' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(updateProfileMutateAsync).toHaveBeenCalledWith({ display_name: 'Jace' })
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
       data_shared: true,
       receive_shared_data: true,
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('clears the display name to null when left empty', async () => {
-    const user = userEvent.setup()
-    renderDialog({ open: true, onOpenChange: vi.fn() })
-
-    await user.clear(screen.getByLabelText('Display name'))
-    await user.click(screen.getByRole('button', { name: 'Save' }))
-
-    expect(updateProfileMutateAsync).toHaveBeenCalledWith({ display_name: null })
   })
 
   it('closes without saving on Cancel', async () => {
@@ -147,7 +140,6 @@ describe('AccountSettingsDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(updateProfileMutateAsync).not.toHaveBeenCalled()
     expect(updateSettingsMutateAsync).not.toHaveBeenCalled()
   })
 })
