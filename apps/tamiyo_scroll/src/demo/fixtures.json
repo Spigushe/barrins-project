@@ -312,7 +312,7 @@
 
   "currentUser": {
     "id": "de762da2-af3b-42d4-8003-d70ca7968df4",
-    "email": "you@tamiyo-scroll.demo",
+    "username": "you_demo",
     "display_name": "You (Demo)"
   },
 
@@ -327,7 +327,7 @@
       "members": [
         {
           "user_id": "de762da2-af3b-42d4-8003-d70ca7968df4",
-          "email": "you@tamiyo-scroll.demo",
+          "username": "you_demo",
           "display_name": "You (Demo)",
           "is_owner": true,
           "joined_at": "2026-06-15T10:00:00+00:00",
@@ -335,7 +335,7 @@
         },
         {
           "user_id": "3f1a9c5e-8b2d-4e6f-9a1c-2d3e4f5a6b7c",
-          "email": "ravi@tamiyo-scroll.demo",
+          "username": "ravi",
           "display_name": "Ravi",
           "is_owner": false,
           "joined_at": "2026-06-16T09:00:00+00:00",
@@ -343,7 +343,7 @@
         },
         {
           "user_id": "7c2b8e1d-4a5f-4c6d-8e9f-1a2b3c4d5e6f",
-          "email": "naya@tamiyo-scroll.demo",
+          "username": "naya",
           "display_name": "Naya",
           "is_owner": false,
           "joined_at": "2026-06-20T14:00:00+00:00",

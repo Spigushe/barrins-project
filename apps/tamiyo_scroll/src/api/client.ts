@@ -1,6 +1,5 @@
 import type { ZodType } from 'zod'
-import { tokenPairSchema } from '@/schemas/auth'
-import { clearSession, sessionStore, setSession } from './session'
+import { identityClient, identityTokenStore } from '@/identity'
 import { viewingOwnerStore } from './viewingOwner'
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL as string
@@ -30,25 +29,18 @@ export async function parseErrorMessage(response: Response): Promise<string> {
 }
 
 // Only one refresh attempt in flight — concurrent requests that get a 401
-// during the refresh await the same promise.
+// during the refresh await the same promise. `identityClient.refresh()`
+// trades the identity refresh cookie (ADR-18) for a fresh access token and
+// writes it into `identityTokenStore`; on failure it clears the store and
+// throws, which we surface as a 401 `ApiError`.
 let refreshPromise: Promise<void> | null = null
 
 async function performRefresh(): Promise<void> {
-  const { refreshToken } = sessionStore.get()
-  if (!refreshToken) {
-    clearSession()
+  try {
+    await identityClient.refresh()
+  } catch {
     throw new ApiError(401, 'Session expired.')
   }
-  const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  })
-  if (!response.ok) {
-    clearSession()
-    throw new ApiError(401, 'Session expired.')
-  }
-  setSession(tokenPairSchema.parse(await response.json()))
 }
 
 type QueryParams = Record<string, string | number | boolean | undefined>
@@ -86,7 +78,7 @@ async function fetchWithAuthRetry(path: string, config: RequestConfig): Promise<
     const headers: Record<string, string> = {}
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (requireAuth) {
-      const { accessToken } = sessionStore.get()
+      const accessToken = identityTokenStore.getAccess()
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`
     }
     return fetch(url.toString(), {

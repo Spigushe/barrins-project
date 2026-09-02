@@ -30,7 +30,7 @@ vi.mock('@/hooks/useMetaDecks', () => ({
   useMetaDecks: () => ({ data: metaDecks }),
 }))
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@barrins/goblin-guide', () => ({
   useCurrentUser: () => ({ data: { display_name: 'Alice', email: 'alice@example.com' } }),
 }))
 

@@ -1,37 +1,58 @@
-# Goblin Guide: Barrin's Identity frontend
+# Goblin Guide — standalone shell
 
-Placeholder — the login and account-management frontend for Barrin's
-Identity (`apps/barrins_identity/`). Nothing is implemented yet.
+The thin standalone app for **Goblin Guide**, the login and
+account-management frontend for Barrin's Identity (`apps/barrins_identity/`).
 
-> **Status**: ⬜ Planned — documentation only. Shape settled 2026-08-29
-> (ADR-17): a **shared frontend library** each Barrin's frontend mounts,
-> plus a thin standalone shell. See the Bootstrap doc (linked below) and
-> the Barrin's Identity Integration Contract for the backend surface it
-> consumes.
+It serves the canonical `goblin.barrins-codex.org` and gives the Karn
+Tablets Jupyter reverse-proxy (T9) a login page to redirect to. All the
+actual screens, hooks and token handling live in the shared library
+`libs/goblin_guide/` (`@barrins/goblin-guide`), which `tamiyo_scroll`,
+`tolaria_news` and future frontends mount too. This app is just a router,
+a `QueryClientProvider`, an `IdentityProvider`, and the default ("Suivi")
+token theme.
 
-## Shape
-
-- A shared library — screens (login, signup + verify, password reset,
-  account settings, delete account, admin service-account management),
-  hooks, and client-side token handling — consumed by `tamiyo_scroll`,
-  `tolaria_news` and future frontends. Ecosystem-default stack
-  (React 19 + TypeScript + Tailwind + shadcn/ui), built in Vite library
-  mode; React Router and TanStack Query are peer dependencies the host
-  provides.
-- A thin standalone shell app that serves a canonical
-  `goblin.barrins-codex.org` and gives the T9 Jupyter reverse-proxy a
-  login page to redirect to.
+> **Status**: 🟨 All five Goblin Guide bootstrap `G-03` slices — `POST
+/api/v1/auth/token`, an in-memory token store, silent refresh,
+> self-registration with email verification (`/signup`, `/verify-email`),
+> password reset (`/forgot-password`, `/reset-password`), account
+> management at `/` (`AccountScreen` — display name, a two-step email
+> change with a `/confirm-email-change` deep-link route, and account
+> delete), and admin service-account management at `/service-accounts`
+> (`ServiceAccountsScreen` — admin-gated list, create, revoke; a
+> `?next=`-aware `RequireAuth` bounce for logged-out visitors, an
+> in-app access panel for non-admins). Not yet mounted in `tamiyo_scroll`
+> or `tolaria_news`; no deploy playbook.
 
 ## What it will never own
 
 Business or authorization rules. Goblin Guide renders the flows Barrin's
-Identity defines and stores authentication *state* only — it never
+Identity defines and stores authentication _state_ only — it never
 decides permissions (constitution §4.1, §13.5).
 
-## Still open
+## Configuration
 
-- Delivery order (login first, then signup, then reset, then settings) —
-  proposed, not fixed.
-- Refresh-token storage: in-memory by default, or an `HttpOnly` cookie via
-  a host BFF (a pluggable token store).
-- Page layout / UX specifics.
+| Variable                    | Default                 | Meaning                                   |
+| --------------------------- | ----------------------- | ----------------------------------------- |
+| `VITE_IDENTITY_SERVICE_URL` | `http://localhost:8001` | Base URL of the Barrin's Identity service |
+
+See `.env.example`.
+
+This shell runs in **cookie mode** (ADR-18): it calls Barrin's Identity
+directly with `credentials: 'include'`, and the refresh token lives in an
+`HttpOnly` cookie set by the service — never in JS. The identity
+deployment it points at must set `REFRESH_COOKIE_ENABLED=true` and list
+this app's origin in `ALLOWED_ORIGINS`.
+
+## Scripts
+
+```bash
+npm run dev          # Vite dev server
+npm run build        # tsc -b && vite build
+npm run lint         # oxlint
+npm run format:check # prettier
+npm test             # vitest
+```
+
+`npm install` here resolves `@barrins/goblin-guide` from
+`../../libs/goblin_guide` — build the library first
+(`cd ../../libs/goblin_guide && npm install && npm run build`).

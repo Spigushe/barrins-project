@@ -1478,5 +1478,322 @@ target)"; `libs/` means "a package other things import."
   now) — `JWKSCache` + `verify_token` + `make_verify_dependency`, 100%
   covered, not yet consumed. `dc_calendar` had already moved to
   `libs/dc_calendar/` (commit `19086dff`).
+- **T11 (2026-08-29)**: the Goblin Guide shape lands — `libs/goblin_guide/`
+  (`@barrins/goblin-guide`, Vite library mode: ES + `.d.ts`, `react` /
+  `react-dom` / `@tanstack/react-query` externalized as peers) and
+  `apps/goblin_guide/` (the standalone shell, consuming the library as a
+  `file:../../libs/goblin_guide` path dependency). Only the login slice
+  (bootstrap `G-03` step 1) is built. The shell's `vite.config.ts` needs
+  `resolve.dedupe` for `react` & co. because the path dependency is
+  symlinked with its own `node_modules`. A dedicated `goblin_guide` CI
+  job (library then shell) is wired into `ci-required`.
+- **T12 (2026-08-30)**: the signup + email-verification slice
+  (bootstrap `G-03` step 2) lands in the same two packages —
+  `SignupScreen` + `VerifyEmailScreen` and `useSignup` /
+  `useVerifyEmail` / `useResendVerification` over `POST /auth/signup`,
+  `/signup/verify`, `/signup/resend`, plus `/signup` + `/verify-email`
+  routes in the shell. No CI or packaging change — the existing
+  `goblin_guide` job and paths filter already cover it.
+- **T13 (2026-08-30)**: the password-reset slice (bootstrap `G-03`
+  step 3) lands in the same two packages — `ForgotPasswordScreen` +
+  `ResetPasswordScreen` and `usePasswordResetRequest` /
+  `usePasswordResetConfirm` over `POST /auth/password-reset/request`,
+  `/password-reset/confirm`, plus `/forgot-password` + `/reset-password`
+  routes in the shell. The password-rule checklist and the digit-masked
+  code field were extracted into shared components (`PasswordRules`,
+  `CodeField`) on their third use, and `SignupScreen` /
+  `VerifyEmailScreen` refactored onto them. Still no CI or packaging
+  change.
+- **T14 (2026-08-30)**: the account-settings + delete slice (bootstrap
+  `G-03` step 4) lands in the same two packages — `AccountScreen` and
+  `useUpdateAccount` / `useVerifyEmailChange` / `useResendEmailChange` /
+  `useDeleteAccount` over `PATCH /users/me`,
+  `/users/me/email-change/verify` + `/resend`, `DELETE /users/me`. The
+  shell mounts `AccountScreen` at `/` (replacing the read-only card) and
+  adds a `/confirm-email-change` deep-link route behind `RequireAuth`
+  (`RequireAuth` now carries a `?next=` return path). One new token,
+  `--gg-danger`, plus `.gg-button-danger` — the only styling additions
+  beyond the account-screen layout classes. Authenticated password
+  change is out of scope: the identity service exposes no endpoint for
+  it (integration.md §4.4); users go through the password-reset flow.
+  Still no CI or packaging change.
+- **T15 (2026-08-30)**: the admin service-account slice (bootstrap
+  `G-03` step 5 / `G-04`) lands in the same two packages —
+  `ServiceAccountsScreen` and `useServiceAccounts` /
+  `useCreateServiceAccount` / `useRevokeServiceAccount` over
+  `GET`/`POST /service-accounts` and `/service-accounts/{client_id}/revoke`
+  (integration.md §4.6). The screen is a `useCurrentUser()` gate: an
+  `admin` principal gets list + create + revoke; anyone else gets an
+  access panel. The shell extracts the header/frame into `ShellFrame`
+  (shared by the account and service-account routes, the latter carrying
+  an admin-only nav toggle) and mounts the screen at `/service-accounts`
+  behind `RequireAuth`. New styling: the tag-input, credential-field and
+  service-account list/status classes — no new token. `POST
+  /service-token` is deliberately not surfaced (machine-to-machine
+  credential exchange, not an admin action). Still no CI or packaging
+  change — this completes `G-03`.
 - Still open: `apps/tolaria_news`' own scope and timeline (`Q-02`),
   blocked on its frontend spec, not on this decision.
+
+## ADR-18: barrins_identity issues the refresh token as an HttpOnly cookie
+
+**Context.** Goblin Guide (ADR-17) needs persistent sessions — a user who
+closes the tab should stay logged in. The T11–T15 slices ship the SPA
+holding both tokens in an in-memory store (`createMemoryTokenStore()`),
+so today the user re-logs-in on every tab close. A refresh token in
+`localStorage` would persist but is readable by any XSS. The 2026-08-30
+rollout plan locked "a dedicated auth BFF app holding the refresh token
+in an `HttpOnly` cookie; the SPA only handles short-lived access tokens."
+On 2026-08-31, as that BFF (`apps/goblin_guide_bff`) came up for
+implementation, the question was reopened: does the cookie logic need its
+own deployable?
+
+The BFF as specified is a ~3-endpoint FastAPI proxy (`/auth/token`,
+`/auth/refresh`, `/auth/logout`) that forwards to `barrins_identity` and
+translates the refresh token to and from a cookie. Every *other* Goblin
+Guide flow — signup, email verification, password reset, account
+settings, delete, service accounts — already calls `barrins_identity`
+directly from the browser; identity is a first-party, browser-facing
+service and its `ALLOWED_ORIGINS` already lists the SPA origin.
+
+**Alternatives considered.**
+
+1. In-memory only (status quo) — re-login on tab close. No new surface,
+   but it does not meet the persistence requirement.
+2. Refresh token in `localStorage` — persists, zero backend change, but
+   readable by any injected script (XSS); rejected on §23.2 grounds.
+3. Dedicated BFF app (`apps/goblin_guide_bff`) — the refresh token never
+   reaches the browser, but it is a whole new deployable (systemd unit,
+   playbook, CI job, `.env`, port) whose only job is a cookie translation
+   in front of a service the SPA already talks to directly.
+4. Identity-native cookie — `barrins_identity` sets and reads the
+   `HttpOnly` refresh cookie itself on `/auth/token` / `/auth/refresh` /
+   `/auth/logout`, opt-in per request so existing consumers are
+   unaffected.
+
+**Trade-offs.** Option 3's isolation benefit is thin here: the SPA is
+already a first-party caller of identity for six other flows, so "don't
+expose identity to the browser" is not a property this system has or
+wants. The BFF adds a second network hop, a second thing to deploy and
+keep in lockstep with identity's auth contract, and a second CI job —
+real operational weight for a translation layer. Option 4 keeps the
+refresh token equally out of JS (`HttpOnly` either way) with no new
+deployable; the cost is that identity gains a browser-shaped concern
+(cookies, CORS credentials) in its auth routes, and the SPA↔identity
+calls are cross-site (SPA on `goblin{,-staging}.barrins-codex.org`,
+identity on `identity{,-staging}.barrins-codex.org`), so the cookie must
+be `SameSite=None; Secure` and identity must return
+`Access-Control-Allow-Credentials: true` for the exact SPA origin (never
+`*`, §33). `SameSite=None` is broadly supported and, combined with
+`Secure` + `HttpOnly` + a strict origin allow-list, does not materially
+widen CSRF exposure on an endpoint that already requires credentials.
+Backward compatibility is preserved by making the cookie behavior
+opt-in (a request header) so `barrins_api` and other token consumers keep
+receiving the refresh token in the JSON body (§4.4).
+
+The same-site alternative — serve the SPA under
+`identity{,-staging}.barrins-codex.org/app` so the cookie can be
+`SameSite=Lax` — was set aside: it couples the SPA's deployment to
+identity's vhost, muddies "one app, one playbook" (§26.1), and
+complicates independent frontend releases (§27.2).
+
+**Decision.** Option 4, per the user (2026-08-31). This **supersedes the
+2026-08-30 "dedicated auth BFF app" decision.** `barrins_identity` gains
+an opt-in cookie mode:
+
+- `POST /api/v1/auth/token`, `/auth/refresh`, `/auth/logout` accept an
+  opt-in signal (an `X-Client: web` header — final form settled when the
+  mode is built). With it:
+  - `token` sets `refresh_token` as
+    `HttpOnly; Secure; SameSite=None; Domain=<REFRESH_COOKIE_DOMAIN>;
+    Path=/api/v1/auth` and omits `refresh_token` from the response body.
+  - `refresh` reads the cookie, rotates it, returns a new access token.
+  - `logout` clears the cookie.
+- Without the opt-in signal the endpoints behave exactly as today
+  (refresh token in the body).
+- New config: `REFRESH_COOKIE_ENABLED` (default `false`),
+  `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SAMESITE` (default `none`). The
+  CORS side needs nothing new — `app/main.py` already wires
+  `CORSMiddleware` with `allow_credentials=True` against the concrete
+  `ALLOWED_ORIGINS`, so `Access-Control-Allow-Credentials: true` is
+  already echoed for an allowed origin.
+- No `apps/goblin_guide_bff`. No new CI job — the existing `identity` job
+  covers it.
+
+**Consequences.**
+
+- Rollout runbook Phase 3 becomes "add cookie mode to `barrins_identity`",
+  not "build a BFF"; Phase 5 deploys only the SPA
+  (`ops/my-server/goblin_guide.yml` carries no backend role).
+- `libs/goblin_guide` gains a "cookie mode": auth calls go to
+  `VITE_IDENTITY_SERVICE_URL` with `credentials: 'include'` and the
+  opt-in header, and no refresh-token store. `createMemoryTokenStore()`
+  stays the default for hosts not in cookie mode.
+- Operators set `REFRESH_COOKIE_*` in
+  `secrets/barrins_identity/{staging,production}.env`, confirm the Goblin
+  origin is in `ALLOWED_ORIGINS`, then redeploy identity via
+  `barrins_identity.yml` — its own playbook (§26.1).
+- Tamiyo Scroll and Tolaria News can opt into the same cookie mode later
+  once their origin is allow-listed; no per-app BFF (rollout Phase 7).
+- The token endpoints are now CORS-credentialed for browser origins; the
+  allow-list must stay exact (§33) and is Agent 3's to verify per
+  environment.
+
+---
+
+## ADR-19: barrins_identity owns the cross-app directory
+
+**Context.** Goblin Guide gets a launcher screen listing the Barrin's
+applications a user can reach — some public, some members-only, some
+gated on role (Karn Tablets needs `ml_developer`+). "Which apps can this
+user open" is an authorization decision, so by constitution §4.1 it
+cannot live in the SPA. It needs a home.
+
+**Alternatives.**
+
+1. Hard-code the list + the access rules in each frontend. Rejected:
+   duplicates an authorization rule across apps (§4.2), and every policy
+   change is a redeploy of every SPA.
+2. A static JSON asset served by the reverse proxy. Rejected: still no
+   per-user `access` computation; drifts from the real role model.
+3. A table in `barrins_api`. Rejected: `barrins_api` is not the identity
+   authority (ADR-16) and Goblin Guide must not couple to a Tamiyo-Scroll
+   BFF (rollout Phase 7 note).
+4. **A table in `barrins_identity` + one endpoint that returns the list
+   with a backend-computed `access` state per caller.** Chosen.
+
+**Decision.**
+
+- New table `applications` (`key`, `name`, `description`, `url`,
+  `logo_svg`, `needs_authentication`, `is_role_restricted`, `min_role`,
+  `sort_order`, `is_active`, timestamps). A CHECK enforces
+  `is_role_restricted ⇒ min_role IS NOT NULL AND needs_authentication`.
+  Seeded by the migration; no runtime write path yet (admins edit rows
+  directly — a management UI is out of scope).
+- `GET /api/v1/applications` — **optional** bearer. Returns every active
+  app ordered by `sort_order`, each as
+  `{ key, name, description, url, logo_svg, access, min_role }`. The
+  backend computes `access ∈ {open, login_required, role_denied}`:
+  public → always `open`; members-only → `open` if signed in else
+  `login_required`; role-gated → `open` at/above `min_role`,
+  `role_denied` below, `login_required` if anonymous. A supplied-but-
+  invalid token still `401`s (lets the SPA silent-refresh); only a wholly
+  absent credential is treated as anonymous.
+- The endpoint does **not** drop the caller's current app — a host SPA
+  filters its own `key` (`currentAppKey`), because "which app am I
+  embedded in" is the only piece the backend can't know.
+- **Logos live in the DB as inline SVG** (`logo_svg`), not duplicated
+  frontend asset files (revises the 2026-08-31 "duplicate the logos"
+  note). The SPA renders each as an `<img>` `data:` URI — an
+  `<img>`-loaded SVG can't run scripts or fetch, so the markup can't XSS
+  the launcher even though it bypasses React escaping. One source of
+  truth, no cross-origin image fetch, no asset-pipeline coupling between
+  apps.
+
+**Consequences.**
+
+- `libs/goblin_guide` gains `useApplications()` +
+  `<ApplicationsScreen currentAppKey>` (groups by `access`, renders
+  cards). The `goblin_guide` shell renders it as the **second column of
+  the home page**, beside the account screen (user, 2026-08-31) — no
+  separate route.
+- Policy changes (add an app, raise a `min_role`) are a row edit +
+  nothing else — no redeploy of any SPA.
+- Ships with rollout Phase 4bis, before the Phase 5 deploy, so the
+  directory lands in the same release as cookie mode.
+- Seed list: `goblin_guide`, `tamiyo_scroll` (members), `tolaria_news`
+  (public), `karn_jupyter` (`ml_developer`+). `docs` is deliberately not
+  listed (user, 2026-08-31).
+
+## ADR-20: `barrins_api` trusts `barrins_identity` JWKS, drops its `users` table
+
+**Context.** ADR-16 adopted `barrins_identity` as the RS256 + JWKS
+authority and named the `barrins_api` cutover as "a separate, later,
+gated phase". ADR-7's placeholder era left `barrins_api` owning the
+single `users` table every identity-touching feature read directly:
+HS256 tokens minted in `app/core/security.py`, a `/auth` router doing
+login / signup / email-verification, `ForeignKey("users.id")` on twelve
+Tamiyo Scroll domain tables, and an admin "total accounts" metric.
+`barrins_identity` has since run clean on staging (Phases 1–6), Goblin
+Guide is mounted, and `libs/identity_client` (ADR-17) provides the shared
+JWKS verifier. This ADR closes the cutover for `tamiyo_scroll` (rollout
+Phases 7 and 8, merged — a Tamiyo access token is the `Bearer` on every
+`barrins_api` data call, so the frontend swap and the backend cutover
+cannot ship apart). `tolaria_news` is out of scope (it has no auth today
+— `Q-02` stays open).
+
+**Alternatives considered.**
+
+1. Keep `barrins_api` issuing its own HS256 tokens and only *also*
+   accept identity RS256 tokens (dual verify) indefinitely.
+2. Keep the local `users` table as a read-through cache of identity,
+   synced on login.
+3. **Verify identity JWTs locally via `libs/identity_client`, delete the
+   local `users` table, and treat every `user_id` / `owner_id` column as
+   an opaque identity reference.** Chosen.
+
+**Trade-offs.** Option 1 leaves two token formats, two secrets, and two
+revocation models in one service forever, and never lets the `users`
+table go. Option 2 reintroduces a sync path and a "user might not be
+cached yet" failure mode — exactly the coupling ADR-16 set out to
+remove. Option 3 needs a one-time data migration and a batch
+label-lookup endpoint (team rosters still need *other* users' display
+names, which the caller's own token does not carry), but afterwards
+`barrins_api` holds no identity state at all.
+
+**Decision.**
+
+- `app/dependencies/auth.py` verifies the `Bearer` locally against
+  identity's JWKS (`libs/identity_client`, one process-wide `JWKSCache`).
+  `AuthenticatedUser {id: UUID, role: str, email: str | None}` is built
+  from the verified claims — `.id` stays a `UUID` so the ~60 call sites
+  are untouched. `service_auth.py`'s admin-JWT fallbacks verify the same
+  way. Role ordering moves to `app/core/roles.py` (a plain `StrEnum`),
+  renaming `placeholder` → `moderator` to match identity's `role` claim.
+- The local auth surface is deleted: `app/api/general/auth.py`,
+  `app/core/security.py`, `app/schemas/auth.py`, `app/models/user.py`,
+  `app/models/email_verification.py`, `scripts/create_admin.py`.
+- Alembic `d9e1a2c3b4f5` drops the twelve `ForeignKey("users.id")`
+  constraints, `auth_email_verifications`, `users`, and the `userrole`
+  enum. The `owner_id` / `user_id` / `author_id` / `flagged_by` columns
+  stay as plain `UUID` — **FK-less opaque references** to identity user
+  ids. `barrins_api` never enumerates, counts, or "checks existence" of
+  users: `resolve_owner` treats `owner_id` purely as a key into
+  `ts_user_settings` (unknown id ⇒ 403 "does not share", never 404).
+- Other users' display labels come from a new identity endpoint
+  `POST /api/v1/users/lookup` (service token, scope
+  `identity:users:read`, returns `{id, username, display_name}` — no
+  email), consumed by `app/services/identity_directory.py` with a
+  service-token acquisition + a ~5-minute in-process TTL cache, degrading
+  to a generic placeholder when no service-account credentials are
+  configured. Team rosters drop the email column
+  (`ResponseTeamMember.email` → `username`).
+- The admin "total accounts" metric is removed from `barrins_api`
+  aggregates + timeseries and from Tamiyo's `AdminMetricsPage` (its data
+  source is gone). Restore later via a `barrins_identity` admin count
+  endpoint — decks / matches / sessions metrics are unaffected.
+- `scripts/migrate_users_to_identity.py` copies `users` rows into
+  identity's database in one `target_engine.begin()` transaction,
+  UUID-preserving; on an email already present in identity it inserts
+  nothing and only raises that row's `role` to the higher of the two;
+  it synthesises the required unique `username` from the email local
+  part and writes every synthesised / suffixed handle to a `--report`
+  file. CI-tested against two throwaway databases. The live production
+  run is an operator step inside a maintenance window
+  ([identity-cutover runbook](../deployment/identity-cutover.md)).
+
+**Consequences.**
+
+- `barrins_api` authenticates purely via identity JWKS; one token
+  format, one authority, one revocation model in the ecosystem.
+- `pyproject.toml` drops `python-jose` + `argon2-cffi`, adds `pyjwt`,
+  `respx` (test), and the `identity-client` path dep. `config/base.py`
+  drops `secret_key` / `algorithm` / token-TTL fields and adds
+  `identity_service_url`, `identity_jwks_cache_ttl_seconds`,
+  `identity_service_client_id` / `_secret`. Deploy config swaps
+  `SECRET_KEY` → `IDENTITY_SERVICE_URL` (+ the service-account pair).
+- A stateless verifier does not re-check `tkv`; revocation bites at the
+  access-token TTL (10 min), matching every other JWKS consumer
+  (integration.md §3). Acceptable for `barrins_api`'s data routes.
+- `tolaria_news` still runs unauthenticated; when it grows auth it
+  becomes the second JWKS consumer with no further `barrins_api` change.

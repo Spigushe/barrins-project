@@ -4,8 +4,10 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.models.app_settings import AppKey, AppSettings
+from app.models.application import Application
 from app.models.email_change_request import EmailChangeRequest
 from app.models.email_verification import EmailVerification
 from app.models.password_reset import PasswordResetCode
@@ -226,3 +228,56 @@ class TestAppSettingsModel:
         )
         assert row.id == row_id
         assert row.data == {"data_shared": True}
+
+
+class TestApplicationModel:
+    async def test_defaults_after_flush(self, db_session):
+        row = Application(
+            key="some_app",
+            name="Some App",
+            description="d",
+            url="https://some.test",
+            logo_svg="<svg/>",
+        )
+        db_session.add(row)
+        await db_session.flush()
+        await db_session.refresh(row)
+
+        assert row.needs_authentication is True
+        assert row.is_role_restricted is False
+        assert row.min_role is None
+        assert row.sort_order == 0
+        assert row.is_active is True
+
+    async def test_check_constraint_rejects_restricted_without_min_role(
+        self, db_session
+    ):
+        db_session.add(
+            Application(
+                key="bad_app",
+                name="Bad",
+                description="d",
+                url="https://bad.test",
+                logo_svg="<svg/>",
+                is_role_restricted=True,
+                min_role=None,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
+
+    async def test_role_restricted_with_min_role_is_accepted(self, db_session):
+        row = Application(
+            key="ok_app",
+            name="OK",
+            description="d",
+            url="https://ok.test",
+            logo_svg="<svg/>",
+            needs_authentication=True,
+            is_role_restricted=True,
+            min_role=UserRole.ml_developer,
+        )
+        db_session.add(row)
+        await db_session.flush()
+        await db_session.refresh(row)
+        assert row.min_role is UserRole.ml_developer

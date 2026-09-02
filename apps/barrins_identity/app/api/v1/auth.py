@@ -6,15 +6,18 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import or_, select
 
 from app.config import settings
+from app.core.cookies import (
+    REFRESH_COOKIE_NAME,
+    clear_refresh_cookie,
+    issue_tokens,
+)
 from app.core.rate_limit import limiter
 from app.core.security import (
-    create_access_token,
-    create_refresh_token,
     decode_refresh_token,
     dummy_verify,
     generate_verification_code,
@@ -84,10 +87,11 @@ def _login_rate_limit() -> str:
     return settings.base.login_rate_limit
 
 
-@router.post("/token", response_model=TokenPair)
+@router.post("/token", response_model=TokenPair, response_model_exclude_none=True)
 @limiter.limit(_login_rate_limit)
 async def login(
     request: Request,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: DatabaseSession,
 ) -> TokenPair:
@@ -124,11 +128,7 @@ async def login(
     if not user.is_active:
         raise credentials_exc
 
-    claims = _claims(user)
-    return TokenPair(
-        access_token=create_access_token(claims),
-        refresh_token=create_refresh_token(claims),
-    )
+    return issue_tokens(request, response, _claims(user))
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -165,14 +165,18 @@ async def get_me(user: CurrentUser) -> UserRead:
     return UserRead.model_validate(user)
 
 
-@router.post("/refresh", response_model=TokenPair)
+@router.post("/refresh", response_model=TokenPair, response_model_exclude_none=True)
 async def refresh_tokens(
-    payload: RefreshRequest,
+    request: Request,
+    response: Response,
     session: DatabaseSession,
+    payload: RefreshRequest | None = None,
 ) -> TokenPair:
     """Exchange a valid refresh token for a new access + refresh pair.
 
-    Mandatory rotation. Returns HTTP 401 if the token is expired,
+    The refresh token comes from the request body (`{"refresh_token": ...}`)
+    or, in cookie mode (ADR-18), from the HttpOnly `refresh_token` cookie.
+    Mandatory rotation. Returns HTTP 401 if the token is missing, expired,
     malformed, of the wrong type, or revoked.
     """
     credentials_exc = HTTPException(
@@ -180,8 +184,15 @@ async def refresh_tokens(
         detail="Invalid or expired refresh token.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    token = (payload.refresh_token if payload else None) or request.cookies.get(
+        REFRESH_COOKIE_NAME
+    )
+    if not token:
+        raise credentials_exc
+
     try:
-        token_data = decode_refresh_token(payload.refresh_token)
+        token_data = decode_refresh_token(token)
     except jwt.PyJWTError as err:
         raise credentials_exc from err
 
@@ -192,22 +203,24 @@ async def refresh_tokens(
     if user.token_version != token_data.token_version:
         raise credentials_exc
 
-    claims = _claims(user)
-    return TokenPair(
-        access_token=create_access_token(claims),
-        refresh_token=create_refresh_token(claims),
-    )
+    return issue_tokens(request, response, _claims(user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    response: Response,
     user: CurrentUser,
     session: DatabaseSession,
 ) -> None:
-    """Instantly revoke all of the user's tokens (increments token_version)."""
+    """Instantly revoke all of the user's tokens (increments token_version).
+
+    Also clears the refresh cookie (ADR-18) — harmless if the caller
+    never had one.
+    """
     user.token_version += 1
     session.add(user)
     await session.commit()
+    clear_refresh_cookie(response)
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +234,14 @@ def _build_verify_link(email: str, code: str) -> str:
 
 
 @router.post(
-    "/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED
+    "/signup",
+    response_model=SignupResponse,
+    response_model_exclude_none=True,
+    status_code=status.HTTP_201_CREATED,
 )
 async def signup(
+    request: Request,
+    response: Response,
     payload: UserSignup,
     session: DatabaseSession,
     email_sender: EmailSenderDep,
@@ -260,12 +278,10 @@ async def signup(
         await session.commit()
         await session.refresh(user)
 
-        tokens = TokenPair(
-            access_token=create_access_token(_claims(user)),
-            refresh_token=create_refresh_token(_claims(user)),
-        )
         return SignupResponse(
-            detail="Account created.", verification_required=False, tokens=tokens
+            detail="Account created.",
+            verification_required=False,
+            tokens=issue_tokens(request, response, _claims(user)),
         )
 
     user = User(
@@ -306,8 +322,12 @@ async def signup(
     return SignupResponse()
 
 
-@router.post("/signup/verify", response_model=TokenPair)
+@router.post(
+    "/signup/verify", response_model=TokenPair, response_model_exclude_none=True
+)
 async def verify_signup(
+    request: Request,
+    response: Response,
     payload: VerifyEmailRequest,
     session: DatabaseSession,
 ) -> TokenPair:
@@ -357,10 +377,7 @@ async def verify_signup(
     await session.commit()
     await session.refresh(user)
 
-    return TokenPair(
-        access_token=create_access_token(_claims(user)),
-        refresh_token=create_refresh_token(_claims(user)),
-    )
+    return issue_tokens(request, response, _claims(user))
 
 
 @router.post(
@@ -514,8 +531,14 @@ async def request_password_reset(
     return generic_response
 
 
-@router.post("/password-reset/confirm", response_model=TokenPair)
+@router.post(
+    "/password-reset/confirm",
+    response_model=TokenPair,
+    response_model_exclude_none=True,
+)
 async def confirm_password_reset(
+    request: Request,
+    response: Response,
     payload: PasswordResetConfirm,
     session: DatabaseSession,
 ) -> TokenPair:
@@ -564,7 +587,4 @@ async def confirm_password_reset(
     await session.commit()
     await session.refresh(user)
 
-    return TokenPair(
-        access_token=create_access_token(_claims(user)),
-        refresh_token=create_refresh_token(_claims(user)),
-    )
+    return issue_tokens(request, response, _claims(user))

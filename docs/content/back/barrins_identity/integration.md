@@ -23,8 +23,8 @@ Base path: `/api/v1`. JWKS is served at the domain root
 
 | Consumer | What it uses | Notes |
 | --- | --- | --- |
-| `barrins_api` | JWKS (verify user + service tokens locally), `POST /service-token` | Post-cutover ([platform.md §10](./platform.md#10-cutover)) it stops issuing its own tokens |
-| Goblin Guide (`apps/goblin_guide/`) | Human login + the full account-lifecycle surface (§4.1–§4.5) | The login / account-management UI |
+| `barrins_api` | JWKS (verify user + service tokens locally), `POST /service-token` → `POST /users/lookup` (§4.9) for team-roster / sharing display labels | **First JWKS consumer.** Cut over ([platform.md §10](./platform.md#10-cutover), ADR-20): no local `users` table, issues no tokens of its own, never enumerates or counts users |
+| Goblin Guide (`apps/goblin_guide/`) | Human login + the full account-lifecycle surface (§4.1–§4.5) | Browser SPA, calls this service **directly** (no BFF, ADR-18); opts into cookie mode on `/auth/token`\|`/refresh`\|`/logout` for persistent sessions |
 | T9 Jupyter workbench proxy | A reverse-proxy role gate (§8.8) against a user token's `role` claim | `karn-jupyter.barrins-codex.org` — see `docs/project/v2.0.0-bump/t9-karn-jupyter-workbench/` and [ADR-15](../../ops/architecture/decisions.md#adr-15-karn-tablets-observability-job-health-and-jupyter-lab) |
 | `tolaria_news`, `tamiyo_scroll` | JWKS + service tokens, once built / cut over | Future |
 
@@ -109,6 +109,18 @@ Prefix `/api/v1/auth`.
 | GET | `/me` | user | — | `UserRead` `{id, email, username, role, is_active, is_verified, display_name}` | `401` |
 
 `TokenPair` = `{access_token, refresh_token, token_type: "bearer"}`.
+
+**Cookie mode (ADR-18).** A browser SPA sends `X-Client: web` on `/token`,
+`/refresh` and `/logout`. With it and `REFRESH_COOKIE_ENABLED=true`,
+`/token` and `/refresh` set the refresh token as an
+`HttpOnly; Secure; SameSite=<REFRESH_COOKIE_SAMESITE>;
+Domain=<REFRESH_COOKIE_DOMAIN>; Path=/api/v1/auth` cookie and drop
+`refresh_token` from the body (`access_token` only); `/refresh` reads the
+cookie instead of a body field; `/logout` clears it. Cross-site callers
+must send `credentials: 'include'`; the response carries
+`Access-Control-Allow-Credentials: true` only when the `Origin` is in
+`ALLOWED_ORIGINS`. Without the header the endpoints are unchanged
+(refresh token in the body).
 
 A unique `username` (input rule `^[A-Za-z0-9_-]{3,32}$`) is **required**
 on `UserCreate` / `UserSignup` and echoed on `UserRead` (§13.2, T10). A
@@ -212,7 +224,9 @@ Prefix `/api/v1/users`. `{app_key}` ∈ `{tamiyo_scroll, tolaria_news}`.
 
 ### 4.6 Service accounts
 
-Mounted at `/api/v1` (no extra prefix).
+Mounted at `/api/v1` (no extra prefix). Step-by-step create / use /
+revoke / rotate and the scope model:
+[Service Accounts](service-accounts.md).
 
 | Method | Path | Auth | Request | Response | Errors |
 | --- | --- | --- | --- | --- | --- |
@@ -229,13 +243,52 @@ Mounted at `/api/v1` (no extra prefix).
 | **Response** | `200` `{access_token, token_type: "bearer", expires_in}` — `expires_in` = `SERVICE_TOKEN_EXPIRE_MINUTES * 60` (900) |
 | **Errors** | `401 Invalid client credentials.` for an unknown `client_id`, a wrong secret, **and** a revoked account — same body, dummy verify on an unknown id |
 
-### 4.7 Discovery and health
+### 4.7 Application directory (ADR-19)
+
+Mounted at `/api/v1` (no extra prefix). The role-aware cross-app launcher
+for Goblin Guide — "which apps can this user open" is a backend decision
+(constitution §4.1).
+
+| Method | Path | Auth | Response | Errors |
+| --- | --- | --- | --- | --- |
+| GET | `/applications` | optional bearer | `[ApplicationRead]` | `401` for a supplied-but-invalid token |
+
+| `GET /api/v1/applications` | |
+| --- | --- |
+| **Purpose** | List the Barrin's apps with a per-caller `access` state |
+| **Auth** | Optional. No `Authorization` header ⇒ treated as anonymous. A header that is present but invalid still `401`s (so the client can silent-refresh) |
+| **Response** | `200` `[{key, name, description, url, logo_svg, access, min_role}]`, ordered by `sort_order`. Inactive apps omitted. `logo_svg` is inline SVG markup — render it as an `<img>` `data:` URI, never `dangerouslySetInnerHTML`. `min_role` is `null` unless the app is role-restricted |
+| **`access`** | `open` — caller can open it now · `login_required` — a members app the caller must sign in for · `role_denied` — signed in but role below `min_role` |
+| **Rule** | `!needs_authentication` → `open`. Else anonymous → `login_required`. Else `!is_role_restricted` → `open`. Else `role.level >= min_role.level` → `open`, otherwise `role_denied` |
+| **Current app** | Not filtered server-side — a host SPA drops its own `key` (`currentAppKey`) |
+
+### 4.8 Discovery and health
 
 | Method | Path | Auth | Response |
 | --- | --- | --- | --- |
 | GET | `/.well-known/jwks.json` | none | JWKS document (RFC 7517), domain root |
 | GET | `/health` | none | `{"status": "ok"}` |
 | GET | `/` | none | `301` → `/docs` |
+
+### 4.9 Batch user directory (ADR-20)
+
+Mounted at `/api/v1/users`. Lets a JWKS consumer that stores identity
+user ids on its own domain rows (`barrins_api` after the cutover — team
+rosters, chat authors, "shared with you" labels) resolve display labels
+without a local copy of the `users` table.
+
+| Method | Path | Auth | Request | Response | Errors |
+| --- | --- | --- | --- | --- | --- |
+| POST | `/users/lookup` | service token, scope `identity:users:read` | `{ids: [UUID] (1..200)}` | `[{id, username, display_name}]` | `401` no/invalid/ user token; `403` valid service token without the scope; `422` empty list or > 200 ids |
+
+| `POST /api/v1/users/lookup` | |
+| --- | --- |
+| **Purpose** | Batch-resolve public label attributes for a set of identity user ids |
+| **Auth** | Service token only (`account_type: "service"`), and its `scopes` must contain `identity:users:read`. A user token is rejected `401` |
+| **Request** | `{ "ids": ["<uuid>", …] }` — 1 to 200 ids; duplicates are collapsed |
+| **Response** | `200` `[{id, username, display_name}]` for the **active** accounts among `ids`. Unknown ids and deactivated / soft-deleted accounts are simply omitted (no error, no placeholder row) |
+| **Privacy** | The response carries the public handle and optional display name **only** — never `email`, `role`, `is_active`, or any timestamp. Consumers that show a label fall back to a generic string (`"a kind user"`) for an omitted id |
+| **Consumer** | `barrins_api`'s `app/services/identity_directory.py` — acquires a service token via `POST /service-token`, calls this endpoint in ≤ 200-id batches, and caches `{id: {username, display_name}}` in-process (~5 min TTL). Empty service-account credentials ⇒ the directory is disabled and every label falls back |
 
 ---
 

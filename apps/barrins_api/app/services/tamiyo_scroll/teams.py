@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import RateLimitExceededError
+from app.dependencies.auth import AuthenticatedUser
 from app.models.tamiyo_scroll import (
     TSCardTest,
     TSInviteAttempt,
@@ -35,7 +36,6 @@ from app.models.tamiyo_scroll import (
     TSTeamDeckThread,
     TSTeamMember,
 )
-from app.models.user import User
 
 _INVITE_CODE_ALPHABET = string.ascii_uppercase + string.digits
 INVITE_CODE_LENGTH = 8
@@ -117,7 +117,7 @@ async def is_team_member(
 
 
 async def get_member_team(
-    session: AsyncSession, team_id: uuid.UUID, current_user: User
+    session: AsyncSession, team_id: uuid.UUID, current_user: AuthenticatedUser
 ) -> TSTeam:
     """404 unless `team_id` exists and `current_user` belongs to it.
 
@@ -134,7 +134,7 @@ async def get_member_team(
 
 
 async def get_owned_team(
-    session: AsyncSession, team_id: uuid.UUID, current_user: User
+    session: AsyncSession, team_id: uuid.UUID, current_user: AuthenticatedUser
 ) -> TSTeam:
     """404 unless `team_id` exists and `current_user` is its owner."""
     result = await session.execute(select(TSTeam).where(TSTeam.id == team_id))
@@ -159,7 +159,7 @@ async def _team_ids_flagging_name(
 
 
 async def resolve_team_deck_access(
-    session: AsyncSession, deck_id: uuid.UUID, current_user: User
+    session: AsyncSession, deck_id: uuid.UUID, current_user: AuthenticatedUser
 ) -> TSPersonalDeck:
     """404 unless `current_user` owns the deck, or shares a team with the
     deck's owner where a deck of this exact name is flagged.
@@ -197,26 +197,29 @@ async def resolve_team_deck_access(
 
 async def _team_member_decks_by_name(
     session: AsyncSession, team_id: uuid.UUID
-) -> dict[str, list[tuple[TSPersonalDeck, User]]]:
+) -> dict[str, list[TSPersonalDeck]]:
     """Every non-archived personal deck owned by a member of `team_id`,
-    grouped by normalized name."""
+    grouped by normalized name.
+
+    Owner *labels* are resolved separately via the identity directory
+    (ADR-20) — this only returns the decks; `deck.owner_id` is the key.
+    """
     result = await session.execute(
-        select(TSPersonalDeck, User)
-        .join(User, User.id == TSPersonalDeck.owner_id)
+        select(TSPersonalDeck)
         .join(TSTeamMember, TSTeamMember.user_id == TSPersonalDeck.owner_id)
         .where(TSTeamMember.team_id == team_id, TSPersonalDeck.archived_at.is_(None))
     )
-    by_name: dict[str, list[tuple[TSPersonalDeck, User]]] = defaultdict(list)
-    for deck, owner in result.all():
-        by_name[normalize_deck_name(deck.name)].append((deck, owner))
+    by_name: dict[str, list[TSPersonalDeck]] = defaultdict(list)
+    for deck in result.scalars().all():
+        by_name[normalize_deck_name(deck.name)].append(deck)
     return by_name
 
 
 async def get_team_deck_owners(
     session: AsyncSession, team_id: uuid.UUID, name_key: str
-) -> list[tuple[TSPersonalDeck, User]]:
-    """Every current team member owning a deck matching `name_key` — the
-    cumulative report's contributor list."""
+) -> list[TSPersonalDeck]:
+    """Every current team member's deck matching `name_key` — the
+    cumulative report's contributor list (`deck.owner_id` per row)."""
     by_name = await _team_member_decks_by_name(session, team_id)
     return by_name.get(name_key, [])
 
@@ -224,11 +227,11 @@ async def get_team_deck_owners(
 @dataclass(frozen=True)
 class TeamDeckGroup:
     """One row for the "Team Decks" list — a flagged name, plus whichever
-    current members (if any) own a matching deck."""
+    current members' decks (if any) match it."""
 
     name_key: str
     deck_name: str
-    owners: list[tuple[TSPersonalDeck, User]] = field(default_factory=list)
+    owner_decks: list[TSPersonalDeck] = field(default_factory=list)
     has_thread: bool = False
 
 
@@ -253,7 +256,7 @@ async def list_team_deck_groups(
         TeamDeckGroup(
             name_key=flag.name_key,
             deck_name=flag.deck_name,
-            owners=decks_by_name.get(flag.name_key, []),
+            owner_decks=decks_by_name.get(flag.name_key, []),
             has_thread=flag.name_key in name_keys_with_thread,
         )
         for flag in flags
@@ -262,7 +265,10 @@ async def list_team_deck_groups(
 
 
 async def flag_deck_name(
-    session: AsyncSession, team_id: uuid.UUID, deck_id: uuid.UUID, flagged_by: User
+    session: AsyncSession,
+    team_id: uuid.UUID,
+    deck_id: uuid.UUID,
+    flagged_by: uuid.UUID,
 ) -> TSTeamDeckFlag:
     """Flags a deck's name into the team's rotation — the deck must belong
     to a current team member. Idempotent: flagging an already-flagged name
@@ -290,7 +296,7 @@ async def flag_deck_name(
         team_id=team_id,
         deck_name=deck.name,
         name_key=name_key,
-        flagged_by=flagged_by.id,
+        flagged_by=flagged_by,
     )
     session.add(flag)
     await session.commit()
@@ -337,7 +343,7 @@ async def compute_member_activity(
     whose name is currently flagged into `team_id` — the member list's
     "tests/matches logged" column."""
     groups = await list_team_deck_groups(session, team_id)
-    deck_ids = [deck.id for group in groups for deck, _ in group.owners]
+    deck_ids = [deck.id for group in groups for deck in group.owner_decks]
     if not deck_ids:
         return MemberActivity(Counter(), Counter())
 

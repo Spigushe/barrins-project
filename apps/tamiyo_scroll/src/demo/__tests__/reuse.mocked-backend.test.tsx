@@ -4,6 +4,7 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, it, vi } from 'vitest'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
+import { TestIdentityProvider } from '@/test/identity'
 import { DecklistTab } from '@/pages/DecklistTab'
 import { MetagameTab } from '@/pages/MetagameTab'
 import { SuiviBo3Tab } from '@/pages/SuiviBo3Tab'
@@ -49,9 +50,13 @@ function renderViaMockedBackend(ui: ReactElement) {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
-        <ActiveDeckContext.Provider value={{ activeDeckId: DEMO_DECK_ID, canEdit: true }}>
-          {ui}
-        </ActiveDeckContext.Provider>
+        <TestIdentityProvider>
+          <ActiveDeckContext.Provider
+            value={{ activeDeckId: DEMO_DECK_ID, canEdit: true }}
+          >
+            {ui}
+          </ActiveDeckContext.Provider>
+        </TestIdentityProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   )

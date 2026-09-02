@@ -17,6 +17,7 @@ ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=<previous-tag>
 # Frontend
 ansible-playbook tamiyo_scroll.yml -e react_frontend_release_tag=<previous-tag>
 ansible-playbook tolaria_news.yml -e react_frontend_release_tag=<previous-tag>
+ansible-playbook goblin_guide.yml -e react_frontend_release_tag=<previous-tag>
 
 # Docs site
 ansible-playbook docs.yml -e docs_site_release_tag=<previous-tag>
@@ -75,5 +76,8 @@ of that requirement).
 
 - [`backend.md`](backend.md), [`frontend.md`](frontend.md) — normal
   deployment procedures.
+- [`identity-cutover.md`](identity-cutover.md) — the identity cutover has
+  its own rollback (restore both `pg_dump`s + redeploy the previous
+  `barrins_api` tag), because it migrates live data across two databases.
 - [`../architecture/decisions.md`](../architecture/decisions.md) — ADR-2,
   why release-tag deploys work this way.

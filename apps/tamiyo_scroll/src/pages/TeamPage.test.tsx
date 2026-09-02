@@ -14,7 +14,7 @@ const downloadReportMutate = vi.fn()
 
 const OWNER = {
   user_id: 'user-owner',
-  email: 'owner@example.com',
+  username: 'olive_mtg',
   display_name: 'Olive',
   is_owner: true,
   joined_at: '2026-01-01T00:00:00Z',
@@ -22,7 +22,7 @@ const OWNER = {
 }
 const MEMBER = {
   user_id: 'user-member',
-  email: 'member@example.com',
+  username: 'member_mtg',
   display_name: null,
   is_owner: false,
   joined_at: '2026-02-01T00:00:00Z',
@@ -66,7 +66,7 @@ beforeEach(() => {
   downloadReportMutate.mockClear()
 })
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@barrins/goblin-guide', () => ({
   useCurrentUser: () => ({ data: { id: currentUserId } }),
 }))
 
@@ -118,7 +118,7 @@ describe('TeamPage', () => {
     renderTeamPage()
     expect(screen.getByText('Dream Team')).toBeInTheDocument()
     expect(screen.getByText('Olive')).toBeInTheDocument()
-    expect(screen.getByText('member@example.com')).toBeInTheDocument()
+    expect(screen.getByText('member_mtg')).toBeInTheDocument()
   })
 
   it('lets the owner edit and save the description', async () => {
@@ -150,7 +150,7 @@ describe('TeamPage', () => {
 
   it('shows a remove control only for non-owner rows, owner-only', () => {
     renderTeamPage()
-    const memberRow = screen.getByText('member@example.com').closest('tr')
+    const memberRow = screen.getByText('member_mtg').closest('tr')
     expect(memberRow).not.toBeNull()
     expect(
       within(memberRow!).getByRole('button', { name: /remove/i }),
@@ -173,10 +173,10 @@ describe('TeamPage', () => {
     const user = userEvent.setup()
     renderTeamPage()
 
-    await user.click(screen.getByRole('button', { name: /remove member@example.com/i }))
+    await user.click(screen.getByRole('button', { name: /remove member_mtg/i }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
-    expect(screen.getByText('Remove member@example.com?')).toBeInTheDocument()
+    expect(screen.getByText('Remove member_mtg?')).toBeInTheDocument()
     confirmSpy.mockRestore()
   })
 
@@ -184,7 +184,7 @@ describe('TeamPage', () => {
     const user = userEvent.setup()
     renderTeamPage()
 
-    await user.click(screen.getByRole('button', { name: /remove member@example.com/i }))
+    await user.click(screen.getByRole('button', { name: /remove member_mtg/i }))
     await user.click(screen.getByRole('button', { name: 'Remove' }))
 
     expect(removeMemberMutateAsync).toHaveBeenCalledWith({
@@ -197,10 +197,10 @@ describe('TeamPage', () => {
     const user = userEvent.setup()
     renderTeamPage()
 
-    await user.click(screen.getByRole('button', { name: /remove member@example.com/i }))
+    await user.click(screen.getByRole('button', { name: /remove member_mtg/i }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.queryByText('Remove member@example.com?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Remove member_mtg?')).not.toBeInTheDocument()
     expect(removeMemberMutateAsync).not.toHaveBeenCalled()
   })
 
@@ -304,7 +304,7 @@ describe('TeamPage — Flag a deck (owner-only)', () => {
         id: 'deck-2',
         name: 'Boros Aggro',
         owner_id: 'user-member',
-        owner_display: 'member@example.com',
+        owner_display: 'member_mtg',
         is_flagged: true,
       },
     ]

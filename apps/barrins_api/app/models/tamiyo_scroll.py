@@ -1,4 +1,11 @@
-"""ORM model for the `ts_card_tests` table (feedback on tested cards)."""
+"""ORM models for the Tamiyo Scroll (`ts_*`) tables.
+
+Since the identity cutover (ADR-20) `barrins_api` has no local `users`
+table. The `owner_id` / `user_id` / `author_id` / `flagged_by` columns
+below hold `barrins_identity` user UUIDs as opaque keys — no
+`ForeignKey("users.id")`, no referential integrity against a users table,
+and no user lookup here (labels come from `IdentityDirectory`).
+"""
 
 import enum
 import uuid
@@ -110,7 +117,6 @@ class TSCardTest(Base):
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     personal_deck_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -151,7 +157,6 @@ class TSMatch(Base):
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     date: Mapped[date_type] = mapped_column(
@@ -215,7 +220,6 @@ class TSMetaDeck(Base):
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -275,7 +279,6 @@ class TSPersonalDeck(Base):
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -360,7 +363,6 @@ class TSUserSettings(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     data_shared: Mapped[bool] = mapped_column(
@@ -402,7 +404,6 @@ class TSSession(Base):
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     personal_deck_id: Mapped[uuid.UUID] = mapped_column(
@@ -453,7 +454,6 @@ class TSTeam(Base):
     invite_code: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -479,7 +479,6 @@ class TSTeamMember(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
@@ -522,7 +521,6 @@ class TSTeamDeckFlag(Base):
     name_key: Mapped[str] = mapped_column(String(255), nullable=False)
     flagged_by: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -581,7 +579,6 @@ class TSTeamDeckMessage(Base):
     )
     author_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -605,7 +602,6 @@ class TSInviteAttempt(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     window_started_at: Mapped[datetime] = mapped_column(

@@ -7,7 +7,7 @@ import { AdminRoute } from './AdminRoute'
 let currentUser: { role: string } | undefined = undefined
 let isLoading = false
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@barrins/goblin-guide', () => ({
   useCurrentUser: () => ({ data: currentUser, isLoading }),
 }))
 
@@ -46,7 +46,7 @@ describe('AdminRoute', () => {
     expect(screen.getByText('Metagame tab')).toBeInTheDocument()
   })
 
-  it('redirects a placeholder/ml_developer user away too (below admin level)', () => {
+  it('redirects a moderator/ml_developer user away too (below admin level)', () => {
     currentUser = { role: 'ml_developer' }
     isLoading = false
     renderAdminRoute()

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useCurrentUser } from '@/hooks/useAuth'
+import { useCurrentUser } from '@barrins/goblin-guide'
 
 /** Gates a route to admin users only (S6). Nest inside `ProtectedRoute` —
  * this assumes an authenticated session already exists and only adds the

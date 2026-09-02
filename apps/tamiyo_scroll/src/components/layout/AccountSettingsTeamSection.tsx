@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useCurrentUser } from '@/hooks/useAuth'
+import { useCurrentUser } from '@barrins/goblin-guide'
 import { useDeleteTeam, useLeaveTeam, useMyTeams, useTeam } from '@/hooks/useTeams'
 import { ApiError } from '@/api/client'
 import { TeamJoinCreatePanel } from './TeamJoinCreatePanel'

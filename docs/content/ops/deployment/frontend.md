@@ -34,11 +34,18 @@ Release published (ADR-2 in
 
 **Configuration** — `VITE_API_BASE_URL` is set automatically by the
 playbook (`react_frontend_build_env`, pointed at the backend domain matching
-`deploy_env`) — nothing to configure by hand. It's a **build-time**
-variable (Vite inlines it into the JS bundle), so changing it needs a new
-build (`--tags deploy`), not just a service restart — though note neither
-frontend runs a service; "restart" here means re-running the build and
-reloading nginx.
+`deploy_env`) — nothing to configure by hand. Since the identity cutover
+(ADR-20) `tamiyo_scroll.yml` also sets **`VITE_IDENTITY_SERVICE_URL`**
+(`https://identity{,-staging}.barrins-codex.org`) — Tamiyo Scroll's login
+/ signup / reset / account UI is the shared `@barrins/goblin-guide`
+library talking to `barrins_identity` directly in cookie mode, and its
+`barrins_api` calls carry the identity access token. Both are
+**build-time** variables (Vite inlines them into the JS bundle), so
+changing either needs a new build (`--tags deploy`), not just a service
+restart — though note neither frontend runs a service; "restart" here
+means re-running the build and reloading nginx. `tamiyo_scroll.yml` also
+prebuilds `libs/goblin_guide` (a `file:` dep whose `dist/` is
+git-ignored) before the shell build, exactly like `goblin_guide.yml`.
 
 ## Deployment
 

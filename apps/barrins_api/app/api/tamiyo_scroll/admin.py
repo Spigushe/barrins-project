@@ -57,17 +57,15 @@ async def get_platform_metrics(
     session: DatabaseSession,
     _admin: AdminUser,
 ) -> ResponsePlatformMetrics:
-    """Total accounts / personal decks / matches ever created, platform-wide.
+    """Total personal decks / matches ever created, platform-wide.
 
     Aggregate-only, computed entirely from data the backend already holds
     for its normal function — no new data collection (constitution §51,
-    Privacy/Data Retention & Analytics Policy).
+    Privacy/Data Retention & Analytics Policy). "Total accounts" left with
+    the local `users` table (ADR-20).
     """
     metrics = await compute_platform_metrics(session)
     return ResponsePlatformMetrics(
-        total_accounts=ResponseAggregateMetric(
-            value=metrics.total_accounts.value, source=metrics.total_accounts.source
-        ),
         total_personal_decks=ResponseAggregateMetric(
             value=metrics.total_personal_decks.value,
             source=metrics.total_personal_decks.source,
@@ -85,14 +83,13 @@ async def get_platform_metrics_timeseries(
     session: DatabaseSession,
     _admin: AdminUser,
 ) -> ResponsePlatformMetricsTimeseries:
-    """Day/week/month bucketed comparison of the same three counts above
+    """Day/week/month bucketed comparison of the same counts above
     (added 2026-08-02, `index.md`'s "Added requirement" section) — not a
-    new metric, the same accounts/personal-decks/matches counts grouped
-    by `created_at` bucket instead of collapsed to one all-time total.
+    new metric, the same personal-decks/matches counts grouped by
+    `created_at` bucket instead of collapsed to one all-time total.
     """
     timeseries = await compute_platform_metrics_timeseries(session)
     return ResponsePlatformMetricsTimeseries(
-        accounts=_to_response_timeseries(timeseries.accounts),
         personal_decks=_to_response_timeseries(timeseries.personal_decks),
         matches=_to_response_timeseries(timeseries.matches),
     )

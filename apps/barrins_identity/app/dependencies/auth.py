@@ -14,6 +14,11 @@ from app.models.service_account import ServiceAccount
 from app.models.user import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+# Same scheme, but a missing Authorization header is not an error — the
+# endpoint decides what "anonymous" means (used by GET /applications).
+optional_oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/token", auto_error=False
+)
 
 
 async def get_current_user(
@@ -48,6 +53,22 @@ async def get_current_user(
         raise credentials_exc
 
     return user
+
+
+async def get_optional_current_user(
+    token: Annotated[str | None, Depends(optional_oauth2_scheme)],
+    session: DatabaseSession,
+) -> User | None:
+    """Return the current user, or None when no Authorization header is sent.
+
+    A header that *is* present but invalid (malformed / expired / revoked /
+    unknown user) still raises 401 — same as `get_current_user` — so the
+    client's silent-refresh path can kick in. Only a wholly absent
+    credential is treated as anonymous.
+    """
+    if token is None:
+        return None
+    return await get_current_user(token=token, session=session)
 
 
 def require_role(min_role: UserRole) -> Callable[..., Awaitable[User]]:
@@ -101,8 +122,34 @@ async def get_current_service_account(
     return account
 
 
+def require_service_scope(
+    scope: str,
+) -> Callable[..., Awaitable[ServiceAccount]]:
+    """Dependency factory: a service-account token whose `scopes` include `scope`.
+
+    `403` when the token is a valid service token but lacks the scope
+    (mirrors `libs/identity_client`'s `InsufficientScope` → `403`).
+    """
+
+    async def _check(
+        account: Annotated[ServiceAccount, Depends(get_current_service_account)],
+    ) -> ServiceAccount:
+        if scope not in account.scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required scope: {scope!r}.",
+            )
+        return account
+
+    return _check
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
 ModeratorUser = Annotated[User, Depends(require_role(UserRole.moderator))]
 MLDevUser = Annotated[User, Depends(require_role(UserRole.ml_developer))]
 AdminUser = Annotated[User, Depends(require_role(UserRole.admin))]
 CurrentServiceAccount = Annotated[ServiceAccount, Depends(get_current_service_account)]
+UsersDirectoryReader = Annotated[
+    ServiceAccount, Depends(require_service_scope("identity:users:read"))
+]

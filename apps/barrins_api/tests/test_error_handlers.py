@@ -75,7 +75,7 @@ class TestAppException:
 # ---------------------------------------------------------------------------
 async def test_auth_dependency_requires_bearer(client: AsyncClient):
     """get_current_user without a Bearer token returns HTTP 401."""
-    response = await client.get("/api/v1/auth/me")
+    response = await client.get("/bff/tamiyo-scroll/me/settings")
     assert response.status_code == 401
 
 

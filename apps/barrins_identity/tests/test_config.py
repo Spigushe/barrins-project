@@ -81,7 +81,7 @@ class TestBaseAppSettingsValidators:
             jwt_private_key=_rsa_pem(),
             allowed_origins=["http://localhost:5173"],
         )
-        assert s.jwt_kid == "2026-07"
+        assert s.jwt_kid == "2026-08"
 
     def test_database_url_sync_replaces_asyncpg(self):
         from app.config.base import BaseAppSettings
@@ -94,6 +94,36 @@ class TestBaseAppSettingsValidators:
         )
         assert "+psycopg2" in s.database_url_sync
         assert "+asyncpg" not in s.database_url_sync
+
+    def test_database_url_sync_survives_alembic_config_with_encoded_password(self):
+        """`alembic/env.py` feeds `database_url_sync` into
+        `Config.set_main_option`, which runs it through ConfigParser
+        interpolation. A password with reserved characters is percent-encoded
+        when the DSN is stringified (``==`` -> ``%3D%3D``); env.py doubles the
+        ``%`` so ConfigParser doesn't read it as ``%(name)s`` syntax and
+        `alembic upgrade` no longer dies with "invalid interpolation syntax".
+        """
+        from alembic.config import Config
+
+        from app.config.base import BaseAppSettings
+
+        s = BaseAppSettings(
+            _env_file=None,
+            database_url="postgresql+asyncpg://u:pw%3D%3D@localhost:5432/db",
+            jwt_private_key=_rsa_pem(),
+            allowed_origins=["http://localhost:5173"],
+        )
+        sync_url = str(s.database_url_sync)
+        assert "%" in sync_url, "precondition: the encoded password keeps a '%'"
+
+        # Unescaped, ConfigParser rejects the lone '%' — this is the bug.
+        with pytest.raises(ValueError, match="interpolation"):
+            Config().set_main_option("sqlalchemy.url", sync_url)
+
+        # Escaped exactly as alembic/env.py does it: '%%' round-trips to '%'.
+        cfg = Config()
+        cfg.set_main_option("sqlalchemy.url", sync_url.replace("%", "%%"))
+        assert cfg.get_main_option("sqlalchemy.url") == sync_url
 
     def test_missing_required_fields_raise(self, monkeypatch: pytest.MonkeyPatch):
         from app.config.base import BaseAppSettings

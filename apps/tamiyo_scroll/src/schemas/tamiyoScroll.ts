@@ -302,7 +302,10 @@ export type TeamSummary = z.infer<typeof teamSummarySchema>
 
 export const teamMemberSchema = z.object({
   user_id: z.uuid(),
-  email: z.email(),
+  // Since the identity cutover (ADR-20) the roster carries the identity
+  // handle + display name only — never the email. `null` when the identity
+  // account is inactive / removed.
+  username: z.string().nullable(),
   display_name: z.string().nullable(),
   is_owner: z.boolean(),
   joined_at: z.iso.datetime({ offset: true }),
@@ -371,8 +374,10 @@ export const aggregateMetricSchema = z.object({
 })
 export type AggregateMetric = z.infer<typeof aggregateMetricSchema>
 
+// `total_accounts` was dropped in the identity cutover (ADR-20) — `barrins_api`
+// no longer owns a `users` table to count. Restore later via a
+// `barrins_identity` admin count endpoint.
 export const platformMetricsSchema = z.object({
-  total_accounts: aggregateMetricSchema,
   total_personal_decks: aggregateMetricSchema,
   total_matches: aggregateMetricSchema,
 })
@@ -393,8 +398,8 @@ export const metricTimeseriesSchema = z.object({
 })
 export type MetricTimeseries = z.infer<typeof metricTimeseriesSchema>
 
+// `accounts` dropped alongside `total_accounts` (ADR-20).
 export const platformMetricsTimeseriesSchema = z.object({
-  accounts: metricTimeseriesSchema,
   personal_decks: metricTimeseriesSchema,
   matches: metricTimeseriesSchema,
 })

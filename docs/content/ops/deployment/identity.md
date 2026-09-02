@@ -16,7 +16,7 @@ vhost, or database.
 
 | | Production | Staging |
 | --- | --- | --- |
-| Domain | `id.barrins-codex.org` *(playbook-owned)* | `id-staging.barrins-codex.org` *(playbook-owned)* |
+| Domain | `identity.barrins-codex.org` *(playbook-owned)* | `identity-staging.barrins-codex.org` *(playbook-owned)* |
 | Local port (`uvicorn`, `127.0.0.1`) | a free port in the `80NN` scheme, e.g. `8021` *(playbook-owned — `barrins_api` holds `8011`)* | `85NN`, e.g. `8521` *(playbook-owned)* |
 | systemd unit | `identity` *(playbook-owned)* | `identity-staging` *(playbook-owned)* |
 | Source | latest GitHub release tag (ADR-2) | `develop` branch |
@@ -78,9 +78,25 @@ system packages.
 **Database** — a dedicated PostgreSQL database and role,
 **separate from `barrins_api`'s**. Created by hand on the VPS (like the
 `postgres` superuser and `karn_tablets`'s read-only role), not by the
-playbook: `CREATE DATABASE barrins_identity; CREATE ROLE barrins_identity
-LOGIN PASSWORD '...'; GRANT ALL ON DATABASE barrins_identity TO
-barrins_identity;`. Different password per environment.
+playbook:
+
+```sql
+CREATE DATABASE barrins_identity;
+CREATE ROLE barrins_identity LOGIN PASSWORD '<hex-password>';
+GRANT ALL ON DATABASE barrins_identity TO barrins_identity;
+-- PostgreSQL 15+: GRANT ALL ON DATABASE does NOT grant table creation on
+-- schema public. Without the next two lines, `alembic upgrade head` fails
+-- with "permission denied for schema public".
+ALTER DATABASE barrins_identity OWNER TO barrins_identity;
+\c barrins_identity
+ALTER SCHEMA public OWNER TO barrins_identity;
+```
+
+Different password per environment. **Use a hex password**
+(`openssl rand -hex 32`): it keeps the DSN free of percent-encoding.
+`alembic/env.py` escapes `%` before handing the URL to `ConfigParser`, so
+a percent-encoded password (`==` → `%3D%3D` once the DSN is stringified)
+also works now — but hex sidesteps that edge case entirely.
 
 **Signing key** — generate an RSA private key per environment and put it
 in the secrets file, never in git (Constitution §34,
@@ -108,7 +124,8 @@ cp secrets/barrins_identity/production.env.example \
 | `DATABASE_URL` | The dedicated DB above. **Never** `barrins_api`'s. Different value per environment |
 | `JWT_PRIVATE_KEY` | RSA PEM, per environment. Startup fails on a non-RSA / malformed key |
 | `JWT_KID` | Bump when rotating (publish the new public key under the new `kid` in JWKS *before* switching the private key) |
-| `ALLOWED_ORIGINS` | JSON array, no wildcard. Goblin Guide's origin (and any other frontend calling identity directly) — the `-staging` origins on staging |
+| `ALLOWED_ORIGINS` | JSON array, no wildcard. Goblin Guide's origin (and any other frontend calling identity directly) — the `-staging` origins on staging. CORS already runs `allow_credentials=True`, so an allowed origin gets `Access-Control-Allow-Credentials: true` for free — nothing extra for cookie mode |
+| `REFRESH_COOKIE_ENABLED` / `REFRESH_COOKIE_DOMAIN` / `REFRESH_COOKIE_SAMESITE` | Cookie mode on the token-minting endpoints (ADR-18). `ENABLED=true`, `DOMAIN=identity{,-staging}.barrins-codex.org`, `SAMESITE=none` (cross-site SPA ⇒ `Secure` is set automatically) |
 | `ENVIRONMENT` | `production` / `staging`. Gates the strict SMTP/`FRONTEND_BASE_URL` startup check |
 | `REQUIRE_EMAIL_VERIFICATION` | **`true` in production** (ADR-3, ADR-16). See the next section |
 | `SMTP_*`, `SMTP_FROM_ADDRESS`, `FRONTEND_BASE_URL` | Filled by the email setup below |
@@ -196,7 +213,7 @@ Provider: **Brevo** (transactional SMTP relay, EU-hosted). Sender:
 7. **End-to-end check on staging first.** With staging pointed at Brevo:
 
    ```bash
-   curl -X POST https://id-staging.barrins-codex.org/api/v1/auth/signup \
+   curl -X POST https://identity-staging.barrins-codex.org/api/v1/auth/signup \
      -H "Content-Type: application/json" \
      -d '{"email":"<a real inbox>","password":"Sufficiently-Long-1!"}'
    ```
@@ -206,7 +223,8 @@ Provider: **Brevo** (transactional SMTP relay, EU-hosted). Sender:
    shows the message *delivered*. Then:
 
    ```bash
-   curl -X POST https://id-staging.barrins-codex.org/api/v1/auth/signup/verify \
+   curl -X POST \
+     https://identity-staging.barrins-codex.org/api/v1/auth/signup/verify \
      -H "Content-Type: application/json" \
      -d '{"email":"<the same inbox>","code":"<6 digits>"}'
    ```
@@ -248,8 +266,8 @@ restarts the systemd unit. It touches nothing belonging to `barrins_api`.
 
 ## Validation
 
-- `curl -fsS https://id.barrins-codex.org/health` → `{"status": "ok"}`.
-- `curl -fsS https://id.barrins-codex.org/.well-known/jwks.json` → a
+- `curl -fsS https://identity.barrins-codex.org/health` → `{"status": "ok"}`.
+- `curl -fsS https://identity.barrins-codex.org/.well-known/jwks.json` → a
   single-key JWKS document with the expected `kid`.
 - `POST /api/v1/auth/token` with the seeded admin → a token pair;
   `POST /api/v1/auth/refresh` → a new pair; `POST /api/v1/auth/logout`

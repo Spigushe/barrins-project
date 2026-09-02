@@ -1,8 +1,8 @@
 """Server-rendered PDF report for a session or a rolling period (S5).
 
-HTML is built with plain string formatting (same convention as
-`services/email/smtp_sender.py` — "no pip templating dependency"), then
-rendered to PDF via WeasyPrint (I8). Every number here is read from
+HTML is built with plain string formatting (no pip templating
+dependency), then rendered to PDF via WeasyPrint (I8). Every number here
+is read from
 already-computed `stats`/`decklist_coloring` output, never recalculated —
 Constitution §4.1/§4.2.
 

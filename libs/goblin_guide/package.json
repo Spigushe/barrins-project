@@ -1,0 +1,58 @@
+{
+  "name": "@barrins/goblin-guide",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared Barrin's Identity login and account-management frontend library.",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/goblin-guide.js",
+  "module": "./dist/goblin-guide.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/goblin-guide.js"
+    },
+    "./styles.css": "./dist/goblin-guide.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "build": "tsc -b && vite build && tsc -p tsconfig.build.json",
+    "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.10",
+    "jsdom": "^30.0.1",
+    "oxlint": "^1.76.0",
+    "prettier": "^3.9.5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "~7.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^4.1.10"
+  }
+}

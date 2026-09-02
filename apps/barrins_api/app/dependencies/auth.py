@@ -1,68 +1,112 @@
-"""FastAPI dependencies for JWT authentication and authorization."""
+"""FastAPI dependencies for identity-token authentication and authorization.
 
+Since the identity cutover (ADR-20) `barrins_api` does not manage users: it
+verifies the bearer access token issued by `apps/barrins_identity` locally
+against that service's JWKS (`libs/identity_client`, ADR-17) and trusts the
+`sub` / `role` claims. There is no database lookup and no local `users`
+table.
+"""
+
+import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
-from sqlalchemy import select
+from identity_client import (
+    IdentityClientError,
+    JWKSCache,
+    VerifiedPrincipal,
+    make_verify_dependency,
+    verify_token,
+)
 
-from app.core.security import decode_access_token
-from app.database.session import DatabaseSession
-from app.models.user import User, UserRole
+from app.config import settings
+from app.core.roles import Role, role_level
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+# One JWKS cache for the process lifetime (fetches + caches the identity
+# service's public signing keys; never calls back per request).
+_jwks_cache = JWKSCache(
+    settings.base.identity_service_url,
+    cache_ttl_seconds=settings.base.identity_jwks_cache_ttl_seconds,
+)
+
+_verify_user_token = make_verify_dependency(_jwks_cache, expected_account_type="user")
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedUser:
+    """The caller behind a verified identity user token.
+
+    Only the fields `barrins_api` routes actually use — `id` (the identity
+    user UUID, used as the owner key on domain rows) and `role` (for
+    `require_role`). `email` is informational, never used for authorization.
+    """
+
+    id: uuid.UUID
+    role: str
+    email: str | None = None
+
+
+_CREDENTIALS_EXC = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials.",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+def _principal_to_user(principal: VerifiedPrincipal) -> AuthenticatedUser:
+    try:
+        user_id = uuid.UUID(principal.subject)
+    except ValueError as err:
+        raise _CREDENTIALS_EXC from err
+    return AuthenticatedUser(
+        id=user_id,
+        role=principal.role or Role.user.value,
+        email=principal.email,
+    )
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    session: DatabaseSession,
-) -> User:
-    """Validate the JWT and return the corresponding active user.
+    principal: Annotated[VerifiedPrincipal, Depends(_verify_user_token)],
+) -> AuthenticatedUser:
+    """Return the authenticated caller from a verified identity token.
 
-    Raises HTTP 401 if:
-    - the token is missing, malformed, expired, or of the wrong type;
-    - the user no longer exists in the database;
-    - the account is inactive;
-    - the token_version doesn't match (token revoked — logout or password change).
+    `identity_client` has already raised `401` for a missing / malformed /
+    expired token or a `type` / `account_type` mismatch. The only extra
+    check here is that `sub` is a UUID.
     """
-    credentials_exc = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    return _principal_to_user(principal)
+
+
+async def verify_user_bearer(token: str) -> AuthenticatedUser:
+    """Verify a raw bearer-token string — for non-`Depends` callers.
+
+    Used by `app/dependencies/service_auth.py`, where the identity token is
+    one of several accepted credentials and can't be a route dependency.
+    Raises `401` for any invalid token.
+    """
     try:
-        token_data = decode_access_token(token)
-    except JWTError as err:
-        raise credentials_exc from err
-
-    result = await session.execute(select(User).where(User.id == token_data.sub))
-    user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
-        raise credentials_exc
-
-    # Instant revocation — zero cost (SELECT already performed)
-    if user.token_version != token_data.token_version:
-        raise credentials_exc
-
-    return user
+        principal = await verify_token(token, _jwks_cache, expected_account_type="user")
+    except IdentityClientError as err:
+        raise _CREDENTIALS_EXC from err
+    return _principal_to_user(principal)
 
 
-def require_role(min_role: UserRole) -> Callable[..., Awaitable[User]]:
-    """Dependency factory: requires the user to have a level >= min_role.
+def require_role(min_role: Role) -> Callable[..., Awaitable[AuthenticatedUser]]:
+    """Dependency factory: requires the caller's role level >= `min_role`.
 
-    Roles are hierarchical (user < placeholder < ml_developer < admin).
-    An admin therefore satisfies require_role(UserRole.ml_developer).
+    Roles are hierarchical (user < moderator < ml_developer < admin), so an
+    admin satisfies `require_role(Role.ml_developer)`.
 
     Example:
-        @router.delete("/{id}", dependencies=[Depends(require_role(UserRole.admin))])
+        @router.delete("/{id}", dependencies=[Depends(require_role(Role.admin))])
     """
 
     async def _check(
-        current_user: Annotated[User, Depends(get_current_user)],
-    ) -> User:
-        if current_user.role.level < min_role.level:
+        current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    ) -> AuthenticatedUser:
+        if role_level(current_user.role) < min_role.level:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Droits insuffisants.",
@@ -76,7 +120,7 @@ def require_role(min_role: UserRole) -> Callable[..., Awaitable[User]]:
 # Convenience aliases
 # ---------------------------------------------------------------------------
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
-PlaceholderUser = Annotated[User, Depends(require_role(UserRole.placeholder))]
-MLDevUser = Annotated[User, Depends(require_role(UserRole.ml_developer))]
-AdminUser = Annotated[User, Depends(require_role(UserRole.admin))]
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+ModeratorUser = Annotated[AuthenticatedUser, Depends(require_role(Role.moderator))]
+MLDevUser = Annotated[AuthenticatedUser, Depends(require_role(Role.ml_developer))]
+AdminUser = Annotated[AuthenticatedUser, Depends(require_role(Role.admin))]

@@ -13,9 +13,8 @@ from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.config import settings
-from app.database.session import DatabaseSession
-from app.dependencies.auth import get_current_user
-from app.models.user import UserRole
+from app.core.roles import Role, role_level
+from app.dependencies.auth import verify_user_bearer
 
 
 def _scripture_token_valid(token: str | None) -> bool:
@@ -32,9 +31,7 @@ async def verify_scripture_token(
 ) -> None:
     """Validate the `X-Scripture-Token` header against the configured secret.
 
-    Comparison is constant-time (`hmac.compare_digest`), matching the style
-    already used for email verification codes
-    (`app/core/security.py::verify_verification_code`).
+    Comparison is constant-time (`hmac.compare_digest`).
 
     Raises 503 if no token is configured (misconfiguration, not an auth
     failure — the route can never be called successfully in that state) and
@@ -63,25 +60,24 @@ _optional_bearer_scheme = OAuth2PasswordBearer(
 
 
 async def verify_scripture_or_admin(
-    session: DatabaseSession,
     x_scripture_token: Annotated[str | None, Header()] = None,
     bearer_token: Annotated[str | None, Depends(_optional_bearer_scheme)] = None,
 ) -> None:
     """Allow either the scripture service secret or an admin-level user.
 
     For routes read by both Barrin's Scripture's own sweep (service
-    secret) and a human admin (JWT) — e.g. `GET
+    secret) and a human admin (identity token) — e.g. `GET
     /internal/scripture/db-metrics`. Tries the cheap header check first;
-    falls back to `get_current_user` (reused, not reimplemented, per
-    Constitution §4.2) so a bad/expired JWT still 401s and an
+    falls back to `verify_user_bearer` (reused, not reimplemented, per
+    Constitution §4.2) so a bad/expired token still 401s and an
     authenticated-but-non-admin user still 403s exactly like
-    `require_role(UserRole.admin)` does.
+    `require_role(Role.admin)` does.
     """
     if _scripture_token_valid(x_scripture_token):
         return
     if bearer_token is not None:
-        user = await get_current_user(bearer_token, session)
-        if user.role.level < UserRole.admin.level:
+        user = await verify_user_bearer(bearer_token)
+        if role_level(user.role) < Role.admin.level:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Droits insuffisants.",
@@ -106,7 +102,6 @@ def _mtgjson_token_valid(token: str | None) -> bool:
 
 
 async def verify_mtgjson_or_admin(
-    session: DatabaseSession,
     x_mtgjson_import_token: Annotated[str | None, Header()] = None,
     bearer_token: Annotated[str | None, Depends(_optional_bearer_scheme)] = None,
 ) -> None:
@@ -116,13 +111,14 @@ async def verify_mtgjson_or_admin(
     not reimplemented): the systemd timer driving the daily MTGJSON
     refresh (`ops/my-server/roles/mtgjson_import_scheduler`) authenticates
     via `X-MTGJSON-Import-Token`; a human admin still triggers the same
-    `POST /mtgjson/import` route via the existing JWT flow, unchanged.
+    `POST /mtgjson/import` route via the existing identity-token flow,
+    unchanged.
     """
     if _mtgjson_token_valid(x_mtgjson_import_token):
         return
     if bearer_token is not None:
-        user = await get_current_user(bearer_token, session)
-        if user.role.level < UserRole.admin.level:
+        user = await verify_user_bearer(bearer_token)
+        if role_level(user.role) < Role.admin.level:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Droits insuffisants.",

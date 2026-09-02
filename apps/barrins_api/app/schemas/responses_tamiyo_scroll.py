@@ -235,7 +235,9 @@ class ResponseTeamSummary(BaseResponse):
 
 class ResponseTeamMember(BaseResponse):
     user_id: uuid.UUID
-    email: str
+    # Since the identity cutover (ADR-20) the roster shows the identity
+    # handle + display name only — never the email address.
+    username: str | None
     display_name: str | None
     is_owner: bool
     joined_at: datetime
@@ -310,10 +312,11 @@ class ResponseAggregateMetric(BaseResponse):
 
 
 class ResponsePlatformMetrics(BaseResponse):
-    """Admin dashboard payload (S6) — the three v2.0.0 adoption signals,
-    nothing more (deeper metrics are explicitly deferred)."""
+    """Admin dashboard payload (S6) — the adoption signals still sourced
+    locally after the identity cutover (ADR-20): total personal decks and
+    total matches. "Total accounts" moved to `barrins_identity` and isn't
+    exposed here yet."""
 
-    total_accounts: ResponseAggregateMetric
     total_personal_decks: ResponseAggregateMetric
     total_matches: ResponseAggregateMetric
 
@@ -338,10 +341,9 @@ class ResponseMetricTimeseries(BaseResponse):
 
 class ResponsePlatformMetricsTimeseries(BaseResponse):
     """Admin dashboard time-comparison payload (S6, added 2026-08-02) —
-    the same three v2.0.0 adoption signals as `ResponsePlatformMetrics`,
-    broken down per period instead of flattened to an all-time total."""
+    the same adoption signals as `ResponsePlatformMetrics`, broken down
+    per period instead of flattened to an all-time total."""
 
-    accounts: ResponseMetricTimeseries
     personal_decks: ResponseMetricTimeseries
     matches: ResponseMetricTimeseries
 

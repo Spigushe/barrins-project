@@ -29,7 +29,7 @@ export interface DemoMemberDeck {
 
 export interface DemoTeamMember {
   user_id: string
-  email: string
+  username: string | null
   display_name: string | null
   is_owner: boolean
   joined_at: string
@@ -64,7 +64,7 @@ interface Fixtures {
   decklistVersions: DecklistVersion[]
   decklistLines: Record<string, DecklistLine[]>
   sessions: Session[]
-  currentUser: { id: string; email: string; display_name: string | null }
+  currentUser: { id: string; username: string; display_name: string | null }
   teams: DemoTeam[]
 }
 

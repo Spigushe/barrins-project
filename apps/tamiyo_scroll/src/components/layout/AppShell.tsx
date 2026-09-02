@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { useCurrentUser, useLogout } from '@/hooks/useAuth'
+import { useCurrentUser, useLogout } from '@barrins/goblin-guide'
 import { useMySettings } from '@/hooks/useSettings'
 import { ActiveDeckContext } from '@/contexts/active-deck-context'
 import { AccountSettingsDialog } from '@/components/layout/AccountSettingsDialog'

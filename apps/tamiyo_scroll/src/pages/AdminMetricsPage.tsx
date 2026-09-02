@@ -14,11 +14,12 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { MetricTimeseries, MetricTimeseriesPoint } from '@/schemas/tamiyoScroll'
 
+// "Accounts created" was dropped in the identity cutover (ADR-20) — the
+// count now lives in `barrins_identity`, not exposed here yet.
 const STAT_TILES: {
-  key: 'total_accounts' | 'total_personal_decks' | 'total_matches'
+  key: 'total_personal_decks' | 'total_matches'
   label: string
 }[] = [
-  { key: 'total_accounts', label: 'Accounts created' },
   { key: 'total_personal_decks', label: 'Personal decks created' },
   { key: 'total_matches', label: 'Matches recorded' },
 ]
@@ -34,11 +35,10 @@ const GRANULARITY_DESCRIPTIONS: Record<Granularity, string> = {
 // One chart color per metric, reusing existing themed CSS variables
 // (`index.css`) instead of introducing new hard-coded colors.
 const METRIC_CHARTS: {
-  key: 'accounts' | 'personal_decks' | 'matches'
+  key: 'personal_decks' | 'matches'
   label: string
   color: string
 }[] = [
-  { key: 'accounts', label: 'New accounts', color: 'var(--color-accent)' },
   { key: 'personal_decks', label: 'New personal decks', color: 'var(--color-owner)' },
   { key: 'matches', label: 'New matches', color: 'var(--color-tournament)' },
 ]

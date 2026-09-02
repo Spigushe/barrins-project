@@ -4,12 +4,20 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppShell } from './AppShell'
 
 let activePersonalDeckId: string | null = null
-let currentUser: { display_name: string | null; email: string } | undefined = undefined
+let currentUser:
+  | { display_name: string | null; email: string; username?: string }
+  | undefined = undefined
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@barrins/goblin-guide', () => ({
   useLogout: () => ({ mutateAsync: vi.fn() }),
   useCurrentUser: () => ({ data: currentUser }),
-  useUpdateProfile: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
+// The account-settings popup mounts under the shell; its identity-owned
+// section is the real `<AccountScreen>` — stub it so this test stays
+// focused on the shell chrome.
+vi.mock('@/components/layout/AccountSettingsDialog', () => ({
+  AccountSettingsDialog: () => null,
 }))
 
 vi.mock('@/hooks/useSettings', () => ({

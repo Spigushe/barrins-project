@@ -13,6 +13,7 @@ jobs:
       back: ${{ steps.filter.outputs.back }}
       identity: ${{ steps.filter.outputs.identity }}
       front: ${{ steps.filter.outputs.front }}
+      goblin_guide: ${{ steps.filter.outputs.goblin_guide }}
       scripture: ${{ steps.filter.outputs.scripture }}
       karn: ${{ steps.filter.outputs.karn }}
       ops: ${{ steps.filter.outputs.ops }}
@@ -32,6 +33,10 @@ jobs:
             front:
               - 'apps/tamiyo_scroll/**'
               - 'apps/tolaria_news/**'
+              - 'libs/goblin_guide/**'
+            goblin_guide:
+              - 'apps/goblin_guide/**'
+              - 'libs/goblin_guide/**'
             scripture:
               - 'apps/barrins_scripture/**'
             karn:
@@ -142,10 +147,46 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+      # tamiyo_scroll consumes @barrins/goblin-guide as a file: dependency;
+      # its dist/ is a build artifact (gitignored), so it must be built here
+      # before tsc -b / vite / vitest can resolve the module.
+      - name: Build @barrins/goblin-guide (file dependency of tamiyo_scroll)
+        working-directory: libs/goblin_guide
+        run: |
+          npm ci
+          npm run build
       - run: npm ci
       - run: npm run lint --if-present
       - run: npm run build --if-present
       - run: npm test --if-present
+
+  goblin_guide:
+    needs: changes
+    if: needs.changes.outputs.goblin_guide == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      # The shared library first — the standalone shell resolves it as a
+      # file: path dependency and needs its dist/ built.
+      - name: goblin_guide library — lint / build / test
+        working-directory: libs/goblin_guide
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          npm run build
+          npm test
+      - name: goblin_guide shell — lint / build / test
+        working-directory: apps/goblin_guide
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          npm run build
+          npm test
 
   scripture:
     needs: changes
@@ -222,12 +263,12 @@ jobs:
 
   ci-required:
     if: always()
-    needs: [changes, back, identity, front, scripture, karn, ops, docs]
+    needs: [changes, back, identity, front, goblin_guide, scripture, karn, ops, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Verify no triggered job failed
         run: |
-          for r in "${{ needs.back.result }}" "${{ needs.identity.result }}" "${{ needs.front.result }}" "${{ needs.scripture.result }}" "${{ needs.karn.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
+          for r in "${{ needs.back.result }}" "${{ needs.identity.result }}" "${{ needs.front.result }}" "${{ needs.goblin_guide.result }}" "${{ needs.scripture.result }}" "${{ needs.karn.result }}" "${{ needs.ops.result }}" "${{ needs.docs.result }}"; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
               echo "A required job failed or was cancelled: $r"
               exit 1

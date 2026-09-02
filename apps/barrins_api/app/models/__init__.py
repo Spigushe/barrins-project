@@ -14,7 +14,6 @@ Exports:
 from app.database import Base
 from app.models._types import JSONBCompat, JsonValue, jsonb_column
 from app.models.base import IDUuidMixin, TimestampMixin
-from app.models.email_verification import EmailVerification
 from app.models.karn import (
     KTArchetype,
     KTClusteringRun,
@@ -44,7 +43,6 @@ from app.models.tamiyo_scroll import (
     TSPersonalDecklistVersion,
     TSUserSettings,
 )
-from app.models.user import User, UserRole
 
 __all__ = [
     "ArchetypeCategory",
@@ -59,7 +57,6 @@ __all__ = [
     "Base",
     "Card",
     "DecklistVersionSource",
-    "EmailVerification",
     "ExpectedLevel",
     "GameResult",
     "IDUuidMixin",
@@ -77,8 +74,6 @@ __all__ = [
     "TSPersonalDecklistVersion",
     "TSUserSettings",
     "TimestampMixin",
-    "User",
-    "UserRole",
     "jsonb_column",
 ]
 

@@ -154,6 +154,18 @@
           - "migrations."
       tags: [backend, deploy]
 
+    - name: Reminder — identity cutover (first deploy of the ADR-20 release)
+      ansible.builtin.debug:
+        msg:
+          - "The release carrying the identity cutover (ADR-20) needs"
+          - "IDENTITY_SERVICE_URL (+ IDENTITY_SERVICE_CLIENT_ID/_SECRET)"
+          - "in {{ backend_env_file }} instead of SECRET_KEY, and a"
+          - "one-time users -> barrins_identity data migration BEFORE"
+          - "'alembic upgrade head' drops the users table. Follow"
+          - "docs/content/ops/deployment/identity-cutover.md end to end —"
+          - "do not run this playbook for that release without it."
+      tags: [backend, deploy]
+
     - name: Reminder — every frontend served by this backend
       ansible.builtin.debug:
         msg:

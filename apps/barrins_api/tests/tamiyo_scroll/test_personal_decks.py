@@ -9,9 +9,9 @@ from sqlalchemy import select, update
 from app.main import app
 from app.models.mtgjson import Card, MTGSet
 from app.models.tamiyo_scroll import TSPersonalDeck, TSPersonalDecklistVersion
-from app.models.user import User
 from app.services.moxfield import get_moxfield_client
 from app.services.moxfield.base import MoxfieldDeckFetch
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 

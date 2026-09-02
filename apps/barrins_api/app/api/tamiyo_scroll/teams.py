@@ -22,7 +22,6 @@ from app.models.tamiyo_scroll import (
     TSTeamDeckThread,
     TSTeamMember,
 )
-from app.models.user import User
 from app.schemas.responses_tamiyo_scroll import (
     ResponseMemberDeck,
     ResponseTeam,
@@ -39,6 +38,11 @@ from app.schemas.tamiyo_scroll import (
     TeamDelete,
     TeamJoin,
     TeamPatch,
+)
+from app.services.identity_directory import (
+    IdentityDirectory,
+    IdentityDirectoryDep,
+    UserRef,
 )
 from app.services.tamiyo_scroll.decklist_coloring import color_decklist
 from app.services.tamiyo_scroll.report import (
@@ -67,41 +71,54 @@ REPORT_ROLLING_WINDOW = timedelta(days=30)
 router = APIRouter()
 
 
-def _display_name(user: User) -> str:
-    return user.display_name or user.email
+_UNKNOWN_MEMBER_LABEL = "Unknown member"
+
+
+def _ref_label(ref: UserRef | None) -> str:
+    """Display label for a user id resolved via the identity directory —
+    `display_name` if set, else the handle, else a generic fallback (the
+    directory is disabled or identity was unreachable)."""
+    return ref.label if ref is not None else _UNKNOWN_MEMBER_LABEL
 
 
 def _team_deck_owners(
-    owners: list[tuple[TSPersonalDeck, User]],
+    decks: list[TSPersonalDeck], refs: dict[uuid.UUID, UserRef]
 ) -> list[ResponseTeamDeckOwner]:
     return sorted(
         (
-            ResponseTeamDeckOwner(deck_id=deck.id, display=_display_name(owner))
-            for deck, owner in owners
+            ResponseTeamDeckOwner(
+                deck_id=deck.id, display=_ref_label(refs.get(deck.owner_id))
+            )
+            for deck in decks
         ),
         key=lambda o: o.display,
     )
 
 
-async def _team_to_response(session: DatabaseSession, team: TSTeam) -> ResponseTeam:
+async def _team_to_response(
+    session: DatabaseSession, directory: IdentityDirectory, team: TSTeam
+) -> ResponseTeam:
     members_result = await session.execute(
-        select(TSTeamMember, User)
-        .join(User, User.id == TSTeamMember.user_id)
+        select(TSTeamMember)
         .where(TSTeamMember.team_id == team.id)
         .order_by(TSTeamMember.joined_at)
     )
+    team_members = list(members_result.scalars().all())
+    refs = await directory.lookup(m.user_id for m in team_members)
     activity = await compute_member_activity(session, team.id)
-    members = [
-        ResponseTeamMember(
-            user_id=user.id,
-            email=user.email,
-            display_name=user.display_name,
-            is_owner=user.id == team.owner_id,
-            joined_at=member.joined_at,
-            activity_count=activity.total_for(user.id),
+    members: list[ResponseTeamMember] = []
+    for member in team_members:
+        ref = refs.get(member.user_id)
+        members.append(
+            ResponseTeamMember(
+                user_id=member.user_id,
+                username=ref.username if ref is not None else None,
+                display_name=ref.display_name if ref is not None else None,
+                is_owner=member.user_id == team.owner_id,
+                joined_at=member.joined_at,
+                activity_count=activity.total_for(member.user_id),
+            )
         )
-        for member, user in members_result.all()
-    ]
     return ResponseTeam(
         id=team.id,
         name=team.name,
@@ -118,6 +135,7 @@ async def create_team(
     payload: TeamCreate,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeam:
     """Any authenticated user may create a team and becomes its owner +
     first member (S2 §1.6 — no admin gate for v2.0.0).
@@ -146,7 +164,7 @@ async def create_team(
     session.add(TSTeamMember(team_id=team.id, user_id=current_user.id))
     await session.commit()
     await session.refresh(team)
-    return await _team_to_response(session, team)
+    return await _team_to_response(session, directory, team)
 
 
 @router.post("/teams/join", response_model=ResponseTeam)
@@ -154,6 +172,7 @@ async def join_team(
     payload: TeamJoin,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeam:
     await check_and_record_invite_attempt(session, current_user.id)
 
@@ -174,7 +193,7 @@ async def join_team(
         session.add(TSTeamMember(team_id=team.id, user_id=current_user.id))
         await session.commit()
 
-    return await _team_to_response(session, team)
+    return await _team_to_response(session, directory, team)
 
 
 @router.get("/teams/mine", response_model=list[ResponseTeamSummary])
@@ -202,9 +221,10 @@ async def get_team(
     team_id: uuid.UUID,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeam:
     team = await get_member_team(session, team_id, current_user)
-    return await _team_to_response(session, team)
+    return await _team_to_response(session, directory, team)
 
 
 @router.patch("/teams/{team_id}", response_model=ResponseTeam)
@@ -213,6 +233,7 @@ async def update_team(
     payload: TeamPatch,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeam:
     team = await get_owned_team(session, team_id, current_user)
     if "description" in payload.model_fields_set:
@@ -220,7 +241,7 @@ async def update_team(
     session.add(team)
     await session.commit()
     await session.refresh(team)
-    return await _team_to_response(session, team)
+    return await _team_to_response(session, directory, team)
 
 
 @router.delete("/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -300,14 +321,18 @@ async def list_team_decks(
     team_id: uuid.UUID,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> list[ResponseTeamDeck]:
     await get_member_team(session, team_id, current_user)
     groups = await list_team_deck_groups(session, team_id)
+    refs = await directory.lookup(
+        deck.owner_id for group in groups for deck in group.owner_decks
+    )
     return [
         ResponseTeamDeck(
             name_key=group.name_key,
             deck_name=group.deck_name,
-            owners=_team_deck_owners(group.owners),
+            owners=_team_deck_owners(group.owner_decks, refs),
             has_thread=group.has_thread,
         )
         for group in groups
@@ -320,6 +345,7 @@ async def get_team_deck_report(
     name_key: str,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> Response:
     """Cumulative PDF report for a team-flagged deck name (S2, 2026-08-01).
 
@@ -343,13 +369,13 @@ async def get_team_deck_report(
             detail="This name isn't flagged into the team.",
         )
 
-    owners = await get_team_deck_owners(session, team_id, name_key)
-    if not owners:
+    owner_decks = await get_team_deck_owners(session, team_id, name_key)
+    if not owner_decks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No current member owns a matching deck.",
         )
-    deck_ids = [deck.id for deck, _ in owners]
+    deck_ids = [deck.id for deck in owner_decks]
 
     period_end = datetime.now(UTC)
     period_start = period_end - REPORT_ROLLING_WINDOW
@@ -364,7 +390,7 @@ async def get_team_deck_report(
     period_matches = [m for m in all_matches if m.created_at >= period_start]
     baseline_matches = [m for m in all_matches if m.created_at < period_start]
 
-    owner_ids = {owner.id for _, owner in owners}
+    owner_ids = {deck.owner_id for deck in owner_decks}
     meta_decks_result = await session.execute(
         select(TSMetaDeck).where(TSMetaDeck.owner_id.in_(owner_ids))
     )
@@ -379,7 +405,8 @@ async def get_team_deck_report(
     # arbitrary among ties, display-only (stats above are already summed
     # across every contributor, not just this one).
     canonical_deck = next(
-        (deck for deck, owner in owners if owner.id == flag.flagged_by), owners[0][0]
+        (deck for deck in owner_decks if deck.owner_id == flag.flagged_by),
+        owner_decks[0],
     )
     versions_result = await session.execute(
         select(TSPersonalDecklistVersion).where(
@@ -401,8 +428,9 @@ async def get_team_deck_report(
     )
     period_card_tests = [t for t in all_card_tests if t.created_at >= period_start]
 
+    owner_refs = await directory.lookup({deck.owner_id for deck in owner_decks})
     contributor_names = ", ".join(
-        sorted({owner.display_name or owner.email for _, owner in owners})
+        sorted({_ref_label(owner_refs.get(deck.owner_id)) for deck in owner_decks})
     )
     pdf_bytes = render_session_report_pdf(
         title=flag.deck_name,
@@ -436,17 +464,19 @@ async def list_member_decks(
     team_id: uuid.UUID,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> list[ResponseMemberDeck]:
     """Every current member's own personal decks — owner-only, the pool the
     team admin picks from when flagging a name into the team's rotation."""
     await get_owned_team(session, team_id, current_user)
     result = await session.execute(
-        select(TSPersonalDeck, User)
-        .join(User, User.id == TSPersonalDeck.owner_id)
+        select(TSPersonalDeck)
         .join(TSTeamMember, TSTeamMember.user_id == TSPersonalDeck.owner_id)
         .where(TSTeamMember.team_id == team_id, TSPersonalDeck.archived_at.is_(None))
         .order_by(TSPersonalDeck.name)
     )
+    decks = list(result.scalars().all())
+    refs = await directory.lookup(deck.owner_id for deck in decks)
     flagged_names_result = await session.execute(
         select(TSTeamDeckFlag.name_key).where(TSTeamDeckFlag.team_id == team_id)
     )
@@ -457,10 +487,10 @@ async def list_member_decks(
             id=deck.id,
             name=deck.name,
             owner_id=deck.owner_id,
-            owner_display=_display_name(owner),
+            owner_display=_ref_label(refs.get(deck.owner_id)),
             is_flagged=normalize_deck_name(deck.name) in flagged_names,
         )
-        for deck, owner in result.all()
+        for deck in decks
     ]
 
 
@@ -474,18 +504,20 @@ async def flag_team_deck(
     payload: TeamDeckFlagCreate,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeamDeck:
     """Owner-only: flags a deck's *name* into the team's testing rotation —
     every member owning a same-named deck is included automatically (S2,
     revised 2026-08-01)."""
     await get_owned_team(session, team_id, current_user)
-    flag = await flag_deck_name(session, team_id, payload.deck_id, current_user)
+    flag = await flag_deck_name(session, team_id, payload.deck_id, current_user.id)
     groups = await list_team_deck_groups(session, team_id)
     group = next(g for g in groups if g.name_key == flag.name_key)
+    refs = await directory.lookup(deck.owner_id for deck in group.owner_decks)
     return ResponseTeamDeck(
         name_key=group.name_key,
         deck_name=group.deck_name,
-        owners=_team_deck_owners(group.owners),
+        owners=_team_deck_owners(group.owner_decks, refs),
         has_thread=group.has_thread,
     )
 
@@ -564,25 +596,27 @@ async def list_thread_messages(
     name_key: str,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> list[ResponseTeamDeckMessage]:
     await get_member_team(session, team_id, current_user)
     thread = await _get_team_deck_thread(session, team_id, name_key)
     result = await session.execute(
-        select(TSTeamDeckMessage, User)
-        .join(User, User.id == TSTeamDeckMessage.author_id)
+        select(TSTeamDeckMessage)
         .where(TSTeamDeckMessage.thread_id == thread.id)
         .order_by(TSTeamDeckMessage.created_at)
     )
+    messages = list(result.scalars().all())
+    refs = await directory.lookup(m.author_id for m in messages)
     return [
         ResponseTeamDeckMessage(
             id=message.id,
             thread_id=message.thread_id,
             author_id=message.author_id,
-            author_display=_display_name(author),
+            author_display=_ref_label(refs.get(message.author_id)),
             body=message.body,
             created_at=message.created_at,
         )
-        for message, author in result.all()
+        for message in messages
     ]
 
 
@@ -597,6 +631,7 @@ async def post_thread_message(
     payload: TeamDeckThreadMessageCreate,
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
 ) -> ResponseTeamDeckMessage:
     await get_member_team(session, team_id, current_user)
     thread = await _get_team_deck_thread(session, team_id, name_key)
@@ -610,7 +645,9 @@ async def post_thread_message(
         id=message.id,
         thread_id=message.thread_id,
         author_id=message.author_id,
-        author_display=_display_name(current_user),
+        author_display=await directory.label(
+            current_user.id, fallback=_UNKNOWN_MEMBER_LABEL
+        ),
         body=message.body,
         created_at=message.created_at,
     )

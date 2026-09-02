@@ -1,8 +1,25 @@
 <!-- cSpell:ignore JWKS tolaria -->
 # Goblin Guide — Bootstrap
 
-> **Status**: ⬜ Planned — documentation only, nothing implemented.
-> `apps/goblin_guide/` is a placeholder. Shape settled 2026-08-29
+> **Status**: 🟨 All five `G-03` slices built (T11–T15) —
+> `libs/goblin_guide/` (`@barrins/goblin-guide`, the shared library) and
+> `apps/goblin_guide/` (the standalone shell) exist on the release line
+> with: login, in-memory token store, silent refresh, the `GET /auth/me`
+> account view, self-registration + email verification (`SignupScreen` +
+> `VerifyEmailScreen`, the `username` field, the resend cooldown, the
+> `/verify-email?email=&code=` deep link), password reset
+> (`ForgotPasswordScreen` + `ResetPasswordScreen`, the
+> generic-confirmation copy, the `/reset-password?email=&code=` deep
+> link), account management (`AccountScreen` — inline display-name
+> edit, the two-step email change with a `/confirm-email-change` deep
+> link, and a password-gated account delete; mounted at `/` in the shell
+> in place of the read-only card), and admin service-account management
+> (`ServiceAccountsScreen` — a `useCurrentUser()` gate: `admin` gets the
+> list + create + revoke flows, everyone else an access panel; mounted
+> at `/service-accounts` behind a `?next=`-aware `RequireAuth`). The
+> password-rule checklist and the digit-masked code field are shared
+> components. Not yet mounted in `tamiyo_scroll` or `tolaria_news`; no
+> deploy playbook. Shape settled 2026-08-29
 > ([ADR-17](../../ops/architecture/decisions.md#adr-17-shared-code-lives-in-a-top-level-libs-directory)):
 > a **shared frontend library** plus a thin standalone shell — see §3.
 >
@@ -54,8 +71,8 @@ section that owns its wire format.
 | --- | --- | --- |
 | `G-01` | Stack | **Resolved** (2026-08-29, ADR-17) — the ecosystem default (React 19 + TypeScript + Tailwind + shadcn/ui, constitution §14), built in **Vite library mode**. React Router and TanStack Query are **peer dependencies** the host app provides — the library owns screens, hooks and token handling, not routing or the query client |
 | `G-02` | Standalone app vs. per-app widget | **Resolved** (2026-08-29, ADR-17) — one shared library each frontend mounts, plus a thin standalone shell for `goblin.barrins-codex.org` and the T9 login page. Not a standalone-only app; not a copy-pasted widget |
-| `G-03` | Delivery order | **Proposed** — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete. `username` (platform.md `Q-03`) lands with signup |
-| `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17) — part of the Goblin Guide library, `admin`-gated. It is identity account management and belongs with the rest, not split into a separate CLI-only surface |
+| `G-03` | Delivery order | **Resolved** (2026-08-29, T11) — login + silent refresh first, then signup + email verification, then password reset, then account settings and delete, then admin service-account management. `username` (platform.md `Q-03`) lands with signup. **All five slices built** (T11–T15) |
+| `G-04` | Admin service-account management (Integration Contract §4.6) | **Resolved** (2026-08-29, ADR-17); **built (T15, 2026-08-30)** — `ServiceAccountsScreen` in the Goblin Guide library, `admin`-gated with an access panel for everyone else, mounted by the shell at `/service-accounts`. Create shows the `client_secret` once; the list keeps revoked accounts; `POST /service-token` is not surfaced (machine-to-machine only) |
 
 The library boundary (§1) and the token-storage split (§5) are settled;
 everything else about page layout / UX is open. Confirm specifics before
@@ -89,11 +106,27 @@ authenticated screen.
 - On a `401`, run the silent-refresh flow
   ([Integration Contract §8.2](../../back/barrins_identity/integration.md#82-silent-refresh))
   once, then retry; if `/refresh` also fails, drop to the login screen.
-- **`G-05` (open):** refresh-token storage. Default — keep it in memory
-  too, so a closed tab means re-login. A host app that wants persistent
-  sessions wraps the library with its own BFF that holds the refresh
-  token in an `HttpOnly` cookie; the library must support both without
-  code changes (a pluggable token store).
+- **On page load in cookie mode**, `IdentityProvider` makes one
+  `POST /auth/refresh` attempt to restore the session from the `HttpOnly`
+  cookie (the `401`-retry above never fires on a fresh load — nothing is
+  authenticated yet). `useIdentity()` reports `isBootstrapping: true` until
+  that settles; the shell shows a neutral splash so a valid cookie doesn't
+  flash the login screen on reload. Body mode skips this — a closed tab is
+  a finished session there by design.
+- **`G-05` (settled — ADR-18):** refresh-token storage. Shipped as a
+  pluggable `TokenStore` interface; the default (`createMemoryTokenStore`)
+  keeps both tokens in memory, so a closed tab means re-login. For
+  persistent sessions the library has a **cookie mode**: auth calls go to
+  `VITE_IDENTITY_SERVICE_URL` directly (no BFF) with
+  `credentials: 'include'` and an `X-Client: web` header, and
+  `barrins_identity` itself holds the refresh token in an
+  `HttpOnly; Secure; SameSite=None` cookie
+  ([Integration Contract §4.1](../../back/barrins_identity/integration.md#41-human-login-and-session)).
+  In cookie mode there is no refresh token in JS and no store for it. A
+  host app opts in with `cookieMode: true` on the `IdentityProvider`
+  config; the `goblin_guide` shell ships that way. It works only once the
+  app's origin is in identity's `ALLOWED_ORIGINS` and the deployment sets
+  `REFRESH_COOKIE_ENABLED=true`.
 - No JWKS handling in the browser. The frontend never verifies a token;
   it treats the access token as opaque and lets the backend (or the T9
   reverse-proxy gate,
@@ -106,11 +139,40 @@ authenticated screen.
 
 ## 6. Tests-first note
 
-When this app is built, tests come first (constitution §16.4) and cover
-the critical paths (constitution §19.3): login success/failure, silent
-refresh and its dead-session fallback, the signup + verification form
-(including `verification_required=false`), the reset form, and the
-error/loading states for each.
+Each slice ships with tests covering its critical paths (constitution
+§19.3). The login slice (T11) covers: login success/failure with the
+uniform `401`, the client-side empty-field guard, the in-flight lock,
+the session-expired banner, single-flight silent refresh + its
+dead-session fallback (store cleared), and `logout` clearing local
+state even when the request fails. The signup slice (T12) covers:
+`signup` with `verification_required` both ways (tokens stored only
+when present), the `{ error: { message } }` envelope on a `409`, the
+password-rule checklist and empty-field guard, `verifyEmail` success +
+the `400` message, and `resend` starting the mirrored cooldown. The
+password-reset slice (T13) covers: `requestPasswordReset` returning the
+generic body and its `502`; `confirmPasswordReset` storing the fresh
+pair, plus the single `400` message and the `429` attempt cap; the
+forgot screen's empty-field guard, generic confirmation and "send
+again"; the reset screen's deep-link prefill and six-digit submit
+guard; and the shared `PasswordRules` checklist. The account-settings
+slice (T14) covers: `updateAccount` mapping `displayName`/`email` to the
+snake_case body and omitting absent fields (`display_name: null`
+clears), plus the `409`/`502` errors; `verifyEmailChange` posting only
+the code; `resendEmailChange` posting no body; `deleteAccount` clearing
+the token store on `204` and surfacing a wrong-password `401` after the
+silent-refresh retry; and `AccountScreen`'s inline display-name save,
+the email-change walk (address → code step with the pending address in
+the banner → back to idle on success), the mirrored 60s resend
+cooldown, the deep-link code prefill, and the password-gated delete
+(empty-field guard, `401` message, `onDeleted` fired with tokens
+cleared). The admin service-account slice (T15) covers: `client.ts`
+`listServiceAccounts` / `createServiceAccount` (description omitted when
+absent) / `revokeServiceAccount` (`204`; the `404` and the non-admin
+`403`); and `ServiceAccountsScreen`'s non-admin access panel (no list
+fetch), the active/revoked badges with Revoke offered on active
+accounts only, the empty state, the no-scope create guard, the
+create → one-time-secret panel → back-to-list walk with the POST body,
+and the revoke confirm (cancel and confirm paths, the `/revoke` POST).
 
 ---
 

@@ -68,6 +68,63 @@ section of the docs site for details.
   can shift/disappear on refresh). New `SCRYFALL_USER_AGENT`/
   `CARD_IMAGE_CACHE_DIR` settings; a placeholder-image console client is
   used when unset outside production.
+- `app/services/identity_directory.py` — batched, TTL-cached
+  `{user_id: {username, display_name}}` lookups against
+  `barrins_identity`'s `POST /api/v1/users/lookup` (service token, scope
+  `identity:users:read`), for team-roster / sharing display labels. New
+  `IDENTITY_SERVICE_CLIENT_ID` / `IDENTITY_SERVICE_CLIENT_SECRET`
+  settings; empty ⇒ the directory is disabled and labels fall back to a
+  generic placeholder.
+- `apps/barrins_api/scripts/migrate_users_to_identity.py` — one-shot,
+  UUID-preserving copy of `users` into `barrins_identity`'s database
+  (`--source-url` / `--target-url` / `--dry-run` / `--report`). Email
+  dedup raises `role` to the higher of the two; `username` is synthesised
+  from the email local part and every synthesised / suffixed handle goes
+  to the report. Each URL resolves as flag → `$SOURCE_DATABASE_URL` /
+  `$TARGET_DATABASE_URL` → the same key in `apps/barrins_api/.env`
+  (matching `sync_mj_bs_tables.py`). CI-tested against two throwaway DBs.
+
+### Changed
+
+- **Authentication cut over to `barrins_identity` JWKS (ADR-20, rollout
+  Phase 7+8).** `barrins_api` no longer issues or decodes its own JWTs:
+  `app/dependencies/auth.py` + `app/dependencies/service_auth.py` verify
+  `barrins_identity` RS256 access tokens locally against its JWKS via
+  `libs/identity_client`. `AuthenticatedUser {id, role, email}` replaces
+  the ORM `User`; role ordering moved to `app/core/roles.py` (the
+  `placeholder` role is renamed `moderator` to match the identity claim).
+  New required `IDENTITY_SERVICE_URL` setting; `SECRET_KEY`, `ALGORITHM`,
+  `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS` removed.
+- `resolve_owner` (sharing) no longer reasons about user existence — an
+  `owner_id` with no `ts_user_settings` row is `403` "does not share",
+  never `404`.
+- Team rosters expose `username` instead of `email`
+  (`ResponseTeamMember.email` → `username`); deck-owner / sharer labels
+  come from the identity directory (`display_name` or `username`, never
+  the email address).
+- `pyproject.toml`: dropped `python-jose` + `argon2-cffi`; added `pyjwt`,
+  `respx` (test), and the `identity-client` path dep.
+
+### Removed
+
+- Local auth surface, now owned by `barrins_identity`:
+  `app/api/general/auth.py` (login / signup / email verification),
+  `app/core/security.py`, `app/schemas/auth.py`, `app/models/user.py`,
+  `app/models/email_verification.py`, `scripts/create_admin.py`.
+- The email surface: `app/services/email/` (SMTP + console senders), all
+  `SMTP_*` / `REQUIRE_EMAIL_VERIFICATION` / `VERIFICATION_*` /
+  `FRONTEND_BASE_URL` settings and the production SMTP validator in
+  `app/config/base.py`, and the `python-multipart` + `pydantic[email]`
+  dependencies. `barrins_api` sends no email — signup / verification /
+  password reset are entirely `barrins_identity`'s.
+- The `users` table, `auth_email_verifications` table, the `userrole`
+  enum, and the 12 `ForeignKey("users.id")` constraints on the Tamiyo
+  Scroll tables — Alembic `d9e1a2c3b4f5`. `owner_id` / `user_id` columns
+  stay as plain FK-less `UUID`s holding identity user ids.
+- Admin "total accounts" metric (`PlatformMetrics.total_accounts`, the
+  timeseries `accounts` series) — its data source is gone. Decks /
+  matches / sessions metrics are unchanged; restore later via a
+  `barrins_identity` admin count endpoint.
 
 ## [2.0.0-alpha] - 2026-08-03
 

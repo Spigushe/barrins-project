@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
+import { useCurrentUser } from '@barrins/goblin-guide'
 import {
   useCardTests,
   useCreateCardTest,
@@ -6,7 +7,6 @@ import {
   useUpdateCardTest,
 } from '@/hooks/useCardTests'
 import { useMetaDecks } from '@/hooks/useMetaDecks'
-import { useCurrentUser } from '@/hooks/useAuth'
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import type { CardTest, CardTestWrite, MetaDeck } from '@/schemas/tamiyoScroll'
 import { RATING_LABELS, ratingTextClass } from '@/lib/mtg-format'

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { ApiError, apiRequest } from '@/api/client'
-import { clearSession, setSession } from '@/api/session'
+import { identityClient, identityTokenStore } from '@/identity'
 import { setViewingOwner } from '@/api/viewingOwner'
 
 const responseSchema = z.object({ ok: z.boolean() })
@@ -18,7 +18,7 @@ describe('apiRequest', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
-    clearSession()
+    identityTokenStore.clear()
     setViewingOwner(null)
   })
 
@@ -67,8 +67,8 @@ describe('apiRequest', () => {
     expect(calledUrl.searchParams.has('owner_id')).toBe(false)
   })
 
-  it('attaches the Authorization header when a session exists', async () => {
-    setSession({ access_token: 'access-abc', refresh_token: 'refresh-abc' })
+  it('attaches the identity access token as a Bearer header when a session exists', async () => {
+    identityTokenStore.set({ access_token: 'access-abc' })
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -79,44 +79,43 @@ describe('apiRequest', () => {
     expect(headers.Authorization).toBe('Bearer access-abc')
   })
 
-  it('refreshes once on 401 then retries the original request', async () => {
-    setSession({ access_token: 'expired', refresh_token: 'refresh-abc' })
+  it('refreshes the identity session once on 401 then retries the original request', async () => {
+    identityTokenStore.set({ access_token: 'expired' })
+    const refreshSpy = vi
+      .spyOn(identityClient, 'refresh')
+      .mockImplementation(async () => {
+        identityTokenStore.set({ access_token: 'fresh' })
+        return { access_token: 'fresh', token_type: 'bearer' }
+      })
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          access_token: 'fresh',
-          refresh_token: 'refresh-abc',
-          token_type: 'bearer',
-        }),
-      )
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await apiRequest('/bff/tamiyo-scroll/personal-decks', responseSchema)
 
     expect(result).toEqual({ ok: true })
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    const retryHeaders = fetchMock.mock.calls[2][1] as RequestInit
+    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const retryHeaders = fetchMock.mock.calls[1][1] as RequestInit
     const headers = retryHeaders.headers as Record<string, string>
     expect(headers.Authorization).toBe('Bearer fresh')
   })
 
-  it('clears the session and throws when the refresh call itself fails', async () => {
-    setSession({ access_token: 'expired', refresh_token: 'bad-refresh' })
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+  it('redirects to /login and throws when the identity refresh itself fails', async () => {
+    identityTokenStore.set({ access_token: 'expired' })
+    vi.spyOn(identityClient, 'refresh').mockRejectedValue(new Error('no cookie'))
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }))
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubGlobal('location', { assign: vi.fn() })
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
 
     await expect(
       apiRequest('/bff/tamiyo-scroll/personal-decks', responseSchema),
     ).rejects.toThrow(ApiError)
 
-    expect(localStorage.getItem('tamiyo_access_token')).toBeNull()
+    expect(assign).toHaveBeenCalledWith('/login')
   })
 
   it('throws ApiError with the backend error envelope message', async () => {

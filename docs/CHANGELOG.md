@@ -27,11 +27,58 @@ section of the docs site for details.
 - `docs/mkdocs.yml`: nav entry for the new Tamiyo Scroll feature roadmap
   page (`front/tamiyo_scroll/roadmap.md`), the source of S12's bundled
   UI/UX polish items.
+- Goblin Guide signup slice (T12): `front/goblin_guide/bootstrap.md`
+  status banner + `G-03` row + tests-first note updated for `G-03`
+  step 2; ADR-17 gains a T12 consequence bullet; new
+  `project/v2.0.0-bump/t12-goblin-guide-signup/index.md` tracker and
+  project-index row, with the T11 row's "Not done" list pointed at T12.
+- Goblin Guide password-reset slice (T13):
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` row +
+  tests-first note updated for `G-03` step 3; ADR-17 gains a T13
+  consequence bullet; new
+  `project/v2.0.0-bump/t13-goblin-guide-password-reset/index.md`
+  tracker and project-index row, with the T12 row's "Not done" list
+  trimmed.
+- Goblin Guide account-settings + delete slice (T14):
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` row +
+  tests-first note updated for `G-03` step 4; ADR-17 gains a T14
+  consequence bullet; new
+  `project/v2.0.0-bump/t14-goblin-guide-account-settings/index.md`
+  tracker and project-index row, with the T13 row's "Not done" list
+  trimmed. Records that authenticated password change is out of scope
+  (no backend endpoint — use the password-reset flow).
+- Goblin Guide admin service-account slice (T15), completing `G-03`:
+  `front/goblin_guide/bootstrap.md` status banner + `G-03` / `G-04`
+  rows + tests-first note updated for the last slice; ADR-17 gains a
+  T15 consequence bullet; new
+  `project/v2.0.0-bump/t15-goblin-guide-service-accounts/index.md`
+  tracker and project-index row, with the T14 row's "Not done" list
+  trimmed to host mounting + the deploy playbook. Records that
+  `POST /api/v1/service-token` is not surfaced in the UI (a
+  machine-to-machine credential exchange, not an admin action).
 - `docs/cspell.json`: technical terms and proper nouns introduced while
   planning/documenting v2.0.0 (`banlist`, `consitution`, `deploiement`,
   `flowable`, `Karn`, `métrique`, `MTGO`, `paraparser`, `signups`,
   `skillset`, `unvalidated`, `Weasy`/`weasyprint`, `workstreams`, among
   others).
+- Goblin Guide deploy playbook (rollout Phase 5): new
+  `ops/deployment/goblin-guide.md` deployment guide (Preparation /
+  Deployment / Validation / Rollback / Troubleshooting per §37.2) for
+  `ops/my-server/goblin_guide.yml` — a frontend-only SPA playbook that
+  calls `barrins_identity` in cookie mode (ADR-18), not `barrins_api`;
+  wired into `mkdocs.yml` nav, `ops/deployment/index.md` and
+  `ops/deployment/rollback.md`. `identity-goblin-guide-rollout.md`
+  Phase 5 marked authoring-done, operator run pending.
+
+### Fixed
+
+- `front/goblin_guide/bootstrap.md` §5: documents the cookie-mode
+  session-restore step — `IdentityProvider` makes one `POST /auth/refresh`
+  on page load to rehydrate from the `HttpOnly` cookie, with a
+  `useIdentity().isBootstrapping` loading state. Phase 4 shipped the
+  cookie plumbing without this, so a reload dropped to the login screen;
+  found in Phase 6 UAT. `identity-goblin-guide-rollout.md` Phase 6 T11
+  row notes the fix.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 

@@ -12,6 +12,7 @@ from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import TSMetaDeck, TSPersonalDeck
 from app.schemas.responses_tamiyo_scroll import ResponseMetaDeck
 from app.schemas.tamiyo_scroll import MetaDeckWrite
+from app.services.identity_directory import IdentityDirectoryDep
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 
 router = APIRouter()
@@ -48,6 +49,7 @@ def _apply_payload(deck: TSMetaDeck, payload: MetaDeckWrite) -> None:
 async def list_meta_decks(
     session: DatabaseSession,
     current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
     include_archived: bool = False,
 ) -> list[ResponseMetaDeck]:
     """Roster (own + any sharer's read-only, see `sharing_merge`).
@@ -56,7 +58,7 @@ async def list_meta_decks(
     entry (never listed twice) or added as a new read-only line when the
     viewer has no roster entry of that name.
     """
-    view = await build_merged_view(session, current_user)
+    view = await build_merged_view(session, directory, current_user.id)
     decks = view.meta_decks
     if not include_archived:
         decks = [d for d in decks if d.archived_at is None]

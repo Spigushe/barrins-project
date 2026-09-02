@@ -440,3 +440,123 @@ class TestLogout:
     async def test_logout_unauthenticated_returns_401(self, client: AsyncClient):
         resp = await client.post("/api/v1/auth/logout")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Cookie mode (ADR-18) — opt-in HttpOnly refresh-token cookie
+# ---------------------------------------------------------------------------
+
+WEB = {"X-Client": "web"}
+
+
+@pytest.fixture()
+def _cookie_mode_on(monkeypatch: pytest.MonkeyPatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings.base, "refresh_cookie_enabled", True)
+    monkeypatch.setattr(settings.base, "refresh_cookie_domain", None)
+    monkeypatch.setattr(settings.base, "refresh_cookie_samesite", "none")
+
+
+class TestCookieMode:
+    async def test_token_opt_in_sets_httponly_cookie_and_drops_body_refresh(
+        self, client: AsyncClient, regular_user: User, _cookie_mode_on
+    ):
+        resp = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "user@test.com", "password": "User#Pass1word"},
+            headers=WEB,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["access_token"]
+        assert "refresh_token" not in body
+
+        set_cookie = resp.headers["set-cookie"].lower()
+        assert set_cookie.startswith("refresh_token=")
+        assert "httponly" in set_cookie
+        assert "secure" in set_cookie
+        assert "samesite=none" in set_cookie
+        assert "path=/api/v1/auth" in set_cookie
+
+    async def test_token_without_opt_in_header_stays_body_mode(
+        self, client: AsyncClient, regular_user: User, _cookie_mode_on
+    ):
+        resp = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "user@test.com", "password": "User#Pass1word"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["refresh_token"]
+        assert "set-cookie" not in resp.headers
+
+    async def test_opt_in_header_ignored_when_feature_disabled(
+        self, client: AsyncClient, regular_user: User
+    ):
+        # No _cookie_mode_on fixture -> refresh_cookie_enabled stays False.
+        resp = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "user@test.com", "password": "User#Pass1word"},
+            headers=WEB,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["refresh_token"]
+        assert "set-cookie" not in resp.headers
+
+    async def test_refresh_reads_the_cookie_and_rotates_it(
+        self, client: AsyncClient, regular_user: User, _cookie_mode_on
+    ):
+        refresh = _refresh_token_for(regular_user)
+        resp = await client.post(
+            "/api/v1/auth/refresh",
+            headers={**WEB, "Cookie": f"refresh_token={refresh}"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["access_token"]
+        assert "refresh_token" not in body
+        assert resp.headers["set-cookie"].lower().startswith("refresh_token=")
+
+    async def test_refresh_still_accepts_a_body_token_with_feature_on(
+        self, client: AsyncClient, regular_user: User, _cookie_mode_on
+    ):
+        refresh = _refresh_token_for(regular_user)
+        resp = await client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": refresh}
+        )
+        assert resp.status_code == 200
+        # No opt-in header -> body mode, refresh token returned in the body.
+        assert resp.json()["refresh_token"]
+
+    async def test_refresh_with_neither_body_nor_cookie_returns_401(
+        self, client: AsyncClient, _cookie_mode_on
+    ):
+        resp = await client.post("/api/v1/auth/refresh", headers=WEB)
+        assert resp.status_code == 401
+
+    async def test_logout_clears_the_cookie(
+        self, client: AsyncClient, regular_user: User, _cookie_mode_on
+    ):
+        token = _access_token_for(regular_user)
+        resp = await client.post(
+            "/api/v1/auth/logout",
+            headers={"Authorization": f"Bearer {token}", **WEB},
+        )
+        assert resp.status_code == 204
+        set_cookie = resp.headers["set-cookie"].lower()
+        assert set_cookie.startswith("refresh_token=")
+        assert "max-age=0" in set_cookie or "expires=thu, 01 jan 1970" in set_cookie
+
+    async def test_cors_allows_credentials_for_an_allowed_origin(
+        self, client: AsyncClient, regular_user: User
+    ):
+        # Regression guard for the CORS side of ADR-18 — the middleware is
+        # wired allow_credentials=True against a concrete origin list.
+        resp = await client.post(
+            "/api/v1/auth/token",
+            data={"username": "user@test.com", "password": "User#Pass1word"},
+            headers={"Origin": "http://localhost:5173"},
+        )
+        assert resp.status_code == 200
+        assert resp.headers["access-control-allow-credentials"] == "true"
+        assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"

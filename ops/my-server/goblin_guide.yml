@@ -1,0 +1,109 @@
+---
+# Frontend-only playbook for Goblin Guide — the standalone login and
+# account-management SPA for Barrin's Identity (apps/goblin_guide).
+#
+# One application, one playbook (Constitution §26.1): this deploys the SPA
+# and nothing else. It never deploys, restarts or otherwise touches
+# barrins_identity or barrins_api — those have their own playbooks. The SPA
+# talks to barrins_identity directly in cookie mode (ADR-18): it only needs
+# identity's public origin at build time (VITE_IDENTITY_SERVICE_URL), set
+# below. Run barrins_identity.yml separately to have an identity service for
+# this SPA to call, and again whenever identity itself changes.
+#
+# Rollout context: docs/project/v2.0.0-bump/identity-goblin-guide-rollout.md
+# (Phase 5).
+- name: Deploy the Goblin Guide frontend
+  hosts: spigushe
+  become: true
+  gather_facts: false
+  vars:
+    username: spigushe
+    # Defaults to a full production deploy — the latest GitHub release tag
+    # of the monorepo (Constitution §25/§27: production only ever deploys
+    # released versions). Pass -e deploy_env=staging for a side-by-side
+    # staging SPA, from the staging branch by default:
+    #   ansible-playbook goblin_guide.yml -e deploy_env=staging
+    # During the v2.0.0 rollout, until Goblin Guide reaches the staging
+    # branch, point staging at the rollout branch:
+    #   ansible-playbook goblin_guide.yml -e deploy_env=staging \
+    #     -e react_frontend_git_branch=proj/v2.0.0-bump
+    # Roll production back to an older release:
+    #   ansible-playbook goblin_guide.yml -e react_frontend_release_tag=v1.2.3
+    deploy_env: production
+    env_suffix: "{{ '-staging' if deploy_env == 'staging' else '' }}"
+    env_branch: "{{ 'staging' if deploy_env == 'staging' else 'main' }}"
+    frontend_domain: "goblin{{ env_suffix }}.barrins-codex.org"
+    identity_domain: "identity{{ env_suffix }}.barrins-codex.org"
+
+  roles:
+    - role: github_token
+
+    - role: register_ssl
+      tags:
+        - frontend
+        - certs
+      register_ssl_server_name: "{{ frontend_domain }}"
+      register_ssl_contact_name: martin.cuchet@gmail.com
+
+    - role: react_frontend
+      tags:
+        - frontend
+      # This monorepo (Spigushe/barrins-project), not a dedicated repo —
+      # Goblin Guide lives at apps/goblin_guide within it.
+      react_frontend_repo: Spigushe/barrins-project
+      react_frontend_repo_subdir: apps/goblin_guide
+      react_frontend_server_name: "{{ frontend_domain }}"
+      react_frontend_app_name: "goblin{{ env_suffix }}"
+      react_frontend_use_release_tag: "{{ deploy_env == 'production' }}"
+      react_frontend_git_branch: "{{ env_branch }}"
+      # apps/goblin_guide depends on the shared library libs/goblin_guide
+      # (@barrins/goblin-guide) as a `file:../../libs/goblin_guide` path
+      # dep whose dist/ is git-ignored, so it must be installed and built
+      # before the shell can compile. The role's own `npm install` (run in
+      # apps/goblin_guide before this command) links the library; this
+      # command then installs the library's own devDeps, builds it, and
+      # finally builds the shell.
+      react_frontend_build_command: >-
+        npm --prefix ../../libs/goblin_guide install
+        && npm --prefix ../../libs/goblin_guide run build
+        && npm run build
+      # Cookie mode (ADR-18): the SPA calls barrins_identity directly. This
+      # is the only build-time config it needs — a bare origin, no path.
+      react_frontend_build_env:
+        VITE_IDENTITY_SERVICE_URL: "https://{{ identity_domain }}"
+
+  post_tasks:
+    - name: Reminder — this playbook does not deploy barrins_identity
+      ansible.builtin.debug:
+        msg:
+          - "This playbook only deploys the Goblin Guide SPA. Run"
+          - "'ansible-playbook barrins_identity.yml{{ ' -e deploy_env=staging' if deploy_env == 'staging' else '' }}'"
+          - "separately (at least once, and again whenever barrins_identity"
+          - "itself changes) to have an identity service at"
+          - "{{ identity_domain }} for this SPA to call."
+      tags:
+        - frontend
+        - deploy
+
+    - name: Reminder — identity must be in cookie mode for this origin
+      ansible.builtin.debug:
+        msg:
+          - "In secrets/barrins_identity/{{ deploy_env }}.env, identity must have:"
+          - "REFRESH_COOKIE_ENABLED=true,"
+          - "REFRESH_COOKIE_DOMAIN={{ identity_domain }},"
+          - "and https://{{ frontend_domain }} in ALLOWED_ORIGINS"
+          - "(and FRONTEND_BASE_URL). Then redeploy identity with"
+          - "'ansible-playbook barrins_identity.yml{{ ' -e deploy_env=staging' if deploy_env == 'staging' else '' }}'."
+          - "See docs/content/ops/deployment/identity.md and ADR-18."
+      tags:
+        - frontend
+        - deploy
+
+    - name: Reminder — DNS for this SPA
+      ansible.builtin.debug:
+        msg:
+          - "An A record for {{ frontend_domain }} must point at this server"
+          - "before register_ssl can issue its certificate."
+      tags:
+        - frontend
+        - deploy

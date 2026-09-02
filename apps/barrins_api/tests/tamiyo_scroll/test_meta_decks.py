@@ -2,7 +2,7 @@
 
 from httpx import AsyncClient
 
-from app.models.user import User
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 _PAYLOAD = {

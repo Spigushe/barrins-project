@@ -10,11 +10,10 @@ from datetime import UTC, datetime
 import pytest
 from httpx import AsyncClient
 
-from app.core.security import hash_password
 from app.models.tamiyo_scroll import TSPersonalDeck
-from app.models.user import User, UserRole
 from app.services.metrics.aggregates import _count_statement
 from app.services.metrics.timeseries import _bucket_count_statement
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 ADMIN_METRICS_URL = f"{BASE}/admin/metrics"
@@ -22,18 +21,10 @@ ADMIN_METRICS_TIMESERIES_URL = f"{BASE}/admin/metrics/timeseries"
 
 
 @pytest.fixture()
-async def admin_user(db_session) -> User:
-    user = User(
-        email="admin@tamiyo-scroll.example.com",
-        hashed_password=hash_password("Admin#Pass1word"),
-        role=UserRole.admin,
-        is_active=True,
-        is_verified=True,
+def admin_user() -> User:
+    return User(
+        email="admin@tamiyo-scroll.example.com", role="admin", username="ts-admin"
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
 
 
 class TestAdminGate:
@@ -67,8 +58,11 @@ class TestAdminMetrics:
         owner_user: User,
         other_user: User,
     ):
-        """Seeds two personal decks and two matches across two accounts,
-        then asserts the admin dashboard's counts match a manual count."""
+        """Seeds two personal decks and two matches across two owners,
+        then asserts the admin dashboard's counts match a manual count.
+
+        The `total_accounts` tile went away with the local `users` table
+        (ADR-20) — decks / matches counts are unchanged."""
         owner_headers = auth_headers(owner_user)
         other_headers = auth_headers(other_user)
 
@@ -145,8 +139,7 @@ class TestAdminMetrics:
         assert resp.status_code == 200
         body = resp.json()
 
-        # 3 accounts: admin_user + owner_user + other_user.
-        assert body["total_accounts"] == {"value": 3, "source": "tamiyo_scroll"}
+        assert "total_accounts" not in body
         assert body["total_personal_decks"] == {"value": 2, "source": "tamiyo_scroll"}
         assert body["total_matches"] == {"value": 2, "source": "tamiyo_scroll"}
 
@@ -179,8 +172,7 @@ class TestAdminMetricsTimeseries:
         admin_user: User,
         owner_user: User,
     ):
-        """Seeds one personal deck (and, transitively, one more account —
-        `owner_user` itself) then asserts each of the three now/today
+        """Seeds one personal deck then asserts each of the three now/today
         buckets picks it up — day, week, and month buckets all include
         "right now," so a record created during the test must appear in
         all three for every metric it belongs to."""
@@ -201,10 +193,7 @@ class TestAdminMetricsTimeseries:
         # *and* month windows at once — so each granularity's buckets must
         # collectively account for at least the rows this test just made
         # (other fixtures in the same DB transaction may add more).
-        for metric_key, expected_min_count in (
-            ("accounts", 1),
-            ("personal_decks", 1),
-        ):
+        for metric_key, expected_min_count in (("personal_decks", 1),):
             metric = body[metric_key]
             for granularity in ("daily", "weekly", "monthly"):
                 buckets = metric[granularity]
@@ -214,17 +203,16 @@ class TestAdminMetricsTimeseries:
     async def test_timeseries_empty_when_no_recent_activity(
         self, client: AsyncClient, admin_user: User
     ):
-        """Even with only the admin account itself (created moments ago by
-        the fixture), buckets must reflect it — this is a sanity check that
-        the route responds with well-formed, non-error data rather than a
-        strict emptiness assertion (other tests share the same DB
-        transaction and may have already created rows)."""
+        """Sanity check that the route responds with well-formed, non-error
+        data (well-formed lists per granularity) rather than a strict
+        emptiness assertion — other tests share the same DB transaction and
+        may have already created rows."""
         resp = await client.get(
             ADMIN_METRICS_TIMESERIES_URL, headers=auth_headers(admin_user)
         )
         assert resp.status_code == 200
         body = resp.json()
-        for metric_key in ("accounts", "personal_decks", "matches"):
+        for metric_key in ("personal_decks", "matches"):
             for granularity in ("daily", "weekly", "monthly"):
                 assert isinstance(body[metric_key][granularity], list)
 

@@ -79,7 +79,7 @@ export function createTeam(name: string): Promise<Team> {
     members: [
       {
         user_id: DEMO_CURRENT_USER_ID,
-        email: currentUser?.email ?? 'you@tamiyo-scroll.demo',
+        username: currentUser?.username ?? 'you_demo',
         display_name: currentUser?.display_name ?? 'You (Demo)',
         is_owner: true,
         joined_at: nowIso(),
@@ -101,7 +101,7 @@ export function joinTeam(inviteCode: string): Promise<Team> {
   if (!team.members.some((member) => member.user_id === DEMO_CURRENT_USER_ID)) {
     team.members.push({
       user_id: DEMO_CURRENT_USER_ID,
-      email: 'you@tamiyo-scroll.demo',
+      username: 'you_demo',
       display_name: 'You (Demo)',
       is_owner: false,
       joined_at: nowIso(),
@@ -205,7 +205,7 @@ export function postTeamDeckThreadMessage(
     id: nextId(),
     thread_id: nextId(),
     author_id: DEMO_CURRENT_USER_ID,
-    author_display: author?.display_name ?? author?.email ?? 'You (Demo)',
+    author_display: author?.display_name ?? author?.username ?? 'You (Demo)',
     body,
     created_at: nowIso(),
   }

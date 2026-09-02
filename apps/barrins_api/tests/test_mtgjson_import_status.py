@@ -19,11 +19,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from app.core.security import create_access_token, hash_password
 from app.models.mtgjson import Card, MTGJSONImportRun, MTGSet
-from app.models.user import User, UserRole
 from app.services.mtgjson import import_all_printings
 from app.services.mtgjson.importer import _ImportRunTracker
+from tests.identity_auth import FakeUser as User
+from tests.identity_auth import auth_headers as _auth_headers
 
 _FIXTURE_PATH = Path(__file__).parent / "fixtures" / "mtgjson_sample.json"
 _BASE = "/api/v1"
@@ -55,45 +55,22 @@ class _RaisingAfterFirstSetClient:
             raise RuntimeError("simulated failure mid-stream")
 
 
-def _auth_headers(user: User) -> dict[str, str]:
-    token = create_access_token(
-        {
-            "sub": str(user.id),
-            "role": user.role.value,
-            "email": user.email,
-            "tkv": user.token_version,
-        }
-    )
-    return {"Authorization": f"Bearer {token}"}
-
-
 @pytest.fixture()
-async def admin_user(db_session) -> User:
-    user = User(
+def admin_user() -> User:
+    return User(
         email="admin@mtgjson-status.example.com",
-        hashed_password=hash_password("Admin#Pass1word"),
-        role=UserRole.admin,
-        is_active=True,
-        is_verified=True,
+        role="admin",
+        username="mtgjson-status-admin",
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
 
 
 @pytest.fixture()
-async def plain_user(db_session) -> User:
-    user = User(
+def plain_user() -> User:
+    return User(
         email="user@mtgjson-status.example.com",
-        hashed_password=hash_password("User#Pass1word"),
-        is_active=True,
-        is_verified=True,
+        role="user",
+        username="mtgjson-status-user",
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
 
 
 class TestImportStatusGate:

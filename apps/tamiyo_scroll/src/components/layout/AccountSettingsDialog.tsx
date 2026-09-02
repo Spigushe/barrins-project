@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useCurrentUser, useUpdateProfile } from '@/hooks/useAuth'
+import { AccountScreen } from '@barrins/goblin-guide'
 import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
 import {
@@ -11,22 +11,21 @@ import {
 import { AccountSettingsTeamSection } from './AccountSettingsTeamSection'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
 /**
- * Account settings popup — replaces the header's old inline "Share my
- * data" checkbox with a modal (display name + share/receive toggles).
+ * Account settings popup.
+ *
+ * Identity-owned account management (display name, email change, account
+ * deletion) is the shared Goblin Guide `<AccountScreen>` — it talks to
+ * `barrins_identity` directly. Everything below it is Tamiyo-only and hits
+ * `barrins_api`: the `data_shared` / `receive_shared_data` sharing toggles
+ * (Save/Cancel form state), the four `localStorage`-backed display
+ * preferences (applied immediately), and the "Team de test" section
+ * (`AccountSettingsTeamSection`, S2 — acts immediately on click).
  *
  * Per docs/project/v2.0.0-bump/z_handoff_params_popup/: the "View:
- * {other user}" selector is deliberately NOT in this popup — its UI
- * entry point was removed from the header entirely (not this popup's
- * scope; where/whether it resurfaces is a product decision). The
- * underlying read-as-another-user mechanism (`useViewingOwner`,
- * `applyOwnerParam`) is untouched. The "Team de test" section
- * (`AccountSettingsTeamSection`, S2) acts immediately on click — it isn't
- * part of the Save/Cancel form state below.
+ * {other user}" selector is deliberately NOT in this popup.
  */
 export function AccountSettingsDialog({
   open,
@@ -46,12 +45,9 @@ export function AccountSettingsDialog({
 }
 
 function AccountSettingsForm({ onClose }: { onClose: () => void }) {
-  const { data: currentUser } = useCurrentUser()
   const { data: settings } = useMySettings()
-  const updateProfile = useUpdateProfile()
   const updateSettings = useUpdateMySettings()
 
-  const [displayName, setDisplayName] = useState(() => currentUser?.display_name ?? '')
   const [shareMyData, setShareMyData] = useState(() => settings?.data_shared ?? false)
   const [receiveSharedData, setReceiveSharedData] = useState(
     () => settings?.receive_shared_data ?? false,
@@ -78,37 +74,24 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
     false,
   )
 
-  const saving = updateProfile.isPending || updateSettings.isPending
+  const saving = updateSettings.isPending
 
   async function handleSave() {
-    await Promise.all([
-      updateProfile.mutateAsync({ display_name: displayName.trim() || null }),
-      updateSettings.mutateAsync({
-        data_shared: shareMyData,
-        receive_shared_data: receiveSharedData,
-      }),
-    ])
+    await updateSettings.mutateAsync({
+      data_shared: shareMyData,
+      receive_shared_data: receiveSharedData,
+    })
     onClose()
   }
 
   return (
-    <DialogContent className="max-w-[440px]">
+    <DialogContent className="max-w-[480px]">
       <DialogTitle>Account settings</DialogTitle>
       <div className="flex flex-col gap-[22px]">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="account-display-name">Display name</Label>
-          <Input
-            id="account-display-name"
-            value={displayName}
-            placeholder={currentUser?.email ?? ''}
-            onChange={(event) => {
-              setDisplayName(event.target.value)
-            }}
-          />
-          <p className="text-xs text-muted-foreground">
-            Shown instead of your email throughout the interface.
-          </p>
-        </div>
+        <AccountScreen
+          title="Barrin's account"
+          subtitle="Your sign-in across every app in the ecosystem."
+        />
 
         <div role="separator" className="h-px bg-accent" />
 
