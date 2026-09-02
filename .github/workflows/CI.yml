@@ -33,6 +33,7 @@ jobs:
             front:
               - 'apps/tamiyo_scroll/**'
               - 'apps/tolaria_news/**'
+              - 'libs/goblin_guide/**'
             goblin_guide:
               - 'apps/goblin_guide/**'
               - 'libs/goblin_guide/**'
@@ -146,6 +147,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
+      # tamiyo_scroll consumes @barrins/goblin-guide as a file: dependency;
+      # its dist/ is a build artifact (gitignored), so it must be built here
+      # before tsc -b / vite / vitest can resolve the module.
+      - name: Build @barrins/goblin-guide (file dependency of tamiyo_scroll)
+        working-directory: libs/goblin_guide
+        run: |
+          npm ci
+          npm run build
       - run: npm ci
       - run: npm run lint --if-present
       - run: npm run build --if-present
