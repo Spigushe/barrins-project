@@ -163,21 +163,39 @@ those normally. This keeps pins current instead of resurrecting old ones.
 ### Step 4 — settings popup enhancement (the original ask #1)
 
 Own branch off the reconciled `proj/v2.0.0-bump`, after Steps 1–3, then PR.
+**Done on branch `feat/tamiyo-settings-popup-rework` (2026-09-03).**
 
-1. `AccountSettingsDialog` keeps only application settings: sharing toggles, the
-   F10/S14/S15/S16 switches, the four S12 display prefs, the test-team section.
-2. Remove the embedded `<AccountScreen>`; add a **"Manage my account"** button.
-3. Where the button goes — **⚠ CONFIRM at implementation time** (user: "ok [for a
-   route] but may finally be a redirect to goblin"). Build it so either is a
-   one-line change:
-   - **Option A** — in-app route `/account` rendering `<AccountScreen>` inside
-     `AppShell` (mirrors `apps/goblin_guide`'s `/service-accounts`).
-   - **Option B** — the button is an external link to the standalone Goblin
-     Guide app (`VITE_GOBLIN_GUIDE_URL` or the identity app-directory URL),
-     opened in a new tab; no `/account` route in tamiyo_scroll at all.
-4. **Needs visual confirmation** (OQ2): screenshot the reworked popup + whichever
-   account view before the PR is finalised.
-5. Update `AccountSettingsDialog.test.tsx` accordingly.
+1. `AccountSettingsDialog` keeps only application settings: sharing toggles,
+   the F10/S14/S15/S16 switches, the four S12 display prefs.
+   **Correction (2026-09-03):** an earlier draft of this line also listed
+   "the test-team section". That section was *removed from the popup by
+   S8–S18* (`v2.0.0-alpha.2`) and Step 4 does **not** re-add it there.
+   But the removal turned out to be an *incomplete* refactor — the
+   unmounted `AccountSettingsTeamSection` was the app's only leave-team /
+   delete-team UI (the `barrins_api` endpoints stayed live). Step 4
+   therefore re-homes that control onto the team page as
+   `TeamPage.tsx`'s `TeamMembershipCard` (owner → two-step invite-code
+   delete; member → leave), deletes `AccountSettingsTeamSection.tsx` /
+   `.test.tsx`, and ports their coverage into `TeamPage.test.tsx`.
+2. Removed the embedded `<AccountScreen>`; added a **"Manage my account"**
+   button.
+3. Where the button goes — **⚠ CONFIRM: answered Option B** (user,
+   2026-09-03, "option b with a button 'back to <>'", same tab). The button
+   navigates the current tab to
+   `${VITE_GOBLIN_GUIDE_URL}/?return_to=<origin>&return_label=Tamiyo%20Scroll`.
+   Goblin Guide's `ShellFrame` renders a "← Back to Tamiyo Scroll" link
+   when `return_to` is a valid http(s) URL (never an auto-redirect → no
+   open redirect). New `VITE_GOBLIN_GUIDE_URL` wired through `config.ts`,
+   `.env.example`, `start-local.ps1`, and
+   `ops/my-server/tamiyo_scroll.yml` (build-time reference only — never
+   deploys/restarts Goblin Guide, §26.1). Option A (in-app `/account`
+   route) was not taken.
+4. **Needs visual confirmation** (OQ2): screenshot the reworked popup + the
+   Goblin Guide account screen with the back link before the PR is
+   finalised.
+5. `AccountSettingsDialog.test.tsx` updated;
+   `apps/goblin_guide/src/App.test.tsx` gains 3 back-link cases (present /
+   absent / non-http rejected).
 
 ## 5. Open questions — answered 2026-09-02
 

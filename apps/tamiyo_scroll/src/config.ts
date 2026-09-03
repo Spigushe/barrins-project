@@ -11,3 +11,12 @@ export const IDENTITY_SERVICE_URL: string =
  * `ALLOWED_ORIGINS`.
  */
 export const IDENTITY_COOKIE_MODE = true
+
+/**
+ * Origin of the standalone Goblin Guide app. The settings popup's "Manage my
+ * account" button sends the user here (same tab) for identity-owned account
+ * management — display name, email, password, account deletion — with a
+ * `?return_to=…&return_label=…` so Goblin Guide can offer a link back.
+ */
+export const GOBLIN_GUIDE_URL: string =
+  (import.meta.env.VITE_GOBLIN_GUIDE_URL as string | undefined) ?? 'http://localhost:5175'

@@ -255,6 +255,17 @@ I'll do by hand.
 `VITE_API_BASE_URL=http://localhost:8000` by default in `.env.example`, to adjust
 depending on the environment where `barrins_api` actually runs.
 
+### 4. Standalone-app addresses in development
+
+`.env.example` also carries `VITE_IDENTITY_SERVICE_URL=http://localhost:8001`
+(the identity service the login / signup / reset UI calls directly since the
+ADR-20 cutover) and `VITE_GOBLIN_GUIDE_URL=http://localhost:5175` (the
+standalone Goblin Guide app the settings popup's "Manage my account" button
+navigates to for full account management, same tab, with a `return_to` back to
+Tamiyo Scroll). Both are set automatically per environment by
+`ops/my-server/tamiyo_scroll.yml` at build time; adjust the `.env` values to
+wherever those services actually run in local dev.
+
 ---
 
 ## Implementation notes

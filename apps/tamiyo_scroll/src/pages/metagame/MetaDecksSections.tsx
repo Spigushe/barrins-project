@@ -336,7 +336,7 @@ function RosterRow({
               {/* S13: shared confirm-before-delete dialog (same pattern
                   used for archiving a personal deck
                   (`PersonalDeckSelector.tsx`) and deleting a team
-                  (`AccountSettingsTeamSection.tsx`)) — not a native
+                  (`TeamPage.tsx`'s `TeamMembershipCard`)) — not a native
                   `window.confirm`. */}
               <ConfirmDialog
                 open={confirmingDelete}

@@ -6,9 +6,8 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 /**
- * Join-via-code / create-a-team radio-card picker — shared by the
- * account-settings popup's quick mode (`AccountSettingsTeamSection`) and
- * the full "Teams" tab's "Create / join" sub-tab.
+ * Join-via-code / create-a-team radio-card picker — shared by the "Teams"
+ * tab's "Create / join" route and the demo's team section.
  */
 export function TeamJoinCreatePanel({
   onSuccess,

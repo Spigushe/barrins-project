@@ -361,3 +361,36 @@ describe('<App>', () => {
     expect(await screen.findByRole('heading', { name: 'Account' })).toBeInTheDocument()
   })
 })
+
+describe('<App> — return_to back link', () => {
+  const cookieRestore = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/api/v1/auth/refresh')) {
+      expect(init?.credentials).toBe('include')
+      return jsonResponse({ access_token: 'a', token_type: 'bearer' })
+    }
+    if (url.endsWith('/auth/me')) return jsonResponse(PRINCIPAL)
+    throw new Error(`unexpected ${url}`)
+  })
+
+  it('offers a "Back to <label>" link on the account screen when return_to is set', async () => {
+    renderApp(
+      '/?return_to=https%3A%2F%2Ftamiyo.example.test%2F&return_label=Tamiyo%20Scroll',
+      cookieRestore,
+      true,
+    )
+    const back = await screen.findByRole('link', { name: '← Back to Tamiyo Scroll' })
+    expect(back).toHaveAttribute('href', 'https://tamiyo.example.test/')
+  })
+
+  it('shows no back link without return_to', async () => {
+    renderApp('/', cookieRestore, true)
+    await screen.findByRole('heading', { name: 'Account' })
+    expect(screen.queryByRole('link', { name: /^← Back to/ })).not.toBeInTheDocument()
+  })
+
+  it('ignores a non-http(s) return_to (no open redirect)', async () => {
+    renderApp('/?return_to=javascript%3Aalert(1)&return_label=Evil', cookieRestore, true)
+    await screen.findByRole('heading', { name: 'Account' })
+    expect(screen.queryByRole('link', { name: /^← Back to/ })).not.toBeInTheDocument()
+  })
+})

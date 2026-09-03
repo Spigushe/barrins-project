@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useCurrentUser } from '@barrins/goblin-guide'
 import {
+  useDeleteTeam,
   useDownloadTeamDeckReport,
   useEnableTeamDeckThread,
   useFlagTeamDeck,
+  useLeaveTeam,
   useMemberDecks,
   usePostTeamDeckThreadMessage,
   useRemoveTeamMember,
@@ -14,11 +16,13 @@ import {
   useUnflagTeamDeck,
   useUpdateTeamDescription,
 } from '@/hooks/useTeams'
+import { ApiError } from '@/api/client'
 import { formatDateTime, teamDeckReportFilename } from '@/lib/mtg-format'
 import type { TeamDeckOwner } from '@/schemas/tamiyoScroll'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -55,10 +59,9 @@ export function TeamPage() {
 }
 
 /**
- * Full team page ("full mode") — member list, the owner's deck-flagging
- * picker, per-deck-name discussion threads. Reached from the
- * account-settings popup's team-name banner (`AccountSettingsTeamSection`,
- * "quick mode") or the "Teams" tab.
+ * Full team page — member list, the owner's deck-flagging picker,
+ * per-deck-name discussion threads, and the leave/delete-team control
+ * (`TeamMembershipCard`). Reached from the "Teams" tab.
  */
 export function TeamPageContent({
   teamId,
@@ -183,6 +186,8 @@ export function TeamPageContent({
           ))}
         </div>
       </Card>
+
+      <TeamMembershipCard teamId={team.id} teamName={team.name} isOwner={isOwner} />
 
       <Dialog
         open={pendingRemove !== null}
@@ -351,6 +356,129 @@ function TeamHeaderCard({
             Share this code with the players you want to invite to this team.
           </p>
         </div>
+      )}
+    </Card>
+  )
+}
+
+/**
+ * Leave-team (member) / delete-team (owner) control. Delete is a two-step
+ * confirm with an invite-code retype (same pattern as archiving a personal
+ * deck, S13); leaving is immediate. Both send the viewer back to `/team`
+ * afterwards, which resolves to their next team or the create/join panel.
+ */
+function TeamMembershipCard({
+  teamId,
+  teamName,
+  isOwner,
+}: {
+  teamId: string
+  teamName: string
+  isOwner: boolean
+}) {
+  const navigate = useNavigate()
+  const leaveTeam = useLeaveTeam()
+  const deleteTeam = useDeleteTeam()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteCodeInput, setDeleteCodeInput] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  function closeDeleteDialog() {
+    setDeleteDialogOpen(false)
+    setConfirmingDelete(false)
+    setDeleteCodeInput('')
+    setDeleteError(null)
+  }
+
+  async function confirmDelete() {
+    try {
+      await deleteTeam.mutateAsync({ teamId, inviteCode: deleteCodeInput.trim() })
+      closeDeleteDialog()
+      navigate('/team')
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : 'An error occurred.')
+    }
+  }
+
+  async function handleLeave() {
+    await leaveTeam.mutateAsync(teamId)
+    navigate('/team')
+  }
+
+  return (
+    <Card>
+      <CardTitle>{isOwner ? 'Delete team' : 'Leave team'}</CardTitle>
+      {isOwner ? (
+        <>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Dissolving the team removes it for every member. This can't be undone.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 self-start text-destructive"
+            onClick={() => {
+              setDeleteDialogOpen(true)
+            }}
+          >
+            Delete team
+          </Button>
+          <ConfirmDialog
+            open={deleteDialogOpen}
+            onOpenChange={(next) => {
+              if (!next) closeDeleteDialog()
+            }}
+            title={`Delete "${teamName}"?`}
+            description={
+              !confirmingDelete
+                ? "This dissolves the team for every member. This can't be undone."
+                : 'Type the invite code to confirm.'
+            }
+            confirmLabel={!confirmingDelete ? 'Continue' : 'Delete permanently'}
+            confirmDisabled={
+              confirmingDelete && (deleteTeam.isPending || !deleteCodeInput.trim())
+            }
+            onConfirm={() => {
+              if (!confirmingDelete) {
+                setConfirmingDelete(true)
+                return
+              }
+              void confirmDelete()
+            }}
+          >
+            {confirmingDelete && (
+              <>
+                <Input
+                  aria-label="Type the invite code to confirm deletion"
+                  placeholder="Type the invite code to confirm"
+                  value={deleteCodeInput}
+                  onChange={(event) => {
+                    setDeleteCodeInput(event.target.value)
+                  }}
+                />
+                {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
+              </>
+            )}
+          </ConfirmDialog>
+        </>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-muted-foreground">
+            You'll lose access to this team's shared decks and discussion threads.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 self-start text-destructive"
+            disabled={leaveTeam.isPending}
+            onClick={() => {
+              void handleLeave()
+            }}
+          >
+            Leave team
+          </Button>
+        </>
       )}
     </Card>
   )
