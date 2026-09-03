@@ -103,11 +103,15 @@ if (-not $Ip) { throw "Could not auto-detect a LAN IP. Pass one explicitly: -Ip 
 # The frontend->API URLs and the backend CORS allow-lists are all built from
 # $Ip so a phone/laptop on the same Wi-Fi works. localhost is kept in the
 # CORS lists so this machine's own browser still works too.
-$apiOrigins    = '["http://{0}:{1}","http://{0}:{2}","http://localhost:{1}","http://localhost:{2}"]' -f $Ip, $ports.tamiyo, $ports.tolaria
-$goblinOrigins = '["http://{0}:{1}","http://localhost:{1}"]' -f $Ip, $ports.goblin
+$apiOrigins      = '["http://{0}:{1}","http://{0}:{2}","http://localhost:{1}","http://localhost:{2}"]' -f $Ip, $ports.tamiyo, $ports.tolaria
+# Every browser SPA authenticates directly against barrins_identity since the
+# Phase 7 identity cutover - Goblin Guide and Tamiyo Scroll today, Tolaria News
+# once Q-02 lands - so identity's CORS list spans all three frontend ports, not
+# just goblin's.
+$identityOrigins = '["http://{0}:{1}","http://{0}:{2}","http://{0}:{3}","http://localhost:{1}","http://localhost:{2}","http://localhost:{3}"]' -f $Ip, $ports.goblin, $ports.tamiyo, $ports.tolaria
 
 $identityEnv = [ordered]@{
-  ALLOWED_ORIGINS   = $goblinOrigins
+  ALLOWED_ORIGINS   = $identityOrigins
   FRONTEND_BASE_URL = 'http://{0}:{1}' -f $Ip, $ports.goblin
 }
 if ($EmailVerification) { $identityEnv['REQUIRE_EMAIL_VERIFICATION'] = 'true' }
