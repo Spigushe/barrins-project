@@ -67,8 +67,8 @@ export function DemoTeamsSection() {
           <CardTitle>Create or join a team</CardTitle>
           <div className="mt-4 max-w-sm">
             <TeamJoinCreatePanel
-              onSuccess={(teamId) => {
-                setSelected(teamId)
+              onSuccess={(team) => {
+                setSelected(team.id)
               }}
             />
           </div>

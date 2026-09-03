@@ -10,8 +10,8 @@ export function TeamCreateJoinPage() {
       <CardTitle>Create or join a team</CardTitle>
       <div className="mt-4 max-w-sm">
         <TeamJoinCreatePanel
-          onSuccess={(teamId) => {
-            navigate(`/team/${teamId}`)
+          onSuccess={(team) => {
+            navigate(`/team/${team.invite_code}`)
           }}
         />
       </div>

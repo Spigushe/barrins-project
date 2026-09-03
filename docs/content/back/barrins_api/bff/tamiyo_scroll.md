@@ -454,6 +454,22 @@ visible instead of silent:
   /teams/{id}/decks/{name_key}/thread[/messages]`), and the team PDF
   report (`GET /teams/{id}/decks/{name_key}/report.pdf`) — none of it
   documented here.
+  - **`GET /teams/by-code/{invite_code}`** — the same membership-gated
+    read as `GET /teams/{id}` (non-member → uniform 404), keyed by the
+    invite code so Tamiyo Scroll's `/team/<code>` route resolves without
+    a prior lookup. The code is matched case-insensitively with any `-`
+    grouping stripped, exactly as `POST /teams/join` does. Not
+    rate-limited — it only reads a team the caller already belongs to. `GET /teams/mine`
+    (`ResponseTeamSummary`) now also carries `invite_code` so link
+    targets can be built client-side.
+  - **Security trade-off (accepted):** the invite code is the join
+    credential (`POST /teams/join` takes only the code). Using it as the
+    route id means it appears in the URL bar, browser history, reverse-proxy
+    access logs (§35) and `Referer` headers. The membership gate limits the
+    blast radius to "an authenticated Barrin's user who sees the link can
+    join uninvited" (owner still sees + can remove them). **Follow-up (not
+    built):** a "rotate invite code" owner action to invalidate a leaked
+    code — the real mitigation.
 - **PDF reports (S5)**: `GET /personal-decks/{deck_id}/report.pdf`
   (session-less, rolling 30-day deck report) is missing from the Route
   map above; `GET /sessions/{id}/report.pdf` and the team report route

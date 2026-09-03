@@ -402,6 +402,9 @@ export const teamSummarySchema = z.object({
   id: z.uuid(),
   name: z.string(),
   is_owner: z.boolean(),
+  // Doubles as the `/team/<code>` route id — member-visible, same as on the
+  // full team schema.
+  invite_code: z.string(),
 })
 export type TeamSummary = z.infer<typeof teamSummarySchema>
 

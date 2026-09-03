@@ -33,6 +33,7 @@ const MEMBER = {
 }
 
 let currentUserId = 'user-owner'
+let teamCodeNotFound = false
 let decks: {
   name_key: string
   deck_name: string
@@ -57,6 +58,7 @@ let messages: {
 
 beforeEach(() => {
   currentUserId = 'user-owner'
+  teamCodeNotFound = false
   decks = []
   memberDecks = []
   messages = []
@@ -84,18 +86,22 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => navigateSpy,
 }))
 
+const TEAM = {
+  id: 'team-1',
+  name: 'Dream Team',
+  description: 'We test cards together.',
+  invite_code: 'ABCD1234',
+  owner_id: 'user-owner',
+  created_at: '2026-01-01T00:00:00Z',
+  members: [OWNER, MEMBER],
+}
+
 vi.mock('@/hooks/useTeams', () => ({
-  useTeam: () => ({
-    data: {
-      id: 'team-1',
-      name: 'Dream Team',
-      description: 'We test cards together.',
-      invite_code: 'ABCD1234',
-      owner_id: 'user-owner',
-      created_at: '2026-01-01T00:00:00Z',
-      members: [OWNER, MEMBER],
-    },
-  }),
+  useTeam: () => ({ data: TEAM }),
+  useTeamByCode: () =>
+    teamCodeNotFound
+      ? { data: undefined, isError: true }
+      : { data: TEAM, isError: false },
   useTeamDecks: () => ({ data: decks }),
   useMemberDecks: () => ({ data: memberDecks }),
   useFlagTeamDeck: () => ({ mutate: flagDeckMutate, isPending: false }),
@@ -121,9 +127,9 @@ vi.mock('@/hooks/useTeams', () => ({
 
 function renderTeamPage() {
   return render(
-    <MemoryRouter initialEntries={['/team/team-1']}>
+    <MemoryRouter initialEntries={['/team/ABCD1234']}>
       <Routes>
-        <Route path="/team/:teamId" element={<TeamPage />} />
+        <Route path="/team/:teamCode" element={<TeamPage />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -135,6 +141,13 @@ describe('TeamPage', () => {
     expect(screen.getByText('Dream Team')).toBeInTheDocument()
     expect(screen.getByText('Olive')).toBeInTheDocument()
     expect(screen.getByText('member_mtg')).toBeInTheDocument()
+  })
+
+  it('shows "Team not found." when the invite-code route param does not resolve', () => {
+    teamCodeNotFound = true
+    renderTeamPage()
+    expect(screen.getByText('Team not found.')).toBeInTheDocument()
+    expect(screen.queryByText('Dream Team')).not.toBeInTheDocument()
   })
 
   it('lets the owner edit and save the description', async () => {

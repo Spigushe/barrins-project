@@ -203,6 +203,63 @@ class TestGetTeam:
         assert resp.status_code == 404
 
 
+class TestGetTeamByCode:
+    async def test_member_can_read_team_by_code(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        team = await _create_team(client, owner_user)
+        await _join_team(client, other_user, team["invite_code"])
+
+        resp = await client.get(
+            f"{BASE}/teams/by-code/{team['invite_code']}",
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["id"] == team["id"]
+
+    async def test_dash_grouped_lowercase_code_is_normalized(
+        self, client: AsyncClient, owner_user: User
+    ):
+        team = await _create_team(client, owner_user)
+        code = team["invite_code"]
+        grouped = f"{code[:4]}-{code[4:]}".lower()
+
+        resp = await client.get(
+            f"{BASE}/teams/by-code/{grouped}", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 200
+        assert resp.json()["id"] == team["id"]
+
+    async def test_non_member_gets_404(
+        self, client: AsyncClient, owner_user: User, other_user: User
+    ):
+        team = await _create_team(client, owner_user)
+
+        resp = await client.get(
+            f"{BASE}/teams/by-code/{team['invite_code']}",
+            headers=auth_headers(other_user),
+        )
+        assert resp.status_code == 404
+
+    async def test_unknown_code_returns_404(
+        self, client: AsyncClient, owner_user: User
+    ):
+        resp = await client.get(
+            f"{BASE}/teams/by-code/ZZZZ9999", headers=auth_headers(owner_user)
+        )
+        assert resp.status_code == 404
+
+
+class TestListMyTeams:
+    async def test_summary_carries_the_invite_code(
+        self, client: AsyncClient, owner_user: User
+    ):
+        team = await _create_team(client, owner_user)
+        resp = await client.get(f"{BASE}/teams/mine", headers=auth_headers(owner_user))
+        assert resp.status_code == 200
+        assert resp.json()[0]["invite_code"] == team["invite_code"]
+
+
 class TestUpdateTeam:
     async def test_owner_can_set_description(
         self, client: AsyncClient, owner_user: User

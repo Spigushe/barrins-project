@@ -12,7 +12,9 @@ import { cn } from '@/lib/utils'
 export function TeamJoinCreatePanel({
   onSuccess,
 }: {
-  onSuccess?: (teamId: string) => void
+  // The routed app navigates to `/team/<invite_code>`; the demo tracks the
+  // team by `id`. Hand back both so each caller picks what it needs.
+  onSuccess?: (team: { id: string; invite_code: string }) => void
 }) {
   const [activeCard, setActiveCard] = useState<'join' | 'create' | null>(null)
   const [joinCode, setJoinCode] = useState('')
@@ -31,7 +33,7 @@ export function TeamJoinCreatePanel({
     try {
       const team = await joinTeam.mutateAsync(joinCode.trim())
       setError(null)
-      onSuccess?.(team.id)
+      onSuccess?.(team)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }
@@ -42,7 +44,7 @@ export function TeamJoinCreatePanel({
     try {
       const team = await createTeam.mutateAsync(teamName.trim())
       setError(null)
-      onSuccess?.(team.id)
+      onSuccess?.(team)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'An error occurred.')
     }

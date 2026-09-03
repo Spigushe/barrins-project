@@ -7,5 +7,7 @@ export function TeamsIndexRedirect() {
   const { data: myTeams } = useMyTeams()
 
   if (!myTeams) return null
-  return <Navigate to={myTeams[0] ? `/team/${myTeams[0].id}` : '/team/new'} replace />
+  return (
+    <Navigate to={myTeams[0] ? `/team/${myTeams[0].invite_code}` : '/team/new'} replace />
+  )
 }

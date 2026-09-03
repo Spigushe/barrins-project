@@ -16,6 +16,13 @@ export function getTeam(teamId: string) {
   return apiRequest(`/bff/tamiyo-scroll/teams/${teamId}`, teamSchema)
 }
 
+export function getTeamByCode(inviteCode: string) {
+  return apiRequest(
+    `/bff/tamiyo-scroll/teams/by-code/${encodeURIComponent(inviteCode)}`,
+    teamSchema,
+  )
+}
+
 export function createTeam(name: string) {
   return apiRequest('/bff/tamiyo-scroll/teams', teamSchema, {
     method: 'POST',
