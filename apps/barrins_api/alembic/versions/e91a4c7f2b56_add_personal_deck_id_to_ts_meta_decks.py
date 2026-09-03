@@ -16,7 +16,12 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e91a4c7f2b56"
-down_revision: str | Sequence[str] | None = "b7d1f4a290ec"
+# Re-parented onto the identity-cutover head (was `b7d1f4a290ec`) when the
+# S8–S18 line was reconciled onto `proj/v2.0.0-bump` after ADR-20 — the
+# cutover's `d9e1a2c3b4f5` and this F10 chain both forked from
+# `b7d1f4a290ec`; they touch disjoint tables, so linear order is the only
+# constraint.
+down_revision: str | Sequence[str] | None = "d9e1a2c3b4f5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

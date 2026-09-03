@@ -2,8 +2,8 @@
 
 from httpx import AsyncClient
 
-from app.models.user import User
 from app.services.tamiyo_scroll.session_auto_archive import session_is_stale
+from tests.identity_auth import FakeUser as User
 from tests.tamiyo_scroll.conftest import BASE, auth_headers
 
 
