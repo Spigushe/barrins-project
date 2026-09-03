@@ -56,12 +56,20 @@ export function listMyTeams(): Promise<TeamSummary[]> {
       id: team.id,
       name: team.name,
       is_owner: team.owner_id === DEMO_CURRENT_USER_ID,
+      invite_code: team.invite_code,
     })),
   )
 }
 
 export function getTeam(teamId: string): Promise<Team> {
   return Promise.resolve(toTeam(findTeam(teamId)))
+}
+
+export function getTeamByCode(inviteCode: string): Promise<Team> {
+  const code = inviteCode.trim().toUpperCase().replace(/-/g, '')
+  const team = getStore().teams.find((candidate) => candidate.invite_code === code)
+  if (!team) throw new Error(`Demo team not found for code: ${inviteCode}`)
+  return Promise.resolve(toTeam(team))
 }
 
 export function createTeam(name: string): Promise<Team> {

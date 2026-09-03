@@ -11,6 +11,7 @@ import {
   usePostTeamDeckThreadMessage,
   useRemoveTeamMember,
   useTeam,
+  useTeamByCode,
   useTeamDeckThreadMessages,
   useTeamDecks,
   useUnflagTeamDeck,
@@ -37,17 +38,27 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 
 /**
- * Route-level wrapper — pulls `teamId` from the URL and `currentUserId` from
- * the real (token-gated) `useCurrentUser`, then delegates to
- * `TeamPageContent`. Split out so the demo (`DemoTeamsSection`) can render
- * the same content with a locally-selected team id and its fixed demo
- * identity, without either of them touching real routing or auth.
+ * Route-level wrapper — resolves the `/team/<invite_code>` URL param to a
+ * team (membership-gated: a non-member's code 404s), reads `currentUserId`
+ * from the real (token-gated) `useCurrentUser`, then delegates to
+ * `TeamPageContent` with the resolved UUID. Split out so the demo
+ * (`DemoTeamsSection`) can render the same content with a locally-selected
+ * team id and its fixed demo identity, without either of them touching real
+ * routing or auth.
  */
 export function TeamPage() {
-  const { teamId } = useParams<{ teamId: string }>()
+  const { teamCode } = useParams<{ teamCode: string }>()
   const { data: currentUser } = useCurrentUser()
+  const { data: team, isError } = useTeamByCode(teamCode ?? null)
 
-  if (!teamId) {
+  if (!teamCode || isError) {
+    return (
+      <Card>
+        <p className="text-sm text-muted-foreground">Team not found.</p>
+      </Card>
+    )
+  }
+  if (!team) {
     return (
       <Card>
         <p className="text-sm text-muted-foreground">Loading team…</p>
@@ -55,7 +66,7 @@ export function TeamPage() {
     )
   }
 
-  return <TeamPageContent teamId={teamId} currentUserId={currentUser?.id ?? null} />
+  return <TeamPageContent teamId={team.id} currentUserId={currentUser?.id ?? null} />
 }
 
 /**

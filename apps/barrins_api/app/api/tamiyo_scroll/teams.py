@@ -211,10 +211,38 @@ async def list_my_teams(
     teams = result.scalars().all()
     return [
         ResponseTeamSummary(
-            id=team.id, name=team.name, is_owner=team.owner_id == current_user.id
+            id=team.id,
+            name=team.name,
+            is_owner=team.owner_id == current_user.id,
+            invite_code=team.invite_code,
         )
         for team in teams
     ]
+
+
+@router.get("/teams/by-code/{invite_code}", response_model=ResponseTeam)
+async def get_team_by_code(
+    invite_code: str,
+    session: DatabaseSession,
+    current_user: CurrentUser,
+    directory: IdentityDirectoryDep,
+) -> ResponseTeam:
+    """Same as `GET /teams/{team_id}` but keyed by the (member-visible)
+    invite code — the identifier Tamiyo Scroll puts in the `/team/<code>`
+    URL. Still membership-gated: a non-member gets a uniform 404, never the
+    team, exactly like `get_member_team`. Not rate-limited (unlike
+    `POST /teams/join`) — it only reads a team the caller already belongs
+    to.
+    """
+    code = normalize_invite_code(invite_code)
+    result = await session.execute(select(TSTeam.id).where(TSTeam.invite_code == code))
+    team_id = result.scalar_one_or_none()
+    if team_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Team not found."
+        )
+    team = await get_member_team(session, team_id, current_user)
+    return await _team_to_response(session, directory, team)
 
 
 @router.get("/teams/{team_id}", response_model=ResponseTeam)

@@ -17,6 +17,24 @@ export function useTeam(teamId: string | null) {
   })
 }
 
+/**
+ * Resolve a team by its invite code — the `/team/<code>` route identifier.
+ * Primes the id-keyed cache (`['teams', <id>]`) so a nested `useTeam(id)`
+ * (e.g. `TeamPageContent`) is an immediate cache hit, not a second fetch.
+ */
+export function useTeamByCode(inviteCode: string | null) {
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: ['teams', 'by-code', inviteCode],
+    queryFn: async () => {
+      const team = await teamsApi.getTeamByCode(inviteCode ?? '')
+      queryClient.setQueryData(['teams', team.id], team)
+      return team
+    },
+    enabled: inviteCode !== null,
+  })
+}
+
 export function useTeamDecks(teamId: string | null) {
   return useQuery({
     queryKey: ['teams', teamId, 'decks'],

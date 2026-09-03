@@ -325,12 +325,18 @@ class ResponseSessionComparison(BaseResponse):
 
 
 class ResponseTeamSummary(BaseResponse):
-    """Minimal team shape for GET /teams/mine (popup quick-mode + team
-    pickers) — no member list, no invite code."""
+    """Minimal team shape for GET /teams/mine (team pickers, and building
+    the `/team/<invite_code>` route links) — no member list.
+
+    `invite_code` is member-visible (same as on `ResponseTeam`); it doubles
+    as the team page's URL identifier so callers can link without a prior
+    round-trip.
+    """
 
     id: uuid.UUID
     name: str
     is_owner: bool
+    invite_code: str
 
 
 class ResponseTeamMember(BaseResponse):

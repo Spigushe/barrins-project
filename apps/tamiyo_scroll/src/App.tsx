@@ -135,7 +135,7 @@ function App() {
         >
           <Route index element={<TeamsIndexRedirect />} />
           <Route path="new" element={<TeamCreateJoinPage />} />
-          <Route path=":teamId" element={<TeamPage />} />
+          <Route path=":teamCode" element={<TeamPage />} />
         </Route>
 
         <Route
