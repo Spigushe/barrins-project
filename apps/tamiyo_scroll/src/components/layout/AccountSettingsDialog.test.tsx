@@ -23,22 +23,23 @@ vi.mock('@barrins/goblin-guide', async (importOriginal) => ({
 }))
 
 vi.mock('@/hooks/useSettings', () => ({
-  useMySettings: () => ({ data: { data_shared: true, receive_shared_data: false } }),
+  useMySettings: () => ({
+    data: {
+      data_shared: true,
+      receive_shared_data: false,
+      metagame_roster_scope: 'game',
+      auto_archive_stale_sessions: false,
+      auto_archive_decklist_version_gap: 3,
+      show_decklist_version_diff: true,
+      validate_removed_card_in_decklist: true,
+      validate_added_card_exists: false,
+      show_decklist_change_log: false,
+    },
+  }),
   useUpdateMySettings: () => ({
     mutateAsync: updateSettingsMutateAsync,
     isPending: false,
   }),
-}))
-
-// No team by default — `AccountSettingsTeamSection.test.tsx` covers the
-// join/create/member/owner states in depth.
-vi.mock('@/hooks/useTeams', () => ({
-  useMyTeams: () => ({ data: [] }),
-  useTeam: () => ({ data: undefined }),
-  useCreateTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useJoinTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useLeaveTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteTeam: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 function renderDialog(props: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -78,15 +79,12 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders the join/create team picker when the account has no team', () => {
+  it('renders separators between the display name, sharing, roster scope, auto-archive, version diff, card-test validation/change-log and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    expect(screen.getByText('Join a team')).toBeInTheDocument()
-    expect(screen.getByText('Create a team')).toBeInTheDocument()
-  })
-
-  it('renders separators between the account, sharing, display and team sections', () => {
-    renderDialog({ open: true, onOpenChange: vi.fn() })
-    expect(screen.getAllByRole('separator')).toHaveLength(3)
+    // Barrin's account (managed screen) / Share my data / Roster scope (F10) /
+    // Auto-archive (S14) / Version diff (S15) / Card-test validation + change
+    // log (S16) / Display (S12).
+    expect(screen.getAllByRole('separator')).toHaveLength(6)
   })
 
   it('disables and unchecks receive when share is turned off', async () => {
@@ -128,8 +126,105 @@ describe('AccountSettingsDialog', () => {
     expect(updateSettingsMutateAsync).toHaveBeenCalledWith({
       data_shared: true,
       receive_shared_data: true,
+      metagame_roster_scope: 'game',
+      auto_archive_stale_sessions: false,
+      auto_archive_decklist_version_gap: 3,
+      show_decklist_version_diff: true,
+      validate_removed_card_in_decklist: true,
+      validate_added_card_exists: false,
+      show_decklist_change_log: false,
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('saves the auto-archive toggle and threshold', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: 'Auto-archive stale sessions' }))
+    const gapInput = screen.getByLabelText('Version gap')
+    await user.clear(gapInput)
+    await user.type(gapInput, '5')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_archive_stale_sessions: true,
+        auto_archive_decklist_version_gap: 5,
+      }),
+    )
+  })
+
+  it('pre-fills the version diff toggle from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(screen.getByRole('switch', { name: 'Decklist version diff' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+  })
+
+  it('saves the version diff toggle', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: 'Decklist version diff' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ show_decklist_version_diff: false }),
+    )
+  })
+
+  it('pre-fills the card-test validation and change-log toggles from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(
+      screen.getByRole('switch', { name: 'Validate removed card is in decklist' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      screen.getByRole('switch', { name: 'Validate added card exists' }),
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      screen.getByRole('switch', { name: 'Show decklist change log' }),
+    ).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('saves the card-test validation and change-log toggles', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(
+      screen.getByRole('switch', { name: 'Validate removed card is in decklist' }),
+    )
+    await user.click(screen.getByRole('switch', { name: 'Validate added card exists' }))
+    await user.click(screen.getByRole('switch', { name: 'Show decklist change log' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        validate_removed_card_in_decklist: false,
+        validate_added_card_exists: true,
+        show_decklist_change_log: true,
+      }),
+    )
+  })
+
+  it('pre-fills the roster scope toggle from current data', () => {
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+    expect(
+      screen.getByRole('switch', { name: 'Store roster decks per game' }),
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('saves the roster scope toggle', async () => {
+    const user = userEvent.setup()
+    renderDialog({ open: true, onOpenChange: vi.fn() })
+
+    await user.click(screen.getByRole('switch', { name: 'Store roster decks per game' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(updateSettingsMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ metagame_roster_scope: 'personal_deck' }),
+    )
   })
 
   it('closes without saving on Cancel', async () => {
@@ -164,9 +259,10 @@ describe('AccountSettingsDialog — Display section', () => {
     expect(
       screen.getByRole('switch', { name: 'Colored archetype cell' }),
     ).toHaveAttribute('aria-checked', 'false')
-    expect(
-      screen.getByRole('switch', { name: 'Tier background color' }),
-    ).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: 'Tier background color' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 
   it('persists a toggle to localStorage immediately, not on Save', async () => {

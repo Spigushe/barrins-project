@@ -53,6 +53,7 @@ cp secrets/barrins_api/production.env.example secrets/barrins_api/production.env
 | `ALLOWED_ORIGINS` | Must include the origin of **every** frontend calling this backend: `["https://tolaria.barrins-codex.org", "https://tamiyo.barrins-codex.org"]` in production, the `-staging` equivalents in staging. JSON format. Missing an origin → the SPA loads but every API call fails CORS in the browser console. |
 | `IDENTITY_SERVICE_URL` | **Required** since the identity cutover ([ADR-20](../architecture/decisions.md#adr-20-barrins_api-trusts-barrins_identity-jwks-drops-its-users-table)). Base URL of `barrins_identity` — `barrins_api` verifies its `Bearer` tokens against `<url>/.well-known/jwks.json` and issues none of its own. `https://identity.barrins-codex.org` in production, `-staging` on staging. Replaces the old `SECRET_KEY` / `ALGORITHM` / token-TTL vars (all removed). |
 | `IDENTITY_SERVICE_CLIENT_ID` / `IDENTITY_SERVICE_CLIENT_SECRET` | A `barrins_identity` service account (scope `identity:users:read`) used only for `POST /users/lookup` — team-roster / sharing display labels. Leave **both** empty to disable the directory: labels then fall back to a generic placeholder (no request fails). See [identity-cutover.md](identity-cutover.md). |
+| `MTGJSON_IMPORT_TOKEN` | `openssl rand -hex 32`. **Required in production** — the `mtgjson_import_scheduler` role's daily timer authenticates `POST /mtgjson/import` with this (an admin JWT still works too). The playbook fails fast if it's missing from `secrets/barrins_api/production.env`. Not used in staging (the scheduled timer is production-only). |
 
 ## Deployment
 
@@ -87,6 +88,12 @@ uv run alembic upgrade head
 - Exercise a real user flow through one of the frontends: log in (against
   `barrins_identity` — see [identity-cutover.md](identity-cutover.md)),
   deck creation, a match record.
+- Production only — the daily MTGJSON reference-data refresh:
+  `systemctl status api-mtgjson-import.timer` (next scheduled run) and
+  `journalctl -u api-mtgjson-import.service -n 50` (last run's outcome),
+  or just `curl https://api.barrins-codex.org/api/v1/mtgjson/status` for
+  `last_imported_at`. See
+  `ops/my-server/roles/mtgjson_import_scheduler/README.md`.
 
 ## Rollback
 
@@ -110,6 +117,8 @@ This rolls back the *code*. It does **not** roll back the database — read
 | Team rosters / "shared with you" show a generic placeholder instead of names | `IDENTITY_SERVICE_CLIENT_ID` / `_SECRET` empty or wrong, or the service account lacks scope `identity:users:read`. Cosmetic only. |
 | A frontend's SPA loads but every API call fails (CORS error in console) | That frontend's origin is missing from `ALLOWED_ORIGINS`. |
 | A recent feature doesn't work even though the code is current | Migration not applied — `alembic upgrade head` is never automatic, see "Deployment" above. |
+| Playbook fails on "MTGJSON_IMPORT_TOKEN is not set" (production) | Generate one with `openssl rand -hex 32`, add it to `secrets/barrins_api/production.env`, re-run. |
+| `api-mtgjson-import.service` fails with a 401 in its journal | `MTGJSON_IMPORT_TOKEN` in the deployed `.env` doesn't match what the timer's `EnvironmentFile=` is reading — redeploy after fixing the local `secrets/barrins_api/production.env`. |
 
 ## See also
 

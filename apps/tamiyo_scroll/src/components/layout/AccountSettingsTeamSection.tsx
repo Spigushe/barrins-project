@@ -6,7 +6,7 @@ import { ApiError } from '@/api/client'
 import { TeamJoinCreatePanel } from './TeamJoinCreatePanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 
 /**
@@ -90,7 +90,7 @@ function TeamBanner({
     <div className="flex flex-col gap-3.5 border-t border-border pt-[18px]">
       <div className="flex items-center justify-between gap-3">
         <Link
-          to={`/app/team/${team.id}`}
+          to={`/team/${team.id}`}
           onClick={onClose}
           className="text-sm font-bold text-foreground hover:underline"
         >
@@ -130,69 +130,43 @@ function TeamBanner({
             Delete team
           </Button>
 
-          <Dialog
+          <ConfirmDialog
             open={deleteDialogOpen}
             onOpenChange={(next) => {
               if (!next) closeDeleteDialog()
             }}
+            title={`Delete "${team.name}"?`}
+            description={
+              !confirmingDelete
+                ? "This dissolves the team for every member. This can't be undone."
+                : 'Type the invite code to confirm.'
+            }
+            confirmLabel={!confirmingDelete ? 'Continue' : 'Delete permanently'}
+            confirmDisabled={
+              confirmingDelete && (deleteTeam.isPending || !deleteCodeInput.trim())
+            }
+            onConfirm={() => {
+              if (!confirmingDelete) {
+                setConfirmingDelete(true)
+                return
+              }
+              void confirmDelete()
+            }}
           >
-            <DialogContent>
-              <DialogTitle>Delete "{team.name}"?</DialogTitle>
-              {!confirmingDelete ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    This dissolves the team for every member. This can't be undone.
-                  </p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={closeDeleteDialog}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        setConfirmingDelete(true)
-                      }}
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Type the invite code to confirm.
-                  </p>
-                  <Input
-                    aria-label="Type the invite code to confirm deletion"
-                    placeholder="Type the invite code to confirm"
-                    value={deleteCodeInput}
-                    onChange={(event) => {
-                      setDeleteCodeInput(event.target.value)
-                    }}
-                  />
-                  {deleteError && (
-                    <p className="text-xs text-destructive">{deleteError}</p>
-                  )}
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={closeDeleteDialog}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      disabled={deleteTeam.isPending || !deleteCodeInput.trim()}
-                      onClick={() => {
-                        void confirmDelete()
-                      }}
-                    >
-                      Delete permanently
-                    </Button>
-                  </div>
-                </>
-              )}
-            </DialogContent>
-          </Dialog>
+            {confirmingDelete && (
+              <>
+                <Input
+                  aria-label="Type the invite code to confirm deletion"
+                  placeholder="Type the invite code to confirm"
+                  value={deleteCodeInput}
+                  onChange={(event) => {
+                    setDeleteCodeInput(event.target.value)
+                  }}
+                />
+                {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
+              </>
+            )}
+          </ConfirmDialog>
         </>
       ) : (
         <Button

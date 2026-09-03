@@ -127,6 +127,20 @@ def _reset_card_name_cache():
     invalidate_name_cache()
 
 
+@pytest.fixture(autouse=True)
+def _reset_card_name_cache():
+    """Resets `card_resolver`'s process-local name cache before each test.
+
+    That cache (see its module docstring) is a plain module-level global,
+    not scoped to a request or a DB transaction — once any test builds it
+    against an empty/partial `cards` table, it silently stays "built" and
+    stale for every later test sharing this process, however unrelated
+    (a card added by a later test's own fixtures would never be found).
+    Rebuilding it fresh per test keeps tests order-independent.
+    """
+    invalidate_name_cache()
+
+
 # ---------------------------------------------------------------------------
 # Engine & tables (session-scoped — created once per test run, SYNC)
 # ---------------------------------------------------------------------------

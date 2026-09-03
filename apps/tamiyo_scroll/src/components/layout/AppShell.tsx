@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { to: '/app/tracker', label: 'BO3 Tracking' },
-  { to: '/app/metagame', label: 'Metagame' },
-  { to: '/app/decklist', label: 'My decklist' },
-  { to: '/app/sessions', label: 'Sessions' },
-  { to: '/app/team', label: 'Teams' },
+  { to: '/tracker', label: 'BO3 Tracking' },
+  { to: '/metagame', label: 'Metagame' },
+  { to: '/decklist', label: 'My decklist' },
+  { to: '/sessions', label: 'Sessions' },
+  { to: '/team', label: 'Teams' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           {currentUser?.role === 'admin' && (
             <Button type="button" variant="outline" asChild>
-              <Link to="/app/admin/metrics">Admin metrics</Link>
+              <Link to="/admin/metrics">Admin metrics</Link>
             </Button>
           )}
 

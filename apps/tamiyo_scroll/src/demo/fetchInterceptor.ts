@@ -214,11 +214,25 @@ const routes: Route[] = [
   {
     method: 'GET',
     pattern: new RegExp(`^${BASE}/sessions$`),
-    handler: ({ searchParams }) =>
-      sessionsDemo.listSessions(
+    handler: ({ searchParams }) => {
+      const limit = searchParams.get('limit')
+      const offset = searchParams.get('offset')
+      const sortBy = searchParams.get('sort_by')
+      const sortDir = searchParams.get('sort_dir')
+      const search = searchParams.get('search')
+      return sessionsDemo.listSessions(
         searchParams.get('personal_deck_id') ?? '',
         searchParams.get('include_archived') === 'true',
-      ),
+        {
+          limit: limit === null ? undefined : Number(limit),
+          offset: offset === null ? undefined : Number(offset),
+          sortBy: (sortBy ?? undefined) as
+            'name' | 'type' | 'started_at' | 'status' | undefined,
+          sortDir: (sortDir ?? undefined) as 'asc' | 'desc' | undefined,
+          search: search ?? undefined,
+        },
+      )
+    },
   },
   {
     method: 'POST',

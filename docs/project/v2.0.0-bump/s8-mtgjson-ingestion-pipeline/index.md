@@ -5,10 +5,10 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `apps/barrins_api` (new `Card`/`Set` models, `mtgjson` router/service) | / |
-| **Initial date** | 2026-08-05 | / |
-| **Status** | 🟡 **Core pipeline done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred, and the scheduled-refresh mechanism is still open. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only). **2026-08-09 UAT**: re-triggered `POST /mtgjson/import` against the real, full file on staging — two consecutive runs, ~3.5 minutes each, 868 sets/112,809 cards, no OOM, confirming both the performance and memory fixes at full scale; also found and fixed a follow-on bug where the raw upsert never bumped `updated_at` on conflict, freezing `GET /mtgjson/status`'s `last_imported_at` (see UAT below) | / |
+| **Initial date** | 2026-08-05 | Core pipeline done same day |
+| **Status** | ✅ **Done, prices deferred** — `Card`/`MTGSet` models, Alembic migration, `HttpxMTGJSONClient`, the idempotent chunked-upsert importer, `POST /mtgjson/import` (admin-gated), `GET /mtgjson/status`, and the public `GET /sets/*`/`GET /cards/*` read routes are all built and tested (14 tests, real-data fixtures — see `apps/barrins_api/tests/fixtures/README.md`). This **unblocks T3**. Three 2026-08-05 decisions narrowed this pass's scope (see Context): image URLs are not built (only `scryfall_id`/`scryfall_oracle_id` stored), `AllPrices.json`/`GET /cards/{uuid}/prices` deliberately deferred. **2026-08-07**: fixed a ~45-minute import (one DB round-trip per row) by batching into chunked multi-row upserts. **2026-08-09**: fixed an OOM kill on the real full-file import by streaming (`ijson`); added live import progress (`GET /mtgjson/import/status`, admin-gated) via a new `mj_import_runs` table written independently of the main import transaction; renamed `sets`/`cards` to `mj_sets`/`mj_cards` to match this codebase's domain-prefix convention (DB-internal only). **2026-08-09 UAT**: re-triggered `POST /mtgjson/import` against the real, full file on staging — two consecutive runs, ~3.5 minutes each, 868 sets/112,809 cards, no OOM, confirming both the performance and memory fixes at full scale; also found and fixed a follow-on bug where the raw upsert never bumped `updated_at` on conflict, freezing `GET /mtgjson/status`'s `last_imported_at` (see UAT below). **Scheduled-refresh mechanism landed 2026-08-13/2026-08-25**: `MTGJSON_IMPORT_TOKEN` service-auth path (`verify_mtgjson_or_admin`) + a daily 04:00 UTC production systemd timer (`mtgjson_import_scheduler` role) | / |
 | **Source** | Discovered while scoping S4; corrects a false assumption in S2/§1.6; scope widened while scoping T3 | / |
-| **Dependency** | D1 (playbook shape for the scheduled refresh — still open) | Blocks S4, and (added 2026-07-30, §1.10) **T3** (transitively T6) — **unblocked 2026-08-05**: real card data now exists for T3's ingestion route to validate scraped card names against, though T3 still needs its own route/credential/maintenance-gate work built on top (unchanged, not part of this item). No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
+| **Dependency** | D1 (playbook shape for the scheduled refresh) | Blocked S4 (done 2026-08-14), and (added 2026-07-30, §1.10) **T3** (transitively T6) — both unblocked, T3 done 2026-08-07. No longer blocks S2 — its deck-validation gate deferred to v3.0.0 (2026-07-27) |
 
 ---
 
@@ -244,3 +244,28 @@ because neither table has shipped in a release or held real data yet
 - A test asserting a known multi-face fixture card's per-face type data
   round-trips correctly — this is the data S4's "face A Land" rule
   depends on, so it needs its own explicit regression coverage.
+
+## Implementation note (as shipped vs. this page's original scope)
+
+- **Image source**: Scryfall's image API, keyed by `scryfall_id` (the
+  card-image escalation this page flagged as needing its own decision) —
+  a disk-cached proxy (`GET /cards/{scryfall_id}/image`), not MTGJSON
+  itself. Wiped on every re-import since `scryfall_id` can shift.
+- **Face-A-Land rule**: **not implemented** — S4 shipped without it (see
+  that page's own gap list); per-face type storage exists on `Card` but
+  the dedicated rule this page called for was never built.
+- **Scheduled refresh**: `MTGJSON_IMPORT_TOKEN`-gated service-auth path
+  (`verify_mtgjson_or_admin`) alongside the admin-JWT gate, plus a
+  production-only daily 04:00 UTC systemd timer (`mtgjson_import_
+  scheduler` Ansible role) — VPS-hosted, not CI-triggered, following T8's
+  scheduled-job precedent as this page anticipated.
+- **T6 extension (2026-08-25)**: `Card` gained `text`/`keywords`/
+  `power`/`toughness`/`loyalty` columns, opportunistically added via this
+  same importer for Karn Tablets' feature-engineering pipeline — nullable,
+  backfilled by re-running `POST /mtgjson/import`.
+- **Admin progress visibility**: `GET /mtgjson/import/status` (admin-only,
+  reads a new `MTGJSONImportRun` log — `running`/`succeeded`/`failed` plus
+  `error_message` on failure) was added beyond this page's original Done
+  statement, alongside the already-scoped public `GET /mtgjson/status`.
+- **Price data**: `AllPrices.json`/`GET /cards/{id}/prices` deliberately
+  out of scope — not built, not currently planned.

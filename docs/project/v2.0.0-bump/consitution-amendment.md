@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `docs/content/CLAUDE.md` (the project constitution) | / |
 | **Initial date** | 2026-07-25 | / |
-| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). 🔲 **Proposal 7 added 2026-08-03, not yet reviewed.** Nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
+| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). 🔲 **Proposal 7 added 2026-08-03, not yet reviewed.** ✅ **Proposal 8 added and accepted 2026-08-24, applied directly to `.claude/CLAUDE.md` the same day** (§11.8). Proposals 2–7 nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
 | **Source** | Decisions recorded in `index.md` §1.2, §1.3, §1.6, §1.7, §1.9 | / |
 
 ---
@@ -659,6 +659,123 @@ shape now has a written answer.
 
 ---
 
+## Proposal 8 — Deletions Default to Soft-Delete (Archive), Not Physical Removal
+
+**Status: ✅ Accepted (2026-08-24)** — decided live in conversation while
+implementing S17, applied directly to `.claude/CLAUDE.md` the same day
+(unlike Proposals 2-7, still pending the ADR/merge pass) since the user
+explicitly asked for the constitution itself to be updated, not just this
+record — same treatment Proposal 1 already got.
+
+**Target**: new subsection `§11.8` (after existing §11.7 Pydantic
+schemas, before §12 BFF Architecture — a backend/DB-modeling convention,
+not a §51 privacy/retention rule). §11 already ends at §11.7, so this is
+a clean append; no renumbering.
+
+### Context
+
+Implementing S17 (`s17-card-log-matchup-evaluations/`) shipped
+`DELETE /card-tests/{id}` as a real SQL `DELETE` — and because
+`TSCardTestEvaluation.test_id` has `ondelete="CASCADE"`, deleting a card
+log silently, permanently destroyed every match-up evaluation logged
+against it, with no way back. The user flagged this as unacceptable and
+stated the general rule this project has never actually written down:
+**by default, every delete action in the application should be a
+disguised archive** — the record disappears from the user's active view,
+but stays in the database.
+
+An audit of every existing delete operation
+(`apps/barrins_api/app/api/tamiyo_scroll/`) found the same inconsistency
+already existed project-wide, not just in the new S17 code:
+
+- **Already soft-delete** (an `archived_at` column, list queries filter
+  it out): `TSPersonalDeck` (`personal_decks.py`), `TSMetaDeck`
+  (`meta_decks.py`), `TSSession` (`sessions.py`). Of these, only
+  `TSSession` has a working *restore* path
+  (`PATCH /sessions/{id}` with `SessionPatch.restore`) —
+  `TSPersonalDeck`/`TSMetaDeck` can be archived but never un-archived
+  today.
+- **Hard delete** (`session.delete(...)`, no soft-delete column at all):
+  `TSCardTest` + `TSCardTestEvaluation` (the S17 pair described above),
+  `TSMatch` (`matches.py`), `TSTeam` and its full cascade family
+  (`TSTeamMember`/`TSTeamDeckFlag`/`TSTeamDeckThread`/`TSTeamDeckMessage`,
+  all `ondelete="CASCADE"` off `ts_teams.id` — one `delete_team` call
+  today destroys rows in all four tables at once), and
+  `TSPersonalDecklistVersion` (`delete_decklist_version` — this one
+  carries a deliberate prior rationale, "Option G": the *version* is the
+  delete target, not the deck, cf.
+  `docs/tamiyo_scroll_tracker/00_plan_general.md`).
+
+### Alternatives
+
+1. **Status quo.** Keep deciding hard-delete-vs-soft-delete per table,
+   case by case, as today.
+2. **Blanket soft-delete default.** Every user-triggered delete action
+   sets an archival marker instead of removing the row; the row becomes
+   invisible to normal reads but stays in the database indefinitely.
+   Physical deletion becomes an internal-only operation (an admin tool, a
+   scheduled purge, or a §51 GDPR-driven data-subject-access deletion),
+   never a direct consequence of a user clicking "delete". A specific
+   table/action may still justify a real hard delete, but only as an
+   explicit, documented exception — not the unstated default it is today.
+3. **Same as 2, plus a time-boxed purge job** (e.g. archived rows expire
+   after 90 days).
+
+### Trade-offs
+
+Option 1 is exactly the inconsistency that just caused real data loss in
+S17 and will keep recurring as new features are built — no reason to
+expect it to self-correct. Option 2 guarantees no accidental data loss
+and gives one consistent mental model ("delete = archive"), at the cost
+of: every delete-reachable table needing an archive column, a migration,
+a filtered read path, and (a new requirement most tables don't meet
+today) a restore path; and cascading children needing to archive
+alongside their parent rather than being destroyed — a
+`ondelete="CASCADE"` foreign key can only express *delete*, not
+*archive*, so the Teams family (the deepest cascade chain in the schema)
+needs its own redesign, not just a bulk column addition. Option 3 invents
+a retention/purge schedule that §51 explicitly says not to add
+speculatively ("not before it is actually needed") — premature here,
+revisit only once §51's already-open retention question is actually
+forced by a real requirement (e.g. GDPR).
+
+### Decision (proposed)
+
+Option 2. Every user-triggered delete action defaults to soft-delete; a
+real hard delete requires an explicit, documented exception (a
+code-level comment/docstring stating why), never the unstated default.
+Two existing hard deletes were reviewed against this new default and
+resolved by the user the same day:
+
+- **`TSTeam` deletion** (`teams.py::delete_team`) — previously the one
+  intentional hard-delete exception in the codebase (an invite-code
+  re-entry confirmation gate). **Converts to archive**, no exception
+  kept — its cascade family (`TSTeamMember`/`TSTeamDeckFlag`/
+  `TSTeamDeckThread`/`TSTeamDeckMessage`) needs the same treatment.
+- **`TSPersonalDecklistVersion` deletion**
+  (`personal_decks.py::delete_decklist_version`) — **stays a hard-delete
+  exception**, per the pre-existing Option G rationale (the version, not
+  the deck, is deliberately the real delete target).
+
+### Consequences
+
+`TSCardTest`/`TSCardTestEvaluation` were converted the same day (new
+`archived_at` columns, migration `6cf95145f67e`, delete routes set
+`archived_at` instead of calling `session.delete`, list/report queries
+filter `archived_at.is_(None)`) — no restore path yet, matching
+`TSPersonalDeck`/`TSMetaDeck`'s current state rather than over-building
+ahead of the rest. The remaining conversions (`TSPersonalDeck`/
+`TSMetaDeck`'s missing restore path, `TSMatch`, and the Teams
+cascade-family redesign) are tracked as a new item,
+`s18-deletion-defaults-to-archive/`, not implemented in this pass — the
+scope (a schema-wide, cross-cutting change touching most of the Tamiyo
+Scroll domain) is comparable to S17 itself and needs its own pass. No
+purge/retention job is introduced by this proposal — archived data grows
+unbounded until §51's separate, still-open retention question is
+resolved; this is a deliberate non-goal here, not an oversight.
+
+---
+
 ## Applying these proposals
 
 **Reviewed by the user 2026-07-26 and 2026-07-27.** Outcome: Proposals
@@ -666,6 +783,11 @@ shape now has a written answer.
 described in each ("What changed from the original proposal"). **All
 six proposals are now reviewed and accepted.** None are applied to
 `docs/content/CLAUDE.md` yet — that's still separate work, done here:
+
+**Proposal 8, added and accepted 2026-08-24**: unlike 2-7, applied
+directly to `.claude/CLAUDE.md` as the new `§11.8` the same day it was
+decided (see Proposal 8's own Status line for why) — not part of the
+batch below.
 
 1. Insert the new **subsections** — §13.6, §13.7 (both after existing
    §13.5), §23.4 (after §23.3, Proposal 6), §26.5 (after §26.4), §31.4

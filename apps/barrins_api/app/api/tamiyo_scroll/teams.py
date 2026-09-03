@@ -12,6 +12,7 @@ from app.database.session import DatabaseSession
 from app.dependencies.auth import CurrentUser
 from app.models.tamiyo_scroll import (
     TSCardTest,
+    TSCardTestEvaluation,
     TSMatch,
     TSMetaDeck,
     TSPersonalDeck,
@@ -417,16 +418,30 @@ async def get_team_deck_report(
     version = resolve_report_decklist_version(versions, stats.current_matches)
 
     all_card_tests_result = await session.execute(
-        select(TSCardTest).where(TSCardTest.personal_deck_id.in_(deck_ids))
+        select(TSCardTest).where(
+            TSCardTest.personal_deck_id.in_(deck_ids), TSCardTest.archived_at.is_(None)
+        )
     )
     all_card_tests = list(all_card_tests_result.scalars().all())
-    colored_lines = color_decklist(version.content, all_card_tests) if version else []
+    all_evaluations_result = await session.execute(
+        select(TSCardTestEvaluation).where(
+            TSCardTestEvaluation.test_id.in_([t.id for t in all_card_tests]),
+            TSCardTestEvaluation.archived_at.is_(None),
+        )
+    )
+    all_evaluations = list(all_evaluations_result.scalars().all())
+    colored_lines = (
+        color_decklist(version.content, all_card_tests, all_evaluations)
+        if version
+        else []
+    )
     version_label = (
         f"Version {version.version} ({version.source.value})"
         if version
         else "No version yet"
     )
     period_card_tests = [t for t in all_card_tests if t.created_at >= period_start]
+    period_evaluations = [e for e in all_evaluations if e.created_at >= period_start]
 
     owner_refs = await directory.lookup({deck.owner_id for deck in owner_decks})
     contributor_names = ", ".join(
@@ -449,6 +464,7 @@ async def get_team_deck_report(
         period_matchup_rows=stats.current_matchup_rows,
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
+        evaluations=period_evaluations,
     )
 
     filename = f"team-deck-report-{name_key.replace(' ', '-')}.pdf"

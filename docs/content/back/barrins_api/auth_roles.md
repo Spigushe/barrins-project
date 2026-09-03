@@ -56,7 +56,7 @@ authentication dependency at all.
 | `GET` | `/cards/{uuid}`, `/cards/by-name/{name}` | anonymous | Public — built 2026-08-05 (S8) |
 | `GET` | `/cards/{uuid}/prices` | anonymous | ⏳ **Not built** — needs MTGJSON's separate `AllPrices.json`, deliberately out of S8's 2026-08-05 pass (see `docs/project/v2.0.0-bump/s8-mtgjson-ingestion-pipeline/`); this row describes a future item, not current behavior |
 | `GET` | `/mtgjson/status` | anonymous | Public — built 2026-08-05 (S8) |
-| `POST` | `/mtgjson/import` | **admin** | Replaces `X-Admin-Key` — built 2026-08-05 (S8) |
+| `POST` | `/mtgjson/import` | **admin** or service token | Replaces `X-Admin-Key` — built 2026-08-05 (S8). Since 2026-08-13, also accepts `X-MTGJSON-Import-Token` (the daily scheduled-refresh systemd timer's credential — `verify_mtgjson_or_admin`) |
 | `GET` | `/mtgjson/import/status` | **admin** | Progress of the most recent import run (running/succeeded/failed) — built 2026-08-09 (S8 live-progress addition); admin-gated because a failed run's `error_message` can include internal exception text, unlike the public counts-only `/mtgjson/status` above |
 | `GET` | `/cards/{scryfall_id}/image` | anonymous | Disk-cached Scryfall image proxy, `?face=front\|back` — built 2026-08-14 (S4). Not admin-gated: it's a public image passthrough, same posture as `/sets/*`/`/cards/*` above. Wiped on every `/mtgjson/import` (`scryfall_id` can shift/disappear on refresh) |
 | `POST` | `/auth/token` | anonymous | Login — returns `access_token` + `refresh_token` |

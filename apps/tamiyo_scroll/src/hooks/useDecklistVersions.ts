@@ -20,11 +20,45 @@ export function useDecklistView(deckId: string | null) {
   })
 }
 
+/** S15: structured content of one past version — only fetched once expanded,
+ * and skipped entirely while the diff setting is on (the diff replaces this
+ * view rather than sitting alongside it). */
+export function useDecklistVersionView(
+  deckId: string | null,
+  versionId: string | null,
+  enabled = true,
+) {
+  const owner = useViewingOwner()
+  return useQuery({
+    queryKey: ['decklist-version-view', owner?.id ?? 'self', deckId, versionId],
+    queryFn: () => personalDecksApi.getDecklistVersionView(deckId ?? '', versionId ?? ''),
+    enabled: enabled && deckId !== null && versionId !== null,
+  })
+}
+
+/** S15: only fetched once expanded AND the opt-in setting is enabled. */
+export function useDecklistVersionDiff(
+  deckId: string | null,
+  versionId: string | null,
+  enabled: boolean,
+) {
+  const owner = useViewingOwner()
+  return useQuery({
+    queryKey: ['decklist-version-diff', owner?.id ?? 'self', deckId, versionId],
+    queryFn: () => personalDecksApi.getDecklistVersionDiff(deckId ?? '', versionId ?? ''),
+    enabled: enabled && deckId !== null && versionId !== null,
+  })
+}
+
 function useInvalidateDecklist() {
   const queryClient = useQueryClient()
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['decklist-versions'] })
     void queryClient.invalidateQueries({ queryKey: ['decklist-view'] })
+    // S16: which card tests match a real decklist change depends on the
+    // deck's whole version history, so it can shift when a version is
+    // added or removed.
+    void queryClient.invalidateQueries({ queryKey: ['card-tests-change-log'] })
   }
 }
 

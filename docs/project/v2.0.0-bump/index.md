@@ -186,6 +186,205 @@ no dedicated face-A-Land rule was implemented for multi-face cards; see
 S4's own page for the full gap list. `barrins_api` now 500 tests
 passing, 97.20% coverage; `apps/tamiyo_scroll` 232 tests,
 `apps/tolaria_news` 14 tests, both frontends typecheck/build/lint clean.
+**2026-08-18, F10 implemented**: `TSMetaDeck.personal_deck_id` (required
+FK) + `TSMetaDeck.updated_at` (new, not in the original task list —
+needed by the item 5/6 "most recently updated wins" rule, which had no
+timestamp to compare against before this), backfilled via two chained
+Alembic migrations
+(`e91a4c7f2b56_add_personal_deck_id_to_ts_meta_decks.py`,
+`f4b6d3a8c17e_add_metagame_roster_scope_to_ts_user_.py`) written inline
+with locally-declared `sa.table()` mirrors rather than importing the live
+ORM models, per Alembic's own convention. `_sync_opponent_deck_games`
+reworked to duplicate-and-allocate instead of overwriting a differently-
+owned opponent row in place. `build_merged_view` gained a separate
+`filter_meta_decks_by_personal_deck` opt-in flag rather than overloading
+its existing `personal_deck_id` parameter — `stats.py` and the
+personal-deck PDF report route already relied on that parameter
+returning the *full* roster with only matches narrowed, and reusing it
+for `TSMetaDeck` filtering too would have silently changed their output;
+caught by their own tests failing partway through implementation, not by
+design. See F10's own page for the full implementation breakdown. Every
+existing Tamiyo Scroll backend test that created a roster entry needed
+`personal_deck_id` added to its payload (nine files) once that field
+became required. `barrins_api` now 582 tests passing, 97.40% coverage.
+**2026-08-23**: four new items, **S13-S16**, added from GitHub issues
+[#79](https://github.com/Spigushe/barrins-project/issues/79)-[#82](https://github.com/Spigushe/barrins-project/issues/82)
+(reported the same day, not part of the original v2.0.0 request) — a
+missed accidental deletion in the Match journal (no confirmation dialog
+existed anywhere for it) prompted a wider audit finding 4 of 7 delete
+actions across the app unprotected (**S13**); a session-management
+overhaul covering rename, editable dates, sort/pagination, per-session
+color, a Match-journal session tag, and archive search/restore/auto-
+archive (**S14**, all 9 of the issue's items, including the four it
+labeled "related possible change," confirmed in scope by the user); the
+long-requested ability to actually view/diff past decklist versions
+(**S15**) — the version history list has existed since S3 but never
+exposed a version's content, only its metadata; and a full semantic
+pivot of the "Tested Cards" feature into a Removed/Added-card change log
+(**S16**), the largest and only breaking one of the four — reusing
+`tester`/`card_name` under new names rather than adding new columns,
+which raises an unresolved question (kept open, not guessed) about what
+happens to existing rows recorded under the old semantics. All four
+scoping decisions (full pivot vs. additive for S16, full 9-item scope
+for S14, editable end-date alongside start-date, shared `ConfirmDialog`
+extraction for S13) were made by the user the same day, in the same
+Context/Alternatives/Trade-offs shape as every other item in this
+document. **Same day, S13 shipped**: `components/ui/confirm-dialog.tsx`
+(no new dependency, built on the existing `Dialog` primitive) is wired
+into the 4 previously-unprotected delete/archive actions (Match journal,
+Card test, Decklist version, Session archive) and the 3 already-protected
+spots (roster deck, personal deck, team) are refactored onto it, the
+team flow's two-step invite-code-retype step preserved unchanged. Note:
+an earlier same-day commit (`631e868`) had a docs-only diff (the `s13`–
+`s16` planning pages themselves) but a commit message body describing
+S13-S16 as already implemented — verified false before starting this
+work; see S13's own page, "Implementation note," for detail. 232 → 248
+`apps/tamiyo_scroll` tests, `tsc -b`/`oxlint` clean.
+**2026-08-24, S14 shipped**: all 9 items — `ts_sessions` gains
+`started_at`, a separate freely-editable `ended_at`, `hue`, and
+`location`; the pre-existing `ended_at` (Close/Reopen's workflow state)
+is renamed `closed_at` (tracked separately from the new `ended_at`, per
+the user, reversing this doc's original single-column plan); `GET
+/sessions` gains `sort_by`/`sort_dir`/`limit`/`offset`/`search`; a `PATCH
+.../restore` flag backs a new "Archived sessions" dialog. Auto-archive
+(item 9) turned out not to need a periodic job at all — the user
+redirected it to an event-triggered sweep (runs inside
+`personal_decks.py`'s decklist-version creation, both Moxfield and
+plain-text import), sidestepping the scheduler open question entirely.
+Hue is a native `<input type="range">` (no new dependency) and replaces
+the type-based color on every session tag app-wide (`SessionTypeBadge`),
+not just where the picker is shown — see S14's own page, "Implementation
+notes," for the full list of decisions made during implementation.
+**Same day, S14 follow-up**: the "New session" form originally kept its
+pre-S14 shape (`name`/`type` only), leaving `location`/`notes`/
+`started_at`/`ended_at`/`hue` edit-only despite S14 adding them to the
+schema — closed by extending `SessionCreate` (`POST /sessions`) to
+accept the same fields `SessionPatch` already does, and having the
+create form reuse `SessionEditFields` (the shared component the row and
+archived-dialog edit surfaces already used) instead of two raw inputs.
+No schema/migration change — `started_at`/`ended_at`/`hue` already
+existed as nullable columns on `TSSession` since S14.
+**2026-08-24, S15 shipped**: `GET
+/personal-decks/{id}/versions/{version_id}` returns the same structured
+`ResponseDecklistView` shape as the existing latest-version
+`decklist-view` route, for one specific past version; `GET
+.../versions/{version_id}/diff` returns a **card-level** diff against
+the immediately-prior version (by `version` number, correctly skipping
+any version deleted in between) — resolved open question 1 in favor of
+matching by card name (`decklist_diff.py`) rather than a plain line
+diff, so reordering a decklist never appears as added+removed; lines
+that aren't a card line still get a plain `difflib` line diff, same
+fallback shape as `unparsed_lines`. `TSUserSettings.show_decklist_
+version_diff` gates whether `VersionHistorySection`'s expand-in-place
+view shows a version's full content or its diff against the prior
+version — the two are mutually exclusive, not shown together (an
+implementation-time refinement over this doc's original "diff is also
+available" framing). Defaults **`true`** for every account — reversing
+this doc's own default-`false` assumption, a same-day decision made
+after the migration was first drafted with `false`.
+**2026-08-24, S16 shipped**: Open question 1 resolved by the user —
+option 1, existing `ts_card_tests` rows keep their pre-pivot values
+under the new `removed_card_name`/`added_card_name` column names,
+documented as a known migration artifact, nothing cleared.
+`TSUserSettings.validate_removed_card_in_decklist` ships defaulting
+**on**, not off as originally drafted — a same-day decision made after
+reviewing the migration, mirroring S15's `show_decklist_version_diff`
+opt-out convention; `validate_added_card_exists` stays opt-in (default
+off) since it resolves against `mj_cards`, Magic-only. Beyond the
+drafted scope, a **post-approval addition**: a card test whose
+removed/added names match a real decklist change (anywhere in a deck's
+version history, matched independently per half) has its note shown as
+a comment on that diff line in `VersionHistorySection`; a card test
+matching nothing shows up instead in a standalone list on
+`CurrentDecklistSection` — both gated by `show_decklist_change_log`
+(new `app/services/tamiyo_scroll/card_test_matching.py`, new `GET
+/card-tests/change-log`, `card_test_notes` added to the existing
+decklist-diff response). The stale "prefill Removed Card with my own
+display name" autofill — a leftover from the pre-pivot "who's testing"
+semantics — is removed outright, not renamed. Full backend suite green,
+`ruff format`/`ruff check`/`ty check` clean; frontend `tsc -b`/`oxlint`/
+`prettier --check` clean on every touched file (one pre-existing,
+unrelated gap: `src/demo/api/personalDecks.ts` never implemented S15's
+`getDecklistVersionView`/`getDecklistVersionDiff`, not fixed here).
+**2026-08-24, new item S17 added**: a further split of the same
+`TSCardTest` table S16 just pivoted — a "card log" (removed/added card
+name only) separated from a new, one-to-many "match-up evaluation" child
+entity (opponent deck + rating), addable only from the edit form, plus a
+new "pending"/blue decklist state for a card log with no evaluations yet,
+on-the-fly name dropdowns on both fields, and an inline removed→added
+row display directly in the decklist (replacing the separate "card change
+being considered" block S16 added). Unlike S13-S16, **not** sourced from a
+GitHub issue — came from a user-authored scratch note
+(`docs/project/v2.0.0-bump/new-s17.md`), formalized into
+`s17-card-log-matchup-evaluations/index.md` and removed. Verified against
+the code before writing the page: `GET /cards/search-by-name/{name}` is,
+despite its name, an exact-match lookup, not the partial/prefix search
+item 2 needs — a new endpoint is required, not a reuse. Four points in the
+draft were genuinely underspecified and recorded as blocking Open
+questions rather than guessed, per Constitution §16.2 and the same
+precedent S15/S16 set for their own open questions. **Resolved the same
+day**: a new `TSCardTestEvaluation` table holds `opponent_deck_id` (now
+required, unlike today's optional field), `rating`, and its own optional
+`notes`, many per card log — `TSCardTest` keeps its own overall `notes`
+plus the removed/added names; existing rows are backfilled one evaluation
+each, carrying over their old `opponent_deck_id`/`rating` unchanged, no
+data lost. Decklist-line coloring keeps today's behavior of pooling
+evaluations across every card log sharing an added-card name (not scoped
+to the single most recent one). The "pending"/blue open question turned
+out to be miscast as a binary choice between the two originally-drafted
+readings — the user's actual answer reframes it: pending has nothing to
+do with evaluation count on the *added* card, it's whether the swap has
+been executed in the decklist yet. A line is pending when its card name
+matches a card log's `removed_card_name` **and** that name is still
+present in the current decklist content — rendered inline as the
+struck-through-name → arrow → new-name row item 3 described. Pending and
+the evaluation-based states (`validated`/`rejected`/`in_test`/`neutral`)
+are independent axes; `in_test` is untouched. Scoping is now complete —
+implementation has not started.
+**Same day, S17 implementation started and surfaced a new, project-wide
+gap**: the first cut of `DELETE /card-tests/{id}` was a real SQL DELETE,
+and because `TSCardTestEvaluation.test_id` cascades, deleting a card log
+silently destroyed every evaluation logged against it. The user's
+correction was general, not S17-specific: **by default, every delete
+action in this application is a disguised archive** — the row leaves the
+user's active view but stays in the database. Recorded as Constitution
+Amendment **Proposal 8**
+(`docs/project/v2.0.0-bump/consitution-amendment.md`), applied the same
+day as the new `§11.8` (unlike Proposals 2-7, which are still awaiting
+their ADR/merge pass). An audit of every delete route in
+`apps/barrins_api` found the same inconsistency already existed
+project-wide: `TSPersonalDeck`/`TSMetaDeck`/`TSSession` already
+soft-delete via `archived_at`, but only `TSSession` can actually be
+restored; `TSCardTest`/`TSCardTestEvaluation`, `TSMatch`, `TSTeam`'s full
+cascade family, and `TSPersonalDecklistVersion` were all real hard
+deletes. `TSCardTest`/`TSCardTestEvaluation` were converted immediately
+as part of finishing S17 (new `archived_at` columns, migration
+`6cf95145f67e`); the rest is tracked as new item **S18**. Two conflicts
+with prior deliberate design decisions were resolved by the user the same
+day: Team deletion converts to archive (dropping its "intentional
+exception" status); decklist version deletion stays a hard-delete
+exception, per the existing Option G rationale.
+**2026-08-25**: a second early alpha release scoped — **§1.12/new Group
+RB** — cutting S4, S8 (both deferred out of `v2.0.0-alpha`), and
+S13–S17 as `v2.0.0-alpha.2`. Unlike alpha1, `feat/tamiyo-scroll-alpha2`
+branches directly off `staging` rather than through `proj/v2.0.0-bump`,
+so no Group T code rides along this time. Version convention corrected
+to SemVer's dot-separated pre-release numbering (`v2.0.0-alpha.2`, not
+`alpha2`) now that a second pre-release of the same name exists. Same
+pass: `apps/barrins_api/CHANGELOG.md`, `apps/tamiyo_scroll/
+CHANGELOG.md`, and `docs/CHANGELOG.md` bumped from `[Unreleased]` to
+`[2.0.0-alpha.2] - 2026-08-25`, filling in three items that had never
+been logged anywhere — S8's MTGJSON pipeline, T6's `mj_cards` text/
+keyword/stat columns, and F10 (shipped 2026-08-18, missed at the time) —
+the same doc-sync-gap pattern RA1 hit for S6/S10/S11. S8's own page
+(`s8-mtgjson-ingestion-pipeline/`) corrected from "Not started" to
+"Done," with an added Implementation-note section covering what shipped
+vs. its original scope (image source, the face-A-Land rule that was
+**not** built, the scheduled-refresh mechanism's actual shape). RB1–RB4
+pages written (scope/merge, promote, tag, deploy) mirroring RA1–RA5's
+shape at the alpha.2 cut's smaller scope (four steps, not five). No
+branch merges, tags, or deploys performed as part of this pass — RB1's
+checklist still has the actual merge as an open task.
 
 ---
 
@@ -1115,6 +1314,74 @@ actually ships.
 
 ---
 
+### 1.12 Cutting a second `v2.0.0-alpha.2` release, Tamiyo Scroll only
+
+**Context.** Since `v2.0.0-alpha` shipped (2026-08-03), S4 and S8 —
+explicitly out of that cut because both depended on MTGJSON data that
+didn't exist yet — both landed (S8 core 2026-08-05, S4 2026-08-14), and
+four more items arrived from GitHub issues/a user draft note and shipped
+the same day each was scoped: S13 (confirm-before-delete, 2026-08-23),
+S14 (session overhaul, 2026-08-24), S15 (decklist version diff,
+2026-08-24), S16 (Tested Cards → change log, 2026-08-24), and S17 (card
+log / match-up evaluation split, 2026-08-24). All seven items live on
+`feat/tamiyo-scroll-alpha2`, which — unlike `feat/v2-tamiyo-upgrade`
+before it — branches directly off `staging`'s current head (confirmed
+via `git merge-base --is-ancestor staging feat/tamiyo-scroll-alpha2`),
+**not** off `proj/v2.0.0-bump`: `git diff --stat` confirms the branch
+touches only `apps/barrins_api`, `apps/tamiyo_scroll`, `docs/`, and
+`ops/my-server` (the new MTGJSON scheduled-refresh timer) — no Group T
+file anywhere, unlike alpha1 where T1/T2 rode along inert. Meanwhile
+`proj/v2.0.0-bump` has continued to accumulate real Group T work
+(Barrin's Scripture, `bs_*` schema) unrelated to this cut.
+
+**Two scoping calls, same "escalate, don't guess" convention as §1.11:**
+
+1. **Release scope is exactly what the branch already contains**: S4,
+   S8, S13–S17. S18 (deletion-defaults-to-archive cleanup, the rest of
+   the project-wide audit S17 started) is **not** on this branch and
+   stays out — not started. Every Group T item stays out, same as
+   alpha1, but this time by construction (nothing to route around)
+   rather than by an explicit "ride along inert" carve-out.
+2. **Version convention changes from `v2.0.0-alpha` to
+   `v2.0.0-alpha.2`** (dot-separated SemVer pre-release numbering,
+   decided 2026-08-25) — a deliberate correction, not an inconsistency:
+   `v2.0.0-alpha` (no number) reads as SemVer's own convention only when
+   there's exactly one pre-release of that name; a second one needs a
+   distinguishing identifier, and SemVer's own precedence rules
+   (numeric identifiers compare numerically, dot-separated) make
+   `alpha.2` the correct form going forward, not `alpha2`. Applies to
+   this cut's tag, GitHub Release, and every bumped `CHANGELOG.md`
+   heading. RA1's own open question is now answered by extension: same
+   two-app scope as alpha1 (`barrins_api`, `tamiyo_scroll` bump; root
+   `docs/CHANGELOG.md` bumps too, to log the doc/cspell changes this cut
+   made; `barrins_scripture`/`tolaria_news`/`barrins_identity` stay at
+   `[Unreleased]`, no changes to log).
+
+**Changelog catch-up, same pattern RA1 hit for S6/S10/S11**: three items
+on this branch had never been logged in any `CHANGELOG.md` at all —
+S8's MTGJSON pipeline (models, import route, scheduled-refresh service
+token), T6's `mj_cards` text/keyword/stat columns (a Karn Tablets
+prerequisite, opportunistically added alongside S8 since it touches the
+same importer), and F10 (metagame roster scoped to the active personal
+deck, `TSMetaDeck.personal_deck_id` + `metagame_roster_scope` setting,
+shipped 2026-08-18 but never written up here or in either app's
+changelog). All three are filled in as part of this release's changelog
+bump (`apps/barrins_api/CHANGELOG.md`, `apps/tamiyo_scroll/
+CHANGELOG.md`), same as RA1 did for the doc-sync gaps it found.
+
+**What this does not change.** Group R (the full `v2.0.0` wrap) and
+Group T's continued work on `proj/v2.0.0-bump` are unaffected — this
+document now expects **three** tags total this release cycle
+(`v2.0.0-alpha`, `v2.0.0-alpha.2`, `v2.0.0` final), not a renumbering of
+anything already planned.
+
+This resolves nothing in the Group I table and needs no new ADR, for the
+same reason §1.11 gave — no new dependency, secret, or deployment
+architecture change; it's a release-cut scoping decision, not an
+architecture one.
+
+---
+
 ### A note on Playwright — deferred, not part of v2.0.0
 
 Playwright was suggested to the user during this planning process. It
@@ -1223,11 +1490,17 @@ R5 turning each into a real ADR.
 | S5 | PDF report of a training session for a specific deck | S3, S9 (S9 defines what a "training session" actually is — resolves this item's open scoping question) | ✅ **Done (2026-07-31)**. Backend-generated (Constitution §4.1: no client-side composition of computed stats), WeasyPrint (**I8 resolved 2026-07-27**, see S5 page). Session-scoped report **and** an added session-less deck-level report (last 30 days, S1 shared-data merge included) share one calculation path (`PeriodStats`) and one renderer. **Blocks S2** — team members' PDF-report access is part of S2's Done statement | [s5-pdf-training-report/](s5-pdf-training-report/index.md) |
 | S6 | Admin metrics dashboard, embedded in `barrins_api`/`tamiyo_scroll` for v2.0.0 | — (role infrastructure already exists, see §1.7) | ✅ **Done**. Flat-count tiles plus the 2026-08-02 time-bucketed (day/week/month) comparison, charted via `recharts` (new dependency, §4.7/§22). v3.0.0-externalized into a standalone cross-app application accessed via Barrin's Identity/Goblin Guide (not scheduled before v3.0.0) | [s6-admin-metrics-dashboard/](s6-admin-metrics-dashboard/index.md) |
 | S7 | Tutorial + demo interface, combined, pre-filled from a JSON fixture file, no persistence | — | **Decided**: option 1 (pure frontend mock, no backend). See §1.8 | [s7-demo-tutorial-interface/](s7-demo-tutorial-interface/index.md) |
-| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | 🟢 **Core pipeline done (2026-08-05)** — `Card`/`MTGSet` models, admin-gated `POST /mtgjson/import`, public `GET /sets/*`/`GET /cards/*` reads, all built from scratch (`auth_roles.md` described this as already existing, verified false, F8). Chunked-upsert performance fix 2026-08-07 (a 45-minute import cut to low minutes). **Unblocked T3 same day (2026-08-05)**, which has since landed (2026-08-07). Still open: the scheduled-refresh mechanism. **Still blocks S4** (not started). **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
+| S8 | MTGJSON card/set data pipeline (models, admin-triggered import route, scheduled refresh) — added 2026-07-26, see F8 | D1 (playbook shape for the scheduled refresh) | ✅ **Done (2026-08-25)** — `Card`/`MTGSet` models, admin-gated `POST /mtgjson/import`, `GET /mtgjson/import/status`, public `GET /sets/*`/`GET /cards/*`/`GET /mtgjson/status`, all built from scratch (`auth_roles.md` described this as already existing, verified false, F8). Chunked-upsert performance fix 2026-08-07 (a 45-minute import cut to low minutes). Scheduled-refresh mechanism landed 2026-08-13/2026-08-25 (`MTGJSON_IMPORT_TOKEN` service-auth path + a daily 04:00 UTC production systemd timer, `mtgjson_import_scheduler` role). **Unblocked T3 same day (2026-08-05)**, which has since landed (2026-08-07), and **unblocked S4**, done 2026-08-14. **No longer blocks S2** — its deck-validation gate deferred to v3.0.0 (2026-07-27) | [s8-mtgjson-ingestion-pipeline/](s8-mtgjson-ingestion-pipeline/index.md) |
 | S9 | Tournament/training session grouping for Tamiyo Scroll — subgroups matches (not card-tests) under a named session, comparable against baseline history — added 2026-07-27, raised in conversation, not part of the original request | — | ✅ **Done**. Dedicated Sessions tab (manage/create/close/reopen/archive, comparison summary, relocated `ExpectedMetagameSection` for tournament-typed sessions), full stack tested. Resolves S5's "one training session" scope ambiguity | [s9-tournament-session/](s9-tournament-session/index.md) |
 | S10 | Card-game field on `TSPersonalDeck`, required before logging/editing results — drafted 2026-07-27, **brought into v2.0.0 on 2026-07-28** (was deferred to v3.0.0) | — (coordinates with S3/S11 on the match-creation path; shares the new `PATCH /personal-decks/{id}` route with S11) | ✅ **Done**. `CardGame` enum (`magic`, `yu_gi_oh`, `pokemon`, `flesh_and_blood`, `one_piece`, `lorcana`), **nullable, no default/backfill** (`game par défaut = none`) — same shape as S11: explicit at creation, gate in `_validate_match_refs` blocks match create **and** edit on a NULL-game deck (`422 personal_deck_game_required`), historical decks unblocked via PATCH. 2026-08-03 follow-up: `game` cascades to opponent/meta decks | [s10-personal-deck-game-flag/](s10-personal-deck-game-flag/index.md) |
 | S11 | Macrotype (archetype category) on `TSPersonalDeck`, required before logging/editing results — added 2026-07-28 | — (coordinates with S3 on the match-creation path) | ✅ **Done**. Reuses the roster's `ArchetypeCategory` enum + Postgres type (no new type) and the stats-block color identity (`ARCHETYPE_*_CLASS`). Nullable column, no backfill; the gate in `_validate_match_refs` blocks match create **and** edit on a NULL-macrotype deck (`422 personal_deck_macrotype_required`); new `PATCH /personal-decks/{id}` route (shared with S10) unblocks historical decks | [s11-personal-deck-macrotype/](s11-personal-deck-macrotype/index.md) |
 | S12 | UI/UX polish bundle — four small frontend fixes brought into v2.0.0 from the feature-roadmap backlog (`docs/content/front/tamiyo_scroll/roadmap.md`, "v2.0.0 candidates" section), added 2026-07-30 | — | All four are frontend-only (`apps/tamiyo_scroll`), no schema/API change: personal-deck creation affordance gets a green `[new]` text label (no icon library needed — `apps/tamiyo_scroll` has none today); the "tested cards" matchup select is rebuilt on the same combobox pattern as the BO3 opponent select; "Final turn" label renamed; matchup-summary "Games" column (already counting `match_count`) relabelled "Matches" | [s12-uiux-polish/](s12-uiux-polish/index.md) |
+| S13 | Confirmation dialog before every deletion — 4 of 7 delete actions (Match, Card test, Decklist version, Session) have none today; added 2026-08-23 from GitHub issue #79 | — | ✅ **Done (2026-08-23)**. Frontend-only, no new dependency — `components/ui/confirm-dialog.tsx` extracts a shared `ConfirmDialog` off the existing `Dialog` primitive; wired into the 4 unprotected spots and refactored onto by the 3 already-protected ones (roster deck, personal deck, team — team's two-step invite-code-retype flow preserved). 232 → 248 frontend tests | [s13-delete-confirmation/](s13-delete-confirmation/index.md) |
+| S14 | Session overhaul — rename, editable start/end dates, sortable/paginated table, per-session hue, session tag in Match journal, archived-session search + restore, auto-archive by stale decklist version, plus a `location` field added during implementation — added 2026-08-23 from GitHub issue #80, all 9 items (5 core + 4 "related possible") confirmed in scope by the user | S3 (reads `decklist_version_id` for auto-archive) | ✅ Done (2026-08-24). `TSSession.ended_at` renamed `closed_at`; new `started_at`/`ended_at`/`hue`/`location`. Auto-archive is event-triggered (on decklist import), not a periodic job — no scheduler spike needed | [s14-session-overhaul/](s14-session-overhaul/index.md) |
+| S15 | Decklist version history — view a past version's full content + card-level diff against the prior version, gated by a setting defaulting `true` — added 2026-08-23 from GitHub issue #81 | S4 (reuses `ResponseDecklistView`) | ✅ **Done (2026-08-24)**. Diff computed server-side via stdlib `difflib`, matched by card name (no new dependency) — see index.md's "S15 shipped" entry | [s15-decklist-version-diff/](s15-decklist-version-diff/index.md) |
+| S16 | Tested Cards → deck change log: `tester`/`card_name` renamed to `removed_card_name`/`added_card_name`, plus validation (removed card must be in decklist — defaults **on**; added card must exist — opt-in) and a change-log display linking card tests to real decklist diffs — added 2026-08-23 from GitHub issue #82, full-pivot option confirmed by the user | S15 (`VersionHistorySection`'s diff rendering, extended here) | ✅ **Done (2026-08-24)**. Open question 1 resolved (kept existing rows, documented migration artifact); post-approval addition matches card tests against real decklist diffs anywhere in version history (`card_test_matching.py`, new `GET /card-tests/change-log`) — see index.md's "S16 shipped" entry | [s16-tested-card-changelog/](s16-tested-card-changelog/index.md) |
+| S17 | Split `TSCardTest` into a card log (removed/added name + notes) + many match-up evaluations (opponent deck + rating + own notes, added from the edit form only); new "pending" (blue) decklist state for a removed card still present in the current decklist; on-the-fly name dropdowns (decklist cards for Removed, live DB search for Added); inline removed→added row display in the decklist itself — added 2026-08-24 from a user draft note, not a GitHub issue | S16 (splits the table S16 just pivoted; item 3 reuses `card_test_matching.py`) | ✅ **Done (2026-08-24)**. Schema split (`TSCardTestEvaluation`), decklist-coloring `pending` pass, prefix name-search endpoint, `CardTestsSection.tsx` split form + evaluations sub-list, `DecklistCardRow` inline pending display (struck-through removed name → arrow → added name, hover images, pips/popover fed from the added card), Removed/Added-Card dropdowns, and `CurrentDecklistSection`'s standalone change-log block now filters out card logs shown inline. Follow-up beyond the original scope: the "Tested cards" block's own Removed/Added Card cells also hover-preview an image now (`CardNameHover`, shared with `DecklistCardRow`; backend resolves `removed_card_scryfall_id`/`added_card_scryfall_id` on `ResponseCardTest`). Deletion on both new tables corrected same-day to archive, not hard-delete, per Constitution §11.8 (S18) | [s17-card-log-matchup-evaluations/](s17-card-log-matchup-evaluations/index.md) |
+| S18 | Deletion defaults to archive (soft-delete), not physical removal, project-wide — Constitution §11.8 (Amendment Proposal 8), surfaced while fixing S17's card-log delete cascading to destroy its evaluations. `TSCardTest`/`TSCardTestEvaluation` already converted as part of S17; this item covers the rest: fill the missing restore path on `TSPersonalDeck`/`TSMetaDeck` (only `TSSession` has one today), convert `TSMatch` deletion, and redesign the `TSTeam` cascade family (`TSTeamMember`/`TSTeamDeckFlag`/`TSTeamDeckThread`/`TSTeamDeckMessage`) to archive-alongside-parent instead of relying on `ondelete="CASCADE"` — added 2026-08-24 | S17 (shares the archival pattern just established there) | 🔲 **Not started — scoped 2026-08-24**. `TSPersonalDecklistVersion` deletion confirmed **out of scope**, stays the one hard-delete exception (prior Option G decision) | [s18-deletion-defaults-to-archive/](s18-deletion-defaults-to-archive/index.md) |
 
 ### Group RA — Release wrap for `v2.0.0-alpha` (Tamiyo Scroll only, §1.11)
 
@@ -1243,6 +1516,23 @@ this ships, Group R below still runs, later, for the full `v2.0.0` tag.
 | RA3 | `staging` → `main` | RA2 | [ra3-promote-main/](ra3-promote-main/index.md) |
 | RA4 | Tag `v2.0.0-alpha` | RA3 | [ra4-tag-release/](ra4-tag-release/index.md) |
 | RA5 | Deploy from tag (production) — `barrins_api` + `tamiyo_scroll` only, **not** `barrins_scripture.yml` (§1.11) | RA4 | [ra5-deploy-production/](ra5-deploy-production/index.md) |
+
+### Group RB — Release wrap for `v2.0.0-alpha.2` (Tamiyo Scroll only, §1.12)
+
+A second early, tagged, production-deployed pre-release: S4, S8 (both
+deferred out of alpha1), and S13–S17 (all raised and shipped after
+alpha1 cut). One step shorter than Group RA — `feat/tamiyo-scroll-
+alpha2` branches directly off `staging`, so there's no `proj/v2.0.0-
+bump` hop to merge through first. Group T (still on `proj/v2.0.0-bump`)
+and S18 (not started) are untouched by this cut; Group R below still
+runs, later, for the full `v2.0.0` tag.
+
+| # | Item | Depends on | Page |
+| --- | --- | --- | --- |
+| RB1 | Confirm final `v2.0.0-alpha.2` scope, decide the version-bump convention, merge `feat/tamiyo-scroll-alpha2` → `staging` | S4, S8, S13, S14, S15, S16, S17 (all done) | [rb1-merge-staging/](rb1-merge-staging/index.md) |
+| RB2 | `staging` → `main` | RB1 | [rb2-promote-main/](rb2-promote-main/index.md) |
+| RB3 | Tag `v2.0.0-alpha.2` | RB2 | [rb3-tag-release/](rb3-tag-release/index.md) |
+| RB4 | Deploy from tag (production) — `barrins_api` + `tamiyo_scroll` only, **not** `barrins_scripture.yml`, same posture as RA5 | RB3 | [rb4-deploy-production/](rb4-deploy-production/index.md) |
 
 ### Group F — Fixes flagged in docs and roadmap (request item 3)
 
@@ -1267,6 +1557,7 @@ repo on 2026-07-25, not previously written down anywhere):
 | F7 | Several files reference planning documents that do not exist anywhere in the repository: `docs/decklist_integration/`, `docs/tolaria_news/00_plan_general.md`, `docs/tamiyo_scroll_tracker/00_plan_general.md`, `docs/signup_email_verification/00_plan_general.md`, and (found while scoping S6/§1.7) `docs/auth_roles/10_deploiement.md` — cited from `docs/content/back/barrins_api/bff/tamiyo_scroll.md`, `docs/content/back/barrins_api/signup_email_verification.md`, `docs/content/front/tamiyo_scroll/bootstrap.md`, `apps/barrins_api/scripts/create_admin.py`, and from code comments in `app/services/tamiyo_scroll/*.py`, `app/models/tamiyo_scroll.py`, `app/core/security.py`, `app/services/email/*.py`. Either these were real, unpublished planning docs that were never migrated into `docs/content/` during the docs restructuring, or the paths were always aspirational. Worth a deliberate decision: recreate them under `docs/content/` (if the design decisions they're cited for still need a home) or update every citing file to stop pointing at a dead path. 🟡 **`docs/decklist_integration/` resolved (redirect, 2026-08-11, via T2)** — four paths remain | Full-repo search, zero matches for any of the five paths as an existing file | [f7-broken-doc-references/](f7-broken-doc-references/index.md) |
 | F8 | Same category of gap as F7, found 2026-07-26 while scoping S4: `docs/content/back/barrins_api/auth_roles.md` describes a `POST /mtgjson/import` route, an `admin`-gated MTGJSON import capability, and implies `sets`/`cards` read routes exist (`GET /sets/`, `GET /cards/{uuid}`, etc.) as part of the **already-implemented** role/security matrix. **None of it exists in code.** Zero Python files anywhere in the repository reference `mtgjson`; no `Card`/`Set` ORM model exists. This is purely aspirational documentation, not a resurrected or hidden feature — S4 and S2's deck-validation gate were both originally scoped assuming this pipeline already existed; both now depend on **S8** instead. | Full-repo search (`grep -ri mtgjson`), zero Python matches; `auth_roles.md`'s security matrix and role table are the only places this is described | [f8-mtgjson-docs-gap/](f8-mtgjson-docs-gap/index.md) |
 | F9 | ✅ **Done** (PR #23) — branch protection & CI coverage gap for `proj/*` branches, decided 2026-07-26 (§3): `.github/workflows/CI.yml` only triggered on `pull_request`/`push` to `[staging, main]` — verified directly in the workflow file — so every `proj/*` PR (including this release's own `proj/v2.0.0-bump` and its sub-branches) ran **no CI at all**. No GitHub branch-protection ruleset covered `proj/*` either, so PRs into it weren't actually mandatory, only conventional. Both gaps closed: `proj/*` added to `CI.yml`'s triggers, and a new `proj-release-branch-protection` ruleset added; UAT confirmed (test PR ran CI, direct push rejected) | `.github/workflows/CI.yml` (direct read); carried-over open item from v1.0.0, now decided | [f9-proj-branch-protection/](f9-proj-branch-protection/index.md) |
+| F10 | User-reported 2026-08-17: Tamiyo Scroll's Metagame tab (`GET /meta-decks`, `MetaDecksRosterSection`/`ExpectedMetagameSection`) isn't scoped to the active personal deck at all — switching decks (same game or a different one) never filters or clears the opponent roster. Traces back to S10's `TSMetaDeck.game` being a soft, unenforced ML-export tag, never wired to any UI filter, and the only roster-creation UI path never even sets it. ✅ **Done (2026-08-18)** — `TSMetaDeck.personal_deck_id` (required FK) + `TSMetaDeck.updated_at` (new), two chained migrations with an inline backfill, `metagame_roster_scope` per-user setting (default `"game"`), `_sync_opponent_deck_games` reworked to duplicate-and-allocate, `build_merged_view` gained a separate opt-in flag rather than overloading its existing `personal_deck_id` param (would have silently narrowed `stats.py`/the PDF report route). `barrins_api` 582 tests passing, 97.40% coverage. Not yet exercised against a database with real pre-F10 rows (backfill correctness) — see the page's own UAT | Direct code read: `meta_decks.py`, `MetaDecksSections.tsx`, `useMetaDecks.ts`, `models/tamiyo_scroll.py`, `sharing_merge.py`, `personal_decks.py` (`_sync_opponent_deck_games`); cross-referenced against S10's own scoping | [f10-metagame-cross-game-leak/](f10-metagame-cross-game-leak/index.md) |
 
 ### Group D — Deployment playbooks for new applications/services (request item 4)
 

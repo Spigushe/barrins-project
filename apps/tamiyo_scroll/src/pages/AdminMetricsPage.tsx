@@ -149,7 +149,7 @@ export function AdminMetricsPage() {
             Admin only · aggregate counts
           </p>
         </div>
-        <Link to="/app/tracker" className="text-sm text-muted-foreground hover:underline">
+        <Link to="/tracker" className="text-sm text-muted-foreground hover:underline">
           Back to app
         </Link>
       </header>
