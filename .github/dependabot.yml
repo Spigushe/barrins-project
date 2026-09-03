@@ -1,6 +1,12 @@
 version: 2
 
+# NOTE (Step 3b, staging-promote-plan.md §2): the "proj/v2.0.0-bump" entries
+# below are a temporary mirror of the "staging" entries so Dependabot also
+# raises fresh grouped PRs against the v2.0.0 promote branch before it lands.
+# Remove them once proj/v2.0.0-bump has been promoted onto staging.
+
 updates:
+  # ---- default target: staging ----------------------------------------
   - package-ecosystem: "uv"
     directories:
       - "/apps/*"
@@ -39,6 +45,53 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "staging"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+
+  # ---- temporary mirror target: proj/v2.0.0-bump (Step 3b) -----------
+  - package-ecosystem: "uv"
+    directories:
+      - "/apps/*"
+    target-branch: "proj/v2.0.0-bump"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/apps/*"
+    target-branch: "proj/v2.0.0-bump"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    target-branch: "proj/v2.0.0-bump"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "proj/v2.0.0-bump"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
