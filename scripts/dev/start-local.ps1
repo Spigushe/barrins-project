@@ -9,6 +9,14 @@
   URLs are injected as environment variables at launch - your committed
   .env files are NOT modified.
 
+  Auth caveat: the browser SPAs are pointed at barrins_identity on
+  http://localhost:8001, not the LAN IP, because identity's refresh cookie
+  is `Secure` and browsers only keep a `Secure` cookie over plain http for
+  localhost. This keeps reload/auto-login + cross-app SSO working on THIS
+  machine; logging in from another device on the Wi-Fi does not work. The
+  tracker itself (barrins_api, Bearer-token, no cookie) is still reachable
+  cross-device.
+
   Databases: the backend .env files point at the remote dev database on
   146.59.146.57, so no local Postgres is needed - but this machine must be
   able to reach that host:5432.
@@ -122,6 +130,19 @@ if ($EmailVerification) {
   $identityNote = 'REQUIRE_EMAIL_VERIFICATION from .env (currently false)'
 }
 
+# The browser SPAs must reach barrins_identity on a *secure context* origin,
+# not the bare LAN IP. Cookie mode (ADR-18) keeps the refresh token in an
+# HttpOnly cookie that identity always sets `Secure` (core/cookies.py). A
+# browser only stores a `Secure` cookie over plain http:// for localhost /
+# 127.0.0.1 - over http://<lan-ip>:8001 it silently drops it, so a reload
+# never restores the session and the two SPAs never share one. Pointing both
+# frontends at http://localhost:<identity port> keeps auto-login + cross-app
+# SSO working on this machine. Trade-off: another device on the Wi-Fi can't
+# authenticate (its "localhost" is itself) - unavoidable while the cookie is
+# hard-`Secure` over plain HTTP. barrins_api still uses the LAN IP: it takes a
+# Bearer token, no cookie, so cross-device tracker use is unaffected.
+$identityUrlForBrowser = 'http://localhost:{0}' -f $ports.identity
+
 $services = [ordered]@{
   api = @{
     Title = 'barrins_api :8000'
@@ -144,8 +165,11 @@ $services = [ordered]@{
     Dir   = Join-Path $repoRoot 'apps\tamiyo_scroll'
     Kind  = 'frontend'
     Port  = $ports.tamiyo
-    Env   = [ordered]@{ VITE_API_BASE_URL = 'http://{0}:{1}' -f $Ip, $ports.api }
-    Note  = 'talks to barrins_api'
+    Env   = [ordered]@{
+      VITE_API_BASE_URL         = 'http://{0}:{1}' -f $Ip, $ports.api
+      VITE_IDENTITY_SERVICE_URL = $identityUrlForBrowser
+    }
+    Note  = 'barrins_api (LAN IP) + barrins_identity (localhost, see note above)'
   }
   tolaria = @{
     Title = 'tolaria_news :5174'
@@ -160,8 +184,8 @@ $services = [ordered]@{
     Dir   = Join-Path $repoRoot 'apps\goblin_guide'
     Kind  = 'frontend'
     Port  = $ports.goblin
-    Env   = [ordered]@{ VITE_IDENTITY_SERVICE_URL = 'http://{0}:{1}' -f $Ip, $ports.identity }
-    Note  = 'talks to barrins_identity'
+    Env   = [ordered]@{ VITE_IDENTITY_SERVICE_URL = $identityUrlForBrowser }
+    Note  = 'talks to barrins_identity (localhost, see note above)'
   }
 }
 
