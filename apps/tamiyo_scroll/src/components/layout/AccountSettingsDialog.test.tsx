@@ -10,18 +10,8 @@ beforeEach(() => {
   updateSettingsMutateAsync.mockClear()
 })
 
-// Identity-owned account management (display name / email / delete) is the
-// shared Goblin Guide `<AccountScreen>` — stubbed here so this test stays
-// on the Tamiyo-only sections below it. `useCurrentUser` is consumed by the
-// nested `AccountSettingsTeamSection` for the owner check.
-vi.mock('@barrins/goblin-guide', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@barrins/goblin-guide')>()),
-  AccountScreen: () => <div>Barrin&rsquo;s account (managed screen)</div>,
-  useCurrentUser: () => ({
-    data: { id: 'user-alice', email: 'alice@example.com', display_name: 'Alice' },
-  }),
-}))
-
+// Identity-owned account management lives in the standalone Goblin Guide app
+// now — this popup only links out to it.
 vi.mock('@/hooks/useSettings', () => ({
   useMySettings: () => ({
     data: {
@@ -56,9 +46,13 @@ describe('AccountSettingsDialog', () => {
     expect(screen.queryByText('Account settings')).not.toBeInTheDocument()
   })
 
-  it('embeds the shared Barrin’s account screen', () => {
+  it('links out to Goblin Guide for account management, with a return_to', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    expect(screen.getByText(/managed screen/)).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'Manage my account' })
+    const href = link.getAttribute('href') ?? ''
+    expect(href).toContain('localhost:5175')
+    expect(href).toContain('return_label=Tamiyo')
+    expect(href).toContain('return_to=')
   })
 
   it('explains that sharing is matched by deck name', () => {
@@ -79,11 +73,11 @@ describe('AccountSettingsDialog', () => {
     )
   })
 
-  it('renders separators between the display name, sharing, roster scope, auto-archive, version diff, card-test validation/change-log and display sections', () => {
+  it('renders separators between the account, sharing, roster scope, auto-archive, version diff, card-test validation/change-log and display sections', () => {
     renderDialog({ open: true, onOpenChange: vi.fn() })
-    // Barrin's account (managed screen) / Share my data / Roster scope (F10) /
-    // Auto-archive (S14) / Version diff (S15) / Card-test validation + change
-    // log (S16) / Display (S12).
+    // Manage-my-account / Share my data / Roster scope (F10) / Auto-archive
+    // (S14) / Version diff (S15) / Card-test validation + change log (S16) /
+    // Display (S12).
     expect(screen.getAllByRole('separator')).toHaveLength(6)
   })
 

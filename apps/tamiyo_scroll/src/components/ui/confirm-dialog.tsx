@@ -7,7 +7,7 @@ interface ConfirmDialogProps {
   onOpenChange: (open: boolean) => void
   title: ReactNode
   description?: ReactNode
-  /** Extra content rendered between the description and the action buttons — e.g. the invite-code retype step in `AccountSettingsTeamSection`. */
+  /** Extra content rendered between the description and the action buttons — e.g. the invite-code retype step in `TeamMembershipCard` (delete team). */
   children?: ReactNode
   confirmLabel?: string
   cancelLabel?: string

@@ -173,8 +173,11 @@ $services = [ordered]@{
     Env   = [ordered]@{
       VITE_API_BASE_URL         = 'http://{0}:{1}' -f $Ip, $ports.api
       VITE_IDENTITY_SERVICE_URL = $identityUrlForBrowser
+      # "Manage my account" in the settings popup navigates here (same tab).
+      # localhost, not the LAN IP - same reason as the identity URL above.
+      VITE_GOBLIN_GUIDE_URL     = 'http://localhost:{0}' -f $ports.goblin
     }
-    Note  = 'barrins_api (LAN IP) + barrins_identity (localhost, see note above)'
+    Note  = 'barrins_api (LAN IP) + barrins_identity + goblin_guide (localhost, see note above)'
   }
   tolaria = @{
     Title = 'tolaria_news :5174'

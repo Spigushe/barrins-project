@@ -11,6 +11,9 @@ const postMessageMutateAsync = vi.fn().mockResolvedValue(undefined)
 const flagDeckMutate = vi.fn()
 const unflagDeckMutate = vi.fn()
 const downloadReportMutate = vi.fn()
+const leaveTeamMutateAsync = vi.fn().mockResolvedValue(undefined)
+const deleteTeamMutateAsync = vi.fn().mockResolvedValue(undefined)
+const navigateSpy = vi.fn()
 
 const OWNER = {
   user_id: 'user-owner',
@@ -64,10 +67,21 @@ beforeEach(() => {
   flagDeckMutate.mockClear()
   unflagDeckMutate.mockClear()
   downloadReportMutate.mockClear()
+  leaveTeamMutateAsync.mockClear()
+  deleteTeamMutateAsync.mockClear()
+  navigateSpy.mockClear()
 })
 
-vi.mock('@barrins/goblin-guide', () => ({
+// Spread the real module — `@/api/client` (pulled in transitively by
+// `TeamPage`'s `ApiError` import) needs `createMemoryTokenStore` from it.
+vi.mock('@barrins/goblin-guide', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@barrins/goblin-guide')>()),
   useCurrentUser: () => ({ data: { id: currentUserId } }),
+}))
+
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => navigateSpy,
 }))
 
 vi.mock('@/hooks/useTeams', () => ({
@@ -101,6 +115,8 @@ vi.mock('@/hooks/useTeams', () => ({
     mutateAsync: postMessageMutateAsync,
     isPending: false,
   }),
+  useLeaveTeam: () => ({ mutateAsync: leaveTeamMutateAsync, isPending: false }),
+  useDeleteTeam: () => ({ mutateAsync: deleteTeamMutateAsync, isPending: false }),
 }))
 
 function renderTeamPage() {
@@ -272,6 +288,55 @@ describe('TeamPage', () => {
       nameKey: "king t'challa",
       filename: "team-deck-report-king-t'challa.pdf",
     })
+  })
+})
+
+describe('TeamPage — leave / delete team', () => {
+  it('shows the owner "Delete team", not "Leave team"', () => {
+    renderTeamPage()
+    expect(screen.getByRole('button', { name: 'Delete team' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Leave team' })).not.toBeInTheDocument()
+  })
+
+  it('shows a member "Leave team", not "Delete team"', () => {
+    currentUserId = 'user-member'
+    renderTeamPage()
+    expect(screen.getByRole('button', { name: 'Leave team' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete team' })).not.toBeInTheDocument()
+  })
+
+  it('leaves the team and navigates back to /team', async () => {
+    currentUserId = 'user-member'
+    const user = userEvent.setup()
+    renderTeamPage()
+
+    await user.click(screen.getByRole('button', { name: 'Leave team' }))
+
+    expect(leaveTeamMutateAsync).toHaveBeenCalledWith('team-1')
+    expect(navigateSpy).toHaveBeenCalledWith('/team')
+  })
+
+  it('deletes the team only after the two-step invite-code confirm', async () => {
+    const user = userEvent.setup()
+    renderTeamPage()
+
+    await user.click(screen.getByRole('button', { name: 'Delete team' }))
+    expect(screen.getByText('Delete "Dream Team"?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    const codeField = screen.getByLabelText('Type the invite code to confirm deletion')
+
+    // Disabled until the code is entered.
+    expect(screen.getByRole('button', { name: 'Delete permanently' })).toBeDisabled()
+
+    await user.type(codeField, 'ABCD1234')
+    await user.click(screen.getByRole('button', { name: 'Delete permanently' }))
+
+    expect(deleteTeamMutateAsync).toHaveBeenCalledWith({
+      teamId: 'team-1',
+      inviteCode: 'ABCD1234',
+    })
+    expect(navigateSpy).toHaveBeenCalledWith('/team')
   })
 })
 

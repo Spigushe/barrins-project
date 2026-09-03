@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AccountScreen } from '@barrins/goblin-guide'
+import { GOBLIN_GUIDE_URL } from '@/config'
 import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import { useMySettings, useUpdateMySettings } from '@/hooks/useSettings'
 import type { MetagameRosterScope } from '@/schemas/tamiyoScroll'
@@ -16,15 +16,32 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
 /**
- * Account settings popup.
- *
- * Identity-owned account management (display name, email change, account
- * deletion) is the shared Goblin Guide `<AccountScreen>` — it talks to
- * `barrins_identity` directly. Everything below it is Tamiyo-only and hits
+ * Standalone-Goblin-Guide URL for "Manage my account", with a `return_to`
+ * back to this app. Built once at module load — `window.location.origin` is
+ * stable for the tab's lifetime.
+ */
+const MANAGE_ACCOUNT_HREF: string = (() => {
+  const url = new URL(GOBLIN_GUIDE_URL)
+  url.searchParams.set('return_to', window.location.origin)
+  url.searchParams.set('return_label', 'Tamiyo Scroll')
+  return url.toString()
+})()
+
+/**
+ * Account settings popup — Tamiyo-only application settings, all hitting
  * `barrins_api`: the `data_shared` / `receive_shared_data` sharing toggles
- * (Save/Cancel form state), the four `localStorage`-backed display
- * preferences (applied immediately), and the "Team de test" section
- * (`AccountSettingsTeamSection`, S2 — acts immediately on click).
+ * (Save/Cancel form state), the F10/S14/S15/S16 server-persisted switches,
+ * and the four `localStorage`-backed display preferences (applied
+ * immediately).
+ *
+ * Identity-owned account management (display name, email change, password,
+ * account deletion) is NOT in this popup: the "Manage my account" button
+ * sends the user to the standalone Goblin Guide app (same tab), which talks
+ * to `barrins_identity` directly and offers a link back here via the
+ * `return_to` / `return_label` query params it is passed.
+ *
+ * Team management is not here either — it moved out of this popup in S8–S18
+ * (`v2.0.0-alpha.2`) and lives entirely on the `/teams` routes.
  *
  * Per docs/project/v2.0.0-bump/z_handoff_params_popup/: the "View:
  * {other user}" selector is deliberately NOT in this popup — its UI
@@ -139,10 +156,22 @@ function AccountSettingsForm({ onClose }: { onClose: () => void }) {
     <DialogContent className="max-w-[480px]">
       <DialogTitle>Account settings</DialogTitle>
       <div className="flex flex-col gap-[22px]">
-        <AccountScreen
-          title="Barrin's account"
-          subtitle="Your sign-in across every app in the ecosystem."
-        />
+        <div className="flex flex-col gap-3.5 rounded-[10px] bg-input-inline p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13.5px] font-semibold text-foreground">
+                Barrin&rsquo;s account
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Display name, email, password and account deletion are managed in Goblin
+                Guide — your sign-in across every app in the ecosystem.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <a href={MANAGE_ACCOUNT_HREF}>Manage my account</a>
+            </Button>
+          </div>
+        </div>
 
         <div role="separator" className="h-px bg-accent" />
 

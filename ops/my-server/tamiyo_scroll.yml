@@ -6,13 +6,17 @@
 # frontends sharing one backend" section and docs/content/ops/deployment/frontend.md).
 #
 # Since the identity cutover (ADR-20) Tamiyo Scroll's login / signup /
-# reset / account UI is the shared @barrins/goblin-guide library talking
-# to barrins_identity directly in cookie mode, and its barrins_api calls
+# reset UI is the shared @barrins/goblin-guide library talking to
+# barrins_identity directly in cookie mode, and its barrins_api calls
 # carry an identity access token. This playbook therefore also needs
 # identity's public origin at build time (VITE_IDENTITY_SERVICE_URL) and
-# prebuilds libs/goblin_guide, exactly like goblin_guide.yml. It still
-# never deploys or restarts barrins_identity or barrins_api — run each of
-# their own playbooks separately. Rollout context:
+# prebuilds libs/goblin_guide, exactly like goblin_guide.yml. Full account
+# management (display name, email, password, deletion) is the standalone
+# Goblin Guide app: the settings popup's "Manage my account" button links
+# there, so this playbook also takes its origin at build time
+# (VITE_GOBLIN_GUIDE_URL) — a reference only, it never deploys or restarts
+# Goblin Guide (goblin_guide.yml does), nor barrins_identity / barrins_api.
+# Run each of their own playbooks separately. Rollout context:
 # docs/project/v2.0.0-bump/identity-goblin-guide-rollout.md (Phase 7+8).
 - name: Deploy the Tamiyo Scroll frontend
   hosts: spigushe
@@ -37,6 +41,10 @@
     backend_domain: "api{{ env_suffix }}.barrins-codex.org"
     frontend_domain: "tamiyo{{ env_suffix }}.barrins-codex.org"
     identity_domain: "identity{{ env_suffix }}.barrins-codex.org"
+    # "Manage my account" in the settings popup links here (build-time only —
+    # this playbook never deploys or restarts Goblin Guide; goblin_guide.yml
+    # does that).
+    goblin_guide_domain: "goblin{{ env_suffix }}.barrins-codex.org"
 
   roles:
     - role: github_token
@@ -69,6 +77,9 @@
         # Cookie mode (ADR-18/ADR-20): the login/account UI calls
         # barrins_identity directly. A bare origin, no path.
         VITE_IDENTITY_SERVICE_URL: "https://{{ identity_domain }}"
+        # "Manage my account" navigates here (same tab) for account
+        # management, with a return_to back to Tamiyo Scroll.
+        VITE_GOBLIN_GUIDE_URL: "https://{{ goblin_guide_domain }}"
 
   post_tasks:
     - name: Reminder — this playbook does not deploy barrins_api
