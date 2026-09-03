@@ -17,9 +17,14 @@ committed `.env` files are left untouched.
 | --- | --- | --- |
 | `barrins_api` | 8000 | remote dev DB (`146.59.146.57`) |
 | `barrins_identity` | 8001 | remote dev DB (`146.59.146.57`) |
-| `tamiyo_scroll` | 5173 | `barrins_api` |
+| `tamiyo_scroll` | 5173 | `barrins_api` + `barrins_identity` (auth, since the Phase 7 cutover) |
 | `tolaria_news` | 5174 | `barrins_api` |
 | `goblin_guide` | 5175 | `barrins_identity` |
+
+Because Tamiyo Scroll (and, once Q-02 lands, Tolaria News) authenticate
+straight against `barrins_identity`, the identity service's injected
+`ALLOWED_ORIGINS` covers **all three** frontend ports, not just Goblin
+Guide's.
 
 Batch jobs (`barrins_scripture`, `karn_tablets`) are not services and are
 not started here. No local Postgres is needed — the backend `.env` files
