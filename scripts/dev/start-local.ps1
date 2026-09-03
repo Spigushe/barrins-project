@@ -17,6 +17,11 @@
   tracker itself (barrins_api, Bearer-token, no cookie) is still reachable
   cross-device.
 
+  When 'api' is started it also mints/rotates a local barrins_identity
+  service account (sa_local_dev_directory) and injects its credentials so
+  the Teams UI shows real member names instead of "Unknown member". See
+  scripts/dev/README.md.
+
   Databases: the backend .env files point at the remote dev database on
   146.59.146.57, so no local Postgres is needed - but this machine must be
   able to reach that host:5432.
@@ -234,6 +239,57 @@ if ($Install) {
       }
     } finally { Pop-Location }
   }
+  Write-Host ""
+}
+
+# --- barrins_api's identity service account (synchronous) --------------------
+# barrins_api resolves team-roster / deck-owner display names by calling
+# barrins_identity's POST /api/v1/users/lookup, which needs a service-account
+# token. Mint (or rotate) a stable local dev account straight in identity's DB
+# and inject its credentials into the api window - otherwise every name in the
+# Teams UI renders as "Unknown member". Best-effort: if identity's DB is
+# unreachable the api still starts, just with the directory disabled.
+if ($keys -contains 'api') {
+  Write-Host "Provisioning barrins_api's identity service account..." -ForegroundColor Yellow
+  $saArgs = @(
+    'run', 'python', 'scripts/create_service_account.py',
+    '--client-id', 'sa_local_dev_directory',
+    '--description', 'barrins_api user-directory lookups (local dev)'
+  )
+  $saErr = [System.IO.Path]::GetTempFileName()
+  $prevVenv = $env:VIRTUAL_ENV
+  $prevEap = $ErrorActionPreference
+  Push-Location (Join-Path $repoRoot 'apps\barrins_identity')
+  try {
+    # uv picks the app's own .venv; drop an inherited VIRTUAL_ENV so it does
+    # not print a mismatch warning. Keep stderr out of the success stream and
+    # off 'Stop' - in PS 5.1 a merged native-stderr line becomes a fatal
+    # NativeCommandError, and uv is chatty on stderr even when it succeeds.
+    $env:VIRTUAL_ENV = $null
+    $ErrorActionPreference = 'Continue'
+    $saOut = & uv @saArgs 2>$saErr
+    $saExit = $LASTEXITCODE
+  } finally {
+    Pop-Location
+    $env:VIRTUAL_ENV = $prevVenv
+    $ErrorActionPreference = $prevEap
+  }
+
+  $clientId     = ($saOut | Select-String -Pattern '^CLIENT_ID=(.+)$'     | Select-Object -First 1).Matches.Groups[1].Value
+  $clientSecret = ($saOut | Select-String -Pattern '^CLIENT_SECRET=(.+)$' | Select-Object -First 1).Matches.Groups[1].Value
+
+  if ($saExit -eq 0 -and $clientId -and $clientSecret) {
+    $services.api.Env['IDENTITY_SERVICE_URL']           = $identityUrlForBrowser
+    $services.api.Env['IDENTITY_SERVICE_CLIENT_ID']     = $clientId
+    $services.api.Env['IDENTITY_SERVICE_CLIENT_SECRET'] = $clientSecret
+    Write-Host ("  ok - IDENTITY_SERVICE_CLIENT_ID={0} (secret injected, not shown)" -f $clientId) -ForegroundColor Green
+  } else {
+    Write-Warning "could not provision the identity service account - Teams names will show 'Unknown member'."
+    $saDetail = (Get-Content -LiteralPath $saErr -Raw -ErrorAction SilentlyContinue)
+    if ($saDetail) { Write-Warning ("detail: " + $saDetail.Trim()) }
+    Write-Warning "fix: cd apps\barrins_identity; uv run python scripts/create_service_account.py --client-id sa_local_dev_directory"
+  }
+  Remove-Item -LiteralPath $saErr -Force -ErrorAction SilentlyContinue
   Write-Host ""
 }
 
