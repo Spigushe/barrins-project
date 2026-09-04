@@ -14,6 +14,8 @@ structured per Constitution §38:
   (including current gaps, documented honestly).
 - [Deployment Strategy](deployment_strategy.md) — the broader
   provider-independence principles this infrastructure operates within.
+- [Releases](releases/index.md) — per-release retrospectives: milestones,
+  challenges found and fixed, and suggested Constitution amendments.
 
 The infrastructure itself (Ansible playbooks and roles) lives at
 `ops/my-server/` in this repository — see that directory's README for the
