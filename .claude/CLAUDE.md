@@ -1237,6 +1237,48 @@ Before committing:
 - [ ] no secrets committed
 - [ ] no temporary files committed
 
+### 18.5 Merge method by branch role — long-lived branches need real merges
+
+This repository's branches split into two roles, and the merge method
+follows the role a branch plays, not who happens to open the PR:
+
+- **`proj/<tool-or-feature>` branches (and any other short-lived working
+  branch)** — squash-merge only. §18.2/18.3's "one commit per task" is
+  unchanged here.
+- **`staging` and `main`** — merge commit only (never squash, never
+  rebase) for every PR that lands on them, including a `proj/*`
+  promotion.
+
+Squash merges never advance the git merge-base between the two branches
+involved — a squash commit has no parent link back to the branch it came
+from. Between short-lived branches this is invisible. Between two
+*long-lived* branches (`proj/*` promoted into `staging`, `staging`
+promoted into `main`) it means every future comparison between them
+re-derives the same conflicts no matter how many times a prior sync
+"resolved" them. A real merge commit fixes this at the source: the
+target becomes a genuine ancestor of the result, so the next comparison
+is a clean diff instead of a frozen conflict.
+
+`proj/*` branches are scoped **per tool or feature area, not per
+version** — `proj/karn-tablets`, `proj/goblin-guide-login`, never
+`proj/v2.1.0-bump` accumulating an entire release's worth of unrelated
+work. Each one:
+
+- branches from `staging`'s current tip, not from another `proj/*`
+  branch or a stale snapshot;
+- stays scoped to that one tool or feature;
+- is promoted into `staging` via a single merge-commit PR as soon as it
+  is done and CI-green — not batched until a version's worth of tools
+  has accumulated.
+
+A version release is a **tag on `staging`** at whatever point it is
+judged release-ready, not a dedicated branch. `staging` → `main` follows
+the same promotion mechanism (merge commit) when that tag ships.
+
+(Constitution Amendment Proposal 7, amended and accepted 2026-09-04 —
+reverses that proposal's original 2026-08-03 decision; see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
+
 ---
 
 ## 19. Testing Requirements
