@@ -106,6 +106,9 @@ nav:
                 - PostgreSQL disk full: ops/incidents/2026-08-15-postgres-disk-full.md
           - Deployment Strategy: ops/deployment_strategy.md
           - Roadmap: ops/roadmap.md
+          - Releases:
+                - Home: ops/releases/index.md
+                - v1.0.0 "WorldWake": ops/releases/v1.0.0.md
     - Changelog:
           - Home: changelog/index.md
           - Barrin's API: changelog/barrins_api.md
