@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | **Target** | [`barrins-project/barrins_api`](https://github.com/barrins-project/barrins_api) | / |
 | **Initial date** | 2026-04-27 | / |
-| **Status** | ✅ Implemented | replaces the ad hoc `X-Admin-Key` header with full JWT authentication and hierarchical role-based authorization |
+| **Status** | ⚠️ Superseded | This document describes `barrins_api`'s original HS256 JWT system. Since ADR-16/ADR-20, `barrins_api` no longer owns users or roles — identity is issued by `barrins_identity` (RS256, JWKS) and `barrins_api` only verifies the token's `role` claim (`apps/barrins_api/app/core/roles.py`). See `docs/content/back/barrins_identity/platform.md` for the current system. Kept here as a historical record; the role hierarchy below (including the `role_c` placeholder resolution) still matches current naming. |
 
 ---
 
@@ -33,14 +33,15 @@ implementation, the API:
 | ----- | ---- | ------------ | ------ |
 | 0 | `anonymous` | Not authenticated | Public reads (sets, cards) |
 | 1 | `user` | Base authenticated account | Public reads + personal profile |
-| 2 | `role_c` 🔲 | Placeholder — final name and scope not yet decided | TBD |
+| 2 | `moderator` | Resolved name for the former `role_c` placeholder (`apps/barrins_identity/app/models/user.py::UserRole`) | TBD |
 | 3 | `ml_developer` | Machine learning developer | TBD |
 | 4 | `admin` | Administrator | Everything, including MTGJSON import and user management |
 
-Hierarchy: `admin` ⊃ `ml_developer` ⊃ `role_c` ⊃ `user` ⊃ `anonymous`. A role
-of level *N* always satisfies a `require_role` constraint of level < *N* — the
-`require_role()` factory compares ordinal levels, never role names, so a
-future rename of `role_c` only requires updating one mapping.
+Hierarchy: `admin` ⊃ `ml_developer` ⊃ `moderator` ⊃ `user` ⊃ `anonymous`. A
+role of level *N* always satisfies a `require_role` constraint of level < *N*
+— the `require_role()` factory compares ordinal levels, never role names,
+which is exactly why the `role_c` → `moderator` rename required no logic
+change anywhere it's checked.
 
 The `anonymous` level is not stored in the database — it represents the
 absence of a token and corresponds to endpoints that declare no
@@ -140,7 +141,7 @@ class UserRole(str, enum.Enum):
     """
 
     user = "user"            # level 1
-    role_c = "role_c"        # level 2 — 🔲 placeholder, final name TBD
+    moderator = "moderator"  # level 2 — resolved name for the former role_c placeholder
     ml_developer = "ml_developer"  # level 3
     admin = "admin"          # level 4
 
@@ -148,7 +149,7 @@ class UserRole(str, enum.Enum):
     def level(self) -> int:
         return {
             UserRole.user: 1,
-            UserRole.role_c: 2,
+            UserRole.moderator: 2,
             UserRole.ml_developer: 3,
             UserRole.admin: 4,
         }[self]
@@ -161,7 +162,7 @@ class UserRole(str, enum.Enum):
 | `id` | `UUID` | PK | From `IDUuidMixin` |
 | `email` | `VARCHAR(255)` | UNIQUE, NOT NULL, INDEX | Login identifier |
 | `hashed_password` | `VARCHAR(255)` | NOT NULL | Argon2id hash |
-| `role` | `ENUM('user','role_c','ml_developer','admin')` | NOT NULL, DEFAULT `user` | Access level (🔲 `role_c` provisional) |
+| `role` | `ENUM('user','moderator','ml_developer','admin')` | NOT NULL, DEFAULT `user` | Access level |
 | `is_active` | `BOOLEAN` | NOT NULL, DEFAULT `true` | Deactivation without deletion |
 | `is_verified` | `BOOLEAN` | NOT NULL, DEFAULT `false` | Verified account (email or manual) |
 | `display_name` | `VARCHAR(100)` | NULLABLE | Optional display name |
@@ -365,14 +366,17 @@ AdminUser = Annotated[User, Depends(require_role(UserRole.admin))]
 
 | Alias | Minimum level | Accepted roles | Failure |
 | ----- | -------------- | --------------- | ------- |
-| `CurrentUser` | 1 (`user`) | `user`, `role_c` 🔲, `ml_developer`, `admin` | `401` if unauthenticated |
-| `RoleCUser` | 2 (`role_c` 🔲) | `role_c`, `ml_developer`, `admin` | `403` |
+| `CurrentUser` | 1 (`user`) | `user`, `moderator`, `ml_developer`, `admin` | `401` if unauthenticated |
+| `ModeratorUser` | 2 (`moderator`) | `moderator`, `ml_developer`, `admin` | `403` |
 | `MlDeveloperUser` | 3 (`ml_developer`) | `ml_developer`, `admin` | `403` |
 | `AdminUser` | 4 (`admin`) | `admin` | `403` |
 
 Public (`anonymous`) endpoints simply declare none of these dependencies.
-When `role_c` receives its final name, only the `RoleCUser` alias and its
-callers need updating — the underlying comparison is ordinal.
+`role_c` was resolved to `moderator`; the alias is `ModeratorUser` in both
+`apps/barrins_identity/app/dependencies/auth.py` and
+`apps/barrins_api/app/dependencies/auth.py` (not `RoleCUser` as this
+document originally predicted) — the rename only touched the alias name and
+its callers, the underlying comparison stayed ordinal throughout.
 
 ---
 
@@ -544,7 +548,7 @@ psql $DATABASE_URL -c "\d users"
 
 | # | Item | Blocking? |
 | - | ---- | --------- |
-| P-01 | Final name and scope of `role_c` (level 2) | No — deployable with the placeholder |
+| P-01 | ✅ Resolved — `role_c` (level 2) named `moderator`, see `apps/barrins_identity/app/models/user.py::UserRole` | — |
 | P-02 | Email verification strategy for `POST /auth/signup` | No — endpoint not registered |
 | P-03 | Rate-limiting on `POST /auth/token` | No — recommended before opening the frontend |
 | P-05 | `secret_key` rotation procedure — invalidating tokens already in flight | No — to be documented |

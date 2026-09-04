@@ -4,9 +4,9 @@
 
 | | | Comment |
 | --- | --- | --- |
-| **Target** | `docs/content/CLAUDE.md` (the project constitution) | / |
+| **Target** | `.claude/CLAUDE.md` (the project constitution) | Corrected 2026-09-04 — this file never lived at `docs/content/CLAUDE.md`; that path never existed in this repo. |
 | **Initial date** | 2026-07-25 | / |
-| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). ✅ **Proposal 7 amended and accepted 2026-09-04** (reverses its original 2026-08-03 decision — see its own "What changed"), **applied directly to `.claude/CLAUDE.md` the same day** (§18.5). ✅ **Proposal 8 added and accepted 2026-08-24, applied directly to `.claude/CLAUDE.md` the same day** (§11.8). Proposals 2–6 nothing yet applied to `CLAUDE.md` — that's R5/ADR work | / |
+| **Status** | ✅ Proposals 1–6 reviewed and accepted (1, 4, 5, 6 as written; 2, 3 with modifications, see each). 🔲 **Proposal 7 added 2026-08-03, not yet reviewed.** ✅ **Proposal 8 added and accepted 2026-08-24, applied directly to `.claude/CLAUDE.md` the same day** (§11.8). **✅ Proposals 1–6 and 8 are now all applied to `.claude/CLAUDE.md`** (2026-09-04 — §13.6, §13.7, §23.4, §26.5, §31.4 added; see "Applying these proposals" below for what changed from the original text). **Proposal 7 remains un-reviewed and un-applied**, unaffected by this pass. | / |
 | **Source** | Decisions recorded in `index.md` §1.2, §1.3, §1.6, §1.7, §1.9 | / |
 
 ---
@@ -39,15 +39,6 @@ for later rather than leave it undocumented, ahead of the full `v2.0.0`
 release's own `proj/v2.0.0-bump` → `staging` promotion (Group R) hitting
 the same thing.
 
-**Amended and accepted, 2026-09-04**: Group R's `proj/v2.0.0-bump` →
-`staging` promotion (`staging-promote-plan.md`) hit exactly that
-predicted recurrence, worse — 25+ commits of divergence, recovered only
-via a temporary branch-protection bypass and a hard reset
-(`staging-promote-plan.md` §4.1, mechanism "M1"). This reversed the
-2026-08-03 call: real merge commits between long-lived branches are
-adopted instead of the documented-workaround-only approach. See
-Proposal 7's own "What changed" for the full decision.
-
 None are yet applied to `docs/content/CLAUDE.md` itself — see "Applying
 these proposals" at the end of this file for that remaining step.
 
@@ -57,6 +48,18 @@ existing `role_c` placeholder (ordinal level 2 in
 role explicitly marked "TBD" there) — not `ml_developer` (level 3,
 already a specific, meaningful role). Proposal 2 below is written
 against that confirmation, no longer flagged as open.
+
+**Superseded 2026-09-04:** the actual name landed on is `moderator`, not
+`advanced_user` — see `apps/barrins_identity/app/models/user.py::UserRole`
+(and its `apps/barrins_api/app/core/roles.py` mirror), both already
+implemented and both already using `moderator`. The rename to code
+happened during the `barrins_identity` build-out (ADR-16/ADR-20) without
+this document being updated to match — every "advanced_user" mention
+below is the name as it was confirmed at proposal time, kept unedited for
+the historical record; treat `moderator` as the actual, current name
+everywhere this document says `advanced_user`. `docs/content/back/barrins_api/auth_roles.md`
+and `.claude/CLAUDE.md` §13.6 (added 2026-09-04, see "Applying these
+proposals" below) use the corrected name directly.
 
 ---
 
@@ -553,49 +556,14 @@ before it ships once instead of catching it in review each time.
 
 ## Proposal 7 — Long-Lived Integration Branches Need an Exception to Squash-Only/Linear-History
 
-**Status: ✅ Accepted with modifications (2026-09-04)** — added
-2026-08-03, discovered live while executing RA2
-(`ra2-merge-staging/index.md`, the `v2.0.0-alpha` release plan's
-`proj/v2.0.0-bump` → `staging` step); **reverses that date's original
-decision** — see "What changed from the original proposal" below before
-reading the rest, since the Context/Alternatives/Trade-offs were written
-to justify the option that ended up rejected, and are kept only for the
-reasoning that still holds.
+**Status: 🔲 Proposed, not yet reviewed** — added 2026-08-03, discovered
+live while executing RA2 (`ra2-merge-staging/index.md`, the
+`v2.0.0-alpha` release plan's `proj/v2.0.0-bump` → `staging` step).
 
 **Target**: new subsection `§18.5` (after existing §18.4, Git Standards
 — this is a branch/merge-strategy rule, not a release-deployment rule,
 so it belongs alongside the existing commit-philosophy rules rather than
-in §25 Release Policy). **Applied directly to `.claude/CLAUDE.md` the
-same day** (like Proposal 8) rather than left for the R5/ADR batch — the
-same reasoning as Proposal 8's own Status line applies: this was decided
-live in conversation, not part of the original open-decisions batch.
-
-### What changed from the original proposal
-
-1. **The 2026-08-03 call is reversed.** At that time the user chose
-   Option 2 below (document the one-directional rebuild-from-target
-   workaround, keep squash-only) over Option 3 (real merge commits),
-   explicitly declining to change merge settings — "keep squash-syncing"
-   matched this project's general YAGNI preference (§39/§48) for not
-   re-architecting infrastructure around a problem a documented
-   workaround already handled.
-2. **That workaround did not hold.** The full `v2.0.0` release's own
-   `proj/v2.0.0-bump` → `staging` promotion (`staging-promote-plan.md`)
-   hit the same class of conflict, and this time the clean fix wasn't
-   available: `proj/v2.0.0-bump` and `staging` had diverged by 25+
-   commits each. Recovering required a temporary branch-protection
-   bypass, a `git reset --hard`, and a force-with-lease push (§4.1's "M1"
-   mechanism) just to make `staging` match `proj/v2.0.0-bump`'s tip. A
-   workaround that costs an admin ruleset toggle and a history-discarding
-   reset every release promotion is no longer cheaper than the
-   infrastructure change it was avoiding — so **Option 3 is adopted
-   instead**, decided live 2026-09-04.
-3. **Extended beyond Option 3 as originally scoped.** Option 3 only
-   proposed the merge-method change. The adopted decision also folds in
-   a change to how `proj/*` branches themselves are used — Decision
-   point 2 below — so the merge commits Option 3 introduces stay small
-   and frequent instead of eventually reproducing today's 25-commit
-   divergence at merge-commit scale instead of squash scale.
+in §25 Release Policy).
 
 ### Context
 
@@ -675,73 +643,31 @@ solve a problem a documented workaround already handles. Option 2
 matches that decision: cheap, no infrastructure change, and turns a
 one-off discovery into a repeatable recipe.
 
-### Decision
+### Decision (proposed)
 
-Adopts **Option 3** (real merge commits between long-lived branches),
-extended with a branch-scoping rule, as `§18.5`:
-
-1. **Merge method by branch role.** `proj/*` branches (and any other
-   short-lived working branch) stay squash-merge only — §18.2/18.3's
-   "one commit per task" is unchanged there. `staging` and `main` accept
-   only merge commits for every PR that lands on them, including a
-   `proj/*` promotion. Applied to the live rulesets 2026-09-04:
-   `preprod-staging-protection` (`19614687`) and `prod-main-protection`
-   (`19614704`) both moved to `allowed_merge_methods: ["merge"]` with
-   `required_linear_history` removed; `proj-release-branch-protection`
-   (`19839693`) is untouched, still squash-only with
-   `required_linear_history` intact. Repo-wide "Allow merge commits" was
-   enabled (was `false`) to make this legal at all;
-   `merge_commit_title`/`merge_commit_message` set to `PR_TITLE`/`PR_BODY`
-   so a promotion's merge commit carries the PR's `type(scope):
-   description` title (§18.2) rather than GitHub's generic "Merge pull
-   request #N" text.
-2. **`proj/*` branches are scoped per tool or feature area, not per
-   version.** `proj/karn-tablets`, `proj/goblin-guide-login` — never
-   `proj/v2.1.0-bump` accumulating an entire release's unrelated work for
-   months before ever touching `staging`. Each one branches from
-   `staging`'s current tip (never from another `proj/*` branch or a
-   stale snapshot), stays scoped to that one tool/feature, and is
-   promoted into `staging` via a single merge-commit PR as soon as it is
-   done and CI-green — not batched until a version's worth of tools has
-   accumulated. This is what keeps point 1's merge commits small and
-   frequent instead of eventually reproducing this proposal's own
-   25-commit divergence problem at a larger scale.
-3. **A version release is a tag on `staging`**, not a dedicated branch —
-   cut whenever `staging`'s accumulated state is judged release-ready.
-   `staging` → `main` uses the same merge-commit mechanism as point 1
-   when that tag ships.
-
-The original one-directional rebuild-from-target recipe (below, kept for
-reference) is no longer the primary mechanism for `proj/* → staging` —
-the merge-base problem it worked around should no longer recur once
-branches are this short-lived — but stays correct for any other pair of
-long-lived branches that still needs it under squash-only.
-
-**Superseded original decision (2026-08-03, kept for reference)**: when
-reconciling two long-lived branches under squash-only/linear-history
-protection, build the reconciliation branch starting from whichever
-branch is the merge *target*, merging the *source* branch into it —
-never the reverse — so the target becomes a real ancestor of the result
-and the resulting PR computes as a clean diff instead of re-deriving the
-same conflict from a stale, frozen merge-base. A conflict "resolved" by
-squash-merging into the *source* branch will **not** clear the
-corresponding conflict in the *opposite* direction — these are two
-independent reconciliations under squash-only, not one.
+Add `§18.5`: when reconciling two long-lived branches under this
+repository's squash-only/linear-history branch protection, **build the
+reconciliation branch starting from whichever branch is the merge
+*target*, merging the *source* branch into it** — never the reverse —
+so the target becomes a real ancestor of the result and the resulting PR
+computes as a clean diff instead of re-deriving the same conflict from a
+stale, frozen merge-base. Document plainly that squash merges do not
+advance the merge-base between the branches involved, so a conflict
+"resolved" by squash-merging into the *source* branch (e.g. syncing
+`staging`'s changes into `proj/v2.0.0-bump`) will **not** clear the
+corresponding conflict in the *opposite* direction (`proj/v2.0.0-bump`
+into `staging`) — these are two independent reconciliations under
+squash-only, not one.
 
 ### Consequences
 
-Removes the recurring class of problem at its root for `proj/* ↔
-staging` and `staging ↔ main`: merge commits keep the branches genuinely
-related, so future promotions compute clean diffs instead of
-re-deriving frozen conflicts. Cost: `staging`/`main` history is no
-longer fully linear — a merge commit plus however many commits the
-promoted branch carried, rather than one squash commit per promotion —
-accepted, since these are promotion points, not everyday commits, and
-§18.2/18.3's "one task, one commit" still governs everything landing on
-`proj/*`. Requires discipline that `proj/*` branches actually stay small
-and short-lived (point 2): nothing technical stops someone from
-recreating a `proj/v2.1.0-bump`-shaped mega-branch again — this is a
-process rule, not a ruleset-enforced one.
+Gives whoever runs the full `v2.0.0` release's own `proj/v2.0.0-bump` →
+`staging` promotion (Group R, not Group RA) a documented recipe instead
+of re-discovering this the same way RA2 did. Doesn't fix the underlying
+mechanism (still squash-only) — a future release could still hit
+one-off confusion the first time a *different* pair of long-lived
+branches needs reconciling, but at least this exact `proj/*` ↔ `staging`
+shape now has a written answer.
 
 ---
 
@@ -867,19 +793,17 @@ resolved; this is a deliberate non-goal here, not an oversight.
 **Reviewed by the user 2026-07-26 and 2026-07-27.** Outcome: Proposals
 1, 4, 5, 6 accepted as written; 2 and 3 accepted with the modifications
 described in each ("What changed from the original proposal"). **All
-six proposals are now reviewed and accepted.** None are applied to
-`docs/content/CLAUDE.md` yet — that's still separate work, done here:
+six proposals are now reviewed and accepted.**
 
-**Proposal 7, amended and accepted 2026-09-04**: applied directly to
-`.claude/CLAUDE.md` as the new `§18.5` the same day it was decided (see
-Proposal 7's own Status line for why) — not part of the batch below.
+**Proposal 8, added and accepted 2026-08-24**: applied directly to
+`.claude/CLAUDE.md` as the new `§11.8` the same day it was decided (see
+Proposal 8's own Status line for why) — not part of the batch below.
 
-**Proposal 8, added and accepted 2026-08-24**: unlike 2, 3, 4, 5, 6,
-applied directly to `.claude/CLAUDE.md` as the new `§11.8` the same day
-it was decided (see Proposal 8's own Status line for why) — not part of
-the batch below.
+**Proposals 1–6, applied 2026-09-04** (this governance-debt catch-up
+pass — Proposal 1 had actually already landed as `§51` at some earlier
+point not recorded in this document; 2–6 had not):
 
-1. Insert the new **subsections** — §13.6, §13.7 (both after existing
+1. Inserted the new **subsections** — §13.6, §13.7 (both after existing
    §13.5), §23.4 (after §23.3, Proposal 6), §26.5 (after §26.4), §31.4
    (after §31.3). These are subsections of already-numbered sections, so
    **inserting them does not renumber anything else** — §14, §24, §27,
@@ -889,22 +813,26 @@ the batch below.
    *different* rule, rejected outright — see Proposal 3's "What changed."
    The `§23.4` slot is reused here for Proposal 6's unrelated,
    since-accepted rate-limiting rule.)
-2. Insert the new **top-level** section (Proposal 1) as the new `§51`,
-   immediately before the current `§51 Final Instruction`, which shifts
-   to `§52`. This is the only renumbering this whole document causes —
-   a single +1 shift at the very end, not the larger shift an earlier
-   draft of this file miscalculated. Renumber any cross-reference to
-   the old `§51 Final Instruction` (if any exist elsewhere in the repo)
-   accordingly.
-3. Update `docs/content/back/barrins_api/auth_roles.md`'s role table and
-   `UserRole` enum comment for Proposal 2 (`role_c` → `advanced_user`,
-   level 2 — confirmed above), **without** adding any payment/paywall
-   language per Proposal 2's "What changed."
-4. Per R5 (`index.md` Group R), write an ADR for each applied proposal —
-   this document is the Context/Alternatives/Trade-offs input, not the
-   ADR itself. Per §3.1, these ADRs must be merged into
-   `proj/v2.0.0-bump` before R1, not written after the fact.
-5. **Proposal 6's ADR** is additionally the natural place to also close
-   out `auth_roles.md`'s pre-existing P-03 backlog item (inbound
-   rate-limiting on `POST /auth/token`), since both share the same root
-   cause and fix pattern.
+2. The new **top-level** section for Proposal 1 was already present as
+   `§51` (with `§52 Final Instruction` after it) when this pass started —
+   confirming that shift had happened, even though nothing in this
+   document previously recorded it.
+3. Updated `docs/content/back/barrins_api/auth_roles.md`'s role table and
+   `UserRole` enum comment for Proposal 2 — **using `moderator`, not
+   `advanced_user`** (see the "Superseded 2026-09-04" note under
+   Proposal 2 above: the real rename had already shipped in
+   `apps/barrins_identity/app/models/user.py` and
+   `apps/barrins_api/app/core/roles.py` under that name, ahead of this
+   document or `.claude/CLAUDE.md` §13.6 catching up to it). No
+   payment/paywall language added, per Proposal 2's "What changed."
+   `.claude/CLAUDE.md` §13.6 also uses `moderator` directly, not
+   `advanced_user`.
+4. **Still outstanding, not done in this pass**: per R5 (`index.md` Group
+   R), an ADR for each applied proposal, merged into `proj/v2.0.0-bump`
+   before R1 per §3.1 — this document remains the Context/Alternatives/
+   Trade-offs input, not a substitute for those ADRs. Whoever runs R5
+   next should treat Proposals 1–6 and 8 as all still needing their ADR.
+5. **Proposal 6's ADR**, once written, is additionally the natural place
+   to close out `auth_roles.md`'s pre-existing P-03 backlog item (inbound
+   rate-limiting on `POST /auth/token`) — still open, unaddressed by this
+   pass, since both share the same root cause and fix pattern.

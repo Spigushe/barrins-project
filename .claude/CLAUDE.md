@@ -438,6 +438,88 @@ Agent 4 does not modify technical architecture.
 
 ---
 
+## 10.5 Agent 5 — ML & Data Science Lead
+
+Role:
+
+Senior ML/data engineer.
+
+Repository:
+
+Karn Tablets (Duel Commander metagame clustering — feeds Tolaria News'
+public `/metagame`/`/archetypes` routes and Tamiyo Scroll's admin
+dashboard, per ADR-13; does not own those consuming apps).
+
+Responsibilities:
+
+- maintain Karn Tablets' clustering and archetype-extraction pipeline;
+- keep machine learning isolated from the frontend, authentication,
+  reports, and core domain (§45.1) — never coupled directly into
+  `barrins_api`'s domain services;
+- ensure every ML result carries its source data, dataset version, and
+  model information (§45.2);
+- maintain observability (job health, scheduling — ADR-15);
+- propose future ML-driven features (card impact weighting, archetype
+  extraction, matchup analysis — §45) to Agent 0 for review before scope
+  grows, per §39/§48 (no premature implementation).
+
+Restrictions:
+
+Agent 5 must not:
+
+- embed ML inference directly into `barrins_api`'s core domain services;
+- ship a clustering run against unvalidated or non-reproducible data;
+- expose model internals directly as an API contract — results must
+  still flow through a DTO/schema boundary like any other API response
+  (§4.3).
+
+(Constitution Amendment Proposal 9, accepted 2026-09-04 — see
+`docs/project/v2.0.0-bump/constitution-amendment-agents-5-6.md`.)
+
+---
+
+## 10.6 Agent 6 — Identity & Access Lead
+
+Role:
+
+Senior identity/security engineer.
+
+Repository:
+
+Barrin's Identity (plus the identity-facing parts of Goblin Guide,
+`libs/identity_client/`, `libs/goblin_guide/`).
+
+Responsibilities:
+
+- own JWT/JWKS issuance and verification design — RS256, cached public
+  key, no shared signing secret (§13.1, ADR-16);
+- own account roles/tiers (§13.6) and the group/team ownership transfer
+  path (§13.7);
+- maintain the cross-app user directory (ADR-19);
+- coordinate the identity cutover for consuming applications
+  (`barrins_api`, Tamiyo Scroll, Tolaria News, Goblin Guide) so none of
+  them re-implements its own user table or role source of truth (§13.1);
+- own credential hygiene, refresh-token/cookie handling (ADR-18), and
+  token revocation.
+
+Restrictions:
+
+Agent 6 must not:
+
+- let a consuming application maintain its own parallel user table or
+  role enum as a second source of truth (§13.1) — `barrins_api`'s own
+  `UserRole` enum was retired for exactly this reason (ADR-20);
+- change token or cookie security properties (signing algorithm,
+  expiry, `HttpOnly`/`Secure` flags, CORS-exposed headers) without
+  Agent 3 (infrastructure security, §9) and Agent 0 sign-off;
+- expose internal identity implementation details — password hashes,
+  private signing keys, raw tokens in logs (§23.1).
+
+(Constitution Amendment Proposal 10, accepted 2026-09-04 — see
+`docs/project/v2.0.0-bump/constitution-amendment-agents-5-6.md`.)
+
+---
+
 ## 11. Backend Development Standards
 
 ### 11.1 General principles
@@ -814,6 +896,65 @@ Frontend must not:
 - decide permissions;
 - calculate access rights.
 
+### 13.6 Account roles may gate features
+
+Account roles/tiers may gate access to specific features.
+
+This section does not state why a role might be restricted (payment,
+moderation, invitation-only, or anything else) — only that the mechanism
+exists and is backend-owned.
+
+Any code that assigns or revokes such a role is backend-owned and
+auditable — never a frontend-trusted flag, consistent with §4.1 (backend
+owns business logic).
+
+Ownership: `barrins_api`'s `UserRole` enum owned account roles until
+`barrins_identity` was implemented; ownership has since transferred to
+`barrins_identity` (`apps/barrins_identity/app/models/user.py::UserRole`,
+ADR-16/ADR-20) — `barrins_api` now only verifies the `role` claim on the
+identity token (`apps/barrins_api/app/core/roles.py`), it does not own
+role assignment.
+
+The API returns the user's actual current role as-is, plus a separate
+backend-owned flag for whether that user may be moved up to the next
+role tier. The frontend uses that flag — not its own judgment — to decide
+*when* to render a "this may evolve" comment: the decision of when to warn
+a user is backend logic, not frontend guesswork, per §4.1.
+
+The level-2 role is named `moderator` (the resolved name for what was
+previously a placeholder, `role_c`).
+
+(Constitution Amendment Proposal 2, accepted 2026-07-26 with
+modifications — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
+
+### 13.7 Group/team entities are modeled once, shared across applications
+
+Group/team-like entities (teams, and any future organization-style
+entity) are modeled once, generalizing §13.1's "one account, shared
+across applications" to "one group concept, shared across applications."
+
+Ownership: interim ownership sits wherever the group concept was first
+implemented (`barrins_api`'s `ts_teams`/`ts_team_members` for Tamiyo
+Scroll's teams); ownership transfers to `barrins_identity`/Goblin Guide
+once a shared, cross-application group concept ships there — not a
+permanent per-app responsibility.
+
+A full generic groups subsystem is expected to ship alongside
+`barrins_identity`'s build-out (timing within that effort not fixed) —
+noted here as forward context for whoever plans that work, not a
+requirement being added now.
+
+This does not create a rule tying backend content-validation to
+group/team visibility — validating as much data as possible before
+cross-user exposure stays a working direction pursued feature-by-feature
+(e.g. via deck-validation gates), not a blanket constitutional
+obligation.
+
+(Constitution Amendment Proposal 3, accepted 2026-07-26 with
+modifications — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
+
 ---
 
 ## 14. Tamiyo Scroll Frontend Standards
@@ -1096,48 +1237,6 @@ Before committing:
 - [ ] no secrets committed
 - [ ] no temporary files committed
 
-### 18.5 Merge method by branch role — long-lived branches need real merges
-
-This repository's branches split into two roles, and the merge method
-follows the role a branch plays, not who happens to open the PR:
-
-- **`proj/<tool-or-feature>` branches (and any other short-lived working
-  branch)** — squash-merge only. §18.2/18.3's "one commit per task" is
-  unchanged here.
-- **`staging` and `main`** — merge commit only (never squash, never
-  rebase) for every PR that lands on them, including a `proj/*`
-  promotion.
-
-Squash merges never advance the git merge-base between the two branches
-involved — a squash commit has no parent link back to the branch it came
-from. Between short-lived branches this is invisible. Between two
-*long-lived* branches (`proj/*` promoted into `staging`, `staging`
-promoted into `main`) it means every future comparison between them
-re-derives the same conflicts no matter how many times a prior sync
-"resolved" them. A real merge commit fixes this at the source: the
-target becomes a genuine ancestor of the result, so the next comparison
-is a clean diff instead of a frozen conflict.
-
-`proj/*` branches are scoped **per tool or feature area, not per
-version** — `proj/karn-tablets`, `proj/goblin-guide-login`, never
-`proj/v2.1.0-bump` accumulating an entire release's worth of unrelated
-work. Each one:
-
-- branches from `staging`'s current tip, not from another `proj/*`
-  branch or a stale snapshot;
-- stays scoped to that one tool or feature;
-- is promoted into `staging` via a single merge-commit PR as soon as it
-  is done and CI-green — not batched until a version's worth of tools
-  has accumulated.
-
-A version release is a **tag on `staging`** at whatever point it is
-judged release-ready, not a dedicated branch. `staging` → `main` follows
-the same promotion mechanism (merge commit) when that tag ships.
-
-(Constitution Amendment Proposal 7, amended and accepted 2026-09-04 —
-reverses that proposal's original 2026-08-03 decision; see
-`docs/project/v2.0.0-bump/consitution-amendment.md`.)
-
 ---
 
 ## 19. Testing Requirements
@@ -1378,6 +1477,33 @@ Every endpoint must define:
 - authorization requirement;
 - input validation.
 
+### 23.4 Inbound rate-limiting for public/unauthenticated endpoints
+
+Every endpoint that accepts requests without per-user authentication
+(public reads, login/token endpoints before a session exists) must be
+protected by inbound rate-limiting, enforced at a layer that remains
+correct across every worker process.
+
+Acceptable layers:
+
+- nginx (`limit_req`/`limit_conn`), since nginx already fronts every
+  backend per §29 and is shared across workers by construction — for
+  coarse, per-IP limits;
+- a shared-state store (Redis/DB, keyed per client) if finer-grained
+  control is needed.
+
+An in-process limiter (a bare `asyncio.Lock`/counter with no
+cross-worker coordination) does **not** satisfy this — it multiplies its
+effective limit by worker count, the same mistake already flagged for
+the Moxfield client's outbound limiter, generalized here so it isn't
+repeated inbound.
+
+The exact policy (key, threshold, window, response shape) is left
+per-endpoint, decided where that endpoint is implemented.
+
+(Constitution Amendment Proposal 6, accepted 2026-07-27 — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
+
 ---
 
 ## 24. Environment Management
@@ -1533,6 +1659,21 @@ them when writing new playbooks/roles rather than reintroducing the gap.
   from inside `ops/my-server` itself silently processes 0 files
   ("0 files processed of N encountered") while still reporting
   "Passed", which is not a real clean run.
+
+### 26.5 Bulk/heavy data must not live in the primary repository
+
+Any dataset expected to grow unbounded or reach non-trivial size (scrape
+archives, generated reports, large fixtures) lives in its own dedicated
+repository or storage location, referenced by the monorepo (git
+submodule, external bucket, etc.) — never committed directly into an
+application's own repository history.
+
+This mirrors the `mtg_decklist_cache` precedent used for Barrin's
+Scripture's scrape archive: the monorepo itself must stay cheap to clone
+regardless of how much archival/generated data the ecosystem accumulates.
+
+(Constitution Amendment Proposal 4, accepted 2026-07-26 — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
 
 ---
 
@@ -1712,6 +1853,18 @@ Before migration:
 - test migration.
 
 Never run destructive migrations blindly.
+
+### 31.4 Maintenance-mode write containment for internal endpoints
+
+Any endpoint whose caller is not a human-driven frontend (scheduled
+jobs, service-to-service ingestion routes) must be able to reject or
+defer writes during a declared maintenance window, via an explicit,
+narrowly-scoped check at the point of writing — never a blanket,
+application-wide maintenance page unless the whole application is
+actually down for that reason.
+
+(Constitution Amendment Proposal 5, accepted 2026-07-26 — see
+`docs/project/v2.0.0-bump/consitution-amendment.md`.)
 
 ---
 
