@@ -160,6 +160,16 @@ Do **not** import staging's ~18 stale bumps. Instead, once proj carries #83's
 new deps, let dependabot re-scan the reconciled proj and open fresh PRs; merge
 those normally. This keeps pins current instead of resurrecting old ones.
 
+**Done** — #118 (npm `/apps/*`) merged into `proj/v2.0.0-bump`; the `uv`
+group had nothing outdated. Superseded by the branch promote below.
+
+**Promote done (2026-09-05):** `proj/v2.0.0-bump` → `staging` (the RA2-style
+promote this doc deferred to "a later, separate promote") is complete — see
+[`staging-promote-plan.md`](staging-promote-plan.md) §4. `staging` now
+carries the full v2.0.0 line; `proj/v2.0.0-bump` has been deleted. Staging
+server deployment (identity cutover runbook, etc.) is tracked in that plan's
+§5, not here.
+
 ### Step 4 — settings popup enhancement (the original ask #1)
 
 Own branch off the reconciled `proj/v2.0.0-bump`, after Steps 1–3, then PR.
