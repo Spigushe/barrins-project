@@ -6,7 +6,7 @@ companion to [`staging-reconciliation-plan.md`](staging-reconciliation-plan.md)
 | | |
 | --- | --- |
 | **Goal** | Get the fully-reconciled `proj/v2.0.0-bump` (identity cutover + S8–S18 + Steps 1–4) onto `staging`, then deploy staging. |
-| **Status** | ✅ **§4 branch promote complete** (verified 2026-09-05). `staging` was force-updated to `proj/v2.0.0-bump`'s tip via **M1** (Q5 resolved by action) — confirmed by `staging`'s linear history carrying the full T1–T15/S1–S18 payload and by `git diff origin/staging origin/proj/v2.0.0-bump` being empty at the time of promotion. `proj/v2.0.0-bump` was re-synced to `staging`'s later tip via PR #127 (2026-09-04) and then deleted (this change). **§5 (staging server deploy) has not started** — code is on `staging`, but the operator run (backups, user migration, `alembic upgrade head`, ansible deploys) is still pending; user will drive it manually (Q4). Q3 still open. |
+| **Status** | ✅ **§4 branch promote and §5 staging deploy both complete, §6 UAT passed** (2026-09-05). `staging` was force-updated to `proj/v2.0.0-bump`'s tip via **M1** (Q5 resolved by action). The operator cutover (backups, user migration, `barrins_api`/`tamiyo_scroll`/`goblin_guide`/`barrins_identity` deploys) ran end to end on staging — see §5.2 for two real issues hit and fixed along the way. Full UAT checklist (§6) passed, including team rosters, S8–S18 smoke, and the Goblin Guide back-link. Q3 (main-promotion timing) still open. |
 | **Scope** | `proj/v2.0.0-bump` → `staging` only. `staging` → `main` (RA3/RB2-equivalent) is the next, separate step and is **out of scope here**. |
 | **Predecessors** | `staging-reconciliation-plan.md` Steps 1–4 (all merged: #109, #113, #114). RA2 (`ra2-merge-staging/index.md`) — the *alpha* promote, done 2026-08-03, whose lessons this reuses. |
 
@@ -394,11 +394,19 @@ work is now on `staging`).
    already in identity), then re-run without `--dry-run` (one target
    transaction; safe to repeat).
 6. **Deploy `barrins_api`** — `ansible-playbook barrins_api.yml -e
-   deploy_env=staging`, then **SSH in and `alembic upgrade head`** (the
-   playbook never runs Alembic): applies `d9e1a2c3b4f5`, dropping
-   `users` / `auth_email_verifications` / `userrole` + 12 FKs. Verify
-   `alembic current` → `d9e1a2c3b4f5 (head)`, single head.
-7. **Frontends** (each its own playbook, `-e deploy_env=staging`):
+   deploy_env=staging`. **Correction (2026-09-05): the playbook *does*
+   run Alembic automatically** — its `fastapi_backend` role has an
+   "Apply database migrations" task (`uv run alembic upgrade head`, in
+   place since PR #16, 2026-08-11) — the "playbook never runs Alembic"
+   claim this line used to make, and the playbook's own printed
+   reminder saying the same, are both wrong; no manual SSH+alembic step
+   is needed. Verify `alembic current` → `d9e1a2c3b4f5 (head)`, single
+   head — and see §5.2 if it *doesn't* land there despite a clean run.
+7. **Frontends** (each its own playbook, `-e deploy_env=staging`) — **all
+   four**, including `goblin_guide.yml` even though rollout Phase 5
+   already put it on staging once: any code that landed after that
+   (e.g. the "Manage my account" back-link, PR #114) needs its own
+   redeploy, or the account-management flow silently regresses (§5.2):
    - `goblin_guide.yml` — `VITE_IDENTITY_SERVICE_URL` = `identity-staging`
    - `tamiyo_scroll.yml` — `VITE_API_BASE_URL` = `api-staging`,
      `VITE_IDENTITY_SERVICE_URL` = `identity-staging`,
@@ -407,9 +415,55 @@ work is now on `staging`).
    - `docs.yml` — if the docs site is served from staging
 8. Proceed to §6 UAT.
 
+### 5.2 Issues hit executing this on staging (2026-09-05)
+
+Four real problems surfaced running the above, kept here so the
+production run doesn't rediscover them cold:
+
+- **`karn_ingest_token` missing secret file** — step 6's first
+  attempt failed in an unrelated role (`karn_ingest_token`, shared by
+  `barrins_api.yml`) before ever reaching Alembic:
+  `secrets/karn/staging_ingest_token.txt` didn't exist yet. Fixed with
+  `openssl rand -hex 32 | tr -d '\n' > secrets/karn/staging_ingest_token.txt`.
+  Unrelated to the identity cutover itself, but blocks the same
+  playbook run.
+- **Alembic bookkeeping desync (`d9e1a2c3b4f5` marked applied but never
+  ran)** — after step 6 completed cleanly, `alembic current` reported
+  the true head (`6cf95145f67e`, several migrations past
+  `d9e1a2c3b4f5`) yet `users` / `auth_email_verifications` / `userrole`
+  were all still physically present. The staging database's
+  `alembic_version` had been stamped ahead of this migration at some
+  earlier point (likely a schema bootstrap) without ever executing its
+  `upgrade()`. Fixed by manually running `d9e1a2c3b4f5`'s exact DDL
+  (drop the 11 FKs, `auth_email_verifications`, `users`, `userrole`) —
+  **before** trusting `alembic current`, confirm the tables are
+  *physically* gone (`\dt`), not just that the reported head is right.
+- **Migration script silently orphaned data on email dedup** — when
+  `migrate_users_to_identity.py` dedups an email already present in
+  identity (kept identity's row, correct), it never re-pointed
+  `barrins_api`'s own `ts_*` tables from the local `users` row's id onto
+  identity's id — a real account's personal decks disappeared from the
+  UI. Fixed live via a manual UUID remap (recovering the old id↔email
+  map from the `pg_dump` backup). The durable fix is in the script
+  itself (PR #129, `apps/barrins_api/scripts/migrate_users_to_identity.py`)
+  and is **not** a manual step for the production run — the script now
+  remaps automatically and flags any ambiguous case under "NEEDS MANUAL
+  REVIEW" in its report.
+- **Stale `goblin_guide` deploy** — Phase 5 had already deployed
+  `goblin_guide` once, but §5.1 step 7's redeploy of it was skipped on
+  the first pass on the (wrong) assumption that "already on staging"
+  meant "current." Code that landed afterward (the account-management
+  back-link, PR #114) was missing from the live site until it was
+  explicitly redeployed. Always redeploy every frontend in step 7, not
+  just the ones with "new" work since the *last* time you personally
+  touched them.
+
 ---
 
 ## 6. UAT on staging
+
+**✅ Passed (2026-09-05)** — every item below confirmed on
+`tamiyo-staging` / `goblin-staging` after the fixes in §5.2.
 
 - Full CI green on the `staging` tip (backend pytest, frontend
   tsc/oxlint/vitest/build, `ansible-lint ops/my-server`, docs
