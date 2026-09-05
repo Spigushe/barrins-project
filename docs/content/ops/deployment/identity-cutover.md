@@ -112,12 +112,31 @@ Run from `ops/my-server/`. **Announce a maintenance window** — between the
      handle, fix it by hand in `barrins_identity` *after* the run.
    - **emails already in identity** — those `barrins_api` accounts are
      **not** re-inserted; identity's row is kept and its `role` raised to
-     the higher of the two. Confirm that is what you want for each.
+     the higher of the two. Confirm that is what you want for each. This
+     is also the case that needs the local-reference remap below — check
+     it landed correctly (**local references remapped** / **rows
+     updated per table** in the report) for every email listed here.
+   - **local references remapped** — whenever an email above already
+     existed in identity, that identity row's id almost never matches
+     the `barrins_api` row's own id (found live during the staging
+     cutover, when this went unhandled: a pre-existing identity account
+     silently orphaned that person's decks, sessions, and settings). The
+     script now re-points every `ts_*` table's `owner_id`/`user_id`/etc.
+     from the old local id onto identity's id automatically, on the
+     source database, as part of the same transaction — nothing extra to
+     run for the normal case.
+   - **NEEDS MANUAL REVIEW** — should read `(none)`. A non-empty entry
+     here means a `ts_team_members` row already existed for the same
+     team under both the old and new id (ambiguous double membership);
+     that one specific row is left untouched rather than guessed at —
+     resolve it by hand in `barrins_api`'s database before proceeding.
 
 3. **Run the migration for real** (drop `--dry-run`). It is one
-   transaction on the target — a failure rolls `barrins_identity` back
-   completely and exits non-zero. Re-running after a fix is safe: already
-   migrated emails are treated as the dedup case.
+   transaction spanning **both** `barrins_api` (source) and
+   `barrins_identity` (target) — a failure rolls both back completely
+   and exits non-zero. Re-running after a fix is safe: already migrated
+   emails are treated as the dedup case, and an already-completed remap
+   is a no-op (nothing left at the old id to match).
 
 4. **Deploy `barrins_api`.** This applies Alembic `d9e1a2c3b4f5`
    (drops the FKs, `users`, `auth_email_verifications`, `userrole`) and

@@ -3,14 +3,19 @@
 Runs against two throwaway PostgreSQL databases derived from the test DB
 URL — no confirmation gate (that only guards production data). Covers:
 UUID preservation, email dedup (skip insert + raise role), username
-synthesis + collision suffixing, the report file, `--dry-run`, and
-whole-run atomicity on a mid-loop failure.
+synthesis + collision suffixing, the report file, `--dry-run`, whole-run
+atomicity on a mid-loop failure, and the local-reference remap a dedup
+triggers on the *source* side (found live during the staging cutover:
+a dedup keeps identity's pre-existing id, silently orphaning every
+domain row still pointing at the source's own id for that person).
 """
 
 import uuid
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import column as sa_column
+from sqlalchemy import create_engine, insert, select, text
+from sqlalchemy import table as sa_table
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
@@ -38,6 +43,39 @@ CREATE TABLE users (
     token_version INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Minimal mirror of every table _remap_local_references touches, so a
+-- dedup exercises the exact same statements it runs against production.
+CREATE TABLE ts_card_tests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+);
+CREATE TABLE ts_matches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+);
+CREATE TABLE ts_meta_decks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+);
+CREATE TABLE ts_personal_decks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID, name VARCHAR(100)
+);
+CREATE TABLE ts_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+);
+CREATE TABLE ts_teams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+);
+CREATE TABLE ts_team_deck_flags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), flagged_by UUID
+);
+CREATE TABLE ts_team_deck_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), author_id UUID
+);
+CREATE TABLE ts_invite_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID
+);
+CREATE TABLE ts_user_settings (user_id UUID PRIMARY KEY, note VARCHAR(100));
+CREATE TABLE ts_team_members (
+    team_id UUID NOT NULL, user_id UUID NOT NULL, PRIMARY KEY (team_id, user_id)
 );
 """
 
@@ -133,6 +171,27 @@ def _target_users() -> list[dict]:
                 text("SELECT id, email, username, role, token_version FROM users")
             )
         ]
+    eng.dispose()
+    return rows
+
+
+def _seed_source_domain_row(table_name: str, **columns: object) -> None:
+    """Insert one row into a source-side domain table via Core's `table()`/
+    `column()` (not string-formatted SQL) — same technique as
+    `_remap_local_references` in the script under test.
+    """
+    tbl = sa_table(table_name, *(sa_column(c) for c in columns))
+    eng = create_engine(_SRC_URL)
+    with eng.begin() as conn:
+        conn.execute(insert(tbl).values(**columns))
+    eng.dispose()
+
+
+def _source_rows(table_name: str, *select_columns: str) -> list[dict]:
+    tbl = sa_table(table_name, *(sa_column(c) for c in select_columns))
+    eng = create_engine(_SRC_URL)
+    with eng.connect() as conn:
+        rows = [dict(r._mapping) for r in conn.execute(select(tbl))]
     eng.dispose()
     return rows
 
@@ -302,3 +361,126 @@ class TestMigrate:
 
         emails = {u["email"] for u in _target_users()}
         assert emails == {"unrelated@example.com"}  # nothing from the source landed
+
+
+@pytest.mark.usefixtures("clean_dbs")
+class TestLocalReferenceRemap:
+    """A dedup keeps *identity's* pre-existing id, not the source row's id.
+
+    Found live during the staging cutover: an account already existed in
+    identity under its own id before this script ever ran, so the dedup
+    correctly skipped re-inserting it — but nothing re-pointed the source
+    database's own domain rows (decks, sessions, settings, …) from the
+    old local id onto identity's id. They silently kept referencing a
+    UUID identity had never heard of, so a real person's decks vanished
+    the moment `barrins_api` started reading `owner_id` as an opaque
+    identity id instead of a local FK.
+    """
+
+    def test_dedup_remaps_plain_owner_columns_to_identity_id(self, tmp_path):
+        old_id = str(uuid.uuid4())
+        identity_id = str(uuid.uuid4())
+        _seed_target(
+            [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
+        )
+        _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        _seed_source_domain_row(
+            "ts_personal_decks", id=str(uuid.uuid4()), owner_id=old_id, name="Deck A"
+        )
+
+        result = run(
+            _SRC_URL, _TGT_URL, dry_run=False, report_path=str(tmp_path / "r.txt")
+        )
+
+        decks = _source_rows("ts_personal_decks", "owner_id")
+        assert [str(d["owner_id"]) for d in decks] == [identity_id]
+        assert result.remapped_users == [("dup@example.com", old_id, identity_id)]
+        assert result.remap_row_counts["ts_personal_decks"] == 1
+
+    def test_matching_uuid_dedup_needs_no_remap(self, tmp_path):
+        same_id = str(uuid.uuid4())
+        _seed_target([{"id": same_id, "email": "same@example.com", "username": "same"}])
+        _seed_source([{"id": same_id, "email": "same@example.com"}])
+        _seed_source_domain_row(
+            "ts_personal_decks", id=str(uuid.uuid4()), owner_id=same_id, name="Deck A"
+        )
+
+        result = run(
+            _SRC_URL, _TGT_URL, dry_run=False, report_path=str(tmp_path / "r.txt")
+        )
+
+        assert result.remapped_users == []
+        assert result.remap_row_counts == {}
+
+    def test_dedup_settings_collision_keeps_old_row_discards_blank_new_one(
+        self, tmp_path
+    ):
+        old_id = str(uuid.uuid4())
+        identity_id = str(uuid.uuid4())
+        _seed_target(
+            [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
+        )
+        _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        # old_id's row holds the person's real preferences; identity_id's
+        # row is a blank default auto-created by an early login.
+        _seed_source_domain_row("ts_user_settings", user_id=old_id, note="real prefs")
+        _seed_source_domain_row(
+            "ts_user_settings", user_id=identity_id, note="blank default"
+        )
+
+        result = run(
+            _SRC_URL, _TGT_URL, dry_run=False, report_path=str(tmp_path / "r.txt")
+        )
+
+        rows = _source_rows("ts_user_settings", "user_id", "note")
+        assert len(rows) == 1
+        assert str(rows[0]["user_id"]) == identity_id
+        assert rows[0]["note"] == "real prefs"
+        assert result.settings_merged == ["dup@example.com"]
+
+    def test_dedup_team_members_collision_is_left_untouched_and_flagged(self, tmp_path):
+        old_id = str(uuid.uuid4())
+        identity_id = str(uuid.uuid4())
+        team_id = str(uuid.uuid4())
+        _seed_target(
+            [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
+        )
+        _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        # Same team, both ids already present -- ambiguous, must not be
+        # silently merged or deleted.
+        _seed_source_domain_row("ts_team_members", team_id=team_id, user_id=old_id)
+        _seed_source_domain_row("ts_team_members", team_id=team_id, user_id=identity_id)
+
+        result = run(
+            _SRC_URL, _TGT_URL, dry_run=False, report_path=str(tmp_path / "r.txt")
+        )
+
+        memberships = {
+            str(r["user_id"]) for r in _source_rows("ts_team_members", "user_id")
+        }
+        assert memberships == {old_id, identity_id}  # both rows untouched
+        assert len(result.manual_review) == 1
+        assert "dup@example.com" in result.manual_review[0]
+        assert "ts_team_members" in result.manual_review[0]
+        report_text = (tmp_path / "r.txt").read_text(encoding="utf-8")
+        assert "NEEDS MANUAL REVIEW" in report_text
+        assert "dup@example.com" in report_text
+
+    def test_dry_run_rolls_back_source_side_remap_too(self, tmp_path):
+        old_id = str(uuid.uuid4())
+        identity_id = str(uuid.uuid4())
+        _seed_target(
+            [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
+        )
+        _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        _seed_source_domain_row(
+            "ts_personal_decks", id=str(uuid.uuid4()), owner_id=old_id, name="Deck A"
+        )
+
+        result = run(
+            _SRC_URL, _TGT_URL, dry_run=True, report_path=str(tmp_path / "r.txt")
+        )
+
+        assert result.remap_row_counts.get("ts_personal_decks") == 1  # counted...
+        decks = _source_rows("ts_personal_decks", "owner_id")
+        assert str(decks[0]["owner_id"]) == old_id  # ...but rolled back
