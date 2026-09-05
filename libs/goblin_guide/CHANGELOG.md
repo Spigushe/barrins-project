@@ -3,7 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
 
@@ -75,8 +75,15 @@ section of the docs site for details.
   storage (`G-05`); the default keeps both tokens in memory.
 - `styles.css`: token-driven (`--color-*` / `--radius-*` with
   fallbacks), so the library renders in each host app's theme.
-- Not wired into `tamiyo_scroll` or `tolaria_news` yet — consumed only
-  by the standalone shell in `apps/goblin_guide/`.
+- Wired into `apps/tamiyo_scroll` (rollout Phase 7+8, ADR-20): mounted
+  as the app's `<IdentityProvider>` (cookie mode) with library
+  `<LoginScreen>`/`<SignupScreen>`/`<VerifyEmailScreen>`/
+  `<ForgotPasswordScreen>`/`<ResetPasswordScreen>` behind route
+  wrappers, and a "Manage my account" link out to the standalone
+  Goblin Guide shell (`apps/goblin_guide/`) carrying `?return_to=`/
+  `?return_label=` so its header can link back. `tolaria_news` stays
+  unauthenticated (token-less BFF reads, `Q-02` open) and does not
+  consume this package.
 
 ### Fixed
 

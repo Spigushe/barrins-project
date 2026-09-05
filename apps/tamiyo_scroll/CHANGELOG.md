@@ -3,10 +3,114 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
 
+- Account-settings popup (`AccountSettingsDialog.tsx`): display-name
+  field, "Share my data"/"Receive shared data" switches (new
+  `components/ui/switch.tsx`, no new dependency), and an explanatory
+  line that sharing is matched by deck name. Replaces the header's old
+  inline "Share my data" checkbox and "View: {user}" selector
+  entirely — sharing is now an automatic, read-only merge (matched by
+  exact, trimmed, case-insensitive personal-deck name) directly into
+  the viewer's own Journal and Metagame, instead of a separate "view
+  as" mode. "Receive shared data" is disabled and auto-cleared
+  whenever "Share my data" is off, since receiving now requires
+  sharing on the same account.
+- Read-only shared matches (Journal row + View popup) and shared
+  roster entries show a "from: {sharer}" badge and hide Edit/Delete.
+  Two different sharers contributing the same-named deck (no owning
+  copy) consolidate into a single read-only roster line labeled
+  "multi share" instead of two. An owned deck that also merged in
+  shared data is flagged separately ("with shared"/"w/ shared") from
+  a fully-foreign entry, in the roster, archetype breakdown, and
+  matchup summary.
+- Selecting a shared-only opponent deck (`OpponentDeckField`) when
+  logging a match now opens the create-deck dialog pre-filled with
+  the shared tier/category instead of silently failing — submitting
+  it creates the viewer's own same-named roster entry and uses that
+  as the opponent.
+- "Teams" nav tab (`/app/team`): create/join a team via an 8-character
+  invite code, a per-team page (member list with per-member
+  match/card-test activity counts, owner-only "flag a deck" picker,
+  per-deck-name discussion threads, two-step delete requiring the
+  invite code to be retyped), and a "Team Decks" selector next to the
+  personal deck selector in the header — one merged, read-only row
+  per flagged deck name, with a cumulative PDF report download.
+  "Quick mode" (create/join/leave/delete) is also reachable from the
+  account-settings popup (`AccountSettingsTeamSection`).
+- `PersonalDeckSelector.tsx`: a rename control per deck
+  (`useRenamePersonalDeck`) — renaming a deck into or out of a
+  team-flagged name is how a member joins or leaves that team-deck's
+  rotation under the name-based sharing model.
+- Match-edit flow gains a decklist-version selector, so a logged
+  match's auto-stamped decklist version can be corrected after the
+  fact.
+- `PersonalDecklistImportSection.tsx` shows a one-line warning under
+  the Moxfield-import form when a re-import's response flags that the
+  deck has changed on Moxfield since the last import
+  (`moxfield_deck_changed_since_last_import`).
+- "Download report (PDF)" buttons trigger a server-rendered PDF
+  download (no client-side composition): on the Sessions tab's session
+  summary panel and as a per-row icon button (inlined Font Awesome
+  file-pdf SVG, no new icon-library dependency) for a session-scoped
+  report, and on the Current decklist section, next to the active
+  deck's version badge, for a rolling last-30-days deck-level report.
+- Optional "Session" combobox on the BO3 match form (create + edit),
+  matching `OpponentDeckField`'s searchable-combobox + inline-create
+  UX; a closed session still resolves its name for an already-assigned
+  match but can't be re-selected.
+- Dedicated "Sessions" tab (`/app/sessions`, 4th tab, after "My
+  decklist"): a single list of sessions scoped to the active personal
+  deck (create/close/reopen/archive, a status badge per row) and a
+  summary for whichever session is selected — stat tiles, W/L record,
+  and a per-opponent-deck matchup comparison table (session vs. the
+  deck's history before it started). `ExpectedMetagameSection` moved
+  out of the Metagame tab into this summary, shown only for
+  tournament-typed sessions.
+- Match journal rows and the View popup show a session badge (name,
+  colored by session type) when a match belongs to one.
+- New `owner`/`shared`/`tournament` badge variants with dedicated
+  OKLCH color tokens, visually distinct from the existing semantic
+  badges (`warning`/`destructive`/`success`).
+- App logo (`/favicon.svg`) shown next to the "Tamiyo Scroll" header
+  title.
+- Admin-only usage/metrics page (`AdminMetricsPage`, gated the same way
+  as every other protected route, reachable only to `admin`-role
+  accounts): flat account/deck/match totals, plus a day/week/month
+  time-bucketed chart per metric (new `recharts` dependency — no
+  charting library existed in this app before).
+- Public, unauthenticated demo/tutorial interface at `/demo` (linked
+  from `LoginPage` and `RootRedirect`): a fixture-backed
+  (`src/demo/fixtures.json`) mirror of the real app — all five tabs
+  (Tracker, Metagame, Decklist, Sessions, Team), matching prod's tab
+  order and default landing tab — plus a guided-tour overlay (existing
+  Radix/shadcn primitives, no new dependency) walking through the seeded
+  data. Nothing typed/edited during a demo session is ever sent to
+  `barrins_api` or persisted anywhere; a page reload resets it. Winrate/
+  conversion figures are computed by a line-for-line port of the
+  backend's own formulas (`demo/api/statsCore.ts`), not a separate,
+  divergent calculation.
+- `game` (S10) and `category`/macrotype (S11) selectors, **required**,
+  on personal-deck creation; an inline "set game"/"set macrotype"
+  affordance (calling the new `PATCH /personal-decks/{id}`) wherever a
+  `NULL`-valued historical deck blocks match logging/editing; a
+  one-time, dismissible migration notice explaining the new required
+  fields; and a colored macrotype badge (same tokens as the stats block)
+  shown wherever a deck is displayed or selected.
+- Personal-deck creation's inline "Create …" row now shows a green
+  `[new]` label while the typed name doesn't match an existing deck.
+- The tested-cards deck select (`CardTestsSection`, create form and edit
+  row) is rebuilt on the same search + shared-deck-badge combobox
+  pattern already used by the BO3 opponent select.
+- A new "Display" section in the account-settings popup: four
+  `localStorage`-backed, per-browser preferences (not synced
+  server-side) — match-up row background tint by winrate band (default
+  on), "2W / 0L"-style result format (default off), colored roster
+  archetype cell (default off), and a 3-color roster tier background
+  (default off).
+- Deleting a roster deck now asks for confirmation before archiving it.
 - Barrin's Identity login via the shared `@barrins/goblin-guide` library
   (rollout Phase 7+8, ADR-20). `main.tsx` wraps the app in
   `<IdentityProvider>` (cookie mode, ADR-18 — a reload / reopened tab
@@ -140,142 +244,6 @@ section of the docs site for details.
   match-logging session picker now read `closed_at`. A new, separate
   `ended_at` is purely informational and freely editable, independent
   of Close/Reopen.
-
-### Removed
-
-- `src/api/auth.ts`, `src/api/session.ts`, `src/hooks/useAuth.ts`,
-  `src/schemas/auth.ts`, `src/pages/LoginPage.tsx`,
-  `src/pages/VerifyEmailPage.tsx` — all superseded by
-  `@barrins/goblin-guide`.
-- The "Team de test" section is dropped from `AccountSettingsDialog` —
-  Teams itself (`TeamPage`, `TeamDeckSelector`, etc.) is unaffected, only
-  this redundant entry point is removed.
-
-### Fixed
-
-- `CardTestsSection`'s Added-Card "not found" hint (S17) now respects
-  the "Validate added card exists" setting (S16, off by default) — it
-  was flagging every non-Magic card name for decks that never opted
-  into that validation.
-- `useMetaDecks`' create/update/archive mutations now invalidate the
-  matches cache too (F10) — a roster change can shift which opponent id
-  a cached match should resolve against.
-- `demo/api/metaDecks.ts`'s `createMetaDeck` mock now sets `merged_ids`
-  (F10), fixing a `tsc -b` break introduced by the new required field.
-- Session hue badge text color adjusted for readability in dark theme
-  (`lib/mtg-format.ts`).
-
-## [2.0.0-alpha] - 2026-08-03
-
-### Added
-
-- Account-settings popup (`AccountSettingsDialog.tsx`): display-name
-  field, "Share my data"/"Receive shared data" switches (new
-  `components/ui/switch.tsx`, no new dependency), and an explanatory
-  line that sharing is matched by deck name. Replaces the header's old
-  inline "Share my data" checkbox and "View: {user}" selector
-  entirely — sharing is now an automatic, read-only merge (matched by
-  exact, trimmed, case-insensitive personal-deck name) directly into
-  the viewer's own Journal and Metagame, instead of a separate "view
-  as" mode. "Receive shared data" is disabled and auto-cleared
-  whenever "Share my data" is off, since receiving now requires
-  sharing on the same account.
-- Read-only shared matches (Journal row + View popup) and shared
-  roster entries show a "from: {sharer}" badge and hide Edit/Delete.
-  Two different sharers contributing the same-named deck (no owning
-  copy) consolidate into a single read-only roster line labeled
-  "multi share" instead of two. An owned deck that also merged in
-  shared data is flagged separately ("with shared"/"w/ shared") from
-  a fully-foreign entry, in the roster, archetype breakdown, and
-  matchup summary.
-- Selecting a shared-only opponent deck (`OpponentDeckField`) when
-  logging a match now opens the create-deck dialog pre-filled with
-  the shared tier/category instead of silently failing — submitting
-  it creates the viewer's own same-named roster entry and uses that
-  as the opponent.
-- "Teams" nav tab (`/app/team`): create/join a team via an 8-character
-  invite code, a per-team page (member list with per-member
-  match/card-test activity counts, owner-only "flag a deck" picker,
-  per-deck-name discussion threads, two-step delete requiring the
-  invite code to be retyped), and a "Team Decks" selector next to the
-  personal deck selector in the header — one merged, read-only row
-  per flagged deck name, with a cumulative PDF report download.
-  "Quick mode" (create/join/leave/delete) is also reachable from the
-  account-settings popup (`AccountSettingsTeamSection`).
-- `PersonalDeckSelector.tsx`: a rename control per deck
-  (`useRenamePersonalDeck`) — renaming a deck into or out of a
-  team-flagged name is how a member joins or leaves that team-deck's
-  rotation under the name-based sharing model.
-- Match-edit flow gains a decklist-version selector, so a logged
-  match's auto-stamped decklist version can be corrected after the
-  fact.
-- `PersonalDecklistImportSection.tsx` shows a one-line warning under
-  the Moxfield-import form when a re-import's response flags that the
-  deck has changed on Moxfield since the last import
-  (`moxfield_deck_changed_since_last_import`).
-- "Download report (PDF)" buttons trigger a server-rendered PDF
-  download (no client-side composition): on the Sessions tab's session
-  summary panel and as a per-row icon button (inlined Font Awesome
-  file-pdf SVG, no new icon-library dependency) for a session-scoped
-  report, and on the Current decklist section, next to the active
-  deck's version badge, for a rolling last-30-days deck-level report.
-- Optional "Session" combobox on the BO3 match form (create + edit),
-  matching `OpponentDeckField`'s searchable-combobox + inline-create
-  UX; a closed session still resolves its name for an already-assigned
-  match but can't be re-selected.
-- Dedicated "Sessions" tab (`/app/sessions`, 4th tab, after "My
-  decklist"): a single list of sessions scoped to the active personal
-  deck (create/close/reopen/archive, a status badge per row) and a
-  summary for whichever session is selected — stat tiles, W/L record,
-  and a per-opponent-deck matchup comparison table (session vs. the
-  deck's history before it started). `ExpectedMetagameSection` moved
-  out of the Metagame tab into this summary, shown only for
-  tournament-typed sessions.
-- Match journal rows and the View popup show a session badge (name,
-  colored by session type) when a match belongs to one.
-- New `owner`/`shared`/`tournament` badge variants with dedicated
-  OKLCH color tokens, visually distinct from the existing semantic
-  badges (`warning`/`destructive`/`success`).
-- App logo (`/favicon.svg`) shown next to the "Tamiyo Scroll" header
-  title.
-- Admin-only usage/metrics page (`AdminMetricsPage`, gated the same way
-  as every other protected route, reachable only to `admin`-role
-  accounts): flat account/deck/match totals, plus a day/week/month
-  time-bucketed chart per metric (new `recharts` dependency — no
-  charting library existed in this app before).
-- Public, unauthenticated demo/tutorial interface at `/demo` (linked
-  from `LoginPage` and `RootRedirect`): a fixture-backed
-  (`src/demo/fixtures.json`) mirror of the real app — all five tabs
-  (Tracker, Metagame, Decklist, Sessions, Team), matching prod's tab
-  order and default landing tab — plus a guided-tour overlay (existing
-  Radix/shadcn primitives, no new dependency) walking through the seeded
-  data. Nothing typed/edited during a demo session is ever sent to
-  `barrins_api` or persisted anywhere; a page reload resets it. Winrate/
-  conversion figures are computed by a line-for-line port of the
-  backend's own formulas (`demo/api/statsCore.ts`), not a separate,
-  divergent calculation.
-- `game` (S10) and `category`/macrotype (S11) selectors, **required**,
-  on personal-deck creation; an inline "set game"/"set macrotype"
-  affordance (calling the new `PATCH /personal-decks/{id}`) wherever a
-  `NULL`-valued historical deck blocks match logging/editing; a
-  one-time, dismissible migration notice explaining the new required
-  fields; and a colored macrotype badge (same tokens as the stats block)
-  shown wherever a deck is displayed or selected.
-- Personal-deck creation's inline "Create …" row now shows a green
-  `[new]` label while the typed name doesn't match an existing deck.
-- The tested-cards deck select (`CardTestsSection`, create form and edit
-  row) is rebuilt on the same search + shared-deck-badge combobox
-  pattern already used by the BO3 opponent select.
-- A new "Display" section in the account-settings popup: four
-  `localStorage`-backed, per-browser preferences (not synced
-  server-side) — match-up row background tint by winrate band (default
-  on), "2W / 0L"-style result format (default off), colored roster
-  archetype cell (default off), and a 3-color roster tier background
-  (default off).
-- Deleting a roster deck now asks for confirmation before archiving it.
-
-### Changed
-
 - The existing "shared"/"multi share"/"w/ shared" data-sharing badges
   and the session type "Tournament" badge now use the new dedicated
   `shared`/`tournament` badge colors instead of piggybacking on
@@ -300,8 +268,29 @@ section of the docs site for details.
   the W/L OTP/OTD cells render in muted grey instead of the default
   text color.
 
+### Removed
+
+- `src/api/auth.ts`, `src/api/session.ts`, `src/hooks/useAuth.ts`,
+  `src/schemas/auth.ts`, `src/pages/LoginPage.tsx`,
+  `src/pages/VerifyEmailPage.tsx` — all superseded by
+  `@barrins/goblin-guide`.
+- The "Team de test" section is dropped from `AccountSettingsDialog` —
+  Teams itself (`TeamPage`, `TeamDeckSelector`, etc.) is unaffected, only
+  this redundant entry point is removed.
+
 ### Fixed
 
+- `CardTestsSection`'s Added-Card "not found" hint (S17) now respects
+  the "Validate added card exists" setting (S16, off by default) — it
+  was flagging every non-Magic card name for decks that never opted
+  into that validation.
+- `useMetaDecks`' create/update/archive mutations now invalidate the
+  matches cache too (F10) — a roster change can shift which opponent id
+  a cached match should resolve against.
+- `demo/api/metaDecks.ts`'s `createMetaDeck` mock now sets `merged_ids`
+  (F10), fixing a `tsc -b` break introduced by the new required field.
+- Session hue badge text color adjusted for readability in dark theme
+  (`lib/mtg-format.ts`).
 - A BO3 with no game won at all (e.g. a loss + a draw with the third
   game unplayed) now reads as a loss instead of falling through to the
   "draw" badge — the match can no longer be won at that point. "Draw"

@@ -3,7 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
 
@@ -33,11 +33,19 @@ section of the docs site for details.
 - `.env.example` reconciled with the deployment secrets templates
   (`PASSWORD_RESET_*`, `MAX_APP_SETTINGS_BYTES`).
 
-### Not yet done
-
-- The `barrins_api` cutover (users-table migration + wiring in
-  `libs/identity_client/`), the `ops/my-server/barrins_identity.yml`
-  playbook, and the Goblin Guide frontend — each a separate gated phase.
+- Cross-app user directory (ADR-19): `POST /api/v1/users/lookup`
+  (service token, scope `identity:users:read`) — batch `{user_id:
+  {username, display_name}}` resolution for a consuming app's team
+  rosters / sharing labels, without exposing email addresses.
+- RS256/JWKS adopted as the ecosystem's shared token authority (ADR-16):
+  `barrins_api` verifies identity's tokens locally via `libs/
+  identity_client` rather than minting its own — see that app's own
+  changelog for the cutover (drops its local `users` table entirely,
+  ADR-20). Refresh token issued as an `HttpOnly` cookie (ADR-18) so a
+  reload/reopened tab in cookie-mode consuming apps stays signed in.
+- `ops/my-server/barrins_identity.yml` deployment playbook and the
+  Goblin Guide account-management frontend (`apps/goblin_guide`,
+  `libs/goblin_guide`) — see that app's own changelog.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 
