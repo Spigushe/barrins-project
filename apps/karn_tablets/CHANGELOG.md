@@ -3,7 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [Unreleased]
+## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
 
@@ -39,3 +39,7 @@ section of the docs site for details.
 - CI: a `karn` job in `.github/workflows/CI.yml`
   (`apps/karn_tablets/**` / `apps/dc_calendar/**` paths-filter) running
   `ruff` / `ty` / `pytest`.
+
+## [1.0.0] "WorldWake" - 2026-07-24
+
+Nothing yet.

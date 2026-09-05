@@ -3,42 +3,7 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
-## [2.0.0-alpha.2] - 2026-08-25
-
-### Added
-
-- `docs/cspell.json`: technical terms introduced by S8's MTGJSON
-  pipeline, F10's roster-scope migration, and this cut's ops/deployment
-  doc updates (`Barrin`, `checkpointing`, `datname`, `dawidd`, `ILIKE`,
-  `lookback`, `lsclusters`, `macrotype`, `mainboard`, `ondelete`,
-  `pipefail`, among others).
-
-### Changed
-
-- `docs/content/CLAUDE.md`: new §11.8 ("Deletion & archival semantics")
-  — every user-triggered delete defaults to an archive, not a physical
-  removal (Constitution Amendment Proposal 8, accepted 2026-08-24, S17/
-  S18 fallout); cross-referenced from §51's data-retention section so
-  the two don't read as contradictory.
-- `docs/content/back/barrins_api/auth_roles.md`: endpoint-security
-  matrix updated for S8's MTGJSON routes (`POST /mtgjson/import`
-  now also accepting the scheduled-refresh service token, `GET
-  /mtgjson/import/status`, `GET /mtgjson/status`, `GET /sets/*`, `GET
-  /cards/*`) and S4's Scryfall image proxy (`GET
-  /cards/{scryfall_id}/image`).
-- `docs/content/back/barrins_api/bff/tamiyo_scroll.md`: decklist-coloring
-  section updated for S4's structured `ResponseDecklistView` (commander/
-  library split, card-type sort/grouping shared with `tolaria_news`),
-  superseding the old flat line-array description.
-- `docs/content/front/tamiyo_scroll/bootstrap.md`: route-map table and
-  option-A comparison updated for the `/app` prefix flattening
-  (2026-08-24), with a note pointing to `App.tsx` as the authoritative
-  current route list rather than this (partial, original-scope) table.
-- `docs/content/ops/deployment/backend.md`: documents the new
-  `MTGJSON_IMPORT_TOKEN` production secret and adds health-check/
-  troubleshooting steps for the daily MTGJSON-refresh timer.
-
-## [2.0.0-alpha] - 2026-08-03
+## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
 
@@ -104,6 +69,36 @@ section of the docs site for details.
   wired into `mkdocs.yml` nav, `ops/deployment/index.md` and
   `ops/deployment/rollback.md`. `identity-goblin-guide-rollout.md`
   Phase 5 marked authoring-done, operator run pending.
+- `docs/cspell.json`: technical terms introduced by S8's MTGJSON
+  pipeline, F10's roster-scope migration, and this cut's ops/deployment
+  doc updates (`Barrin`, `checkpointing`, `datname`, `dawidd`, `ILIKE`,
+  `lookback`, `lsclusters`, `macrotype`, `mainboard`, `ondelete`,
+  `pipefail`, among others).
+
+### Changed
+
+- `docs/content/CLAUDE.md`: new §11.8 ("Deletion & archival semantics")
+  — every user-triggered delete defaults to an archive, not a physical
+  removal (Constitution Amendment Proposal 8, accepted 2026-08-24, S17/
+  S18 fallout); cross-referenced from §51's data-retention section so
+  the two don't read as contradictory.
+- `docs/content/back/barrins_api/auth_roles.md`: endpoint-security
+  matrix updated for S8's MTGJSON routes (`POST /mtgjson/import`
+  now also accepting the scheduled-refresh service token, `GET
+  /mtgjson/import/status`, `GET /mtgjson/status`, `GET /sets/*`, `GET
+  /cards/*`) and S4's Scryfall image proxy (`GET
+  /cards/{scryfall_id}/image`).
+- `docs/content/back/barrins_api/bff/tamiyo_scroll.md`: decklist-coloring
+  section updated for S4's structured `ResponseDecklistView` (commander/
+  library split, card-type sort/grouping shared with `tolaria_news`),
+  superseding the old flat line-array description.
+- `docs/content/front/tamiyo_scroll/bootstrap.md`: route-map table and
+  option-A comparison updated for the `/app` prefix flattening
+  (2026-08-24), with a note pointing to `App.tsx` as the authoritative
+  current route list rather than this (partial, original-scope) table.
+- `docs/content/ops/deployment/backend.md`: documents the new
+  `MTGJSON_IMPORT_TOKEN` production secret and adds health-check/
+  troubleshooting steps for the daily MTGJSON-refresh timer.
 
 ### Fixed
 
@@ -114,6 +109,11 @@ section of the docs site for details.
   cookie plumbing without this, so a reload dropped to the login screen;
   found in Phase 6 UAT. `identity-goblin-guide-rollout.md` Phase 6 T11
   row notes the fix.
+- `docs/content/ops/deployment/identity-cutover.md`: corrected a claim
+  that `barrins_api.yml` never runs Alembic — its `fastapi_backend` role
+  has applied migrations automatically on every deploy since PR #16
+  (2026-08-11); found running the real staging cutover, where it sent
+  the operator on an unneeded manual-SSH detour.
 
 ## [1.0.0] "WorldWake" - 2026-07-24
 
