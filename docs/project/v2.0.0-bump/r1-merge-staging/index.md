@@ -5,8 +5,8 @@
 | | | Comment |
 | --- | --- | --- |
 | **Target** | `proj/v2.0.0-bump` → `staging` | / |
-| **Initial date** | / | Not started |
-| **Status** | 🔲 Not started — last of the feature work | / |
+| **Initial date** | 2026-09-05 | / |
+| **Status** | ✅ Done | Full detail in [`staging-promote-plan.md`](../staging-promote-plan.md); version-bump/CHANGELOG commit landed via PR #131 (`116573c2`) |
 | **Source** | Mirrors v1.0.0's B3 | / |
 | **Dependency** | Every in-scope item from Groups T/S/F/D, **and R5** (added 2026-07-26) | Blocks R2 |
 
@@ -36,19 +36,25 @@ already be merged into `proj/v2.0.0-bump` before this step runs.
 
 ## Tasks
 
-- [ ] Confirm final in-scope item list (some items in this plan may slip
+- [X] Confirm final in-scope item list (some items in this plan may slip
       to a later release if their blocking decision isn't resolved in
-      time — decide explicitly, don't let it happen silently).
-- [ ] Confirm R5's ADRs are merged into `proj/v2.0.0-bump` — do not
-      proceed if any are still pending (§3.1).
-- [ ] Version bump across every `CHANGELOG.md` (root + per-app), same
-      convention as v1.0.0's B3.
-- [ ] Merge to `staging`.
+      time — decide explicitly, don't let it happen silently). Full
+      scope, including the ADR-20 identity cutover.
+- [X] Confirm R5's ADRs are merged into `proj/v2.0.0-bump` — do not
+      proceed if any are still pending (§3.1). ADR-13–ADR-20 all merged.
+- [X] Version bump across every `CHANGELOG.md` (root + per-app), same
+      convention as v1.0.0's B3 — consolidated every `[Unreleased]`/
+      alpha/alpha.2 section into one `[2.0.0] "Morningtide"` entry per
+      package (PR #131).
+- [X] Merge to `staging` — `proj/v2.0.0-bump` → `staging` via M1
+      (`staging-promote-plan.md` §4), plus the release-prep commit
+      (PR #131, `116573c2`).
 
 ## UAT (manual)
 
-- [ ] Full test suite green on `staging` post-merge (backend, frontend,
-      ops lint, docs build).
+- [X] Full test suite green on `staging` post-merge (backend, frontend,
+      ops lint, docs build) — see `staging-promote-plan.md` §6, passed
+      2026-09-05.
 
 ## Non-regression tests
 
