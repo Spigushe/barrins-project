@@ -115,14 +115,18 @@ async def seeded_cards(db_session) -> None:
     await db_session.commit()
 
 
-def _payload(anchor_suffix: str = "1", mainboard: list[dict] | None = None) -> dict:
+def _payload(
+    anchor_suffix: str = "1",
+    mainboard: list[dict] | None = None,
+    fmt: str = "Duel Commander",
+) -> dict:
     return {
         "source": "mtgtop8",
         "tournament": {
             "date": "2026-04-07",
             "name": "Test Cup",
             "url": "https://mtgtop8.com/event?e=99999",
-            "format": "Legacy",
+            "format": fmt,
             "players": 32,
         },
         "decks": [
@@ -314,3 +318,49 @@ class TestIngestRoute:
             .all()
         )
         assert [c.card_name for c in cards] == ["Bonecrusher Giant"]
+
+
+class TestIngestFormatScope:
+    """`scripture_ingest_formats` gate (Duel-Commander-only by default,
+    2026-09-06 disk incident)."""
+
+    async def test_non_dc_format_is_a_no_op(
+        self, client: AsyncClient, db_session, seeded_cards
+    ):
+        resp = await client.post(
+            "/internal/scripture/ingest",
+            json=_payload(fmt="Legacy"),
+            headers={"X-Scripture-Token": _TOKEN},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skipped_out_of_scope"] is True
+        assert body["tournament_id"] is None
+        assert body["decks_upserted"] == 0
+
+        for model in (BSTournament, BSDeck, BSDeckCard):
+            count = (
+                await db_session.execute(select(func.count()).select_from(model))
+            ).scalar_one()
+            assert count == 0
+
+    async def test_a_configured_extra_format_is_accepted(
+        self,
+        client: AsyncClient,
+        db_session,
+        seeded_cards,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(
+            settings.base, "scripture_ingest_formats", ["Duel Commander", "Legacy"]
+        )
+        resp = await client.post(
+            "/internal/scripture/ingest",
+            json=_payload(fmt="Legacy"),
+            headers={"X-Scripture-Token": _TOKEN},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skipped_out_of_scope"] is False
+        assert body["decks_upserted"] == 1
+        assert body["tournament_id"] is not None

@@ -133,6 +133,20 @@ class BaseAppSettings(BaseSettings):
             "request unauthenticated."
         ),
     )
+    scripture_ingest_formats: list[str] = Field(
+        default=["Duel Commander"],
+        description=(
+            "Tournament formats POST /internal/scripture/ingest persists. "
+            "A file whose tournament.format is not in this list is a 200 "
+            "no-op (skipped_out_of_scope=True), not an error. "
+            "Duel-Commander-only since the 2026-09-06 disk incident "
+            "(docs/content/ops/incidents/2026-09-06-postgres-disk-full-"
+            "scripture-sweep.md) -- every reader is DC-only, so the other "
+            "seven scraped formats were dead weight. Widen here (env: "
+            'SCRIPTURE_INGEST_FORMATS=\'["Duel Commander", "Legacy"]\'), no '
+            "code change."
+        ),
+    )
 
     # --- MTGJSON scheduled import (S8) ---
     mtgjson_import_token: SecretStr | None = Field(

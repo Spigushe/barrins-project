@@ -60,6 +60,13 @@ async def ingest(
     Idempotent — safe to re-submit the same file (a sweep retry, a
     bulk-replay overlapping a previous run, an MTGO decklist edited within
     its ~3-day mutability window, ...) without duplicating rows.
+
+    A file whose `tournament.format` is not in
+    `settings.base.scripture_ingest_formats` (Duel-Commander-only since
+    the 2026-09-06 disk incident) is a 200 no-op: the response has
+    `skipped_out_of_scope=True` and `tournament_id=None`, nothing is
+    written. The sweep already filters these out client-side; this is the
+    server-side guard for one that reaches the route anyway.
     """
     result = await ingest_scrape(session, payload)
     return ResponseScriptureIngest(
@@ -70,6 +77,7 @@ async def ingest(
         round_matches_upserted=result.round_matches_upserted,
         standings_upserted=result.standings_upserted,
         skipped_card_names=result.skipped_card_names,
+        skipped_out_of_scope=result.skipped_out_of_scope,
     )
 
 
