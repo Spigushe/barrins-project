@@ -44,10 +44,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The one real target — see ADR-12 ("consider it as running prod"),
-  # matches ops/my-server/secrets/barrins_scripture/staging.env.example's
-  # BARRINS_API_URL, which is what's actually live today.
-  BARRINS_API_URL: https://api-staging.barrins-codex.org
+  # Production barrins_api, live since the v2.0.0 identity-cutover deploy
+  # (2026-09-06) — matches ops/my-server/secrets/barrins_scripture/
+  # production.env.example's BARRINS_API_URL.
+  BARRINS_API_URL: https://api.barrins-codex.org
 
 jobs:
   scrape:
