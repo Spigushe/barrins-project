@@ -43,4 +43,16 @@ describe('AppShell nav', () => {
     expect(screen.getByRole('link', { name: 'Archetypes' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Trends' })).toBeInTheDocument()
   })
+
+  it('never renders a nav link to the hidden /west page', () => {
+    flagState.karnTabletsEnabled = true
+    render(
+      <MemoryRouter>
+        <AppShell>content</AppShell>
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByRole('link', { name: /west/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /tolaria west/i })).not.toBeInTheDocument()
+  })
 })

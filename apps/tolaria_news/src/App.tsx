@@ -10,6 +10,7 @@ import { MethodologyPage } from '@/pages/MethodologyPage'
 import { MetagamePage } from '@/pages/MetagamePage'
 import { ArchetypesPage } from '@/pages/ArchetypesPage'
 import { TrendsPage } from '@/pages/TrendsPage'
+import { TolariaWestPage } from '@/pages/TolariaWestPage'
 
 function App() {
   return (
@@ -49,6 +50,11 @@ function App() {
               </FeatureGate>
             }
           />
+
+          {/* Unlisted easter egg — no nav link, reached only via the
+              useSecretUnlock triggers. Client-side Monte Carlo mana-source
+              calculator; see src/lib/manaOracle.ts for the §4.1 note. */}
+          <Route path="/west" element={<TolariaWestPage />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

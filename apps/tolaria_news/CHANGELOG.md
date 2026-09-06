@@ -7,6 +7,14 @@ section of the docs site for details.
 
 ### Added
 
+- A hidden, unlisted page (`/west`, "Tolaria West") — a client-side Monte
+  Carlo mana-source calculator ported from an old standalone HTML toy of
+  the author's: given a deck's land count and a spell's "colority", it
+  reports how many colour sources it takes to cast that spell on curve
+  with 90% reliability. Runs in a Web Worker; no backend, no nav link, no
+  feature flag. A deliberate, documented exception to constitution §4.1
+  (generic MTG probability toy, no ecosystem data — see
+  `docs/project/tolaria-west-easter-egg.md`).
 - Real React 19 + Vite + TypeScript app (T5), replacing the placeholder.
   Public, read-only, no auth — calls only `barrins_api`'s Tolaria News BFF
   (`/bff/tolaria-news/*`, T4): tournament list/detail (Decks/Standings/
@@ -43,7 +51,7 @@ section of the docs site for details.
   from a new secondary "Read the methodology" CTA on the landing page.
 - Flag-gated Karn Tablets pages (`VITE_FEATURE_KARN_TABLETS`, still off)
   wired to the real `barrins_api` BFF routes and `src/schemas/
-  karnTablets.ts` reconciled against the live response shape. All three
+karnTablets.ts` reconciled against the live response shape. All three
   pages default to the **banlist-period** window; every archetype name
   and every card name is hoverable for Scryfall art (reusing the shared
   `CardNameCell` / `CardFacesPreview`).
