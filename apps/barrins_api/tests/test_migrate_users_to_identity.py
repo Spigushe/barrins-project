@@ -44,38 +44,56 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- Minimal mirror of every table _remap_local_references touches, so a
--- dedup exercises the exact same statements it runs against production.
+-- Mirror of every table _remap_local_references touches, **including**
+-- the users.id FK constraints (default `<table>_<column>_fkey` naming) --
+-- found live against production (2026-09-06) that a plain UUID column
+-- with no FK let the remap's UPDATE pass in tests while the identical
+-- statement against the real schema raised a ForeignKeyViolation, since
+-- the constraint is still active at this point in the real cutover
+-- sequence (dropped later by barrins_api's own Alembic migration).
 CREATE TABLE ts_card_tests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_matches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_meta_decks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_personal_decks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID, name VARCHAR(100)
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id), name VARCHAR(100)
 );
 CREATE TABLE ts_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_teams (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_team_deck_flags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), flagged_by UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    flagged_by UUID REFERENCES users(id)
 );
 CREATE TABLE ts_team_deck_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), author_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    author_id UUID REFERENCES users(id)
 );
 CREATE TABLE ts_invite_attempts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id)
 );
-CREATE TABLE ts_user_settings (user_id UUID PRIMARY KEY, note VARCHAR(100));
+CREATE TABLE ts_user_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(id), note VARCHAR(100)
+);
 CREATE TABLE ts_team_members (
-    team_id UUID NOT NULL, user_id UUID NOT NULL, PRIMARY KEY (team_id, user_id)
+    team_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id),
+    PRIMARY KEY (team_id, user_id)
 );
 """
 
@@ -184,6 +202,20 @@ def _seed_source_domain_row(table_name: str, **columns: object) -> None:
     eng = create_engine(_SRC_URL)
     with eng.begin() as conn:
         conn.execute(insert(tbl).values(**columns))
+    eng.dispose()
+
+
+def _drop_source_fk(table_name: str, column_name: str) -> None:
+    """Drop a source-side `users.id` FK ahead of seeding a row that
+    pre-dates it. A settings/team-members "collision" row can only exist
+    for real once that FK is already gone (a prior partial run of this
+    same remap, or barrins_api's own Alembic migration) -- reuses the
+    script's own `_drop_owner_fk` rather than a second, parallel way of
+    doing the same DDL.
+    """
+    eng = create_engine(_SRC_URL)
+    with eng.begin() as conn:
+        mig._drop_owner_fk(conn, table_name, column_name)
     eng.dispose()
 
 
@@ -421,6 +453,7 @@ class TestLocalReferenceRemap:
             [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
         )
         _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        _drop_source_fk("ts_user_settings", "user_id")
         # old_id's row holds the person's real preferences; identity_id's
         # row is a blank default auto-created by an early login.
         _seed_source_domain_row("ts_user_settings", user_id=old_id, note="real prefs")
@@ -446,6 +479,7 @@ class TestLocalReferenceRemap:
             [{"id": identity_id, "email": "dup@example.com", "username": "dup"}]
         )
         _seed_source([{"id": old_id, "email": "dup@example.com"}])
+        _drop_source_fk("ts_team_members", "user_id")
         # Same team, both ids already present -- ambiguous, must not be
         # silently merged or deleted.
         _seed_source_domain_row("ts_team_members", team_id=team_id, user_id=old_id)

@@ -69,8 +69,21 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import column, create_engine, delete, select, table, text, update
+from sqlalchemy import (
+    Column,
+    MetaData,
+    Table,
+    column,
+    create_engine,
+    delete,
+    select,
+    table,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.schema import DropConstraint, ForeignKeyConstraint
 
 # ---------------------------------------------------------------------------
 # URL resolution: CLI flag > real env var > apps/barrins_api/.env
@@ -244,6 +257,30 @@ _SETTINGS_TABLE: tuple[str, str] = ("ts_user_settings", "user_id")
 _TEAM_MEMBERS_TABLE: tuple[str, str] = ("ts_team_members", "user_id")
 
 
+def _drop_owner_fk(source: Connection, table_name: str, column_name: str) -> None:
+    """Drop `<table>_<column>_fkey` (PostgreSQL's default name) if present.
+
+    `new_id` (identity's existing id for a deduped email) is essentially
+    never already present in the *source* `users` table -- that FK is
+    still active at this point in the cutover (it's only dropped later,
+    when `barrins_api` itself deploys and Alembic's
+    `d9e1a2c3b4f5_drop_local_auth_schema_identity_cutover` migration
+    runs), so the remap UPDATE below would otherwise fail with a foreign
+    key violation. Dropping it here first is safe: that same migration
+    drops the identical constraint with `IF EXISTS`, so running slightly
+    early just makes its own drop a no-op. Found live running this
+    script's dry-run against production (2026-09-06) -- the test suite's
+    schema mirror never defined these FKs, so it never caught this.
+    """
+    metadata = MetaData()
+    tbl = Table(table_name, metadata, Column(column_name, PG_UUID(as_uuid=True)))
+    fk = ForeignKeyConstraint(
+        [column_name], ["users.id"], name=f"{table_name}_{column_name}_fkey"
+    )
+    tbl.append_constraint(fk)
+    source.execute(DropConstraint(fk, if_exists=True))
+
+
 def _remap_local_references(
     source: Connection,
     *,
@@ -265,6 +302,13 @@ def _remap_local_references(
     """
     if str(old_id) == str(new_id):
         return
+
+    for table_name, column_name in (
+        *_PLAIN_REMAP_TABLES,
+        _SETTINGS_TABLE,
+        _TEAM_MEMBERS_TABLE,
+    ):
+        _drop_owner_fk(source, table_name, column_name)
 
     for table_name, column_name in _PLAIN_REMAP_TABLES:
         tbl = table(table_name, column(column_name))

@@ -3,6 +3,24 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Fixed
+
+- `scripts/migrate_users_to_identity.py`: the automated local-reference
+  remap (added post-v2.0.0-tag for the "personal decks lost" bug) raised
+  a `ForeignKeyViolation` on a real email dedup — it tried to re-point
+  `owner_id`/`user_id` columns at identity's existing id while the
+  local `users.id` FK constraints were still active (they're only
+  dropped later, when `barrins_api` itself deploys and Alembic's
+  `d9e1a2c3b4f5` migration runs). Found running the real production
+  dry-run (2026-09-06); the test suite's schema mirror never defined
+  these FKs, so it never caught it. Fixed by dropping each
+  `<table>_<column>_fkey` constraint (`IF EXISTS`) right before the
+  remap — safe, since that same Alembic migration drops the identical
+  constraints with `IF EXISTS` too, so doing it slightly early just
+  makes its own drop a no-op. Test schema now defines the real FKs.
+
 ## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
