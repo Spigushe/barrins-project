@@ -5,6 +5,20 @@ section of the docs site for details.
 
 ## [Unreleased]
 
+### Changed
+
+- `POST /internal/scripture/ingest` is now Duel-Commander-only. A file
+  whose `tournament.format` is not in the new
+  `scripture_ingest_formats` setting (default `["Duel Commander"]`, env:
+  `SCRIPTURE_INGEST_FORMATS`) is a 200 no-op — the response carries
+  `skipped_out_of_scope: true` and `tournament_id: null`, nothing is
+  written. `ResponseScriptureIngest.tournament_id` is now nullable.
+  Every `bs_*` reader already filters `format == "Duel Commander"`, so
+  the other seven scraped formats were dead weight; a full-archive
+  replay of all of them filled the production disk on 2026-09-06 (see
+  `docs/content/ops/incidents/2026-09-06-postgres-disk-full-scripture-
+  sweep.md`). Widen the setting to re-admit a format, no code change.
+
 ### Fixed
 
 - `scripts/migrate_users_to_identity.py`: the automated local-reference

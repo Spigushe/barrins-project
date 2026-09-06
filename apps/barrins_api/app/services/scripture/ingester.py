@@ -18,6 +18,7 @@ from sqlalchemy import insert as sa_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.scripture import (
     BSDeck,
     BSDeckBoard,
@@ -43,13 +44,17 @@ from app.services.scripture.card_resolver import is_attraction, resolve_card_nam
 class IngestResult:
     """Outcome of a single `ingest_scrape` call."""
 
-    tournament_id: uuid.UUID
+    tournament_id: uuid.UUID | None
     decks_upserted: int
     deck_cards_upserted: int
     rounds_upserted: int
     round_matches_upserted: int
     standings_upserted: int
     skipped_card_names: list[str]
+    #: `True` when the file's `tournament.format` is not in
+    #: `settings.base.scripture_ingest_formats` and nothing was
+    #: persisted -- a no-op, not an error. `tournament_id` is then `None`.
+    skipped_out_of_scope: bool = False
 
 
 def _excluded_set(
@@ -271,7 +276,26 @@ async def ingest_scrape(
     standing/match twice (a scraper quirk, an overlapping bulk-replay
     window) collapses to one row via `ON CONFLICT`, and the reported
     count reflects that instead of overstating what was actually written.
+
+    A file whose `tournament.format` is outside
+    `settings.base.scripture_ingest_formats` (Duel-Commander-only since
+    the 2026-09-06 disk incident) is a no-op: nothing is written and
+    `skipped_out_of_scope` is `True`. The sweep already skips these
+    before POSTing; this is the authoritative guard for a stray one that
+    reaches the route anyway.
     """
+    if payload.tournament.format not in settings.base.scripture_ingest_formats:
+        return IngestResult(
+            tournament_id=None,
+            decks_upserted=0,
+            deck_cards_upserted=0,
+            rounds_upserted=0,
+            round_matches_upserted=0,
+            standings_upserted=0,
+            skipped_card_names=[],
+            skipped_out_of_scope=True,
+        )
+
     skipped: set[str] = set()
 
     tournament_id = await _upsert_tournament(

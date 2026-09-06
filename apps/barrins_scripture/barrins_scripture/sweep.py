@@ -35,6 +35,14 @@ every file inside the ``--days`` window on every tick to catch MTGO
 decklists edited within their ~3-day post-publication window, and
 fast-forwarding by URL alone would silently stop picking up those edits
 after a tournament's first ingest.
+
+Files whose ``tournament.format`` is not in ``INGEST_FORMATS``
+(Duel-Commander-only since the 2026-09-06 disk incident) are skipped
+before the POST and reported separately as ``filtered`` — every ``bs_*``
+reader is DC-only, so posting the other seven scraped formats just
+burned an HTTP + DB round trip each to be discarded server-side. The
+ingest route enforces the same list authoritatively; this is the
+client-side optimisation.
 """
 
 import argparse
@@ -75,6 +83,13 @@ DEFAULT_CONCURRENCY = 5
 #: size -- the whole point of chunking (the archive can hold far more
 #: files than comfortably fit in memory at once).
 DEFAULT_CHUNK_SIZE = 200
+#: Tournament formats worth POSTing. Mirrors `barrins_api`'s
+#: `settings.base.scripture_ingest_formats` default -- Duel-Commander-only
+#: since the 2026-09-06 disk incident (every `bs_*` reader is DC-only).
+#: A file with a `tournament.format` outside this set is skipped before
+#: the POST; one missing the field entirely still goes through, to be
+#: rejected/validated server-side. Keep in sync with `barrins_api`.
+INGEST_FORMATS: frozenset[str] = frozenset({"Duel Commander"})
 
 
 def _default_archive_dir() -> Path:
@@ -197,6 +212,11 @@ def sweep(
     logs and moves on, per the no-retry/no-backoff decision (a failed
     tick is resolved by the next scheduled tick, not by retrying here).
 
+    Files whose `tournament.format` is not in `INGEST_FORMATS`
+    (Duel-Commander-only by default) are skipped before the POST and
+    reported separately in the final log line as `filtered` -- they
+    count as neither `succeeded` nor `failed`.
+
     `now` is forwarded to `iter_archive_files` for `--mode recent`'s
     lookback window — defaults to the real current time, overridable for
     deterministic tests.
@@ -227,7 +247,7 @@ def sweep(
     """
     endpoint = api_url.rstrip("/") + "/internal/scripture/ingest"
     headers = {"X-Scripture-Token": token}
-    succeeded = failed = fast_forwarded = 0
+    succeeded = failed = fast_forwarded = filtered = 0
 
     selected = list(iter_archive_files(archive_dir, mode, days, now))
     if not selected:
@@ -270,6 +290,18 @@ def sweep(
                 logger.exception("skipping unreadable archive file %s", file_path)
                 failed += 1
                 chunk_failed += 1
+                chunk_done += 1
+                continue
+            file_format = payload.get("tournament", {}).get("format")
+            if file_format is not None and file_format not in INGEST_FORMATS:
+                # Out-of-scope format (INGEST_FORMATS) -- skip before the
+                # POST rather than let the route no-op it. A file with no
+                # `format` field still goes through: it's malformed and
+                # the route rejects it, not our call to make here.
+                logger.debug(
+                    "skipping out-of-scope format %r: %s", file_format, file_path
+                )
+                filtered += 1
                 chunk_done += 1
                 continue
             if (
@@ -328,10 +360,13 @@ def sweep(
             sys.stderr.flush()
 
     logger.info(
-        "sweep done (mode=%s): %d succeeded, %d failed%s",
+        "sweep done (mode=%s): %d succeeded, %d failed, "
+        "%d filtered (format not in %s)%s",
         mode,
         succeeded,
         failed,
+        filtered,
+        sorted(INGEST_FORMATS),
         f", {fast_forwarded} fast-forwarded (already ingested)" if fast_forward else "",
     )
     return succeeded, failed
