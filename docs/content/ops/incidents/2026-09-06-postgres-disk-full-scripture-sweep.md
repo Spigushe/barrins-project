@@ -139,7 +139,7 @@ is the Debian meta-unit; the real service is `postgresql@15-main`
    production. With ~33G already spoken for by databases nothing
    in production reads, prod `barrins_api` had almost no room to grow.
 2. **`bs_*` ingest has no format scope.** `barrins_scripture` scrapes
-   all eight constructed formats it recognises
+   all eight constructed formats it recognizes
    (`schemas/formats.py::Formats`); `sweep.py` posts every archive
    file; `app/services/scripture/ingester.py::ingest_scrape` upserts
    every one. Every *reader* is Duel-Commander-only, so the replay

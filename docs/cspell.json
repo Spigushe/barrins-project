@@ -172,6 +172,13 @@
         "winrate",
         "winrates",
         "workstream",
-        "workstreams"
+        "workstreams",
+        "autoremove",
+        "autovacuum",
+        "ENOSPC",
+        "PGDATA",
+        "SQLSTATE",
+        "upserts",
+        "xdev"
     ]
 }
