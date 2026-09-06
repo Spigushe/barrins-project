@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
+import { useSecretUnlock } from '@/hooks/useSecretUnlock'
 import { cn } from '@/lib/utils'
 import { BottomRail } from './BottomRail'
 import { FOOTER_ROW_CLASS } from './footerRow'
@@ -32,6 +33,8 @@ function NavItem({ to, label }: { to: string; label: string }) {
  * table rows on scroll.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  useSecretUnlock()
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-10 border-b-[0.5px] border-border bg-background/85 backdrop-blur">

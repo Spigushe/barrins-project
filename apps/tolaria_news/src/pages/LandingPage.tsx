@@ -5,6 +5,7 @@ import { VizPanel } from '@/components/landing/VizPanel'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
 import { useTelemetry } from '@/hooks/useTelemetry'
 import { useStats } from '@/hooks/useStats'
+import { useTapUnlock } from '@/hooks/useSecretUnlock'
 
 // Copy matches the design handoff's prototype defaults
 // (handoff/design_handoff_tolaria_news/design_files/app.jsx TWEAK_DEFAULTS)
@@ -50,6 +51,11 @@ function Arrow() {
 }
 
 export function LandingPage() {
+  // Easter egg: seven clicks on the "decoded." word in the headline opens the
+  // hidden "Tolaria West" mana-source calculator (src/hooks/useSecretUnlock.ts).
+  // No visual tell — it stays styled like the rest of the headline flourish.
+  const handleDecodedClick = useTapUnlock()
+
   const primaryCta = karnTabletsEnabled
     ? { to: '/metagame', label: 'Explore the metagame' }
     : { to: '/tournaments', label: 'Browse tournaments' }
@@ -78,7 +84,13 @@ export function LandingPage() {
           <h1 className="m-0 font-serif text-[clamp(44px,6.2vw,88px)] leading-[0.98] font-normal tracking-[-0.02em] text-pretty">
             <span className="block">Duel Commander,</span>
             <span className="block">
-              metagame <em className="font-serif text-accent italic">decoded.</em>
+              metagame{' '}
+              <em
+                onClick={handleDecodedClick}
+                className="font-serif text-accent italic select-none"
+              >
+                decoded.
+              </em>
             </span>
           </h1>
 
