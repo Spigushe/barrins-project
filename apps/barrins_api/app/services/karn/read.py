@@ -104,6 +104,12 @@ class MetagameSnapshotData:
     #: prev/next navigation. `None` at either end / when there is no run.
     previous_window: WindowRef | None = None
     next_window: WindowRef | None = None
+    #: The `ArchetypeShareRow` with the greatest positive `share_delta`
+    #: among rows with `momentum == "rising"`; `None` when there is no
+    #: previous window or nothing is rising. Selected here (not in the
+    #: route, never in the frontend) so the "fastest mover" ranking stays
+    #: a backend-owned rule (Constitution 4.1/4.2).
+    fastest_rising: ArchetypeShareRow | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +180,14 @@ def _classify_momentum(
     if abs(delta) <= _MOMENTUM_RELATIVE_BAND * previous:
         return delta, "stable"
     return delta, "rising" if delta > 0 else "falling"
+
+
+def _share_delta_key(row: ArchetypeShareRow) -> float:
+    """Sort key for `fastest_rising` selection. Only ever called on rows
+    already filtered to `momentum == "rising"`, which guarantees a
+    non-`None` `share_delta`; the fallback is a type-checker guard, not a
+    reachable branch."""
+    return row.share_delta if row.share_delta is not None else 0.0
 
 
 async def _run_windows(
@@ -411,6 +425,13 @@ async def metagame_snapshot(
                 momentum=momentum,
             )
         )
+    rising = [
+        row
+        for row in archetypes
+        if row.momentum == "rising" and row.share_delta is not None
+    ]
+    fastest_rising = max(rising, key=_share_delta_key) if rising else None
+
     return MetagameSnapshotData(
         fmt=fmt,
         window=target_window,
@@ -419,6 +440,7 @@ async def metagame_snapshot(
         archetypes=archetypes,
         previous_window=previous[0] if previous is not None else None,
         next_window=following[0] if following is not None else None,
+        fastest_rising=fastest_rising,
     )
 
 

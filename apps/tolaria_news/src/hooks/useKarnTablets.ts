@@ -2,11 +2,16 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { getMetagame, getArchetypes, getTrends } from '@/api/karnTablets'
 import type { WindowMode } from '@/schemas/karnTablets'
 
-export function useMetagame(windowMode: WindowMode, at?: string) {
+export function useMetagame(
+  windowMode: WindowMode,
+  at?: string,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['metagame', windowMode, at ?? null],
     queryFn: () => getMetagame(windowMode, at),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   })
 }
 

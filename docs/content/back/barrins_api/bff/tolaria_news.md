@@ -269,7 +269,7 @@ error.
 
 | Method | Path | Response |
 | --- | --- | --- |
-| `GET` | `/bff/tolaria-news/metagame?at=` | `Envelope[{format, window, previous_window \| null, next_window \| null, archetypes: [{id, name, commanders: [CardRef], deck_count, deck_share, deck_share_delta \| null, momentum}]}]`, largest archetype first |
+| `GET` | `/bff/tolaria-news/metagame?at=` | `Envelope[{format, window, previous_window \| null, next_window \| null, archetypes: [{id, name, commanders: [CardRef], deck_count, deck_share, deck_share_delta \| null, momentum}], fastest_rising: MetagameArchetype \| null}]`, largest archetype first |
 | `GET` | `/bff/tolaria-news/archetypes?at=&limit=&cursor=` | `Envelope[{format, window, previous_window \| null, next_window \| null, archetypes: [{…MetagameArchetype, representative_mainboard: [{name, qty, scryfall_id \| null, is_land, is_signature}]}]}, page: {next_cursor \| null, limit}]` — `limit` 1–100 (default 20), `cursor` opaque; a malformed cursor is `400` |
 | `GET` | `/bff/tolaria-news/trends` | `Envelope[[{archetype_id, archetype_name, commanders: [CardRef], points: [{window: WindowOut, deck_share \| null}]}]]` — top-10 archetypes of the latest run, their share across the last 12 runs; `deck_share` is `null` for a run in which the archetype had no cluster |
 
@@ -295,6 +295,15 @@ this window but none in the preceding one (`deck_share_delta` is then
 `null`); at the oldest window (`previous_window` is `null`) every
 archetype is `"stable"` with a `null` delta.
 
+`fastest_rising` (`/metagame` only) is the archetype row with the
+greatest positive `deck_share_delta` among those whose `momentum` is
+`"rising"` for this window — the metagame's fastest mover, and **not**
+necessarily `archetypes[0]` (which is the largest by share). `null` when
+there is no preceding window or nothing is rising. The selection is
+backend-owned (Constitution §4.1/§4.2): the frontend renders it, it does
+not scan the list to pick a "top mover" itself. `/archetypes` does not
+carry this field.
+
 `is_land` (`/archetypes` only) is resolved against `mj_cards.type_line`
 (via `app/services/decklist_sort.py::categorize`). `is_signature` is the
 "belongs in the signature-cards view" flag: `true` for every non-land;
@@ -311,8 +320,10 @@ this contract and its Metagame/Archetypes/Trends pages are wired to
 these routes: window defaults to `banlist_period`; Metagame and
 Archetypes carry a prev/next period stepper (`?at=`); Archetypes is the
 paginated detail table only; the Trends per-archetype grid is two rows
-of five. It all stays behind `VITE_FEATURE_KARN_TABLETS`, still unset in
-every environment — flipping it is gated on T7 docs / T8 playbook.
+of five. The **landing page** also consumes `/metagame?window=rolling_30d`
+for two of its viz-panel callouts — `archetypes[0]` (the #1 archetype by
+share) and `fastest_rising` — each of which hides itself when its datum
+is absent. It all stays behind `VITE_FEATURE_KARN_TABLETS`.
 
 The S6 admin dashboard reads the same numbers through the same service
 (`app/services/karn/read.py::metagame_snapshot`) at
@@ -381,3 +392,20 @@ the `Query(...)` call wrapping it; this is ruff's own documented escape
 hatch for that FastAPI pattern. 8 new tests in
 `tests/tolaria_news/test_decks.py` (33 total in the package); `ruff`/`ty`
 clean.
+
+**Landing-page live data addendum (2026-09-06)**: the last hardcoded
+figures on the Tolaria News landing page are now backend-driven.
+`GET /bff/tolaria-news/stats` (landing headline counts — `{tournaments_count,
+decks_count}`, public/no-auth, backed by `app/services/tolaria_news/stats.py`)
+gained **`command_zones_count`**: the number of distinct command zones —
+one per distinct set of Duel Commander sideboard cards (a deck's
+commander, or a partner pair), counted once however many decks share it —
+over the same in-scope dataset as the other two counts. It needs no
+clustering run, so the landing page shows it whether or not
+`VITE_FEATURE_KARN_TABLETS` is on (label: "command zones charted"). The
+two flag-gated viz-panel callouts are wired to `/metagame` as described
+in the Karn Tablets section above; a third callout (`n = 286`,
+"midrange-value") stays static — Karn Tablets has no macro-archetype
+definitions yet (Constitution §45 future work). New tests in
+`tests/tolaria_news/test_stats.py` and `tests/karn/test_read.py`
+(`TestFastestRising`); `ruff`/`ty` clean.
