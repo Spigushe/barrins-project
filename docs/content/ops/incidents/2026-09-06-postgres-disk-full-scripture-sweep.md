@@ -4,7 +4,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Resolved** 2026-09-07 — service restored 2026-09-06 ~19:41; disk 100% → 40% (44G free); DC-only ingest filter (PR #136) merged and deployed to prod (`skipped_out_of_scope` live in prod `/openapi.json`). Non-blocking follow-ups tracked below. |
+| Status | Open — production restored 2026-09-06 ~19:41; reclamation done (disk 100% → 40%, 44G free); DC-only ingest filter (`proj/scripture-dc-only`) + release still to ship |
 | Severity | Critical — production `api.barrins-codex.org` failed every DB-backed request (Tolaria News, Tamiyo Scroll) for the duration |
 | Reported | 2026-09-06, ~16:20 (a `barrins-scripture-sweep --mode full` run finished reporting 3650 ingest failures) |
 | Service restored | 2026-09-06 ~19:41 — `postgresql@15-main` back `online`, both `/health` → 200 |
@@ -129,17 +129,7 @@ is the Debian meta-unit; the real service is `postgresql@15-main`
    off-box `pg_dump` did not run (the runbook's placeholder hostname
    was not substituted; `ssh` failed, the `DROP` in the same pasted
    block proceeded regardless), so no fresh dump was retained — see
-   Follow-ups.
-8. **2026-09-06 evening** — production `barrins_api` non-DC `bs_*` purge
-   (97,526 tournaments, year-batched, `VACUUM FULL`) → 8.5G → 984M; and
-   the `barrins_api_staging` / `barrins_api_dev` 90-day trims. Disk down
-   to **40% (44G free)**.
-9. **2026-09-07** — the DC-only ingest filter (PR #136, merge commit
-   `a6cf69f5`) merged to `staging` and deployed to prod
-   (`ansible-playbook barrins_api.yml -e fastapi_backend_release_tag=staging`,
-   `ok=41 changed=13 failed=0`). `skipped_out_of_scope` confirmed in
-   prod `/openapi.json`; `/health` 200. Incident closed — remaining
-   items are non-blocking.
+   Open items.
 
 ## Root cause
 
@@ -183,44 +173,41 @@ is the Debian meta-unit; the real service is `postgresql@15-main`
    hard-delete exception (out-of-scope data, no consumer); Agent 0
    sign-off.
 
-## Resolution
+## Open items
 
-- [x] Service restored 2026-09-06 ~19:41; PG 15 has run clean since (no
-      corruption / crash-recovery errors observed).
-- [x] `barrins_db` verified unused and dropped 2026-09-06 (~21G).
-- [x] `barrins_api_staging` / `barrins_api_dev` 90-day trim 2026-09-06
-      (all formats): staging 46,139 deleted → keep 214 (3.7G → 169M);
-      dev 105,597 deleted → keep 3,810 (8.6G → 357M).
-- [x] Production non-DC `bs_*` purge 2026-09-06 (pre-dump
-      `/tmp/barrins_api_pre-purge.dump`, 1.4G): 97,526 tournaments
-      deleted year-batched (children cascaded), `VACUUM (FULL, ANALYZE)`
-      on every `bs_*`. `barrins_api` 8.5G → 984M; `bs_deck_cards` 7.5G →
-      785M. Only `Duel Commander` (8,696) remains. Disk 100% → **40%**.
-- [x] Alembic: prod DB was already at head (`6cf95145f67e`);
-      `bs_rounds.sequence` present; `alembic upgrade head` a no-op. The
-      32 `bs_rounds.sequence` failures were historical (pre-catch-up).
-- [x] DC-only ingest scope shipped — config-gated
-      `scripture_ingest_formats` (`ingest_scrape` 200 no-op) + `sweep.py`
-      skip, PR #136, merged `a6cf69f5`, deployed to prod 2026-09-07.
-
-## Follow-ups (non-blocking)
-
-- [ ] Re-enable the GitHub Actions scrape/sweep workflow (paused during
-      recovery; safe now that the filter is live on prod).
-- [ ] Formalize the release — prod was deployed from the `staging`
-      *branch*, not a tag; tag/publish per R4 so a plain
-      `ansible-playbook barrins_api.yml` resolves correctly and there
-      are rollback tags.
+- [ ] WAL replay confirmed clean; no corruption in the PG 15 log.
+- [x] `barrins_db` verified unused and dropped 2026-09-06 (~21G
+      reclaimed).
 - [ ] `barrins_db` — search for any surviving pre-drop dump
       (`find / -xdev -name 'barrins_db*'`, `~/backups/`); if none,
       record that it was dropped with no retained backup.
-- [ ] `barrins_api_dev` — decide whether a dev database belongs on the
-      prod host at all (separate from the trim).
-- [ ] Volume resize / dedicated `PGDATA` (deferred by decision).
-- [ ] Delete the pre-op safety dumps under `/tmp` once no longer needed.
-- [ ] 2026-08-15 carryovers, unrelated to this incident: missing
-      migrations merged into `main`; prod `DATABASE_URL` → `localhost`
-      switch and `pg_hba.conf` narrowing.
+- [x] `barrins_api_staging` / `barrins_api_dev` 90-day trim applied
+      2026-09-06 (all formats, `date < CURRENT_DATE - 90`): staging
+      46,139 deleted → keep 214 (3.7G → 169M); dev 105,597 deleted →
+      keep 3,810 (8.6G → 357M).
+- [ ] `barrins_api_dev` — decide whether it belongs on the prod host
+      at all (separate from the trim above).
+- [x] Alembic checked 2026-09-06: prod DB already at head
+      (`6cf95145f67e`), clean linear chain; `a3c7f912e5b8` applied and
+      `bs_rounds.sequence` physically present. `alembic upgrade head`
+      was a no-op. The 32 `bs_rounds.sequence` failures were historical
+      (pre-catch-up). The 2026-08-15 "missing migrations" carryover is
+      effectively resolved — confirm the chain is on `main` and close
+      that item.
+- [x] Production non-DC `bs_*` purge run 2026-09-06 (pre-dump
+      `/tmp/barrins_api_pre-purge.dump`, 1.4G): 97,526 tournaments
+      deleted in year batches (children cascaded),
+      `VACUUM (FULL, ANALYZE)` on every `bs_*`. `barrins_api` 8.5G →
+      984M; `bs_deck_cards` 7.5G → 785M; disk 62% → 55% (33G free).
+      Only `Duel Commander` (8,696) remains.
+- [ ] `proj/scripture-dc-only` — format-filter code, tests, CHANGELOGs.
+- [ ] Patch release cut; prod `api` redeployed from the tag.
+- [ ] GitHub Actions scrape/sweep workflow paused until the filter
+      ships, then resumed.
+- [ ] Volume resize / dedicated PG storage (deferred, tracked).
+- [ ] 2026-08-15 carryover: missing migrations merged into `main`.
+- [ ] Confirm whether the 2026-08-15 prod `DATABASE_URL` → `localhost`
+      switch and `pg_hba.conf` narrowing were ever completed.
 
 ## See also
 
