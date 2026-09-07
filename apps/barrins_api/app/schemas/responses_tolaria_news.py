@@ -240,6 +240,13 @@ class StatsResponse(BaseResponse):
 
     tournaments_count: int
     decks_count: int
+    #: Distinct command zones across the same in-scope dataset -- one per
+    #: distinct set of Duel Commander sideboard cards (a deck's commander,
+    #: or a partner pair), counted once however many decks share it. A deck
+    #: with no parsed commander (empty sideboard) does not contribute.
+    #: Backs the landing page's "command zones charted" figure; unlike the
+    #: Karn Tablets callouts it needs no clustering run.
+    command_zones_count: int
 
 
 # --- Karn Tablets metagame clustering (ADR-13) ---------------------------
@@ -327,6 +334,13 @@ class MetagameSnapshot(BaseResponse):
     next_window: WindowOut | None
     #: Largest archetype first.
     archetypes: list[MetagameArchetype]
+    #: The archetype with the largest positive `deck_share_delta` among
+    #: those whose `momentum` is "rising" for this window -- the metagame's
+    #: fastest mover. `null` when there is no previous run to compare
+    #: against, or nothing is rising. Backend-selected (Constitution
+    #: 4.1/4.2): the frontend renders it, it does not rank the list itself.
+    #: Only on `/metagame`; `/archetypes` does not carry it.
+    fastest_rising: MetagameArchetype | None
 
 
 class ArchetypeDetailPage(BaseResponse):

@@ -1,5 +1,6 @@
 import { NodeGraph } from './NodeGraph'
 import { karnTabletsEnabled } from '@/lib/featureFlags'
+import type { Archetype } from '@/schemas/karnTablets'
 
 // Literal hex, not CSS vars — passed into SVG `stop-color`/`stroke` attributes,
 // which don't reliably resolve `var(--color-accent)` as a raw attribute value.
@@ -31,9 +32,11 @@ function Callout({
 }) {
   return (
     <div
-      className={`pointer-events-none absolute flex flex-col gap-1 ${align === 'start' ? 'items-start' : 'items-end'} ${className}`}
+      className={`pointer-events-none absolute flex max-w-[46%] flex-col gap-1 ${align === 'start' ? 'items-start' : 'items-end'} ${className}`}
     >
-      <span className="font-mono text-[9.5px] tracking-[0.1em] text-muted-foreground uppercase">
+      <span
+        className={`font-mono text-[9.5px] tracking-[0.1em] text-muted-foreground uppercase ${align === 'start' ? 'text-left' : 'text-right'}`}
+      >
         <span className="text-accent">—</span> {eyebrow}
       </span>
       <span className="font-serif text-lg tracking-[-0.01em] text-foreground italic">
@@ -43,19 +46,49 @@ function Callout({
   )
 }
 
+/** The archetype's commander card name(s) for a callout label — a partner
+ *  pair joins with " / ". Falls back to the archetype's display name when
+ *  it has no commander (non-Duel-Commander data). */
+function commanderLabel(archetype: Archetype): string {
+  if (archetype.commanders.length === 0) return archetype.name
+  return archetype.commanders.map((c) => c.name).join(' / ')
+}
+
 /**
  * The landing page's right-hand showpiece: corner brackets + the decorative
  * meta-graph + telemetry callouts. Per the design handoff, the graph mesh
  * itself is always decorative/procedural (no backend ever required for it
- * — see NodeGraph). The three floating callouts read as *specific*
- * archetype-clustering metrics (cluster share, sample size, winrate delta)
- * — those are Karn Tablets data (T4 iteration 2 / T6, not shipped), so they
- * only render behind `VITE_FEATURE_KARN_TABLETS` rather than showing
- * invented numbers. The "meta-graph" label's `seasonLabel`, unlike the mesh
- * and the callouts, is real: the current banlist season from
- * `useTelemetry()`, threaded down from `LandingPage`.
+ * — see NodeGraph).
+ *
+ * The three floating callouts read as *specific* archetype-clustering
+ * metrics and only render behind `VITE_FEATURE_KARN_TABLETS`:
+ *  - top-left/right: the #1 archetype by deck share (`topArchetype`) and
+ *    the fastest-rising archetype (`fastestRising`), both from
+ *    `GET /bff/tolaria-news/metagame` (rolling 30-day window). The
+ *    "fastest riser" ranking is backend-owned (`fastest_rising` on the
+ *    response) — this component only renders what it is handed. Each
+ *    hides itself when its datum is absent (no clustering run yet, or
+ *    nothing rising).
+ *  - bottom-left: `archetype · midrange-value / n = 286` is still static.
+ *    Karn Tablets does not expose macro-archetype ("midrange", "control",
+ *    …) definitions yet (constitution §45 future work), so there is no
+ *    real number to show here; kept rather than invented.
+ *
+ * The "meta-graph" label's `seasonLabel` is real: the current banlist
+ * season from `useTelemetry()`, threaded down from `LandingPage`. It is a
+ * banlist-period label while the callouts describe a rolling 30-day
+ * window — a deliberate mix (the season frames the page, the callouts
+ * track the near term).
  */
-export function VizPanel({ seasonLabel }: { seasonLabel?: string }) {
+export function VizPanel({
+  seasonLabel,
+  topArchetype,
+  fastestRising,
+}: {
+  seasonLabel?: string
+  topArchetype?: Archetype
+  fastestRising?: Archetype
+}) {
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[620px]">
       <Brackets />
@@ -66,22 +99,26 @@ export function VizPanel({ seasonLabel }: { seasonLabel?: string }) {
 
       {karnTabletsEnabled && (
         <>
-          <Callout
-            className="top-[14%] right-[4%]"
-            eyebrow="cluster · tymna / thrasios"
-            main="share 11.4%"
-          />
+          {topArchetype && (
+            <Callout
+              className="top-[14%] right-[4%]"
+              eyebrow={`cluster · ${commanderLabel(topArchetype)}`}
+              main={`share ${(topArchetype.deck_share * 100).toFixed(1)}%`}
+            />
+          )}
           <Callout
             className="bottom-[18%] left-[2%]"
             eyebrow="archetype · midrange-value"
             main="n = 286"
             align="start"
           />
-          <Callout
-            className="right-[8%] bottom-[6%]"
-            eyebrow="format · duel commander"
-            main="winrate ↑ 2.4%"
-          />
+          {fastestRising && fastestRising.deck_share_delta !== null && (
+            <Callout
+              className="right-[8%] bottom-[6%]"
+              eyebrow={`rising · ${commanderLabel(fastestRising)}`}
+              main={`share ↑ ${(fastestRising.deck_share_delta * 100).toFixed(1)} pts`}
+            />
+          )}
         </>
       )}
 

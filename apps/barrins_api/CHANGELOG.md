@@ -284,6 +284,18 @@ section of the docs site for details.
   dropdown. `ResponseCardTest` also gains `removed_card_scryfall_id`/
   `added_card_scryfall_id` so the "Tested cards" list can hover-preview
   either card's image the same way a pending decklist line does.
+- `GET /bff/tolaria-news/stats` gained `command_zones_count` — the number
+  of distinct command zones (one per distinct set of Duel Commander
+  sideboard cards: a deck's commander, or a partner pair) across the same
+  in-scope dataset as the existing tournament/deck counts. Backs the
+  Tolaria News landing page's "command zones charted" figure; needs no
+  Karn Tablets clustering run.
+- `GET /bff/tolaria-news/metagame` gained `fastest_rising` — the
+  archetype with the greatest positive `deck_share_delta` among those
+  whose `momentum` is `"rising"`, or `null` when nothing is rising / there
+  is no preceding window. Selected in `app/services/karn/read.py`
+  (`metagame_snapshot`) so the "fastest mover" ranking stays backend-owned
+  (Constitution §4.1/§4.2). `/archetypes` is unchanged.
 
 ### Changed
 
