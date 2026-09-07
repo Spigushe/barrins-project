@@ -192,5 +192,9 @@ export type CommanderTrendsResponse = z.infer<typeof commanderTrendsResponseSche
 export const statsSchema = z.object({
   tournaments_count: z.number(),
   decks_count: z.number(),
+  //  Distinct command zones (a deck's commander, or a partner pair)
+  //  across the in-scope Duel Commander dataset. Available with no
+  //  clustering run — backs the "command zones charted" headline figure.
+  command_zones_count: z.number(),
 })
 export type Stats = z.infer<typeof statsSchema>

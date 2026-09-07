@@ -70,6 +70,12 @@ export const metagameSnapshotSchema = z.object({
   format: z.string(),
   ...windowNavFields,
   archetypes: z.array(archetypeSchema),
+  //  The archetype with the largest positive `deck_share_delta` among
+  //  those whose `momentum` is `'rising'` for this window — the fastest
+  //  mover. `null` when there is no previous run or nothing is rising.
+  //  Selected server-side (Constitution 4.1/4.2): the frontend renders
+  //  it, it does not rank the list itself. Only on `/metagame`.
+  fastest_rising: archetypeSchema.nullable(),
 })
 export type MetagameSnapshot = z.infer<typeof metagameSnapshotSchema>
 

@@ -159,6 +159,11 @@ async def get_metagame(
             previous_window=_window_out_opt(snapshot.previous_window),
             next_window=_window_out_opt(snapshot.next_window),
             archetypes=[_basic_archetype(row) for row in snapshot.archetypes],
+            fastest_rising=(
+                _basic_archetype(snapshot.fastest_rising)
+                if snapshot.fastest_rising is not None
+                else None
+            ),
         ),
         meta=_meta(snapshot.synced_at),
     )

@@ -6,6 +6,7 @@ import { karnTabletsEnabled } from '@/lib/featureFlags'
 import { useTelemetry } from '@/hooks/useTelemetry'
 import { useStats } from '@/hooks/useStats'
 import { useTapUnlock } from '@/hooks/useSecretUnlock'
+import { useMetagame } from '@/hooks/useKarnTablets'
 
 // Copy matches the design handoff's prototype defaults
 // (handoff/design_handoff_tolaria_news/design_files/app.jsx TWEAK_DEFAULTS)
@@ -16,12 +17,13 @@ const EYEBROW = `Duel Commander · v${__APP_VERSION__}`
 const SUBHEAD =
   "Barrin's Project is a suite of machine learning tools for competitive Magic: the Gathering: deck synthesis, surfacing trends, and meta forecast for Duel Commander pilots."
 
-// "Archetypes mapped" still needs T6 (Karn Tablets, not started), so it's
-// the one kept as a placeholder, gated behind the flag rather than shown
-// as invented data. Tournaments/decklists now come from `useStats` (real
-// `GET /bff/tolaria-news/stats` counts) instead of the prototype's static
-// example numbers.
-const ARCHETYPES_MAPPED_PLACEHOLDER = '412'
+// All three headline counts are live from `useStats`
+// (`GET /bff/tolaria-news/stats`): tournaments, decklists, and command
+// zones (distinct commander / partner-pair combinations, which needs no
+// clustering run). The two Karn Tablets viz-panel callouts come from
+// `GET /bff/tolaria-news/metagame` and only render behind the flag. The
+// prototype's static example numbers are gone.
+const KARN_WINDOW = 'rolling_30d' as const
 
 function StatBlock({ n, l }: { n: string; l: string }) {
   return (
@@ -72,6 +74,19 @@ export function LandingPage() {
   const decklistsIndexed = stats.data
     ? stats.data.data.decks_count.toLocaleString('en-US')
     : '—'
+  const commandZonesCharted = stats.data
+    ? stats.data.data.command_zones_count.toLocaleString('en-US')
+    : '—'
+
+  // Karn Tablets headline callouts (#1 archetype by share, fastest riser).
+  // Only fetched behind the flag; the ranking is backend-owned
+  // (`fastest_rising` on the response), the page just reads element [0]
+  // and that field.
+  const metagame = useMetagame(KARN_WINDOW, undefined, {
+    enabled: karnTabletsEnabled,
+  })
+  const topArchetype = metagame.data?.data.archetypes[0]
+  const fastestRising = metagame.data?.data.fastest_rising ?? undefined
 
   return (
     <div className="relative">
@@ -117,15 +132,17 @@ export function LandingPage() {
 
           <div className="mt-14 flex flex-wrap gap-10">
             <StatBlock n={tournamentsParsed} l="tournaments parsed" />
-            {karnTabletsEnabled && (
-              <StatBlock n={ARCHETYPES_MAPPED_PLACEHOLDER} l="archetypes mapped" />
-            )}
+            <StatBlock n={commandZonesCharted} l="command zones charted" />
             <StatBlock n={decklistsIndexed} l="decklists indexed" />
           </div>
         </div>
 
         <div className="hidden md:block">
-          <VizPanel seasonLabel={seasonLabel} />
+          <VizPanel
+            seasonLabel={seasonLabel}
+            topArchetype={topArchetype}
+            fastestRising={fastestRising}
+          />
         </div>
       </div>
     </div>

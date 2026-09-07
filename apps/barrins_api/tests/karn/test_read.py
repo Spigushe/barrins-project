@@ -39,6 +39,7 @@ class TestMetagame:
         assert data["format"] == "Duel Commander"
         assert data["window"]["kind"] == "rolling_30d"
         assert data["archetypes"] == []
+        assert data["fastest_rising"] is None
 
     async def test_returns_latest_run_sorted_by_deck_count(self, client: AsyncClient):
         base = datetime(2026, 8, 20, 4, 0, tzinfo=UTC)
@@ -288,6 +289,91 @@ class TestMomentum:
         assert new_row["deck_share_delta"] is None
         # The archetype carried over from run 1 is not "new".
         assert any(r["momentum"] != "new" for r in rows)
+
+
+class TestFastestRising:
+    """`data.fastest_rising` -- the metagame's fastest positive mover,
+    selected server-side (Constitution 4.1/4.2) so the frontend never
+    ranks the list itself."""
+
+    async def _two_runs_data(
+        self, client: AsyncClient, first: list[dict], second: list[dict]
+    ) -> dict:
+        base = datetime(2026, 8, 10, 4, 0, tzinfo=UTC)
+        await _ingest(
+            client,
+            payload(
+                generated_at=base,
+                label="rolling_30d:2026-08-10",
+                archetypes=first,
+                total_decks=100,
+            ),
+        )
+        await _ingest(
+            client,
+            payload(
+                generated_at=base + timedelta(days=1),
+                label="rolling_30d:2026-08-11",
+                archetypes=second,
+                total_decks=100,
+            ),
+        )
+        resp = await client.get(f"{BFF}/metagame", params={"window": "rolling_30d"})
+        assert resp.status_code == 200
+        return resp.json()["data"]
+
+    async def test_null_when_no_previous_run(self, client: AsyncClient):
+        await _ingest(
+            client, payload(archetypes=[archetype(1, 30, 100)], total_decks=100)
+        )
+        resp = await client.get(f"{BFF}/metagame", params={"window": "rolling_30d"})
+        assert resp.json()["data"]["fastest_rising"] is None
+
+    async def test_null_when_nothing_rising(self, client: AsyncClient):
+        # A barely moves (stable), B drops hard (falling) -- no riser.
+        data = await self._two_runs_data(
+            client,
+            [
+                archetype(1, 30, 100, commander="Commander One"),
+                archetype(2, 50, 100, swap=60, prefix="B", commander="Commander Two"),
+            ],
+            [
+                archetype(1, 31, 100, commander="Commander One"),
+                archetype(2, 35, 100, swap=60, prefix="B", commander="Commander Two"),
+            ],
+        )
+        assert data["fastest_rising"] is None
+
+    async def test_picks_largest_positive_delta_and_is_not_the_biggest(
+        self, client: AsyncClient
+    ):
+        # Run 2: C is largest by share but flat; B and D both rise, B by
+        # more (+0.25 vs +0.15) -> fastest_rising is B, not C.
+        data = await self._two_runs_data(
+            client,
+            [
+                archetype(1, 30, 100, commander="Commander One"),
+                archetype(2, 20, 100, swap=60, prefix="B", commander="Commander Two"),
+                archetype(3, 40, 100, swap=60, prefix="C", commander="Commander Three"),
+                archetype(4, 40, 100, swap=60, prefix="D", commander="Commander Four"),
+            ],
+            [
+                archetype(1, 30, 100, commander="Commander One"),
+                archetype(2, 45, 100, swap=60, prefix="B", commander="Commander Two"),
+                archetype(3, 40, 100, swap=60, prefix="C", commander="Commander Three"),
+                archetype(4, 55, 100, swap=60, prefix="D", commander="Commander Four"),
+            ],
+        )
+        fastest = data["fastest_rising"]
+        assert set(fastest) == _METAGAME_KEYS
+        assert fastest["commanders"] == [{"name": "Commander Two", "scryfall_id": None}]
+        assert fastest["momentum"] == "rising"
+        assert fastest["deck_share_delta"] == pytest.approx(0.25, abs=1e-6)
+        # Distinct from the largest archetype by share.
+        assert fastest["id"] != data["archetypes"][0]["id"]
+        assert data["archetypes"][0]["commanders"] == [
+            {"name": "Commander Four", "scryfall_id": None}
+        ]
 
 
 class TestTrends:
