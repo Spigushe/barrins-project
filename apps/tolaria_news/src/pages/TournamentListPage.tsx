@@ -25,6 +25,7 @@ import {
 } from '@/components/commanderTrends/TournamentWindowFilter'
 import { StaplesSection } from '@/components/staples-section'
 import { TournamentSizeFilter } from '@/components/tournament-size-filter'
+import { isMtgoLeagueWithoutPlayerCount } from '@/lib/tournaments'
 
 const SOURCES = [
   { value: '', label: 'All sources' },
@@ -276,7 +277,11 @@ export function TournamentListPage() {
                     <TableCell>
                       <Badge variant="accent">{tournament.source}</Badge>
                     </TableCell>
-                    <TableCell>{tournament.players}</TableCell>
+                    <TableCell>
+                      {isMtgoLeagueWithoutPlayerCount(tournament)
+                        ? '—'
+                        : tournament.players}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {data.data.length === 0 && (
