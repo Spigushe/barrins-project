@@ -214,6 +214,15 @@ section of the docs site for details.
 
 ### Changed
 
+- Version history diff (`VersionHistorySection`), with "Show decklist
+  change log" on: changed cards that share a matched card-test note are
+  now grouped under that note as a heading (removed lines before added
+  within each group), instead of repeating the note under every line.
+  A card whose note matches nothing, or every card when the setting is
+  off, still renders as the flat diff list — now under an "Other
+  changes" sub-header when at least one comment group is shown above
+  it. Presentation only; grouping key is the note text the diff
+  already carries, no API change.
 - Authentication is now entirely `barrins_identity`'s: `api/client.ts`
   reads its `Bearer` from the shared identity token store and does its
   `401` refresh through the identity client; `ProtectedRoute` /

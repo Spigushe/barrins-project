@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { VersionHistorySection } from './VersionHistorySection'
 
 const versions = [
@@ -14,24 +14,36 @@ const versions = [
   },
 ]
 
-const diff = {
-  version_id: 'v2',
-  version: 2,
-  compared_to_version_id: 'v1',
-  compared_to_version: 1,
-  cards: [
-    {
-      name: 'Sol Ring',
-      status: 'added' as const,
-      old_qty: null,
-      new_qty: 1,
-      is_commander: false,
-      card_test_notes: ['great swap into the control matchup'],
-    },
-  ],
-  unparsed_lines: [],
+interface DiffCard {
+  name: string
+  status: 'added' | 'removed' | 'unchanged' | 'quantity_changed'
+  old_qty: number | null
+  new_qty: number | null
+  is_commander: boolean
+  card_test_notes: string[]
 }
 
+function makeDiff(cards: DiffCard[]) {
+  return {
+    version_id: 'v2',
+    version: 2,
+    compared_to_version_id: 'v1',
+    compared_to_version: 1,
+    cards,
+    unparsed_lines: [] as { line: string; status: string }[],
+  }
+}
+
+let diff = makeDiff([
+  {
+    name: 'Sol Ring',
+    status: 'added',
+    old_qty: null,
+    new_qty: 1,
+    is_commander: false,
+    card_test_notes: ['great swap into the control matchup'],
+  },
+])
 let showChangeLog = true
 
 vi.mock('@/contexts/active-deck-context', () => ({
@@ -49,26 +61,156 @@ vi.mock('@/hooks/useDecklistVersions', () => ({
   useDeleteDecklistVersion: () => ({ mutateAsync: vi.fn() }),
 }))
 
-describe('VersionHistorySection — S16 matched card-test comments', () => {
-  it('shows a matched card test note under its diff line when the setting is on', async () => {
-    showChangeLog = true
-    const user = userEvent.setup()
-    render(<VersionHistorySection />)
+async function expandVersion2() {
+  const user = userEvent.setup()
+  render(<VersionHistorySection />)
+  await user.click(screen.getByRole('button', { name: /Version 2/ }))
+}
 
-    await user.click(screen.getByRole('button', { name: /Version 2/ }))
+describe('VersionHistorySection — S16 matched card-test comments', () => {
+  beforeEach(() => {
+    showChangeLog = true
+    diff = makeDiff([
+      {
+        name: 'Sol Ring',
+        status: 'added',
+        old_qty: null,
+        new_qty: 1,
+        is_commander: false,
+        card_test_notes: ['great swap into the control matchup'],
+      },
+    ])
+  })
+
+  it('shows a matched card test note under its diff line when the setting is on', async () => {
+    await expandVersion2()
 
     expect(screen.getByText('great swap into the control matchup')).toBeInTheDocument()
   })
 
   it('hides the matched card test note when the setting is off', async () => {
     showChangeLog = false
-    const user = userEvent.setup()
-    render(<VersionHistorySection />)
-
-    await user.click(screen.getByRole('button', { name: /Version 2/ }))
+    await expandVersion2()
 
     expect(
       screen.queryByText('great swap into the control matchup'),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('VersionHistorySection — grouping changes by shared comment', () => {
+  beforeEach(() => {
+    showChangeLog = true
+  })
+
+  it('renders cards that share a comment together under it once', async () => {
+    diff = makeDiff([
+      {
+        name: 'Flood Plain',
+        status: 'removed',
+        old_qty: 1,
+        new_qty: null,
+        is_commander: false,
+        card_test_notes: ['tapland inutile'],
+      },
+      {
+        name: 'Mystic Gate',
+        status: 'added',
+        old_qty: null,
+        new_qty: 1,
+        is_commander: false,
+        card_test_notes: ['tapland inutile'],
+      },
+    ])
+    await expandVersion2()
+
+    expect(screen.getAllByText('tapland inutile')).toHaveLength(1)
+    expect(screen.getByText('- 1 Flood Plain')).toBeInTheDocument()
+    expect(screen.getByText('+ 1 Mystic Gate')).toBeInTheDocument()
+    expect(screen.queryByText('Other changes')).not.toBeInTheDocument()
+  })
+
+  it('orders removed before added within a comment group', async () => {
+    diff = makeDiff([
+      {
+        name: 'Brainstorm',
+        status: 'added',
+        old_qty: null,
+        new_qty: 1,
+        is_commander: false,
+        card_test_notes: ['swap'],
+      },
+      {
+        name: 'Ponder',
+        status: 'removed',
+        old_qty: 1,
+        new_qty: null,
+        is_commander: false,
+        card_test_notes: ['swap'],
+      },
+    ])
+    await expandVersion2()
+
+    const lines = screen.getAllByText(/^[+-] 1 /).map((el) => el.textContent)
+    expect(lines).toEqual(['- 1 Ponder', '+ 1 Brainstorm'])
+  })
+
+  it('drops changes with no comment into an "Other changes" block', async () => {
+    diff = makeDiff([
+      {
+        name: 'Flood Plain',
+        status: 'removed',
+        old_qty: 1,
+        new_qty: null,
+        is_commander: false,
+        card_test_notes: ['tapland inutile'],
+      },
+      {
+        name: 'Mystic Gate',
+        status: 'added',
+        old_qty: null,
+        new_qty: 1,
+        is_commander: false,
+        card_test_notes: ['tapland inutile'],
+      },
+      {
+        name: 'Ponder',
+        status: 'removed',
+        old_qty: 1,
+        new_qty: null,
+        is_commander: false,
+        card_test_notes: [],
+      },
+    ])
+    await expandVersion2()
+
+    expect(screen.getByText('Other changes')).toBeInTheDocument()
+    expect(screen.getByText('- 1 Ponder')).toBeInTheDocument()
+  })
+
+  it('keeps a flat list (no "Other changes" header) when nothing has a comment', async () => {
+    diff = makeDiff([
+      {
+        name: 'Ponder',
+        status: 'removed',
+        old_qty: 1,
+        new_qty: null,
+        is_commander: false,
+        card_test_notes: [],
+      },
+      {
+        name: 'Brainstorm',
+        status: 'added',
+        old_qty: null,
+        new_qty: 1,
+        is_commander: false,
+        card_test_notes: [],
+      },
+    ])
+    await expandVersion2()
+
+    expect(screen.queryByText('Other changes')).not.toBeInTheDocument()
+    expect(screen.getByText('- 1 Ponder')).toBeInTheDocument()
+    expect(screen.getByText('+ 1 Brainstorm')).toBeInTheDocument()
   })
 })

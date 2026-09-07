@@ -123,6 +123,127 @@ function ExpandedVersion({ deckId, versionId }: { deckId: string; versionId: str
   )
 }
 
+type DiffCard = DecklistVersionDiff['cards'][number]
+
+/** removed → quantity change → added, so a comment group reads
+ * "out …, in …" rather than in the diff's own alphabetical order. */
+const DIFF_STATUS_ORDER: Record<DiffCard['status'], number> = {
+  removed: 0,
+  quantity_changed: 1,
+  added: 2,
+  unchanged: 3,
+}
+
+/** One card's line in a version diff: `+ N Name`, `- N Name`, or
+ * `Name: old → new` for a pure quantity change. */
+function DiffCardLine({ card }: { card: DiffCard }) {
+  return (
+    <p className={DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS[card.status]}>
+      {card.status === 'added' && `+ ${String(card.new_qty)} ${card.name}`}
+      {card.status === 'removed' && `- ${String(card.old_qty)} ${card.name}`}
+      {card.status === 'quantity_changed' &&
+        `${card.name}: ${String(card.old_qty)} → ${String(card.new_qty)}`}
+    </p>
+  )
+}
+
+/** S16 follow-up: with the change log on, changed cards that share a
+ * matched card-test note are shown together under that note as a
+ * heading (a card carrying several notes appears under each); cards
+ * with no note fall into a trailing "Other changes" block. Groups keep
+ * encounter order — a group sorts by where its first card sits in the
+ * diff — while cards within a group sort removed-before-added. */
+function groupChangedCardsByNote(cards: DiffCard[]): {
+  groups: { note: string; cards: DiffCard[] }[]
+  ungrouped: DiffCard[]
+} {
+  const groups: { note: string; cards: DiffCard[] }[] = []
+  const bucketByNote = new Map<string, DiffCard[]>()
+  const ungrouped: DiffCard[] = []
+
+  for (const card of cards) {
+    const notes = [...new Set(card.card_test_notes.map((note) => note.trim()))].filter(
+      (note) => note.length > 0,
+    )
+    if (notes.length === 0) {
+      ungrouped.push(card)
+      continue
+    }
+    for (const note of notes) {
+      let bucket = bucketByNote.get(note)
+      if (!bucket) {
+        bucket = []
+        bucketByNote.set(note, bucket)
+        groups.push({ note, cards: bucket })
+      }
+      bucket.push(card)
+    }
+  }
+
+  for (const group of groups) {
+    group.cards.sort(
+      (a, b) =>
+        DIFF_STATUS_ORDER[a.status] - DIFF_STATUS_ORDER[b.status] ||
+        a.name.localeCompare(b.name),
+    )
+  }
+
+  return { groups, ungrouped }
+}
+
+function ChangedCards({
+  cards,
+  groupByNote,
+}: {
+  cards: DiffCard[]
+  groupByNote: boolean
+}) {
+  const { groups, ungrouped } = groupByNote
+    ? groupChangedCardsByNote(cards)
+    : { groups: [], ungrouped: cards }
+
+  // Change log off, or on but nothing matched a card-test note — the
+  // flat diff list, unchanged.
+  if (groups.length === 0) {
+    return (
+      <>
+        {cards.map((card) => (
+          <DiffCardLine key={card.name} card={card} />
+        ))}
+      </>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {groups.map((group) => (
+        <div key={group.note}>
+          <p className="font-sans text-[12px] font-medium text-foreground">
+            {group.note}
+          </p>
+          <div className="pl-4">
+            {group.cards.map((card) => (
+              <DiffCardLine key={card.name} card={card} />
+            ))}
+          </div>
+        </div>
+      ))}
+      {ungrouped.length > 0 && (
+        <div>
+          <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            Other changes
+          </p>
+          <div className="pl-4">
+            {ungrouped.map((card) => (
+              <DiffCardLine key={card.name} card={card} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VersionDiff({ diff }: { diff: DecklistVersionDiff }) {
   const { data: settings } = useMySettings()
   const showChangeLog = settings?.show_decklist_change_log ?? false
@@ -147,33 +268,19 @@ function VersionDiff({ diff }: { diff: DecklistVersionDiff }) {
         <p className="text-muted-foreground">No changes.</p>
       )}
       <div className="font-mono text-[13px]">
-        {changedCards.map((card) => (
-          <div key={card.name}>
-            <p className={DECKLIST_CARD_DIFF_STATUS_TEXT_CLASS[card.status]}>
-              {card.status === 'added' && `+ ${String(card.new_qty)} ${card.name}`}
-              {card.status === 'removed' && `- ${String(card.old_qty)} ${card.name}`}
-              {card.status === 'quantity_changed' &&
-                `${card.name}: ${String(card.old_qty)} → ${String(card.new_qty)}`}
-            </p>
-            {showChangeLog &&
-              card.card_test_notes.map((note, index) => (
-                <p
-                  key={`${card.name}-note-${String(index)}`}
-                  className="pl-4 font-sans text-[12px] text-muted-foreground italic"
-                >
-                  {note}
-                </p>
-              ))}
+        <ChangedCards cards={changedCards} groupByNote={showChangeLog} />
+        {changedLines.length > 0 && (
+          <div className={changedCards.length > 0 ? 'mt-3' : undefined}>
+            {changedLines.map((line, index) => (
+              <p
+                key={`${String(index)}-${line.line}`}
+                className={line.status === 'added' ? 'text-success' : 'text-destructive'}
+              >
+                {line.status === 'added' ? `+ ${line.line}` : `- ${line.line}`}
+              </p>
+            ))}
           </div>
-        ))}
-        {changedLines.map((line, index) => (
-          <p
-            key={`${String(index)}-${line.line}`}
-            className={line.status === 'added' ? 'text-success' : 'text-destructive'}
-          >
-            {line.status === 'added' ? `+ ${line.line}` : `- ${line.line}`}
-          </p>
-        ))}
+        )}
       </div>
     </div>
   )
