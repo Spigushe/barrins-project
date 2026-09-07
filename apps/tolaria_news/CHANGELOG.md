@@ -71,6 +71,21 @@ karnTablets.ts` reconciled against the live response shape. All three
     cursor pagination (Previous / Next, page size 20); pagination resets
     when the window (kind or period) changes.
 
+### Changed
+
+- Landing page: the last hardcoded figures are now live from the BFF.
+  The third headline count is "command zones charted" (distinct
+  commander / partner-pair combinations, from `GET /bff/tolaria-news/stats`'s
+  new `command_zones_count`) — shown always, no longer a
+  flag-gated placeholder. The viz-panel's two Karn Tablets callouts read
+  `GET /bff/tolaria-news/metagame?window=rolling_30d`: the #1 archetype by
+  share (name + share) and the backend-selected `fastest_rising` archetype
+  (name + share-point growth, replacing the invented "winrate ↑ 2.4%").
+  Each hides itself when its datum is absent (no clustering run yet, or
+  nothing rising). The `n = 286` "midrange-value" callout stays static —
+  Karn Tablets has no macro-archetype definitions yet. All Karn callouts
+  remain behind `VITE_FEATURE_KARN_TABLETS`.
+
 ### Fixed
 
 - MTGO Leagues publish no player-count header, so the scraper records
