@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LandingPage } from './LandingPage'
 
@@ -106,6 +107,40 @@ describe('LandingPage', () => {
       'href',
       '/methodology',
     )
+  })
+
+  describe('the "decoded." easter-egg trigger', () => {
+    function renderWithHiddenRoute() {
+      return render(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/west" element={<div>hidden calculator</div>} />
+          </Routes>
+        </MemoryRouter>,
+      )
+    }
+
+    it('opens the hidden calculator on the seventh click of "decoded."', async () => {
+      flagState.karnTabletsEnabled = false
+      const user = userEvent.setup()
+      renderWithHiddenRoute()
+
+      const word = screen.getByText('decoded.')
+      for (let i = 0; i < 7; i++) await user.click(word)
+
+      expect(await screen.findByText('hidden calculator')).toBeInTheDocument()
+    })
+
+    it('stays closed before the seventh click', async () => {
+      const user = userEvent.setup()
+      renderWithHiddenRoute()
+
+      const word = screen.getByText('decoded.')
+      for (let i = 0; i < 6; i++) await user.click(word)
+
+      expect(screen.queryByText('hidden calculator')).not.toBeInTheDocument()
+    })
   })
 
   describe('VizPanel season label', () => {
