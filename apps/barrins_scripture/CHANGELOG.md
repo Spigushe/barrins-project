@@ -65,6 +65,15 @@ section of the docs site for details.
   (driver lifecycle moved to the caller: `scrape_mtgo` and
   `scripts.mtgo_empty_decks.scrape_tournaments_without_decks`, the two
   places that create drivers for it).
+- The sweep now skips files whose `tournament.format` is not in the new
+  `INGEST_FORMATS` constant (`{"Duel Commander"}`, mirrors `barrins_api`'s
+  `scripture_ingest_formats` default) — every `bs_*` reader is DC-only,
+  so POSTing the other seven scraped formats just burned an HTTP + DB
+  round trip each. Skipped files are reported as `filtered` in the final
+  `sweep done` log line (neither `succeeded` nor `failed`). A file with
+  no `format` field still posts, to be rejected server-side. Context:
+  a full-archive replay of all eight formats filled the production disk
+  on 2026-09-06 (see the ops incident of that date).
 
 ### Fixed
 

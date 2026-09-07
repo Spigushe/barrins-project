@@ -539,3 +539,48 @@ class TestFastForwardSweep:
                 days=7,
             )
         get.assert_not_called()
+
+
+class TestFormatScope:
+    """`INGEST_FORMATS` filter — Duel-Commander-only by default."""
+
+    def test_non_dc_files_are_filtered_not_posted(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "05" / "legacy.json",
+            {"tournament": {"name": "l", "url": "u1", "format": "Legacy"}},
+        )
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "05" / "dc.json",
+            {"tournament": {"name": "d", "url": "u2", "format": "Duel Commander"}},
+        )
+        with patch.object(sweep.requests, "post", return_value=Mock()) as post:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+        # Only the DC file is posted; the Legacy file is neither
+        # succeeded nor failed.
+        assert (succeeded, failed) == (1, 0)
+        assert post.call_count == 1
+        assert post.call_args.kwargs["json"]["tournament"]["format"] == "Duel Commander"
+
+    def test_file_without_a_format_still_posts(self, tmp_path: Path) -> None:
+        # A malformed file missing `tournament.format` is left for the
+        # route to reject, not silently dropped here.
+        _write(
+            tmp_path / "mtgo.com" / "2026" / "08" / "05" / "no_format.json",
+            {"tournament": {"name": "n", "url": "u3"}},
+        )
+        with patch.object(sweep.requests, "post", return_value=Mock()) as post:
+            succeeded, failed = sweep.sweep(
+                tmp_path,
+                api_url="https://api.example.com",
+                token="secret-token",  # noqa: S106
+                mode="full",
+                days=7,
+            )
+        assert (succeeded, failed) == (1, 0)
+        assert post.call_count == 1

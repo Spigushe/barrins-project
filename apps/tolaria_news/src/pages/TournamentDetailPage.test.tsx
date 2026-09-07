@@ -110,6 +110,39 @@ describe('TournamentDetailPage', () => {
     } as any)
   })
 
+  it('shows the reported player count in the header when there is one', () => {
+    renderPage()
+
+    expect(screen.getByText(/32 players/)).toBeInTheDocument()
+  })
+
+  it('shows an em dash instead of "0 players" for an MTGO League with no reported count', () => {
+    vi.mocked(useTournament).mockReturnValue({
+      data: {
+        data: {
+          id: 't1',
+          source: 'mtgo',
+          date: '2026-08-01',
+          name: 'Duel Commander League',
+          url: 'https://x',
+          format: 'Duel Commander',
+          players: 0,
+          deck_count: 1,
+          standing_count: 1,
+        },
+        meta,
+        page: null,
+      },
+      isLoading: false,
+      isError: false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any)
+    renderPage()
+
+    expect(screen.getByText(/— —$/)).toBeInTheDocument()
+    expect(screen.queryByText(/\d+ players/)).not.toBeInTheDocument()
+  })
+
   it('shows the decks tab by default, linking to each deck', () => {
     renderPage()
 

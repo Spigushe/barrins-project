@@ -88,7 +88,9 @@ class ScriptureIngestRequest(BaseModel):
 
 
 class ResponseScriptureIngest(BaseResponse):
-    tournament_id: uuid.UUID
+    #: `None` when `skipped_out_of_scope` is `True` (nothing was
+    #: persisted); a real id otherwise.
+    tournament_id: uuid.UUID | None
     decks_upserted: int
     deck_cards_upserted: int
     rounds_upserted: int
@@ -98,3 +100,9 @@ class ResponseScriptureIngest(BaseResponse):
     #: (S8) and were therefore skipped, not stored — see
     #: app/services/scripture/card_resolver.py.
     skipped_card_names: list[str]
+    #: `True` when the whole file was ignored because its
+    #: `tournament.format` is not in
+    #: `settings.base.scripture_ingest_formats` (Duel-Commander-only
+    #: since the 2026-09-06 disk incident). A 200 no-op, not an error —
+    #: the sweep counts it as success.
+    skipped_out_of_scope: bool = False
