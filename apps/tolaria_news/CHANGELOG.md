@@ -71,6 +71,15 @@ karnTablets.ts` reconciled against the live response shape. All three
     cursor pagination (Previous / Next, page size 20); pagination resets
     when the window (kind or period) changes.
 
+### Fixed
+
+- MTGO Leagues publish no player-count header, so the scraper records
+  `players: 0` for them. The tournament list and detail views showed a
+  literal **0**, which reads as a real turnout of zero; they now show an
+  em dash for the "not reported" case. Gated on the same rule the
+  backend uses to classify a league (`size_bucket_condition`, bucket
+  `"leagues"`: source `mtgo`, `players == 0`, name contains `"League"`).
+
 ### Notes
 
 - `VITE_FEATURE_KARN_TABLETS` stays unset in every environment — the

@@ -55,6 +55,22 @@ const page2 = {
   page: { next_cursor: null, limit: 20 },
 }
 
+const leaguePage = {
+  data: [
+    {
+      id: 't3',
+      source: 'mtgo',
+      date: '2026-08-03',
+      name: 'Duel Commander League',
+      url: 'https://z',
+      format: 'Duel Commander',
+      players: 0,
+    },
+  ],
+  meta,
+  page: { next_cursor: null, limit: 20 },
+}
+
 const useTournamentsMock = vi.fn()
 
 vi.mock('@/hooks/useTournaments', () => ({
@@ -220,6 +236,25 @@ describe('TournamentListPage', () => {
       '/tournaments/t1',
     )
     expect(screen.getByText('mtgo')).toBeInTheDocument()
+  })
+
+  it('shows the reported player count as-is when there is one', () => {
+    renderPage()
+
+    expect(screen.getByRole('cell', { name: '32' })).toBeInTheDocument()
+  })
+
+  it('shows an em dash instead of 0 for an MTGO League with no reported player count', () => {
+    useTournamentsMock.mockReturnValue({
+      data: leaguePage,
+      isLoading: false,
+      isError: false,
+      error: null,
+    })
+    renderPage()
+
+    expect(screen.getByRole('cell', { name: '—' })).toBeInTheDocument()
+    expect(screen.queryByRole('cell', { name: '0' })).not.toBeInTheDocument()
   })
 
   it('advances to the next page using the returned cursor', async () => {

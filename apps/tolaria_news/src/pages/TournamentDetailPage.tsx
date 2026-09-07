@@ -19,6 +19,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { CommanderHoverBadge } from '@/components/commander-hover-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isMtgoLeagueWithoutPlayerCount } from '@/lib/tournaments'
 
 function DecksTab({ tournamentId }: { tournamentId: string }) {
   const { data, isLoading } = useTournamentDecks(tournamentId)
@@ -169,7 +170,10 @@ export function TournamentDetailPage() {
         <Eyebrow className="mt-2">{tournament.format}</Eyebrow>
         <CardTitle className="mt-2">{tournament.name}</CardTitle>
         <CardDescription>
-          {tournament.date} — {tournament.format} — {tournament.players} players
+          {tournament.date} — {tournament.format} —{' '}
+          {isMtgoLeagueWithoutPlayerCount(tournament)
+            ? '—'
+            : `${tournament.players} players`}
         </CardDescription>
         <div className="mt-2 flex gap-2">
           <Badge variant="accent">{tournament.source}</Badge>
