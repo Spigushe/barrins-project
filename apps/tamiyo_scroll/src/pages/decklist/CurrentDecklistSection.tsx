@@ -1,8 +1,10 @@
 import { useActiveDeck } from '@/contexts/active-deck-context'
 import { useCardTestChangeLog } from '@/hooks/useCardTests'
 import { useDecklistVersions, useDecklistView } from '@/hooks/useDecklistVersions'
+import { useLocalStorageFlag } from '@/hooks/useLocalStorageFlag'
 import { useDownloadDeckReport, usePersonalDecks } from '@/hooks/usePersonalDecks'
 import { useMySettings } from '@/hooks/useSettings'
+import { DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED } from '@/lib/displayPrefs'
 import {
   DECKLIST_LINE_STATUS_BG_CLASS,
   DECKLIST_LINE_STATUS_LABELS,
@@ -10,6 +12,7 @@ import {
   formatDateTime,
 } from '@/lib/mtg-format'
 import { cn } from '@/lib/utils'
+import { ChevronDownIcon } from '@/components/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardTitle } from '@/components/ui/card'
@@ -43,6 +46,10 @@ export function CurrentDecklistSection() {
   const showChangeLog = settings?.show_decklist_change_log ?? false
   const { data: unmatchedCardTests } = useCardTestChangeLog(activeDeckId, showChangeLog)
   const downloadReport = useDownloadDeckReport()
+  const [collapsed, setCollapsed] = useLocalStorageFlag(
+    DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED,
+    false, // Phase 1 default: expanded. Phase 2 flips this to `true`.
+  )
 
   if (activeDeckId === null) return null
 
@@ -95,6 +102,27 @@ export function CurrentDecklistSection() {
           >
             {downloadReport.isPending ? 'Generating…' : 'Download report (PDF)'}
           </Button>
+          {latest && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-expanded={!collapsed}
+              aria-controls="current-decklist-body"
+              aria-label={collapsed ? 'Unfold decklist' : 'Fold decklist'}
+              title={collapsed ? 'Unfold decklist' : 'Fold decklist'}
+              onClick={() => {
+                setCollapsed(!collapsed)
+              }}
+            >
+              <ChevronDownIcon
+                className={cn(
+                  'size-3.5 transition-transform',
+                  !collapsed && 'rotate-180',
+                )}
+              />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -119,8 +147,11 @@ export function CurrentDecklistSection() {
         <p className="mt-4 text-muted-foreground">No version saved for this deck.</p>
       )}
 
-      {latest && (
-        <div className="mt-4 rounded-(--radius-input) border border-border bg-input-inline p-4">
+      {latest && !collapsed && (
+        <div
+          id="current-decklist-body"
+          className="mt-4 rounded-(--radius-input) border border-border bg-input-inline p-4"
+        >
           {view && <DecklistViewContent view={view} />}
         </div>
       )}

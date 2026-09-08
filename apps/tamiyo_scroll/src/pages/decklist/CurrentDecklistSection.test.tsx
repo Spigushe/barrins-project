@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED } from '@/lib/displayPrefs'
 import { CurrentDecklistSection } from './CurrentDecklistSection'
 
 const versions = [
@@ -67,6 +68,13 @@ vi.mock('@/hooks/usePersonalDecks', () => ({
   useDownloadDeckReport: () => ({ mutate: vi.fn(), isPending: false }),
   usePersonalDecks: () => ({ data: [] }),
 }))
+
+// The S19 fold toggle uses the real `useLocalStorageFlag` (jsdom
+// `localStorage`) — clear it between every test so a persisted collapse
+// state can't leak into the S16 cases above or between S19 cases.
+afterEach(() => {
+  localStorage.clear()
+})
 
 describe('CurrentDecklistSection — S16 untracked card tests', () => {
   const heading = 'Card change being considered in this version:'
@@ -176,5 +184,68 @@ describe('CurrentDecklistSection — S16 untracked card tests', () => {
     render(<CurrentDecklistSection />)
 
     expect(screen.queryByText(heading)).not.toBeInTheDocument()
+  })
+})
+
+describe('CurrentDecklistSection — S19 fold toggle', () => {
+  beforeEach(() => {
+    showChangeLog = false
+    unmatchedCardTests = []
+    decklistView = {
+      commander_cards: [],
+      library_cards: [{ category: 'other', count: 1, cards: [pendingCard('vis-1')] }],
+      unparsed_lines: [],
+    }
+  })
+
+  it('renders expanded by default, with a "Fold decklist" toggle', () => {
+    const { container } = render(<CurrentDecklistSection />)
+
+    const toggle = screen.getByRole('button', { name: 'Fold decklist' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(container.querySelector('#current-decklist-body')).not.toBeNull()
+  })
+
+  it('collapses the decklist body when clicked and persists the choice', () => {
+    const { container } = render(<CurrentDecklistSection />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fold decklist' }))
+
+    expect(container.querySelector('#current-decklist-body')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Unfold decklist' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(localStorage.getItem(DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED)).toBe('true')
+  })
+
+  it('starts collapsed when the stored preference is set', () => {
+    localStorage.setItem(DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED, 'true')
+
+    const { container } = render(<CurrentDecklistSection />)
+
+    expect(
+      screen.getByRole('button', { name: 'Unfold decklist' }),
+    ).toBeInTheDocument()
+    expect(container.querySelector('#current-decklist-body')).toBeNull()
+  })
+
+  it('keeps the change-log block visible while collapsed', () => {
+    localStorage.setItem(DISPLAY_PREF_CURRENT_DECKLIST_COLLAPSED, 'true')
+    showChangeLog = true
+    unmatchedCardTests = [
+      {
+        id: 'cl-1',
+        removed_card_name: 'Counterspell',
+        added_card_name: 'Mana Crypt',
+        notes: 'shelved for now',
+      },
+    ]
+
+    render(<CurrentDecklistSection />)
+
+    expect(
+      screen.getByText('Card change being considered in this version:'),
+    ).toBeInTheDocument()
   })
 })
