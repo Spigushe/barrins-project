@@ -15,7 +15,7 @@ by any future app, not a Tamiyo-Scroll-specific workflow.
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select, union
 
 from app.database.session import DatabaseSession
@@ -219,6 +219,32 @@ async def search_cards_by_name(
         .distinct(Card.name)
     )
     return [ResponseCard.model_validate(c) for c in result.scalars().all()]
+
+
+_SEARCH_BY_NAME_PREFIX_LIMIT = 20
+
+
+@router.get("/cards/search-by-name-prefix", response_model=list[str])
+async def search_cards_by_name_prefix(
+    session: DatabaseSession, q: str = Query(min_length=1)
+) -> list[str]:
+    """Distinct card names containing `q` (case-insensitive, substring --
+    not just prefix), for on-the-fly name dropdowns (S17 item 2). Unlike
+    `GET /cards/search-by-name/{name}`, this is presentation-only: it
+    returns names, not full card data, and callers decide their own
+    minimum-length gate before querying (Tamiyo Scroll's dropdown uses
+    3 characters) -- the actual enforcement of "does this name resolve to
+    a real card" stays `TSUserSettings.validate_added_card_exists`
+    (unchanged by this endpoint).
+    """
+    result = await session.execute(
+        select(Card.name)
+        .where(Card.name.ilike(f"%{q}%"))
+        .distinct()
+        .order_by(Card.name)
+        .limit(_SEARCH_BY_NAME_PREFIX_LIMIT)
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/cards/{card_id}", response_model=ResponseCard)

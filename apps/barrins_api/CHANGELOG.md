@@ -372,6 +372,15 @@ section of the docs site for details.
 
 ### Fixed
 
+- `GET /cards/search-by-name-prefix?q=` restored: the S17 substring
+  card-name search (case-insensitive `ILIKE` over `Card.name`, distinct,
+  20-result cap, presentation-only `list[str]`) was dropped from
+  `app/api/general/mtgjson.py` during the S8–S18 reconciliation onto
+  `v2.0.0-bump` (#113) while the frontend caller, this changelog entry,
+  and the S17 plan doc all kept referencing it — so Tamiyo Scroll's
+  decklist "Tested cards → Added Card" on-the-fly suggestions and the
+  "Validate added card exists" not-found hint had been silently 404ing.
+  `TestSearchCardsByNamePrefix` restored alongside it.
 - `validate_removed_card_in_decklist` (S16) no longer runs on
   `PUT /card-tests/{id}` — it's a create-time guard against the deck's
   *current* decklist content, so re-checking it on every edit rejected
