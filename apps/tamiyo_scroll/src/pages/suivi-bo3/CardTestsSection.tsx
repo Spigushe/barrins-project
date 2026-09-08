@@ -1,4 +1,11 @@
-import { Fragment, type FormEvent, useState } from 'react'
+import {
+  Fragment,
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   useCardTests,
   useCreateCardTest,
@@ -242,6 +249,12 @@ function addedCardNotFoundHint(
  * `PopoverAnchor` wraps the real `Input` so the dropdown positions off
  * it without stealing its focus or replacing it with a separate search
  * box.
+ *
+ * Keyboard: it's a proper `role="combobox"` + `role="listbox"` pair.
+ * ↓/↑ move a highlight through the suggestions (wrapping), Enter commits
+ * the highlighted one, Escape closes the list. Navigation only sets
+ * `aria-activedescendant` — it never rewrites the input — so arrowing
+ * around can't silently clobber free-text entry; only Enter/click does.
  */
 function CardNameField({
   id,
@@ -263,14 +276,76 @@ function CardNameField({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  // -1 = nothing highlighted (the typed text is the value).
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const isOpen = open && suggestions.length > 0
+  // `suggestions` is a fresh array every render (debounced search /
+  // client-side filter), so clamp here rather than resyncing
+  // `activeIndex` from an effect that would re-fire constantly.
+  const activeOption =
+    activeIndex >= 0 && activeIndex < suggestions.length ? activeIndex : -1
+  const listboxId = `${id}-listbox`
+
+  useEffect(() => {
+    if (activeOption < 0) return
+    listRef.current?.children.item(activeOption)?.scrollIntoView({
+      block: 'nearest',
+    })
+  }, [activeOption])
+
+  function close() {
+    setOpen(false)
+    setActiveIndex(-1)
+  }
+
+  function commit(name: string) {
+    onChange(name)
+    close()
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!isOpen) {
+        setOpen(true)
+        return
+      }
+      setActiveIndex((current) => (current + 1 >= suggestions.length ? 0 : current + 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      if (!isOpen) return
+      event.preventDefault()
+      setActiveIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1))
+      return
+    }
+    if (event.key === 'Enter' && isOpen && activeOption >= 0) {
+      event.preventDefault()
+      commit(suggestions[activeOption])
+      return
+    }
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault()
+      close()
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
       {showLabel && <Label htmlFor={id}>{label}</Label>}
-      <Popover open={open && suggestions.length > 0}>
+      <Popover open={isOpen}>
         <PopoverAnchor asChild>
           <Input
             id={id}
+            role="combobox"
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? listboxId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={
+              activeOption >= 0 ? `${id}-option-${activeOption}` : undefined
+            }
             aria-label={showLabel ? undefined : label}
             value={value}
             autoComplete="off"
@@ -278,12 +353,14 @@ function CardNameField({
             onChange={(event) => {
               onChange(event.target.value)
               setOpen(true)
+              setActiveIndex(-1)
             }}
+            onKeyDown={handleKeyDown}
             onFocus={() => {
               setOpen(true)
             }}
             onBlur={() => {
-              setOpen(false)
+              close()
             }}
           />
         </PopoverAnchor>
@@ -293,24 +370,30 @@ function CardNameField({
             event.preventDefault()
           }}
         >
-          {suggestions.map((name) => (
-            <button
-              key={name}
-              type="button"
-              className="block w-full truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-input"
-              // Prevents the input from blurring (and the popover closing)
-              // before the click's onChange-equivalent below can fire.
-              onMouseDown={(event) => {
-                event.preventDefault()
-              }}
-              onClick={() => {
-                onChange(name)
-                setOpen(false)
-              }}
-            >
-              {name}
-            </button>
-          ))}
+          <div ref={listRef} role="listbox" id={listboxId} aria-label={label}>
+            {suggestions.map((name, index) => (
+              <div
+                key={name}
+                id={`${id}-option-${index}`}
+                role="option"
+                aria-selected={index === activeOption}
+                className={cn(
+                  'block w-full cursor-pointer truncate rounded-sm px-2 py-1.5 text-left text-sm hover:bg-input',
+                  index === activeOption && 'bg-input',
+                )}
+                // Prevents the input from blurring (and the popover closing)
+                // before the click's commit below can fire.
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                }}
+                onClick={() => {
+                  commit(name)
+                }}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
         </PopoverContent>
       </Popover>
       {notFoundHint && (

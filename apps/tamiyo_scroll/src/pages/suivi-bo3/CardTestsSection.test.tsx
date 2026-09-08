@@ -406,4 +406,58 @@ describe('CardTestsSection — name dropdowns', () => {
       screen.queryByText('No matching card found — you can still save this name.'),
     ).not.toBeInTheDocument()
   })
+
+  it('navigates the added-card suggestions with the arrow keys and commits with Enter', async () => {
+    addedCardSearchResult = {
+      data: ['Thoughtseize', 'Thought Scour', 'Thoughtbind'],
+      isFetching: false,
+    }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'thou')
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+
+    expect(screen.getByRole('option', { name: 'Thought Scour' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    await user.keyboard('{Enter}')
+
+    // Enter on a highlighted suggestion commits it — it doesn't fall
+    // through to submitting the create form (value would still be "thou").
+    expect(screen.getByLabelText('Added Card')).toHaveValue('Thought Scour')
+  })
+
+  it('wraps the arrow-key highlight back to the first suggestion', async () => {
+    addedCardSearchResult = {
+      data: ['Thoughtseize', 'Thought Scour'],
+      isFetching: false,
+    }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'thou')
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
+
+    expect(screen.getByRole('option', { name: 'Thoughtseize' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('closes the added-card dropdown on Escape and keeps the typed text', async () => {
+    addedCardSearchResult = { data: ['Thoughtseize'], isFetching: false }
+    const user = userEvent.setup()
+    render(<CardTestsSection />)
+
+    await user.type(screen.getByLabelText('Added Card'), 'thou')
+    expect(screen.getByRole('option', { name: 'Thoughtseize' })).toBeInTheDocument()
+
+    await user.keyboard('{ArrowDown}{Escape}')
+
+    expect(screen.queryByRole('option', { name: 'Thoughtseize' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Added Card')).toHaveValue('thou')
+  })
 })
