@@ -192,6 +192,14 @@
       (`GET /cards/search-by-name-prefix?q=`, `ILIKE` substring over
       `Card.name`, 20-result cap; 3-character minimum enforced
       client-side).
+      - Follow-up (2026-09-08): optional `?exclude_banned_in=duelcommander`
+        drops names whose card is `"Banned"` in MTGJSON's `duel`
+        legality — kept ones include `"Legal"`, `"Restricted"`, and
+        untracked cards. Needs the new `mj_cards.legalities` `JSONB`
+        column (migration `a7c2e9f13b40`), backfilled by re-running
+        `POST /mtgjson/import`. The Added-Card dropdown passes it
+        unconditionally (a card banned in Duel Commander is never a
+        valid swap-in for this tool); free-text entry is unaffected.
 - [X] Removed-Card dropdown: client-side combobox over the current
       decklist's card names (already fetched by the tab via
       `decklist-view`), same `Popover`+free-text-input shape as

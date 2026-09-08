@@ -100,6 +100,7 @@ def _card_values(set_code: str, card_data: dict[str, Any]) -> dict[str, Any]:
         "power": card_data.get("power"),
         "toughness": card_data.get("toughness"),
         "loyalty": card_data.get("loyalty"),
+        "legalities": card_data.get("legalities", {}),
     }
 
 

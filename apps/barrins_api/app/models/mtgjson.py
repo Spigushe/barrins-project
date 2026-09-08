@@ -51,7 +51,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -171,6 +171,19 @@ class Card(Base):
     power: Mapped[str | None] = mapped_column(String(16), nullable=True)
     toughness: Mapped[str | None] = mapped_column(String(16), nullable=True)
     loyalty: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    #: MTGJSON's per-format legality map, stored verbatim -- keys are
+    #: MTGJSON format ids (`duel` is Duel Commander), values `"Legal"` /
+    #: `"Banned"` / `"Restricted"`; a missing key means "not tracked /
+    #: not legal" for that format. Present in MTGJSON's source data since
+    #: the beginning but only mapped in when the `/cards/search-by-name-
+    #: prefix` dropdown needed to hide Duel-Commander-banned cards.
+    #: `server_default '{}'`: like `text`/`keywords` above, it backfills
+    #: by re-running the existing idempotent POST /mtgjson/import, and
+    #: the search filter treats an empty map as "nothing to hide" so it
+    #: is a no-op until that re-import lands.
+    legalities: Mapped[dict[str, str]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

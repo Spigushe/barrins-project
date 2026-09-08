@@ -430,9 +430,23 @@ _BACK_FACE_SEARCHABLE_LAYOUTS: frozenset[str] = frozenset(
 
 
 def _mtgjson_payload_for_normal_card(
-    name: str, set_code: str, set_name: str, released_at: str
+    name: str,
+    set_code: str,
+    set_name: str,
+    released_at: str,
+    legalities: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Minimal MTGJSON payload for one single-faced ("normal" layout) card."""
+    card: dict[str, Any] = {
+        "uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{set_code}/{name}")),
+        "name": name,
+        "type": "Instant",
+        "rarity": "special",
+        "number": "1",
+        "layout": "normal",
+    }
+    if legalities is not None:
+        card["legalities"] = legalities
     return {
         "meta": {"date": "2026-08-07", "version": "test"},
         "data": {
@@ -443,18 +457,7 @@ def _mtgjson_payload_for_normal_card(
                 "baseSetSize": 1,
                 "totalSetSize": 1,
                 "keyruneCode": set_code,
-                "cards": [
-                    {
-                        "uuid": str(
-                            uuid.uuid5(uuid.NAMESPACE_URL, f"{set_code}/{name}")
-                        ),
-                        "name": name,
-                        "type": "Instant",
-                        "rarity": "special",
-                        "number": "1",
-                        "layout": "normal",
-                    }
-                ],
+                "cards": [card],
             }
         },
     }
@@ -608,3 +611,113 @@ class TestSearchCardsByNamePrefix:
 
         assert resp.status_code == 200
         assert len(resp.json()) == 20
+
+
+class TestSearchCardsByNamePrefixExcludeBanned:
+    """`?exclude_banned_in=duelcommander` drops only cards MTGJSON marks
+    `duel: "Banned"` -- Legal, Restricted, and untracked cards all stay."""
+
+    async def _import(self, db_session, name: str, legalities: dict[str, str] | None):
+        set_code = name.upper().replace(" ", "")[:8]
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    name, set_code, f"{name} Set", "2020-01-01", legalities
+                )
+            ),
+        )
+
+    async def test_drops_duel_commander_banned_card(
+        self, client: AsyncClient, db_session
+    ):
+        await self._import(db_session, "Banny Bolt", {"duel": "Banned"})
+        await self._import(db_session, "Banny Bear", {"duel": "Legal"})
+
+        resp = await client.get(
+            f"{_BASE}/cards/search-by-name-prefix?q=banny"
+            "&exclude_banned_in=duelcommander"
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == ["Banny Bear"]
+
+    async def test_keeps_restricted_and_untracked_cards(
+        self, client: AsyncClient, db_session
+    ):
+        await self._import(db_session, "Edgy Restricted", {"duel": "Restricted"})
+        await self._import(db_session, "Edgy Untracked", {})
+        await self._import(db_session, "Edgy Nolegalities", None)
+        await self._import(db_session, "Edgy Banned", {"duel": "Banned"})
+
+        resp = await client.get(
+            f"{_BASE}/cards/search-by-name-prefix?q=edgy"
+            "&exclude_banned_in=duelcommander"
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == [
+            "Edgy Nolegalities",
+            "Edgy Restricted",
+            "Edgy Untracked",
+        ]
+
+    async def test_without_the_param_a_banned_card_still_shows(
+        self, client: AsyncClient, db_session
+    ):
+        await self._import(db_session, "Plain Banned", {"duel": "Banned"})
+
+        resp = await client.get(f"{_BASE}/cards/search-by-name-prefix?q=plain")
+
+        assert resp.status_code == 200
+        assert resp.json() == ["Plain Banned"]
+
+    async def test_unknown_format_returns_422(self, client: AsyncClient):
+        resp = await client.get(
+            f"{_BASE}/cards/search-by-name-prefix?q=bolt&exclude_banned_in=commander"
+        )
+        assert resp.status_code == 422
+
+
+class TestImportPersistsLegalities:
+    async def test_legalities_map_is_stored_verbatim(self, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "Legality Probe",
+                    "LPRB",
+                    "Legality Probe Set",
+                    "2021-01-01",
+                    {"duel": "Banned", "commander": "Legal", "legacy": "Restricted"},
+                )
+            ),
+        )
+
+        stored = (
+            await db_session.execute(
+                select(Card.legalities).where(Card.name == "Legality Probe")
+            )
+        ).scalar_one()
+        assert stored == {
+            "duel": "Banned",
+            "commander": "Legal",
+            "legacy": "Restricted",
+        }
+
+    async def test_missing_legalities_defaults_to_empty_map(self, db_session):
+        await import_all_printings(
+            db_session,
+            _FakeScryfallDerivedClient(
+                _mtgjson_payload_for_normal_card(
+                    "No Legalities", "NLEG", "No Legalities Set", "2021-01-01"
+                )
+            ),
+        )
+
+        stored = (
+            await db_session.execute(
+                select(Card.legalities).where(Card.name == "No Legalities")
+            )
+        ).scalar_one()
+        assert stored == {}
