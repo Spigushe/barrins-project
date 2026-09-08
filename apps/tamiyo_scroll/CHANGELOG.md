@@ -211,6 +211,13 @@ section of the docs site for details.
   — old `/app/*` links still resolve, redirected to the flattened path.
   The post-login/first-access landing tab is now Tracker (BO3 Tracking),
   not Metagame.
+- Fold/unfold control on the Decklist tab's "Current decklist" section
+  (S19): a chevron toggle in the section header collapses the card
+  tables, keeping the header — version badge, status legend, "Download
+  report (PDF)", and the "Card change being considered" block — as the
+  anchor to unfold from. The choice is remembered per browser
+  (`localStorage`, not synced to the account), and defaults to expanded
+  for now.
 
 ### Changed
 
