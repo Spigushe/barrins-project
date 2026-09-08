@@ -296,6 +296,20 @@ section of the docs site for details.
   is no preceding window. Selected in `app/services/karn/read.py`
   (`metagame_snapshot`) so the "fastest mover" ranking stays backend-owned
   (Constitution §4.1/§4.2). `/archetypes` is unchanged.
+- `mj_cards.legalities` (`JSONB`, `server_default '{}'`) — MTGJSON's
+  per-format legality map, stored verbatim by the importer
+  (`_card_values`). Same backfill-by-reimport story as `text`/`keywords`
+  (migration `b7d1f4a290ec`): the column is valid immediately with an
+  empty map on every row, and the next idempotent `POST /mtgjson/import`
+  (the daily scheduled refresh included) fills in the real values.
+- `GET /cards/search-by-name-prefix` gained an optional
+  `?exclude_banned_in=` (only value: `duelcommander`, → MTGJSON `duel`).
+  When set, names whose card is explicitly `"Banned"` in that format are
+  dropped; `"Legal"`, `"Restricted"`, and cards MTGJSON doesn't track for
+  the format are all kept, so a partial/stale `legalities` map never
+  hides a real card (and the filter is a no-op until the first re-import
+  after the column landed). Tamiyo Scroll's Added-Card dropdown passes
+  `duelcommander`.
 
 ### Changed
 
@@ -372,6 +386,15 @@ section of the docs site for details.
 
 ### Fixed
 
+- `GET /cards/search-by-name-prefix?q=` restored: the S17 substring
+  card-name search (case-insensitive `ILIKE` over `Card.name`, distinct,
+  20-result cap, presentation-only `list[str]`) was dropped from
+  `app/api/general/mtgjson.py` during the S8–S18 reconciliation onto
+  `v2.0.0-bump` (#113) while the frontend caller, this changelog entry,
+  and the S17 plan doc all kept referencing it — so Tamiyo Scroll's
+  decklist "Tested cards → Added Card" on-the-fly suggestions and the
+  "Validate added card exists" not-found hint had been silently 404ing.
+  `TestSearchCardsByNamePrefix` restored alongside it.
 - `validate_removed_card_in_decklist` (S16) no longer runs on
   `PUT /card-tests/{id}` — it's a create-time guard against the deck's
   *current* decklist content, so re-checking it on every edit rejected

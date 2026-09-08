@@ -214,6 +214,18 @@ section of the docs site for details.
 
 ### Changed
 
+- Tested cards' Removed-Card / Added-Card suggestion dropdowns
+  (`CardNameField`) are keyboard-navigable: the input is a proper
+  `role="combobox"` over a `role="listbox"`, up/down move a highlight
+  through the suggestions (wrapping at the ends), Enter commits the
+  highlighted one, Escape closes the list. Arrowing only moves
+  `aria-activedescendant`, never the input text, so it can't clobber
+  free-text entry; mouse selection is unchanged.
+- Tested cards' Added-Card search (`searchCardsByNamePrefix`) now passes
+  `exclude_banned_in=duelcommander`, so a card banned in Duel Commander
+  no longer appears as a suggestion (the card log is a DC deck-tuning
+  tool — a banned card is never a valid swap-in). Free-text entry is
+  unaffected; cards MTGJSON doesn't track for the format still suggest.
 - Version history diff (`VersionHistorySection`), with "Show decklist
   change log" on: changed cards that share a matched card-test note are
   now grouped under that note as a heading (removed lines before added

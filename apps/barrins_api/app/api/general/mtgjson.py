@@ -14,8 +14,9 @@ by any future app, not a Tamiyo-Scroll-specific workflow.
 """
 
 import uuid
+from enum import StrEnum
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select, union
 
 from app.database.session import DatabaseSession
@@ -219,6 +220,63 @@ async def search_cards_by_name(
         .distinct(Card.name)
     )
     return [ResponseCard.model_validate(c) for c in result.scalars().all()]
+
+
+_SEARCH_BY_NAME_PREFIX_LIMIT = 20
+
+
+class BanlistFormat(StrEnum):
+    """Formats whose banlist `GET /cards/search-by-name-prefix` can filter
+    against via `?exclude_banned_in=`. The member value is the public
+    query token; `_MTGJSON_LEGALITY_KEY` maps it to the MTGJSON
+    `legalities` key stored on `mj_cards`.
+    """
+
+    DUEL_COMMANDER = "duelcommander"
+
+
+_MTGJSON_LEGALITY_KEY: dict[BanlistFormat, str] = {
+    BanlistFormat.DUEL_COMMANDER: "duel",
+}
+
+
+@router.get("/cards/search-by-name-prefix", response_model=list[str])
+async def search_cards_by_name_prefix(
+    session: DatabaseSession,
+    q: str = Query(min_length=1),
+    exclude_banned_in: BanlistFormat | None = Query(default=None),
+) -> list[str]:
+    """Distinct card names containing `q` (case-insensitive, substring --
+    not just prefix), for on-the-fly name dropdowns (S17 item 2). Unlike
+    `GET /cards/search-by-name/{name}`, this is presentation-only: it
+    returns names, not full card data, and callers decide their own
+    minimum-length gate before querying (Tamiyo Scroll's dropdown uses
+    3 characters) -- the actual enforcement of "does this name resolve to
+    a real card" stays `TSUserSettings.validate_added_card_exists`
+    (unchanged by this endpoint).
+
+    `exclude_banned_in` (optional): drop names whose card is explicitly
+    `"Banned"` in that format's MTGJSON banlist -- `duelcommander` maps
+    to MTGJSON's `duel` legality. `"Legal"`, `"Restricted"`, and cards
+    MTGJSON does not track for the format are all kept, so a partial or
+    stale `legalities` map never silently hides a real card. Every row's
+    map is empty until the first MTGJSON re-import after this column was
+    added, which makes the filter a no-op until then.
+    """
+    stmt = (
+        select(Card.name)
+        .where(Card.name.ilike(f"%{q}%"))
+        .distinct()
+        .order_by(Card.name)
+        .limit(_SEARCH_BY_NAME_PREFIX_LIMIT)
+    )
+    if exclude_banned_in is not None:
+        legality_key = _MTGJSON_LEGALITY_KEY[exclude_banned_in]
+        stmt = stmt.where(
+            Card.legalities[legality_key].astext.is_distinct_from("Banned")
+        )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
 
 
 @router.get("/cards/{card_id}", response_model=ResponseCard)
