@@ -158,11 +158,17 @@ class SessionPatch(BaseModel):
     workflow meaning, purely "when did this session actually start/end."
 
     `restore` clears `archived_at`, mirroring `close`/`reopen`'s shape.
+
+    `type` (GitHub issue #126) is editable after creation — a session
+    mislabeled tournament/training at creation had no correction path
+    before this. `None` leaves it unchanged; there is no "clear" state
+    (a session always has a type).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    type: SessionType | None = None
     notes: str | None = None
     location: str | None = Field(default=None, max_length=255)
     started_at: datetime | None = None
