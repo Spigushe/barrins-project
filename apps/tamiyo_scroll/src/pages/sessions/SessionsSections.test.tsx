@@ -413,6 +413,35 @@ describe('SessionsOverviewSection — inline edit (S14)', () => {
     expect(updateSessionMutateAsync).not.toHaveBeenCalled()
     expect(screen.getByText('Weekly Training')).toBeInTheDocument()
   })
+
+  it('exposes a Type control and sends the session type in the edit payload (#126)', async () => {
+    sessions = [closedTournamentSession] // type: 'tournament'
+    updateSessionMutateAsync.mockResolvedValue(closedTournamentSession)
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    const editCell = saveButton.closest('td')
+    if (!editCell) throw new Error('edit form not found')
+    const form = within(editCell)
+
+    // The Type control is present in the edit form and reflects the
+    // session's current type — before #126 it existed only in the
+    // create form.
+    expect(form.getByLabelText('Type')).toHaveTextContent('Tournament')
+
+    const nameInput = form.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'RC Toronto (renamed)')
+    await user.click(saveButton)
+
+    expect(updateSessionMutateAsync).toHaveBeenCalledWith({
+      sessionId: 'session-closed',
+      payload: expect.objectContaining({ type: 'tournament' }),
+    })
+  })
 })
 
 describe('SessionsOverviewSection — archived sessions dialog (S14)', () => {

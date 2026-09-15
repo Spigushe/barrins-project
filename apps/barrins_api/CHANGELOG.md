@@ -386,6 +386,11 @@ section of the docs site for details.
 
 ### Fixed
 
+- `PATCH /bff/tamiyo-scroll/sessions/{id}` now accepts `type`
+  (`tournament`/`training`) (GitHub issue #126) — `SessionPatch` never
+  carried the field, so a session's type was fixed at creation with no
+  correction path. `None`/omitted leaves it unchanged; an invalid value
+  is a 422.
 - `GET /cards/search-by-name-prefix?q=` restored: the S17 substring
   card-name search (case-insensitive `ILIKE` over `Card.name`, distinct,
   20-result cap, presentation-only `list[str]`) was dropped from
