@@ -306,6 +306,53 @@ class TestUpdateSession:
         assert resp.json()["name"] == "Renamed"
         assert resp.json()["notes"] == "Some notes"
 
+    async def test_changes_session_type(self, client: AsyncClient, owner_user: User):
+        """GitHub issue #126: tournament/training is editable after creation."""
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+        assert create_resp.json()["type"] == "training"
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}",
+            json={"type": "tournament"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["type"] == "tournament"
+
+        # Untouched by a later patch that omits `type`.
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}",
+            json={"name": "S1 renamed"},
+            headers=headers,
+        )
+        assert resp.json()["type"] == "tournament"
+
+    async def test_invalid_session_type_is_rejected(
+        self, client: AsyncClient, owner_user: User
+    ):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        create_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = create_resp.json()["id"]
+
+        resp = await client.patch(
+            f"{BASE}/sessions/{session_id}",
+            json={"type": "casual"},
+            headers=headers,
+        )
+        assert resp.status_code == 422
+
     async def test_close_stamps_closed_at(self, client: AsyncClient, owner_user: User):
         personal_id, _ = await _setup_decks(client, owner_user)
         headers = auth_headers(owner_user)

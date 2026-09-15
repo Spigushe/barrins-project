@@ -308,6 +308,11 @@ section of the docs site for details.
 
 ### Fixed
 
+- A session's type (tournament/training) can now be changed after
+  creation (GitHub issue #126) — the `SessionEditFields` form (main
+  table + archived dialog) gained a Type control, and `draftToPatch`
+  now sends `type`. The control existed only in the "New session" form
+  before, so a session mislabeled at creation had no correction path.
 - `CardTestsSection`'s Added-Card "not found" hint (S17) now respects
   the "Validate added card exists" setting (S16, off by default) — it
   was flagging every non-Magic card name for decks that never opted

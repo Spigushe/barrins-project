@@ -154,6 +154,8 @@ async def update_session(
 
     if payload.name is not None:
         ts_session.name = payload.name
+    if payload.type is not None:
+        ts_session.type = payload.type
     if "notes" in payload.model_fields_set:
         ts_session.notes = payload.notes
     if "location" in payload.model_fields_set:

@@ -372,6 +372,8 @@ export type SessionCreate = z.infer<typeof sessionCreateSchema>
 
 export const sessionPatchSchema = z.object({
   name: z.string().min(1).max(255).optional(),
+  // GitHub issue #126: tournament/training is editable after creation.
+  type: sessionTypeSchema.optional(),
   notes: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
   started_at: z.iso.datetime({ offset: true }).nullable().optional(),
