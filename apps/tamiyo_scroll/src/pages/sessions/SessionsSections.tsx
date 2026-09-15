@@ -268,6 +268,7 @@ function SessionSummarySection({
 
 interface SessionDraft {
   name: string
+  type: SessionType
   location: string
   notes: string
   startedAt: string
@@ -284,6 +285,7 @@ function toDatetimeLocal(iso: string | null): string {
 
 const emptyDraft: SessionDraft = {
   name: '',
+  type: 'training',
   location: '',
   notes: '',
   startedAt: '',
@@ -294,6 +296,7 @@ const emptyDraft: SessionDraft = {
 function draftFromSession(session: Session): SessionDraft {
   return {
     name: session.name,
+    type: session.type,
     location: session.location ?? '',
     notes: session.notes ?? '',
     startedAt: toDatetimeLocal(session.started_at),
@@ -318,7 +321,10 @@ function draftToFields(draft: SessionDraft) {
 }
 
 function draftToPatch(draft: SessionDraft): SessionPatch {
-  return draftToFields(draft)
+  // `type` is edit-only here (GitHub issue #126) — the create form keeps
+  // its own dedicated `newType` state, so `draftToFields` stays shared
+  // between create and patch without it.
+  return { ...draftToFields(draft), type: draft.type }
 }
 
 function draftToCreate(
@@ -370,6 +376,27 @@ function SessionEditFields({
             }}
           />
         </div>
+      </div>
+      <div className="flex flex-col gap-1.5 sm:w-40">
+        {/* GitHub issue #126: session type is correctable after creation. */}
+        <Label htmlFor={`${idPrefix}-type`}>Type</Label>
+        <Select
+          value={draft.type}
+          onValueChange={(value) => {
+            onChange({ ...draft, type: value as SessionType })
+          }}
+        >
+          <SelectTrigger id={`${idPrefix}-type`} className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SESSION_TYPE_LABELS) as SessionType[]).map((type) => (
+              <SelectItem key={type} value={type}>
+                {SESSION_TYPE_LABELS[type]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
