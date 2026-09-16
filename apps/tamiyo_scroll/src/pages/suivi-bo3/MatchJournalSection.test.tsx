@@ -1,8 +1,31 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Match } from '@/schemas/tamiyoScroll'
+import type { Match, MatchGameEvent } from '@/schemas/tamiyoScroll'
 import { MatchJournalSection } from './MatchJournalSection'
+
+let nextEventId = 0
+function event(comment: string | null = null): MatchGameEvent {
+  nextEventId += 1
+  return { id: `event-${String(nextEventId)}`, comment }
+}
+
+function game(
+  gameNumber: number,
+  result: 'win' | 'loss' | 'draw' | null,
+  overrides: Partial<Match['games'][number]> = {},
+): Match['games'][number] {
+  return {
+    game_number: gameNumber,
+    on_play: true,
+    result,
+    player_mulligans: null,
+    opponent_mulligans: null,
+    player_misplays: null,
+    opponent_misplays: null,
+    ...overrides,
+  }
+}
 
 const baseMatch: Match = {
   id: 'match-1',
@@ -11,10 +34,7 @@ const baseMatch: Match = {
   opponent_deck_id: 'deck-theirs',
   decklist_version_id: null,
   session_id: null,
-  on_play: true,
-  game1: 'win',
-  game2: 'loss',
-  game3: 'win',
+  games: [game(1, 'win'), game(2, 'loss'), game(3, 'win')],
   opening_hand: 'Two lands, Bolt, Ponder',
   turning_point: 'Resolved a Cryptic Command on turn 4',
   final_turn: 'Attacked for lethal turn 8',
@@ -88,21 +108,29 @@ describe('MatchJournalSection — match outcome badge', () => {
   })
 
   it('shows Loss for a loss + draw with the third game not yet played', () => {
-    matches = [{ ...baseMatch, game1: 'loss', game2: 'draw', game3: null }]
+    matches = [{ ...baseMatch, games: [game(1, 'loss'), game(2, 'draw')] }]
     render(<MatchJournalSection />)
     expect(screen.getByText('Loss')).toBeInTheDocument()
   })
 
   it('still shows Draw once all three games are played with no majority', () => {
-    matches = [{ ...baseMatch, game1: 'loss', game2: 'win', game3: 'draw' }]
+    matches = [{ ...baseMatch, games: [game(1, 'loss'), game(2, 'win'), game(3, 'draw')] }]
     render(<MatchJournalSection />)
     expect(screen.getByText('Draw')).toBeInTheDocument()
   })
 
   it('shows Win once a majority of games are won', () => {
-    matches = [{ ...baseMatch, game1: 'win', game2: 'win', game3: null }]
+    matches = [{ ...baseMatch, games: [game(1, 'win'), game(2, 'win')] }]
     render(<MatchJournalSection />)
     expect(screen.getByText('Win')).toBeInTheDocument()
+  })
+
+  it('shows no outcome badge for a match with no games entered yet (partial entry)', () => {
+    matches = [{ ...baseMatch, games: [] }]
+    render(<MatchJournalSection />)
+    expect(screen.queryByText('Win')).not.toBeInTheDocument()
+    expect(screen.queryByText('Loss')).not.toBeInTheDocument()
+    expect(screen.queryByText('Draw')).not.toBeInTheDocument()
   })
 })
 
@@ -133,6 +161,63 @@ describe('MatchJournalSection — View button', () => {
     const buttons = screen.getAllByRole('button').map((button) => button.textContent)
     expect(buttons.indexOf('View')).toBeLessThan(buttons.indexOf('Edit'))
     expect(buttons.indexOf('Edit')).toBeLessThan(buttons.indexOf('Delete'))
+  })
+})
+
+describe('MatchJournalSection — structured per-game data (#123/#124)', () => {
+  beforeEach(() => {
+    sessions = []
+  })
+
+  it('renders recorded mulligan/misplay events with their own comments in the View dialog', async () => {
+    matches = [
+      {
+        ...baseMatch,
+        games: [
+          game(1, 'win', {
+            player_mulligans: [event('Kept a risky one-lander')],
+            player_misplays: [],
+            opponent_mulligans: [],
+            opponent_misplays: [event('Missed a combat trick'), event('Overextended')],
+          }),
+        ],
+      },
+    ]
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('Player — 1 mulligan(s), 0 misplay(s)')
+    expect(dialog.textContent).toContain('Kept a risky one-lander')
+    expect(dialog.textContent).toContain('Opponent — 0 mulligan(s), 2 misplay(s)')
+    expect(dialog.textContent).toContain('Misplay #1: Missed a combat trick')
+    expect(dialog.textContent).toContain('Misplay #2: Overextended')
+  })
+
+  it('renders no per-side detail line for a game with no gated data recorded', async () => {
+    matches = [{ ...baseMatch, games: [game(1, 'win')] }]
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).not.toContain('Player —')
+    expect(dialog.textContent).not.toContain('Opponent —')
+  })
+
+  it('renders a match with only some games entered (partial entry — game 1 live, no result yet)', async () => {
+    matches = [{ ...baseMatch, games: [game(1, null)] }]
+    const user = userEvent.setup()
+    render(<MatchJournalSection />)
+
+    expect(screen.getByText('— / — / —')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('In progress')
   })
 })
 

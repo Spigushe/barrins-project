@@ -2,6 +2,19 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NewMatchSection } from './NewMatchSection'
 
+// `MatchFormFields` (rendered inside `NewMatchSection`) reads
+// `useCurrentUser()` for the moderator+ gate on the mulligan/misplay
+// stepper rows (#123/#124, D7) — irrelevant to this file's tests, but the
+// real hook throws outside an `<IdentityProvider>`, so it needs a no-op
+// mock here too.
+vi.mock('@barrins/goblin-guide', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@barrins/goblin-guide')>()
+  return {
+    ...actual,
+    useCurrentUser: () => ({ data: undefined }),
+  }
+})
+
 let activeDeckId: string | null = 'deck-1'
 
 vi.mock('@/contexts/active-deck-context', () => ({

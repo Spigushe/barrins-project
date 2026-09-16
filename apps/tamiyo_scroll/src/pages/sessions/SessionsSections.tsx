@@ -17,6 +17,7 @@ import type {
 } from '@/schemas/tamiyoScroll'
 import type { MatchupRow } from '@/schemas/tamiyoScroll'
 import {
+  formatAverage,
   formatDateTime,
   formatPercent,
   SESSION_TYPE_LABELS,
@@ -246,6 +247,12 @@ function SessionSummarySection({
           value={formatDeltaPts(delta)}
           valueClassName={deltaColorClass(delta)}
         />
+        {/* #123/#124 D4/D5/D6: London mulligan hand size (7 - avg mulligans)
+            and average misplays, both period metrics over the session's own
+            matches — backend-computed (`compute_period_stats`), never
+            recalculated client-side. */}
+        <StatTile label="Avg. hand size" value={formatAverage(comparison.avg_hand_size)} />
+        <StatTile label="Avg. misplays" value={formatAverage(comparison.avg_misplays)} />
       </div>
       <p className="mt-3 text-[12.5px] text-muted-foreground">
         W/L — session {comparison.session_wins}W / {comparison.session_losses}L · before

@@ -139,6 +139,11 @@ function comparisonFor(
     baseline_archetype_summary: [],
     session_matchup_summary: { rows: [], average_winrate: 66.67 },
     baseline_matchup_summary: { rows: [], average_winrate: 50 },
+    // #123/#124: null by default (no game in the session has recorded the
+    // underlying gated counter) — individual tests override to exercise a
+    // real value.
+    avg_hand_size: null,
+    avg_misplays: null,
     ...overrides,
   }
 }
@@ -521,6 +526,39 @@ describe('SessionsOverviewSection — summary', () => {
     expect(
       screen.getByText(/session 2W \/ 1L.*before the session 5W \/ 5L/),
     ).toBeInTheDocument()
+  })
+
+  it('shows the avg. hand size / avg. misplays tiles from the comparison endpoint (#123/#124)', async () => {
+    sessions = [closedTournamentSession]
+    comparisonBySessionId = {
+      'session-closed': comparisonFor(closedTournamentSession, {
+        avg_hand_size: 5.5,
+        avg_misplays: 1.2,
+      }),
+    }
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByText('RC Toronto 2026'))
+
+    expect(screen.getByText('Avg. hand size')).toBeInTheDocument()
+    expect(screen.getByText('5.5')).toBeInTheDocument()
+    expect(screen.getByText('Avg. misplays')).toBeInTheDocument()
+    expect(screen.getByText('1.2')).toBeInTheDocument()
+  })
+
+  it('shows "—" for the avg. hand size / avg. misplays tiles when nothing has been recorded yet', async () => {
+    sessions = [closedTournamentSession]
+    comparisonBySessionId = {
+      'session-closed': comparisonFor(closedTournamentSession),
+    }
+    const user = userEvent.setup()
+    render(<SessionsOverviewSection />)
+
+    await user.click(screen.getByText('RC Toronto 2026'))
+
+    const handSizeTile = screen.getByText('Avg. hand size').parentElement
+    expect(handSizeTile?.textContent).toContain('—')
   })
 
   it('shows Expected metagame only for a tournament-typed session', async () => {

@@ -6,7 +6,12 @@ import type {
 } from '@/schemas/tamiyoScroll'
 import type { ListSessionsOptions } from '@/api/sessions'
 import { DEMO_CURRENT_USER_ID, getStore, nextId, nowIso } from '../demoStore'
-import { computeArchetypeSummary, computeMatchupSummary, tallyGames } from './statsCore'
+import {
+  computeArchetypeSummary,
+  computeAvgHandSizeAndMisplays,
+  computeMatchupSummary,
+  tallyGames,
+} from './statsCore'
 
 /** Mirrors `src/api/sessions.ts` — see `../api/types.ts` for the compile-time proof. */
 
@@ -123,6 +128,9 @@ export function getSessionComparison(sessionId: string): Promise<SessionComparis
 
   const sessionTally = tallyGames(sessionMatches)
   const baselineTally = tallyGames(baselineMatches)
+  // #123/#124 D5: a period metric for the session's own matches only — not
+  // compared against the baseline, same as the "Games" tile.
+  const { avg_hand_size, avg_misplays } = computeAvgHandSizeAndMisplays(sessionMatches)
 
   const comparison: SessionComparison = {
     session: structuredClone(session),
@@ -136,6 +144,8 @@ export function getSessionComparison(sessionId: string): Promise<SessionComparis
     baseline_archetype_summary: computeArchetypeSummary(activeMetaDecks, baselineMatches),
     session_matchup_summary: computeMatchupSummary(sessionMatches, metaDecksById),
     baseline_matchup_summary: computeMatchupSummary(baselineMatches, metaDecksById),
+    avg_hand_size,
+    avg_misplays,
   }
   return Promise.resolve(comparison)
 }
