@@ -1,12 +1,12 @@
 """Unit tests for app/services/tamiyo_scroll/stats.py (pure functions)."""
 
 import uuid
+from dataclasses import dataclass, field
 
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
     ExpectedLevel,
     GameResult,
-    TSMatch,
     TSMetaDeck,
 )
 from app.services.tamiyo_scroll.stats import (
@@ -14,8 +14,34 @@ from app.services.tamiyo_scroll.stats import (
     _tally_games,
     _winrate,
     compute_archetype_summary,
+    compute_hand_size_and_misplay_averages,
     compute_matchup_summary,
 )
+
+
+@dataclass(frozen=True)
+class _FakeGame:
+    """Minimal stand-in for `TSMatchGame`/`EffectiveGame` — satisfies
+    `stats.GameLike` structurally."""
+
+    game_number: int
+    on_play: bool | None = None
+    result: GameResult | None = None
+    player_mulligans: int | None = None
+    opponent_mulligans: int | None = None
+    player_misplays: int | None = None
+    opponent_misplays: int | None = None
+
+
+@dataclass(frozen=True)
+class _FakeMatch:
+    """Minimal stand-in for `TSMatch`/`EffectiveMatch` — satisfies
+    `stats.MatchLike` structurally."""
+
+    opponent_deck_id: uuid.UUID
+    decklist_version_id: uuid.UUID | None = None
+    games: tuple[_FakeGame, ...] = field(default_factory=tuple)
+    is_readonly: bool = False
 
 
 def _match(
@@ -25,23 +51,38 @@ def _match(
     game1: GameResult | None = None,
     game2: GameResult | None = None,
     game3: GameResult | None = None,
-    personal_deck_id: uuid.UUID | None = None,
     is_readonly: bool = False,
-) -> TSMatch:
-    match = TSMatch(
-        owner_id=uuid.uuid4(),
-        personal_deck_id=personal_deck_id or uuid.uuid4(),
+    player_mulligans: int | None = None,
+    player_misplays: int | None = None,
+    opponent_misplays: int | None = None,
+) -> _FakeMatch:
+    """Builds a `MatchLike` fixture. `on_play`/`game1`/`game2`/`game3` are
+    convenience kwargs (pre-#123/#124 flat shape) translated into one
+    `_FakeGame` per non-`None` result — `on_play` applies to every game
+    the fixture builds (a real match's games each carry their own
+    `on_play` post-#123/#124, but this generic per-game-tally fixture has
+    no reason to model the historical-backfill "only game 1 tracked"
+    case specifically — that's covered separately, at the migration
+    level, in `test_match_games.py`)."""
+    games: list[_FakeGame] = []
+    for number, result in ((1, game1), (2, game2), (3, game3)):
+        if result is None:
+            continue
+        games.append(
+            _FakeGame(
+                game_number=number,
+                on_play=on_play,
+                result=result,
+                player_mulligans=player_mulligans if number == 1 else None,
+                player_misplays=player_misplays if number == 1 else None,
+                opponent_misplays=opponent_misplays if number == 1 else None,
+            )
+        )
+    return _FakeMatch(
         opponent_deck_id=opponent_deck_id,
-        on_play=on_play,
-        game1=game1,
-        game2=game2,
-        game3=game3,
+        games=tuple(games),
+        is_readonly=is_readonly,
     )
-    # TSMatch itself has no is_readonly column — only the EffectiveMatch
-    # wrapper (sharing_merge.py) does. Set it as a plain attribute so
-    # these fixtures still satisfy MatchLike's is_readonly requirement.
-    match.is_readonly = is_readonly  # type: ignore[attr-defined]
-    return match
 
 
 def _meta_deck(
@@ -229,3 +270,47 @@ class TestComputeMatchupSummary:
             matches, {deck_z.id: deck_z, deck_a.id: deck_a}
         )
         assert [r["opponent_deck_name"] for r in rows] == ["Affinity", "Zoo"]
+
+
+class TestComputeHandSizeAndMisplayAverages:
+    """#123/#124 (D4/D5/D6/D8)."""
+
+    def test_no_games_yields_none_for_every_average(self):
+        result = compute_hand_size_and_misplay_averages([])
+        assert result == {
+            "avg_hand_size": None,
+            "avg_player_misplays": None,
+            "avg_opponent_misplays": None,
+        }
+
+    def test_averages_ignore_games_with_no_entered_value(self):
+        """D8: NULL ("not entered") is excluded, never treated as 0."""
+        opponent = uuid.uuid4()
+        matches = [
+            _match(
+                opponent_deck_id=opponent,
+                game1=GameResult.win,
+                player_mulligans=2,
+                player_misplays=1,
+                opponent_misplays=0,
+            ),
+            # No mulligan/misplay data entered for this game at all.
+            _match(opponent_deck_id=opponent, game1=GameResult.loss),
+        ]
+        result = compute_hand_size_and_misplay_averages(matches)
+        # avg(player_mulligans) = 2 (the second game's None is excluded,
+        # not averaged in as 0) -> avg_hand_size = 7 - 2 = 5.
+        assert result["avg_hand_size"] == 5.0
+        assert result["avg_player_misplays"] == 1.0
+        assert result["avg_opponent_misplays"] == 0.0
+
+    def test_london_mulligan_formula(self):
+        """D4: hand_size = 7 - mulligans."""
+        opponent = uuid.uuid4()
+        matches = [
+            _match(opponent_deck_id=opponent, game1=GameResult.win, player_mulligans=0),
+            _match(opponent_deck_id=opponent, game1=GameResult.win, player_mulligans=4),
+        ]
+        result = compute_hand_size_and_misplay_averages(matches)
+        # avg(player_mulligans) = 2 -> avg_hand_size = 7 - 2 = 5.
+        assert result["avg_hand_size"] == 5.0

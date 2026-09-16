@@ -119,9 +119,10 @@ class TestAdminMetrics:
             json={
                 "personal_deck_id": deck_a["id"],
                 "opponent_deck_id": meta_id,
-                "on_play": True,
-                "game1": "win",
-                "game2": "loss",
+                "games": [
+                    {"game_number": 1, "on_play": True, "result": "win"},
+                    {"game_number": 2, "result": "loss"},
+                ],
             },
             headers=owner_headers,
         )
@@ -130,9 +131,10 @@ class TestAdminMetrics:
             json={
                 "personal_deck_id": deck_b["id"],
                 "opponent_deck_id": other_meta_id,
-                "on_play": False,
-                "game1": "loss",
-                "game2": "loss",
+                "games": [
+                    {"game_number": 1, "on_play": False, "result": "loss"},
+                    {"game_number": 2, "result": "loss"},
+                ],
             },
             headers=other_headers,
         )

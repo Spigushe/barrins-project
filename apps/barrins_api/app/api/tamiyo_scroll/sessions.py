@@ -259,6 +259,12 @@ async def get_session_comparison(
         session_losses=stats.current_losses,
         baseline_wins=stats.baseline_wins,
         baseline_losses=stats.baseline_losses,
+        session_avg_hand_size=stats.current_avg_hand_size,
+        baseline_avg_hand_size=stats.baseline_avg_hand_size,
+        session_avg_player_misplays=stats.current_avg_player_misplays,
+        baseline_avg_player_misplays=stats.baseline_avg_player_misplays,
+        session_avg_opponent_misplays=stats.current_avg_opponent_misplays,
+        baseline_avg_opponent_misplays=stats.baseline_avg_opponent_misplays,
         session_archetype_summary=[
             ResponseArchetypeSummary(
                 category=s["category"],
@@ -377,6 +383,9 @@ async def get_session_report(
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
         evaluations=period_evaluations,
+        period_avg_hand_size=stats.current_avg_hand_size,
+        period_avg_player_misplays=stats.current_avg_player_misplays,
+        period_avg_opponent_misplays=stats.current_avg_opponent_misplays,
     )
 
     filename = f"session-report-{ts_session.id}.pdf"

@@ -8,11 +8,16 @@ import type {
 
 /**
  * Mirrors `app/services/tamiyo_scroll/stats.py` exactly — game-level tally
- * (wins/losses counted per `game1`/`game2`/`game3`, draws excluded from the
+ * (wins/losses counted per game in `match.games`, draws excluded from the
  * decisive denominator), percentages on a 0-100 scale. Split out from
  * `stats.ts` so `sessions.ts`'s comparison endpoint can reuse the same pure
  * functions on a session/baseline-scoped match list instead of the whole
  * store (Constitution §4.2 — no parallel calculation path).
+ *
+ * #123/#124 moved `on_play` from the match to each game (`ts_match_games`,
+ * D1's "Full" normalization) — `onPlay` below now filters per game, not per
+ * match, so "winrate on the play" correctly reflects who was on the play in
+ * that specific game rather than the match's first game only.
  */
 
 interface MetaDeckLike {
@@ -30,14 +35,46 @@ export function tallyGames(
   let losses = 0
   let draws = 0
   for (const match of matches) {
-    if (onPlay !== undefined && match.on_play !== onPlay) continue
-    for (const game of [match.game1, match.game2, match.game3]) {
-      if (game === 'win') wins += 1
-      else if (game === 'loss') losses += 1
-      else if (game === 'draw') draws += 1
+    for (const game of match.games) {
+      if (onPlay !== undefined && game.on_play !== onPlay) continue
+      if (game.result === 'win') wins += 1
+      else if (game.result === 'loss') losses += 1
+      else if (game.result === 'draw') draws += 1
     }
   }
   return { wins, losses, draws }
+}
+
+/** #123/#124 D4/D5/D6: derived period metrics — London mulligan hand size
+ * (`7 − mulligans`) and average misplays, both computed over the player's
+ * own side only, across every game with that gated event list recorded (a
+ * game where it's still `null` — never entered, or entered by a
+ * sub-`moderator` who can't set it — is excluded from the average rather
+ * than treated as 0). The real backend reads its own maintained integer
+ * cache here rather than counting event rows on every request (D2's second
+ * amendment); the demo has no such cache, so it derives the same number
+ * from the event list's length — an explicitly sanctioned fallback for
+ * anything not sourced directly from the real comparison endpoint. */
+export function computeAvgHandSizeAndMisplays(matches: Match[]): {
+  avg_hand_size: number | null
+  avg_misplays: number | null
+} {
+  const mulligans: number[] = []
+  const misplays: number[] = []
+  for (const match of matches) {
+    for (const game of match.games) {
+      if (game.player_mulligans !== null) mulligans.push(game.player_mulligans.length)
+      if (game.player_misplays !== null) misplays.push(game.player_misplays.length)
+    }
+  }
+  const average = (values: number[]): number | null =>
+    values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length
+
+  const avgMulligans = average(mulligans)
+  return {
+    avg_hand_size: avgMulligans === null ? null : 7 - avgMulligans,
+    avg_misplays: average(misplays),
+  }
 }
 
 /** Winrate in % (draws excluded); null if no decisive game — matches `_winrate`. */

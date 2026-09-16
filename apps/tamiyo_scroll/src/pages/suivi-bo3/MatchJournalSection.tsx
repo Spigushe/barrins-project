@@ -5,7 +5,13 @@ import { useDeleteMatch, useMatches, useUpdateMatch } from '@/hooks/useMatches'
 import { resolveMetaDeckOption, useMetaDecks } from '@/hooks/useMetaDecks'
 import { usePersonalDecks } from '@/hooks/usePersonalDecks'
 import { useSessions } from '@/hooks/useSessions'
-import type { GameResult, Match, Session } from '@/schemas/tamiyoScroll'
+import type {
+  GameResult,
+  Match,
+  MatchGame,
+  MatchGameEvent,
+  Session,
+} from '@/schemas/tamiyoScroll'
 import {
   formatDate,
   GAME_RESULT_BORDER_CLASS,
@@ -32,27 +38,143 @@ import {
   type MatchDraft,
 } from './MatchForm'
 
+/** This match's games, always in `game_number` order regardless of the
+ * (unordered, "one entry per game actually played") array the backend
+ * returns — every reader below assumes ascending order. */
+function orderedGames(match: Match) {
+  return [...match.games].sort((a, b) => a.game_number - b.game_number)
+}
+
 /** Match outcome derived from the majority of games — display only (badge/border), not a persisted business calculation. */
 function matchOutcome(match: Match): GameResult | null {
-  const games = [match.game1, match.game2, match.game3].filter(
-    (game): game is GameResult => game !== null,
-  )
-  const wins = games.filter((game) => game === 'win').length
-  const losses = games.filter((game) => game === 'loss').length
+  const results = orderedGames(match)
+    .map((game) => game.result)
+    .filter((result): result is GameResult => result !== null)
+  const wins = results.filter((result) => result === 'win').length
+  const losses = results.filter((result) => result === 'loss').length
 
   // Matches can be closed in only one game, e.g. 1-0 or 0-1, so we need to handle that case as well.
   if (wins > losses) return 'win'
   if (losses > wins) return 'loss'
-  if (wins === losses && games.length > 0) return 'draw'
+  if (wins === losses && results.length > 0) return 'draw'
 
   // If there are no games, we return null to indicate that the outcome is unknown.
   return null
 }
 
 function gamesSummary(match: Match): string {
-  return [match.game1, match.game2, match.game3]
-    .map((game) => (game === null ? '—' : GAME_RESULT_LABELS[game][0]))
+  const byNumber = new Map(match.games.map((game) => [game.game_number, game]))
+  return [1, 2, 3]
+    .map((gameNumber) => {
+      const result = byNumber.get(gameNumber)?.result
+      return result ? GAME_RESULT_LABELS[result][0] : '—'
+    })
     .join(' / ')
+}
+
+function gameByNumber(match: Match, gameNumber: number): MatchGame | undefined {
+  return match.games.find((game) => game.game_number === gameNumber)
+}
+
+/** One kind's (mulligan/misplay) logged events for one side, read-only —
+ * each event gets its own numbered line with its own comment (D2's second
+ * amendment: per-event, not per-game×side, comments). The D2 gated data,
+ * once it exists, is shown to any viewer the same way the rest of a
+ * match's history is (no re-gating a read of already-saved data; only
+ * *entering* it is role-gated, in `MatchFormFields`). */
+function GameEventList({
+  itemLabel,
+  events,
+}: {
+  itemLabel: string
+  events: MatchGameEvent[]
+}) {
+  if (events.length === 0) return null
+  return (
+    <ol className="flex flex-col">
+      {events.map((event, index) => (
+        <li key={event.id} className="text-[12.5px] text-muted-foreground">
+          <span className="font-semibold text-foreground">
+            {itemLabel} #{index + 1}:
+          </span>{' '}
+          {event.comment || '—'}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** One side's mulligan/misplay event lists, read-only. `null` means "not
+ * tracked" for this side/kind (a sub-`moderator`'s game, or a pre-migration
+ * historical row) — nothing to render, same as an empty list. */
+function GameSideDetail({
+  sideLabel,
+  mulligans,
+  misplays,
+}: {
+  sideLabel: string
+  mulligans: MatchGameEvent[] | null
+  misplays: MatchGameEvent[] | null
+}) {
+  const mulliganEvents = mulligans ?? []
+  const misplayEvents = misplays ?? []
+  if (mulliganEvents.length === 0 && misplayEvents.length === 0) return null
+  return (
+    <div>
+      <p className="text-[12.5px] font-semibold text-foreground">
+        {sideLabel} — {mulliganEvents.length} mulligan(s), {misplayEvents.length}{' '}
+        misplay(s)
+      </p>
+      <GameEventList itemLabel="Mulligan" events={mulliganEvents} />
+      <GameEventList itemLabel="Misplay" events={misplayEvents} />
+    </div>
+  )
+}
+
+/** A game's on_play/result summary, its unchanged free-text Notes (D3),
+ * and — only once actually recorded (D8's lazy rows) — the D2 structured
+ * per-event mulligan/misplay data per side. */
+function GameDetailSection({
+  game,
+  notesLabel,
+  notes,
+}: {
+  game: MatchGame | undefined
+  notesLabel: string
+  notes: string | null
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <Label>{notesLabel}</Label>
+        {game && (
+          <span className="text-[12.5px] text-muted-foreground">
+            {game.on_play === null
+              ? 'Play/Draw unknown'
+              : game.on_play
+                ? 'On the Play'
+                : 'On the Draw'}{' '}
+            · {game.result ? GAME_RESULT_LABELS[game.result] : 'In progress'}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 whitespace-pre-wrap text-foreground">{notes || '—'}</p>
+      {game && (
+        <div className="mt-1 flex flex-col gap-1.5">
+          <GameSideDetail
+            sideLabel="Player"
+            mulligans={game.player_mulligans}
+            misplays={game.player_misplays}
+          />
+          <GameSideDetail
+            sideLabel="Opponent"
+            mulligans={game.opponent_mulligans}
+            misplays={game.opponent_misplays}
+          />
+        </div>
+      )}
+    </div>
+  )
 }
 
 const OUTCOME_BADGE_VARIANT: Record<GameResult, 'success' | 'destructive' | 'warning'> = {
@@ -205,9 +327,11 @@ export function MatchJournalSection() {
                     {opponentDeckName(match.opponent_deck_id)}
                   </span>
                 </span>
-                <span className="text-[12.5px] text-muted-foreground">
-                  {match.on_play ? 'OTP' : 'OTD'}
-                </span>
+                {gameByNumber(match, 1) && (
+                  <span className="text-[12.5px] text-muted-foreground">
+                    {gameByNumber(match, 1)?.on_play ? 'OTP' : 'OTD'}
+                  </span>
+                )}
                 <span className="font-mono text-[12.5px] text-muted-foreground">
                   {gamesSummary(match)}
                 </span>
@@ -280,7 +404,6 @@ export function MatchJournalSection() {
             <div className="flex flex-col gap-3 text-sm">
               <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                 <span>{formatDate(viewingMatch.date)}</span>
-                <span>{viewingMatch.on_play ? 'On the Play' : 'On the Draw'}</span>
                 <span className="font-mono">{gamesSummary(viewingMatch)}</span>
                 {viewingMatch.session_id && (
                   <SessionBadge session={sessionById(viewingMatch.session_id)} />
@@ -289,27 +412,21 @@ export function MatchJournalSection() {
                   <Badge variant="shared">sharer: {viewingMatch.shared_by}</Badge>
                 )}
               </div>
-              <div>
-                {/* S12 item 3: label-only rename — `opening_hand` unchanged. */}
-                <Label>Game 1 Notes</Label>
-                <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {viewingMatch.opening_hand || '—'}
-                </p>
-              </div>
-              <div>
-                {/* S12 item 3: label-only rename — `turning_point` unchanged. */}
-                <Label>Game 2 Notes</Label>
-                <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {viewingMatch.turning_point || '—'}
-                </p>
-              </div>
-              <div>
-                {/* S12 item 3: label-only rename — `final_turn` unchanged. */}
-                <Label>Game 3 Notes</Label>
-                <p className="mt-1 whitespace-pre-wrap text-foreground">
-                  {viewingMatch.final_turn || '—'}
-                </p>
-              </div>
+              <GameDetailSection
+                game={gameByNumber(viewingMatch, 1)}
+                notesLabel="Game 1 Notes"
+                notes={viewingMatch.opening_hand}
+              />
+              <GameDetailSection
+                game={gameByNumber(viewingMatch, 2)}
+                notesLabel="Game 2 Notes"
+                notes={viewingMatch.turning_point}
+              />
+              <GameDetailSection
+                game={gameByNumber(viewingMatch, 3)}
+                notesLabel="Game 3 Notes"
+                notes={viewingMatch.final_turn}
+              />
             </div>
           </DialogContent>
         )}

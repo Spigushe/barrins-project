@@ -35,14 +35,31 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
     return personal_id, meta_resp.json()["id"]
 
 
-def _match_payload(personal_deck_id: str, opponent_deck_id: str, **overrides) -> dict:
+def _match_payload(
+    personal_deck_id: str,
+    opponent_deck_id: str,
+    *,
+    on_play: bool = True,
+    game1: str | None = "win",
+    game2: str | None = "loss",
+    game3: str | None = "win",
+    games: list[dict] | None = None,
+    **overrides,
+) -> dict:
+    """See `test_matches._match_payload` — same convenience shape."""
+    if games is None:
+        games = []
+        for number, result in ((1, game1), (2, game2), (3, game3)):
+            if result is None:
+                continue
+            entry: dict = {"game_number": number, "result": result}
+            if number == 1:
+                entry["on_play"] = on_play
+            games.append(entry)
     payload = {
         "personal_deck_id": personal_deck_id,
         "opponent_deck_id": opponent_deck_id,
-        "on_play": True,
-        "game1": "win",
-        "game2": "loss",
-        "game3": "win",
+        "games": games,
     }
     payload.update(overrides)
     return payload
@@ -647,6 +664,82 @@ class TestSessionComparison:
             headers=auth_headers(other_user),
         )
         assert resp.status_code == 404
+
+
+def _events(count: int) -> list[dict]:
+    """`count` mulligan/misplay events, each with no comment — only the
+    list length matters for the derived counter cache/averages here."""
+    return [{"comment": None} for _ in range(count)]
+
+
+class TestSessionComparisonHandSizeAndMisplayAverages:
+    """#123/#124 (D5/D6): `session_avg_hand_size`/`session_avg_*_misplays`
+    on the comparison endpoint, derived from the session's own games."""
+
+    async def test_averages_reflect_the_sessions_own_games(self, client: AsyncClient):
+        moderator = User(role="moderator")
+        headers = auth_headers(moderator)
+        personal_id, meta_id = await _setup_decks(client, moderator)
+
+        session_resp = await client.post(
+            f"{BASE}/sessions",
+            json={
+                "name": "S1",
+                "type": "tournament",
+                "personal_deck_id": personal_id,
+            },
+            headers=headers,
+        )
+        session_id = session_resp.json()["id"]
+
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(
+                personal_id,
+                meta_id,
+                session_id=session_id,
+                games=[
+                    {
+                        "game_number": 1,
+                        "on_play": True,
+                        "result": "win",
+                        "player_mulligans": _events(2),
+                        "player_misplays": _events(1),
+                        "opponent_misplays": _events(3),
+                    }
+                ],
+            ),
+            headers=headers,
+        )
+
+        resp = await client.get(
+            f"{BASE}/sessions/{session_id}/comparison", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["session_avg_hand_size"] == 5.0
+        assert body["session_avg_player_misplays"] == 1.0
+        assert body["session_avg_opponent_misplays"] == 3.0
+        assert body["baseline_avg_hand_size"] is None
+
+    async def test_no_data_yields_none(self, client: AsyncClient, owner_user: User):
+        personal_id, _ = await _setup_decks(client, owner_user)
+        headers = auth_headers(owner_user)
+        session_resp = await client.post(
+            f"{BASE}/sessions",
+            json={"name": "S1", "type": "training", "personal_deck_id": personal_id},
+            headers=headers,
+        )
+        session_id = session_resp.json()["id"]
+
+        resp = await client.get(
+            f"{BASE}/sessions/{session_id}/comparison", headers=headers
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["session_avg_hand_size"] is None
+        assert body["session_avg_player_misplays"] is None
+        assert body["session_avg_opponent_misplays"] is None
 
 
 class TestMatchSessionLink:

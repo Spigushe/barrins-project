@@ -119,6 +119,52 @@ export type MetaDeck = z.infer<typeof metaDeckSchema>
 export const sessionTypeSchema = z.enum(['tournament', 'training'])
 export type SessionType = z.infer<typeof sessionTypeSchema>
 
+// #123/#124: `ts_match_games` (one row per game actually played, "Full"
+// normalization — see docs/project/issue-scoping/123-124-structured-match-log.md
+// D1). `on_play` moved here from the match level, so who was on the play in
+// game 2/3 is finally recorded.
+//
+// D2's second amendment: each individual logged mulligan/misplay is its own
+// event with its own optional comment — not a plain count and not a single
+// per-game×side comment. `player_mulligans`/`opponent_mulligans`/
+// `player_misplays`/`opponent_misplays` are ordered event lists, gated to a
+// `moderator`+ `currentUser` client-side (UX convenience only — see
+// `lib/roles.ts`); the backend's field-level 403 in `_apply_payload` is the
+// real boundary. The backend also keeps a derived integer count per side/
+// kind in `ts_match_games` purely as an `avg()`-friendly cache (never a
+// second client-writable source of truth, §4.2) — that count is not
+// re-exposed here; the event list's length is the count.
+//
+// The exact backend response shape for these four fields hadn't landed at
+// the time this was written — modeled as a *nullable* array: `null` means
+// "not tracked" (a sub-`moderator`'s game, or a pre-migration historical
+// row backfilled with no event data), distinct from `[]` ("tracked, zero
+// events"), mirroring the NULL-vs-zero distinction the scoping doc requires
+// for `ts_match_games`'s own integer columns. Adjust once the backend
+// agent's schema is visible if it lands differently.
+export const matchGameEventSchema = z.object({
+  // Server-assigned — stable across renders, used as the React key.
+  id: z.uuid(),
+  comment: z.string().nullable(),
+})
+export type MatchGameEvent = z.infer<typeof matchGameEventSchema>
+
+export const matchGameSchema = z.object({
+  game_number: z.number().int().min(1).max(3),
+  // Nullable: game 2/3's play/draw isn't always known (a pre-feature
+  // backfilled row never recorded it; a live-in-progress game may not have
+  // it chosen/derived yet — see the on_play-derivation logic in
+  // MatchForm.tsx). `z.boolean()` here previously rejected a `null`
+  // response for exactly those rows.
+  on_play: z.boolean().nullable(),
+  result: gameResultSchema.nullable(),
+  player_mulligans: z.array(matchGameEventSchema).nullable(),
+  opponent_mulligans: z.array(matchGameEventSchema).nullable(),
+  player_misplays: z.array(matchGameEventSchema).nullable(),
+  opponent_misplays: z.array(matchGameEventSchema).nullable(),
+})
+export type MatchGame = z.infer<typeof matchGameSchema>
+
 export const matchSchema = z.object({
   id: z.uuid(),
   date: z.iso.date(),
@@ -126,10 +172,11 @@ export const matchSchema = z.object({
   opponent_deck_id: z.uuid(),
   decklist_version_id: z.uuid().nullable(),
   session_id: z.uuid().nullable(),
-  on_play: z.boolean(),
-  game1: gameResultSchema.nullable(),
-  game2: gameResultSchema.nullable(),
-  game3: gameResultSchema.nullable(),
+  // One entry per game actually played/being played (never a fixed-length
+  // 3-tuple) — a game absent from this array simply hasn't started yet.
+  games: z.array(matchGameSchema),
+  // opening_hand / turning_point / final_turn are unchanged (D3) — the three
+  // "Game N Notes" free-text boxes are unrelated to `games[]` above.
   opening_hand: z.string().nullable(),
   turning_point: z.string().nullable(),
   final_turn: z.string().nullable(),
@@ -308,15 +355,41 @@ export const metaDeckWriteSchema = z.object({
 })
 export type MetaDeckWrite = z.infer<typeof metaDeckWriteSchema>
 
+// D2's second amendment: no `id` on the write side — an edited event is
+// matched to its existing row by array position (== sequence) within
+// `game_id`/`side`/`kind`, not by id (see the scoping doc's Consequences:
+// "matched by game_id/side/kind/sequence, not delete-and-reinsert").
+export const matchGameEventWriteSchema = z.object({
+  comment: z.string().nullable().optional(),
+})
+export type MatchGameEventWrite = z.infer<typeof matchGameEventWriteSchema>
+
+export const matchGameWriteSchema = z.object({
+  game_number: z.number().int().min(1).max(3),
+  // Nullable: unset/undetermined play-draw is a legitimate write, not just
+  // a read-side possibility — see `matchGameSchema.on_play` above.
+  on_play: z.boolean().nullable(),
+  result: gameResultSchema.nullable().optional(),
+  // D8: a game's row is only created server-side once something is entered
+  // for it. Gated fields (mulligans/misplays): the frontend never sends a
+  // non-empty event list here for a sub-`moderator` `currentUser` (see
+  // `lib/roles.ts`) — the backend 403s on that as a backstop, not the
+  // primary UX path. Whether an empty/omitted list is stored as a real `0`
+  // or `NULL` is a backend decision driven by the caller's actual role
+  // (D2's second amendment) — the frontend just sends what it has.
+  player_mulligans: z.array(matchGameEventWriteSchema).optional(),
+  opponent_mulligans: z.array(matchGameEventWriteSchema).optional(),
+  player_misplays: z.array(matchGameEventWriteSchema).optional(),
+  opponent_misplays: z.array(matchGameEventWriteSchema).optional(),
+})
+export type MatchGameWrite = z.infer<typeof matchGameWriteSchema>
+
 export const matchWriteSchema = z.object({
   personal_deck_id: z.uuid(),
   opponent_deck_id: z.uuid(),
   decklist_version_id: z.uuid().nullable().optional(),
   session_id: z.uuid().nullable().optional(),
-  on_play: z.boolean(),
-  game1: gameResultSchema.nullable().optional(),
-  game2: gameResultSchema.nullable().optional(),
-  game3: gameResultSchema.nullable().optional(),
+  games: z.array(matchGameWriteSchema),
   opening_hand: z.string().nullable().optional(),
   turning_point: z.string().nullable().optional(),
   final_turn: z.string().nullable().optional(),
@@ -397,6 +470,11 @@ export const sessionComparisonSchema = z.object({
   baseline_archetype_summary: z.array(archetypeSummarySchema),
   session_matchup_summary: matchupSummarySchema,
   baseline_matchup_summary: matchupSummarySchema,
+  // #123/#124 D4/D5/D6: derived period metrics for the session's own
+  // matches (London mulligan: hand_size = 7 - mulligans), null when no game
+  // in the session has recorded the underlying gated counter yet.
+  avg_hand_size: z.number().nullable(),
+  avg_misplays: z.number().nullable(),
 })
 export type SessionComparison = z.infer<typeof sessionComparisonSchema>
 

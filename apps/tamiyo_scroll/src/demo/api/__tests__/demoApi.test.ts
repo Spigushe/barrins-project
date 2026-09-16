@@ -160,23 +160,23 @@ describe('demo matches api', () => {
     const created = await demoMatchesApi.createMatch({
       personal_deck_id: DECK_ID,
       opponent_deck_id: opponent.id,
-      on_play: true,
-      game1: 'win',
-      game2: 'win',
-      game3: null,
+      games: [
+        { game_number: 1, on_play: true, result: 'win' },
+        { game_number: 2, on_play: true, result: 'win' },
+      ],
     })
     matchSchema.parse(created)
 
     const updated = await demoMatchesApi.updateMatch(created.id, {
       personal_deck_id: DECK_ID,
       opponent_deck_id: opponent.id,
-      on_play: false,
-      game1: 'loss',
-      game2: 'loss',
-      game3: null,
+      games: [
+        { game_number: 1, on_play: false, result: 'loss' },
+        { game_number: 2, on_play: false, result: 'loss' },
+      ],
     })
-    expect(updated.on_play).toBe(false)
-    expect(updated.game1).toBe('loss')
+    expect(updated.games[0].on_play).toBe(false)
+    expect(updated.games[0].result).toBe('loss')
 
     await demoMatchesApi.deleteMatch(created.id)
     const after = await demoMatchesApi.listMatches(DECK_ID)
@@ -346,10 +346,10 @@ describe('demo stats api', () => {
     await demoMatchesApi.createMatch({
       personal_deck_id: DECK_ID,
       opponent_deck_id: opponent.id,
-      on_play: true,
-      game1: 'win',
-      game2: 'win',
-      game3: null,
+      games: [
+        { game_number: 1, on_play: true, result: 'win' },
+        { game_number: 2, on_play: true, result: 'win' },
+      ],
     })
 
     const after = await demoStatsApi.getMatchupSummary({ personalDeckId: DECK_ID })

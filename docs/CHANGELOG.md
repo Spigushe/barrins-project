@@ -74,6 +74,15 @@ section of the docs site for details.
   doc updates (`Barrin`, `checkpointing`, `datname`, `dawidd`, `ILIKE`,
   `lookback`, `lsclusters`, `macrotype`, `mainboard`, `ondelete`,
   `pipefail`, among others).
+- #123/#124 structured match-log scoping: full Context/Alternatives/
+  Decisions/Consequences write-up for per-game mulligan/misplay
+  tracking (`docs/project/issue-scoping/123-124-structured-match-log.md`),
+  including a recorded 6-agent review (Agents 0-4, 6) that corrected two
+  design bugs before implementation started. New
+  `docs/project/v2.0.0-bump/t16-goblin-guide-feature-gates/index.md`
+  tracker scoping the deferred admin gate-engine item (5 open decisions,
+  not yet resolved, explicitly non-blocking for #123/#124); project
+  index gains the T16 row.
 
 ### Changed
 

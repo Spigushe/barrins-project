@@ -34,15 +34,30 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
 
 
 def _match_payload(
-    personal_deck_id: str, opponent_deck_id: str, **overrides: Any
+    personal_deck_id: str,
+    opponent_deck_id: str,
+    *,
+    on_play: bool = True,
+    game1: str | None = "win",
+    game2: str | None = "loss",
+    game3: str | None = "win",
+    games: list[dict] | None = None,
+    **overrides: Any,
 ) -> dict:
+    """See `test_matches._match_payload` — same convenience shape."""
+    if games is None:
+        games = []
+        for number, result in ((1, game1), (2, game2), (3, game3)):
+            if result is None:
+                continue
+            entry: dict = {"game_number": number, "result": result}
+            if number == 1:
+                entry["on_play"] = on_play
+            games.append(entry)
     payload = {
         "personal_deck_id": personal_deck_id,
         "opponent_deck_id": opponent_deck_id,
-        "on_play": True,
-        "game1": "win",
-        "game2": "loss",
-        "game3": "win",
+        "games": games,
     }
     payload.update(overrides)
     return payload
@@ -159,6 +174,15 @@ class TestGetSessionReport:
         assert captured["period_losses"] == comparison["session_losses"]
         assert captured["baseline_wins"] == comparison["baseline_wins"]
         assert captured["baseline_losses"] == comparison["baseline_losses"]
+        assert captured["period_avg_hand_size"] == comparison["session_avg_hand_size"]
+        assert (
+            captured["period_avg_player_misplays"]
+            == comparison["session_avg_player_misplays"]
+        )
+        assert (
+            captured["period_avg_opponent_misplays"]
+            == comparison["session_avg_opponent_misplays"]
+        )
         captured_rows = [
             {**row, "opponent_deck_id": str(row["opponent_deck_id"])}
             for row in captured["period_matchup_rows"]

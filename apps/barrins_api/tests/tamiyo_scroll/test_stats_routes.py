@@ -35,9 +35,10 @@ async def _setup_match(
         json={
             "personal_deck_id": personal_id,
             "opponent_deck_id": meta_id,
-            "on_play": True,
-            "game1": "win",
-            "game2": "loss",
+            "games": [
+                {"game_number": 1, "on_play": True, "result": "win"},
+                {"game_number": 2, "result": "loss"},
+            ],
         },
         headers=headers,
     )
