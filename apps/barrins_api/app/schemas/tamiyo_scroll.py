@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.tamiyo_scroll import (
     ArchetypeCategory,
@@ -99,6 +99,57 @@ class MetaDeckWrite(BaseModel):
     personal_deck_id: uuid.UUID
 
 
+class MatchEventWrite(BaseModel):
+    """One logged mulligan or misplay (#123/#124, D2's second amendment).
+
+    The comment is per-*event*, not per-game-x-side: each individual
+    mulligan/misplay is its own entry with its own optional comment (game
+    state, decision, cards in hand) — there is no separate per-game-x-side
+    note field anymore. Position within its list (assigned server-side as
+    the list index + 1) is what `TSMatchGameEvent.sequence` upserts
+    against — see `app/api/tamiyo_scroll/matches.py::_apply_payload`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    comment: str | None = None
+
+
+class MatchGameWrite(BaseModel):
+    """One game within `MatchWrite.games` (#123/#124, full normalization).
+
+    Replaces the old flat `on_play`/`game{N}` fields on `MatchWrite` — one
+    entry per played game, `game_number` 1-3.
+
+    `player_mulligans`/`opponent_mulligans`/`player_misplays`/
+    `opponent_misplays` are lists of individual logged events (D2's second
+    amendment) — gated: only a `moderator`+ caller may submit a non-empty
+    list for any of them (D7) — enforced in `app/api/tamiyo_scroll/
+    matches.py::_apply_payload`, not here, since that check needs the
+    caller's role, not just the payload shape. Each list is a full
+    replacement of that side/kind's event log, upserted by position
+    (`_apply_payload`), same "full replacement" convention as this
+    payload's other list, `MatchWrite.games` itself.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    game_number: int = Field(ge=1, le=3)
+    on_play: bool | None = None
+    result: GameResult | None = None
+    # London mulligan (Duel Commander, D4): hand size is `7 - mulligans`,
+    # so more than 7 mulligans in one game can't happen.
+    player_mulligans: list[MatchEventWrite] = Field(default_factory=list, max_length=7)
+    opponent_mulligans: list[MatchEventWrite] = Field(
+        default_factory=list, max_length=7
+    )
+    # No hard game-rule cap on misplays — a generous sanity bound instead.
+    player_misplays: list[MatchEventWrite] = Field(default_factory=list, max_length=50)
+    opponent_misplays: list[MatchEventWrite] = Field(
+        default_factory=list, max_length=50
+    )
+
+
 class MatchWrite(BaseModel):
     """Payload shared by POST and PUT /matches — full replacement.
 
@@ -106,6 +157,11 @@ class MatchWrite(BaseModel):
     deck's current latest version, server-side, at creation time) and
     honored on PUT (the match-edit flow allows re-pointing to a different
     version, or clearing it) — see S3.
+
+    `games` (#123/#124) replaces the old flat `on_play`/`game1`/`game2`/
+    `game3` fields — full replacement of the match's per-game log, same
+    convention as this payload's other fields: a game number missing from
+    `games` is deleted from the match, an included one is upserted.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -114,13 +170,18 @@ class MatchWrite(BaseModel):
     opponent_deck_id: uuid.UUID
     decklist_version_id: uuid.UUID | None = None
     session_id: uuid.UUID | None = None
-    on_play: bool
-    game1: GameResult | None = None
-    game2: GameResult | None = None
-    game3: GameResult | None = None
+    games: list[MatchGameWrite] = Field(default_factory=list)
     opening_hand: str | None = None
     turning_point: str | None = None
     final_turn: str | None = None
+
+    @field_validator("games")
+    @classmethod
+    def _unique_game_numbers(cls, games: list[MatchGameWrite]) -> list[MatchGameWrite]:
+        numbers = [g.game_number for g in games]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError("duplicate_game_number")
+        return games
 
 
 class SessionCreate(BaseModel):

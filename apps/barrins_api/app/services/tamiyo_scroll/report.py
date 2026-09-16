@@ -42,6 +42,10 @@ def _fmt_pct(value: float | None) -> str:
     return "—" if value is None else f"{value:.2f}%"
 
 
+def _fmt_avg(value: float | None) -> str:
+    return "—" if value is None else f"{value:.2f}"
+
+
 def format_period(start: datetime, end: datetime | None) -> str:
     """`"Since {start}"` (open-ended) or `"{start} → {end}"` (closed)."""
     if end is None:
@@ -226,6 +230,9 @@ def render_session_report_pdf(
     baseline_matchup_rows: Sequence[MatchupRow],
     card_tests: Sequence[TSCardTest],
     evaluations: Sequence[TSCardTestEvaluation],
+    period_avg_hand_size: float | None = None,
+    period_avg_player_misplays: float | None = None,
+    period_avg_opponent_misplays: float | None = None,
 ) -> bytes:
     """Render a session or rolling-period report to PDF bytes.
 
@@ -250,6 +257,20 @@ def render_session_report_pdf(
             _stat_tile(f"{period_label} winrate", _fmt_pct(period_winrate)),
             _stat_tile(
                 f"Winrate before {period_label.lower()}", _fmt_pct(baseline_winrate)
+            ),
+            # #123/#124 (D5/D6): derived period metrics, ignoring games with
+            # no entered value (D8) — never shown for the baseline, this is
+            # a period-only metric (D5).
+            _stat_tile(
+                f"{period_label} avg. hand size", _fmt_avg(period_avg_hand_size)
+            ),
+            _stat_tile(
+                f"{period_label} avg. misplays (you)",
+                _fmt_avg(period_avg_player_misplays),
+            ),
+            _stat_tile(
+                f"{period_label} avg. misplays (opponent)",
+                _fmt_avg(period_avg_opponent_misplays),
             ),
         ]
     )

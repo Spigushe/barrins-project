@@ -35,8 +35,12 @@ from app.models.tamiyo_scroll import (
     CardGame,
     ExpectedLevel,
     GameResult,
+    MatchEventKind,
+    MatchEventSide,
     MetagameRosterScope,
     TSMatch,
+    TSMatchGame,
+    TSMatchGameEvent,
     TSMetaDeck,
     TSPersonalDeck,
     TSUserSettings,
@@ -177,6 +181,72 @@ def scope_meta_decks(
 
 
 @dataclass(frozen=True)
+class EffectiveGameEvent:
+    """A `TSMatchGameEvent` as it should appear in the viewer's own
+    Journal (#123/#124, D2's second amendment) — read-only carry-through.
+
+    `comment` is stripped (set to `None`) for a merged-in foreign match —
+    see `_from_match_game`'s `include_comments` — while `id`/`side`/`kind`
+    (and therefore the list's length, i.e. the count) still carry
+    through, same privacy posture as the rest of this module's `shared_by`
+    handling (never leak more of a sharer's personal data than needed).
+    """
+
+    id: UUID
+    side: MatchEventSide
+    kind: MatchEventKind
+    comment: str | None
+
+
+@dataclass(frozen=True)
+class EffectiveGame:
+    """A `TSMatchGame` as it should appear in the viewer's own Journal/stats
+    (#123/#124) — read-only carry-through, same fields as `TSMatchGame`
+    itself (satisfies `stats.GameLike` and, via its four `*_events`
+    properties below, `ResponseMatchGame`).
+
+    `player_mulligans`/`opponent_mulligans`/`player_misplays`/
+    `opponent_misplays` are the same backend-only derived-cache integers
+    as `TSMatchGame`'s columns of the same name (see that class's
+    docstring for the NULL-vs-0 rule) — `stats.py` reads these directly.
+    The four `*_events` properties below group `events` by side/kind for
+    `ResponseMatchGame`'s `validation_alias` lookup, mirroring
+    `TSMatchGame`'s own `player_mulligan_events`/etc. properties.
+    """
+
+    id: UUID
+    game_number: int
+    on_play: bool | None
+    result: GameResult | None
+    player_mulligans: int | None
+    opponent_mulligans: int | None
+    player_misplays: int | None
+    opponent_misplays: int | None
+    events: tuple[EffectiveGameEvent, ...] = ()
+
+    def _events_for(
+        self, side: MatchEventSide, kind: MatchEventKind
+    ) -> list[EffectiveGameEvent]:
+        return [e for e in self.events if e.side == side and e.kind == kind]
+
+    @property
+    def player_mulligan_events(self) -> list[EffectiveGameEvent]:
+        return self._events_for(MatchEventSide.player, MatchEventKind.mulligan)
+
+    @property
+    def opponent_mulligan_events(self) -> list[EffectiveGameEvent]:
+        return self._events_for(MatchEventSide.opponent, MatchEventKind.mulligan)
+
+    @property
+    def player_misplay_events(self) -> list[EffectiveGameEvent]:
+        return self._events_for(MatchEventSide.player, MatchEventKind.misplay)
+
+    @property
+    def opponent_misplay_events(self) -> list[EffectiveGameEvent]:
+        return self._events_for(MatchEventSide.opponent, MatchEventKind.misplay)
+
+
+@dataclass(frozen=True)
 class EffectiveMatch:
     """A match as it should appear in the viewer's own Journal/stats.
 
@@ -185,6 +255,10 @@ class EffectiveMatch:
     `shared_by` for a merged-in foreign match. `personal_deck_id` and
     `opponent_deck_id` are the viewer's own ids whenever a name match
     exists — never the sharer's raw ids leaking into the viewer's view.
+
+    `games` (#123/#124) replaces the old flat `on_play`/`game1`/`game2`/
+    `game3` fields — carried through read-only, same as every other match
+    field a sharer's data flows through here.
     """
 
     id: UUID
@@ -193,10 +267,7 @@ class EffectiveMatch:
     opponent_deck_id: UUID
     decklist_version_id: UUID | None
     session_id: UUID | None
-    on_play: bool
-    game1: GameResult | None
-    game2: GameResult | None
-    game3: GameResult | None
+    games: tuple[EffectiveGame, ...]
     opening_hand: str | None
     turning_point: str | None
     final_turn: str | None
@@ -248,6 +319,46 @@ class EffectiveMetaDeck:
     merged_ids: tuple[UUID, ...] = ()
 
 
+def _from_match_game_event(
+    event: TSMatchGameEvent, *, include_comments: bool
+) -> EffectiveGameEvent:
+    return EffectiveGameEvent(
+        id=event.id,
+        side=event.side,
+        kind=event.kind,
+        comment=event.comment if include_comments else None,
+    )
+
+
+def _from_match_game(
+    game: TSMatchGame, *, include_comments: bool = True
+) -> EffectiveGame:
+    """`include_comments=False` (the merged-in-from-a-sharer path, see the
+    sharer-match loop below) strips each event's `comment` but keeps its
+    `id`/count — a per-event misplay/mulligan comment reads as a personal
+    note-to-self, not something obviously meant for teammates, so the
+    shared Journal view surfaces "3 misplays happened" (still useful for
+    the shared matchup stats) without the sharer's own commentary on them.
+    This wasn't explicitly specified either way (Agent 1 judgment call,
+    2026-09-15) — the counters/averages this feeds into were always
+    counts-only regardless.
+    """
+    return EffectiveGame(
+        id=game.id,
+        game_number=game.game_number,
+        on_play=game.on_play,
+        result=game.result,
+        player_mulligans=game.player_mulligans,
+        opponent_mulligans=game.opponent_mulligans,
+        player_misplays=game.player_misplays,
+        opponent_misplays=game.opponent_misplays,
+        events=tuple(
+            _from_match_game_event(e, include_comments=include_comments)
+            for e in game.events
+        ),
+    )
+
+
 def _from_match(
     match: TSMatch, *, is_readonly: bool, shared_by: str | None
 ) -> EffectiveMatch:
@@ -258,10 +369,7 @@ def _from_match(
         opponent_deck_id=match.opponent_deck_id,
         decklist_version_id=match.decklist_version_id,
         session_id=match.session_id,
-        on_play=match.on_play,
-        game1=match.game1,
-        game2=match.game2,
-        game3=match.game3,
+        games=tuple(_from_match_game(g) for g in match.games),
         opening_hand=match.opening_hand,
         turning_point=match.turning_point,
         final_turn=match.final_turn,
@@ -507,10 +615,11 @@ async def build_merged_view(
                 # meaningless (and inaccessible) to the viewer, and sessions
                 # aren't part of the sharing-merge concept (S9); never leaked.
                 session_id=None,
-                on_play=match.on_play,
-                game1=match.game1,
-                game2=match.game2,
-                game3=match.game3,
+                # Comments stripped for a foreign match — see
+                # `_from_match_game`'s docstring (privacy judgment call).
+                games=tuple(
+                    _from_match_game(g, include_comments=False) for g in match.games
+                ),
                 opening_hand=match.opening_hand,
                 turning_point=match.turning_point,
                 final_turn=match.final_turn,

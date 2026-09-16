@@ -43,15 +43,30 @@ async def _setup_decks(client: AsyncClient, user: User) -> tuple[str, str]:
 
 
 def _match_payload(
-    personal_deck_id: str, opponent_deck_id: str, **overrides: Any
+    personal_deck_id: str,
+    opponent_deck_id: str,
+    *,
+    on_play: bool = True,
+    game1: str | None = "win",
+    game2: str | None = "loss",
+    game3: str | None = "win",
+    games: list[dict] | None = None,
+    **overrides: Any,
 ) -> dict:
+    """See `test_matches._match_payload` — same convenience shape."""
+    if games is None:
+        games = []
+        for number, result in ((1, game1), (2, game2), (3, game3)):
+            if result is None:
+                continue
+            entry: dict = {"game_number": number, "result": result}
+            if number == 1:
+                entry["on_play"] = on_play
+            games.append(entry)
     payload = {
         "personal_deck_id": personal_deck_id,
         "opponent_deck_id": opponent_deck_id,
-        "on_play": True,
-        "game1": "win",
-        "game2": "loss",
-        "game3": "win",
+        "games": games,
     }
     payload.update(overrides)
     return payload
@@ -304,3 +319,97 @@ class TestGetDeckReport:
         assert captured["colored_lines"] == [
             {"line": "4 Goblin Guide", "status": "neutral"}
         ]
+
+
+def _events(count: int) -> list[dict]:
+    """`count` mulligan/misplay events, each with no comment — only the
+    list length matters for the derived counter cache/averages here."""
+    return [{"comment": None} for _ in range(count)]
+
+
+class TestDeckReportHandSizeAndMisplayAverages:
+    """#123/#124 (D5/D6): `avg_hand_size`/`avg_*_misplays` reach the PDF
+    renderer, derived from the per-game mulligan/misplay event counts."""
+
+    async def test_averages_reach_the_pdf_renderer(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        moderator = User(role="moderator")
+        headers = auth_headers(moderator)
+        personal_id, meta_id = await _setup_decks(client, moderator)
+
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(
+                personal_id,
+                meta_id,
+                games=[
+                    {
+                        "game_number": 1,
+                        "on_play": True,
+                        "result": "win",
+                        "player_mulligans": _events(1),
+                        "player_misplays": _events(2),
+                        "opponent_misplays": _events(0),
+                    },
+                    {
+                        "game_number": 2,
+                        "result": "loss",
+                        "player_mulligans": _events(3),
+                        "player_misplays": _events(0),
+                        "opponent_misplays": _events(4),
+                    },
+                ],
+            ),
+            headers=headers,
+        )
+
+        captured: dict[str, Any] = {}
+
+        def _fake_render(**kwargs: Any) -> bytes:
+            captured.update(kwargs)
+            return b"%PDF-stub"
+
+        monkeypatch.setattr(
+            "app.api.tamiyo_scroll.personal_decks.render_session_report_pdf",
+            _fake_render,
+        )
+        resp = await client.get(
+            f"{BASE}/personal-decks/{personal_id}/report.pdf", headers=headers
+        )
+
+        assert resp.status_code == 200
+        # avg_player_mulligans = (1 + 3) / 2 = 2 -> avg_hand_size = 7 - 2 = 5
+        assert captured["period_avg_hand_size"] == 5.0
+        assert captured["period_avg_player_misplays"] == 1.0
+        assert captured["period_avg_opponent_misplays"] == 2.0
+
+    async def test_no_games_with_data_yields_none_average(
+        self, client: AsyncClient, owner_user: User, monkeypatch: pytest.MonkeyPatch
+    ):
+        headers = auth_headers(owner_user)
+        personal_id, meta_id = await _setup_decks(client, owner_user)
+        await client.post(
+            f"{BASE}/matches",
+            json=_match_payload(personal_id, meta_id),
+            headers=headers,
+        )
+
+        captured: dict[str, Any] = {}
+
+        def _fake_render(**kwargs: Any) -> bytes:
+            captured.update(kwargs)
+            return b"%PDF-stub"
+
+        monkeypatch.setattr(
+            "app.api.tamiyo_scroll.personal_decks.render_session_report_pdf",
+            _fake_render,
+        )
+        resp = await client.get(
+            f"{BASE}/personal-decks/{personal_id}/report.pdf", headers=headers
+        )
+
+        assert resp.status_code == 200
+        assert captured["period_avg_hand_size"] is None
+        assert captured["period_avg_player_misplays"] is None
+        assert captured["period_avg_opponent_misplays"] is None
