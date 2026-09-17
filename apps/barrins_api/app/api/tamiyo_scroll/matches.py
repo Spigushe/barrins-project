@@ -5,21 +5,41 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from app.core.roles import Role, role_level
 from app.database.session import DatabaseSession
-from app.dependencies.auth import CurrentUser
+from app.dependencies.auth import AuthenticatedUser, CurrentUser
 from app.models.tamiyo_scroll import (
+    MatchEventKind,
+    MatchEventSide,
     TSMatch,
+    TSMatchGame,
+    TSMatchGameEvent,
     TSMetaDeck,
     TSPersonalDeck,
     TSPersonalDecklistVersion,
     TSSession,
 )
 from app.schemas.responses_tamiyo_scroll import ResponseMatch
-from app.schemas.tamiyo_scroll import MatchWrite
+from app.schemas.tamiyo_scroll import MatchEventWrite, MatchWrite
 from app.services.identity_directory import IdentityDirectoryDep
 from app.services.tamiyo_scroll.sharing_merge import build_merged_view
 
 router = APIRouter()
+
+# D7: the mulligan/misplay event-list fields on a `games[]` entry require a
+# `moderator`+ caller. Field-level, not a route-level dependency, because
+# the same payload also carries the ordinary game-result/`on_play` fields
+# every caller may already submit — a route dependency would reject the
+# whole request for a sub-moderator caller instead of just these fields.
+# Each tuple is (payload field name == TSMatchGame's derived-cache column
+# name, event side, event kind) — see `TSMatchGame`'s docstring for why
+# the same name is reused for both.
+_GATED_EVENT_FIELDS: tuple[tuple[str, MatchEventSide, MatchEventKind], ...] = (
+    ("player_mulligans", MatchEventSide.player, MatchEventKind.mulligan),
+    ("opponent_mulligans", MatchEventSide.opponent, MatchEventKind.mulligan),
+    ("player_misplays", MatchEventSide.player, MatchEventKind.misplay),
+    ("opponent_misplays", MatchEventSide.opponent, MatchEventKind.misplay),
+)
 
 
 async def _get_owned_match(
@@ -127,16 +147,110 @@ async def _validate_session(
         )
 
 
-def _apply_payload(match: TSMatch, payload: MatchWrite) -> None:
+def _payload_has_gated_fields(payload: MatchWrite) -> bool:
+    """True if any game carries a non-empty mulligan/misplay event list."""
+    return any(
+        getattr(game, field_name)
+        for game in payload.games
+        for field_name, _side, _kind in _GATED_EVENT_FIELDS
+    )
+
+
+def _upsert_game_events(
+    game: TSMatchGame,
+    side: MatchEventSide,
+    kind: MatchEventKind,
+    payload_events: list[MatchEventWrite],
+) -> None:
+    """Upsert-by-position against this `(game, side, kind)`'s existing
+    events, never delete-and-reinsert the whole group.
+
+    Matches existing `sequence=i` to the new payload's index `i` (both
+    1-based `sequence` vs. 0-based `enumerate`, offset by one): updates
+    its `comment` in place if changed, inserts new rows for indices
+    beyond the old count, deletes rows beyond the new count. A blind
+    delete-and-reinsert would reset every event's `created_at` and
+    randomize its `id` on every autosave for no reason — `TSMatchGameEvent`
+    docstring.
+    """
+    existing = sorted(
+        (e for e in game.events if e.side == side and e.kind == kind),
+        key=lambda e: e.sequence,
+    )
+    for index, event_payload in enumerate(payload_events):
+        if index < len(existing):
+            existing[index].comment = event_payload.comment
+        else:
+            game.events.append(
+                TSMatchGameEvent(
+                    side=side,
+                    kind=kind,
+                    sequence=index + 1,
+                    comment=event_payload.comment,
+                )
+            )
+    for stale in existing[len(payload_events) :]:
+        game.events.remove(stale)
+
+
+def _apply_payload(
+    match: TSMatch, payload: MatchWrite, current_user: AuthenticatedUser
+) -> None:
+    """Full replacement of the match's fields, including its per-game log.
+
+    `games[]` (#123/#124) is a full replacement, same convention as the
+    rest of this payload: a game number no longer present is removed, an
+    included one is upserted. `TSMatch.on_play`/`game1`/`game2`/`game3`
+    (Migration 1's flat columns, kept only for its rollback window) are
+    deliberately never written here anymore — the per-game log is now the
+    only write path (D1).
+
+    Raises 403 for the whole request if a sub-`moderator` caller's payload
+    sets a non-empty mulligan/misplay event list on any game (D7) —
+    checked before any mutation, so a rejected request never partially
+    applies. A sub-moderator caller's four gated fields are therefore
+    always empty lists by the time we reach the loop below: their
+    existing events (if any, from an earlier moderator edit) are left
+    completely untouched, never cleared just because a sub-moderator
+    happened to save an unrelated field on the same match — only the
+    derived-cache counter is forced to `NULL` (`TSMatchGame`'s docstring),
+    since "not confirmed by this caller's save" must stay distinguishable
+    from "confirmed zero" for `stats.py`'s averaging.
+    """
+    is_moderator = role_level(current_user.role) >= Role.moderator.level
+    if not is_moderator and _payload_has_gated_fields(payload):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="moderator_role_required_for_mulligan_misplay_fields",
+        )
+
     match.personal_deck_id = payload.personal_deck_id
     match.opponent_deck_id = payload.opponent_deck_id
-    match.on_play = payload.on_play
-    match.game1 = payload.game1
-    match.game2 = payload.game2
-    match.game3 = payload.game3
     match.opening_hand = payload.opening_hand
     match.turning_point = payload.turning_point
     match.final_turn = payload.final_turn
+
+    games_by_number = {game.game_number: game for game in match.games}
+    payload_numbers = {g.game_number for g in payload.games}
+    for number, game in list(games_by_number.items()):
+        if number not in payload_numbers:
+            match.games.remove(game)
+
+    for game_payload in payload.games:
+        game = games_by_number.get(game_payload.game_number)
+        if game is None:
+            game = TSMatchGame(game_number=game_payload.game_number)
+            match.games.append(game)
+        game.on_play = game_payload.on_play
+        game.result = game_payload.result
+
+        for field_name, side, kind in _GATED_EVENT_FIELDS:
+            payload_events: list[MatchEventWrite] = getattr(game_payload, field_name)
+            if is_moderator:
+                _upsert_game_events(game, side, kind, payload_events)
+                setattr(game, field_name, len(payload_events))
+            else:
+                setattr(game, field_name, None)
 
 
 @router.get("/matches", response_model=list[ResponseMatch])
@@ -177,7 +291,7 @@ async def create_match(
             session, current_user.id, payload.session_id, payload.personal_deck_id
         )
     match = TSMatch(owner_id=current_user.id)
-    _apply_payload(match, payload)
+    _apply_payload(match, payload, current_user)
     match.session_id = payload.session_id
     # Never the frontend guessing which version is "current" (S3) — the
     # deck's latest version at creation time is resolved server-side,
@@ -210,7 +324,7 @@ async def update_match(
         await _validate_session(
             session, current_user.id, payload.session_id, payload.personal_deck_id
         )
-    _apply_payload(match, payload)
+    _apply_payload(match, payload, current_user)
     match.decklist_version_id = payload.decklist_version_id
     match.session_id = payload.session_id
     session.add(match)

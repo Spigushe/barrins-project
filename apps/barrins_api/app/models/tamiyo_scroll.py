@@ -28,7 +28,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models._types import JsonValue, jsonb_column
@@ -64,6 +64,21 @@ class DecklistVersionSource(enum.StrEnum):
 
     manual = "manual"
     moxfield_import = "moxfield_import"
+
+
+class MatchEventSide(enum.StrEnum):
+    """Which side of a `TSMatchGame` a `TSMatchGameEvent` belongs to
+    (#123/#124)."""
+
+    player = "player"
+    opponent = "opponent"
+
+
+class MatchEventKind(enum.StrEnum):
+    """What a `TSMatchGameEvent` logs (#123/#124)."""
+
+    mulligan = "mulligan"
+    misplay = "misplay"
 
 
 class SessionType(enum.StrEnum):
@@ -263,7 +278,18 @@ class TSMatch(Base):
         ForeignKey("ts_sessions.id", ondelete="SET NULL"),
         nullable=True,
     )
-    on_play: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # #123/#124 (2026-09-15 decision, "Full normalization"): per-game
+    # results, per-game `on_play`, mulligans/misplays/comments all moved to
+    # `TSMatchGame` (`games` below). These four flat columns are kept only
+    # for Migration 1's rollback window (`ts_match_games` backfilled from
+    # them once, then the app stops reading/writing them) — Migration 2, a
+    # later separate deploy after a production verification window, drops
+    # them. `on_play` was widened from NOT NULL to nullable in Migration 1
+    # (`add_ts_match_games_and_backfill`) — the one necessary exception to
+    # "don't touch the flat columns": once application code stops
+    # populating it, a NOT NULL column with no default would otherwise
+    # reject every new match insert. No existing row's value changed.
+    on_play: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     game1: Mapped[GameResult | None] = mapped_column(_game_result_column, nullable=True)
     game2: Mapped[GameResult | None] = mapped_column(_game_result_column, nullable=True)
     game3: Mapped[GameResult | None] = mapped_column(_game_result_column, nullable=True)
@@ -275,6 +301,233 @@ class TSMatch(Base):
         nullable=False,
         server_default=func.now(),
     )
+    # `lazy="selectin"` (not the ORM default `"select"`/lazy-load): every
+    # read path that lists matches (journal, sharing merge, session/report
+    # stats) iterates a match's games, and a lazy per-match load would be
+    # an N+1 query across the whole list — one extra batched SELECT per
+    # query instead (Agent 1 review, 2026-09-15).
+    games: Mapped[list[TSMatchGame]] = relationship(
+        "TSMatchGame",
+        back_populates="match",
+        cascade="all, delete-orphan",
+        order_by="TSMatchGame.game_number",
+        lazy="selectin",
+    )
+
+
+class TSMatchGame(Base):
+    """One played game within a `TSMatch`'s BO3 log (#123/#124).
+
+    Full normalization (2026-09-15 decision): absorbs `TSMatch.game1/2/3`
+    and a per-game `on_play` (never tracked per-game before this — only a
+    single match-level `on_play` existed), plus the new mulligan/misplay
+    tracking. Migration 1 (`add_ts_match_games_and_backfill`) backfills
+    one row per historical `game{N}` from every existing `ts_matches`
+    row; `TSMatch.game1/2/3`/`on_play` are left in the database untouched
+    by that migration (D1) — only Migration 2, a later separate deploy,
+    drops them.
+
+    Lazily created (D8): a row exists only once something is entered for
+    that game number, so a quick "2-0, done" match stays as cheap to log
+    as it was before this feature.
+
+    `on_play` is nullable per game (unlike the old match-level column)
+    because game 2/3's starting player was never historically tracked —
+    the Migration 1 backfill can only ever populate game 1's `on_play`
+    from the old `ts_matches.on_play` column, leaving games 2/3 `NULL`
+    for every backfilled row.
+
+    `player_mulligans`/`opponent_mulligans`/`player_misplays`/
+    `opponent_misplays` (D2's second amendment, 2026-09-15) are **not**
+    independently client-writable counters — comments are per-*event*
+    (each individual mulligan/misplay is its own `TSMatchGameEvent` row
+    with its own optional comment), and these four columns are a
+    backend-only **derived cache** of `len(events)` per `(side, kind)`,
+    maintained exclusively by `app/api/tamiyo_scroll/matches.py::
+    _apply_payload` for `services/tamiyo_scroll/stats.py`'s averaging
+    (never read by any API response — a response's event list length
+    already gives the count). The NULL-vs-`0` distinction is deliberate
+    and load-bearing:
+
+    - Migration 1's backfill leaves them `NULL` — a historical,
+      pre-feature game has no tracking concept at all, not "confirmed
+      zero".
+    - A `moderator`+ caller's write sets each counter to the exact
+      length of that side/kind's event list in the payload — a real `0`
+      when the caller submits a genuinely empty list.
+    - A sub-`moderator` caller's write always forces the counter to
+      `NULL`, never `0` — the feature doesn't exist for that caller
+      (D7), which must stay distinguishable from "tracked and confirmed
+      zero" in `stats.py`'s `avg()` calculation (NULL excluded, `0`
+      counted).
+
+    Role-gating (D7): the four fields above require a `moderator`+
+    caller to write a non-empty event list, enforced field-level in
+    `app/api/tamiyo_scroll/matches.py::_apply_payload` — never a
+    route-level dependency, since the same `games[]` payload also carries
+    the ordinary game-result/`on_play` fields every caller may already
+    submit.
+    """
+
+    __tablename__ = "ts_match_games"
+    __table_args__ = (
+        UniqueConstraint("match_id", "game_number", name="uq_ts_match_games_number"),
+        CheckConstraint(
+            "game_number BETWEEN 1 AND 3", name="ck_ts_match_games_number_range"
+        ),
+        # London mulligan (Duel Commander's rule, D4): hand size is
+        # `7 - mulligans`, so more than 7 mulligans can't happen (hand size
+        # can't go negative).
+        CheckConstraint(
+            "player_mulligans IS NULL OR player_mulligans BETWEEN 0 AND 7",
+            name="ck_ts_match_games_player_mulligans_range",
+        ),
+        CheckConstraint(
+            "opponent_mulligans IS NULL OR opponent_mulligans BETWEEN 0 AND 7",
+            name="ck_ts_match_games_opponent_mulligans_range",
+        ),
+        CheckConstraint(
+            "player_misplays IS NULL OR player_misplays >= 0",
+            name="ck_ts_match_games_player_misplays_range",
+        ),
+        CheckConstraint(
+            "opponent_misplays IS NULL OR opponent_misplays >= 0",
+            name="ck_ts_match_games_opponent_misplays_range",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    match_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_matches.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    game_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    on_play: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Shares the `ts_game_result` PG enum type with the (still-present,
+    # Migration-2-pending) `game1`/`game2`/`game3` columns above — one
+    # PostgreSQL type, never a duplicate created for this table.
+    result: Mapped[GameResult | None] = mapped_column(
+        _game_result_column, nullable=True
+    )
+    # Derived caches — see class docstring for the NULL-vs-0 rule. Never
+    # set directly from a request field; only ever `len(events)` for the
+    # matching `(side, kind)`, written by `_apply_payload`.
+    player_mulligans: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    opponent_mulligans: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player_misplays: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    opponent_misplays: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    match: Mapped[TSMatch] = relationship("TSMatch", back_populates="games")
+    # Same `lazy="selectin"` rationale as `TSMatch.games` above — avoids an
+    # N+1 across every read path that lists a game's mulligan/misplay
+    # events.
+    events: Mapped[list[TSMatchGameEvent]] = relationship(
+        "TSMatchGameEvent",
+        back_populates="game",
+        cascade="all, delete-orphan",
+        order_by="TSMatchGameEvent.sequence",
+        lazy="selectin",
+    )
+
+    def _events_for(
+        self, side: MatchEventSide, kind: MatchEventKind
+    ) -> list[TSMatchGameEvent]:
+        return [e for e in self.events if e.side == side and e.kind == kind]
+
+    # These four properties are what `ResponseMatchGame` actually reads
+    # (via `validation_alias`, `schemas/responses_tamiyo_scroll.py`) for
+    # its same-named `player_mulligans`/etc. *event-list* response
+    # fields — deliberately named differently from the plain `Mapped`
+    # int-cache columns above so the two never collide on one attribute.
+    @property
+    def player_mulligan_events(self) -> list[TSMatchGameEvent]:
+        return self._events_for(MatchEventSide.player, MatchEventKind.mulligan)
+
+    @property
+    def opponent_mulligan_events(self) -> list[TSMatchGameEvent]:
+        return self._events_for(MatchEventSide.opponent, MatchEventKind.mulligan)
+
+    @property
+    def player_misplay_events(self) -> list[TSMatchGameEvent]:
+        return self._events_for(MatchEventSide.player, MatchEventKind.misplay)
+
+    @property
+    def opponent_misplay_events(self) -> list[TSMatchGameEvent]:
+        return self._events_for(MatchEventSide.opponent, MatchEventKind.misplay)
+
+
+class TSMatchGameEvent(Base):
+    """One logged mulligan or misplay within a `TSMatchGame` (#123/#124,
+    D2's second amendment, 2026-09-15).
+
+    Comments are per-*event*, not per-game-x-side: each individual
+    mulligan/misplay is its own row with its own optional `comment`
+    (game state, decision, cards in hand) — not a single per-game-x-side
+    note field.
+
+    `sequence` (1-based) is this event's position within its
+    `(game_id, side, kind)` group — assigned server-side as the write
+    payload list's index + 1 (`app/api/tamiyo_scroll/matches.py::
+    _apply_payload`). That function upserts by position on every write
+    (matches existing `sequence=i` to the new payload's index `i`) rather
+    than deleting and reinserting the whole group — a delete-and-reinsert
+    would reset `created_at` and randomize `id`s on every autosave for no
+    reason, and the frontend keys its rows (and edits one comment without
+    reordering the rest) off a stable `id` (see `ResponseMatchGameEvent`).
+
+    `TSMatchGame.player_mulligans`/`opponent_mulligans`/`player_misplays`/
+    `opponent_misplays` are a backend-only derived cache of
+    `len(events)` per `(side, kind)` — see that column's own docstring
+    for the NULL-vs-`0` rule; never independently client-writable.
+    """
+
+    __tablename__ = "ts_match_game_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "side",
+            "kind",
+            "sequence",
+            name="uq_ts_match_game_events_position",
+        ),
+        CheckConstraint("sequence >= 1", name="ck_ts_match_game_events_sequence_min"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    game_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("ts_match_games.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    side: Mapped[MatchEventSide] = mapped_column(
+        Enum(MatchEventSide, name="ts_match_event_side"), nullable=False
+    )
+    kind: Mapped[MatchEventKind] = mapped_column(
+        Enum(MatchEventKind, name="ts_match_event_kind"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    game: Mapped[TSMatchGame] = relationship("TSMatchGame", back_populates="events")
 
 
 class TSMetaDeck(Base):

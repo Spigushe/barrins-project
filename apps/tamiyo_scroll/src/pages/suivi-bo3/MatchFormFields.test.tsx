@@ -3,6 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { emptyMatchDraft, MatchFormFields } from './MatchForm'
 
+// `MatchFormFields` reads `useCurrentUser()` for the moderator+ gate on the
+// mulligan/misplay stepper rows (#123/#124, D7) — irrelevant to this file's
+// deck/session-field tests, but the real hook throws outside an
+// `<IdentityProvider>`, so it needs a no-op mock here too.
+vi.mock('@barrins/goblin-guide', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@barrins/goblin-guide')>()
+  return {
+    ...actual,
+    useCurrentUser: () => ({ data: undefined }),
+  }
+})
+
 const createMetaDeckMutateAsync = vi.fn()
 
 vi.mock('@/hooks/useMetaDecks', async (importOriginal) => {

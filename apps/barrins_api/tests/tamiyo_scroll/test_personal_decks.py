@@ -300,8 +300,7 @@ async def _log_match(
         json={
             "personal_deck_id": personal_deck_id,
             "opponent_deck_id": opponent_deck_id,
-            "on_play": True,
-            "game1": "win",
+            "games": [{"game_number": 1, "on_play": True, "result": "win"}],
         },
         headers=auth_headers(user),
     )

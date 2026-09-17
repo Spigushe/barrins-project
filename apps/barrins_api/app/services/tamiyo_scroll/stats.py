@@ -15,6 +15,28 @@ from uuid import UUID
 from app.models.tamiyo_scroll import ArchetypeCategory, GameResult
 
 
+class GameLike(Protocol):
+    """Structural type satisfied by `TSMatchGame` and
+    `sharing_merge.EffectiveGame` — one played game within a `MatchLike`
+    (#123/#124, replaces the old flat `game1`/`game2`/`game3`/`on_play`
+    match-level fields)."""
+
+    @property
+    def game_number(self) -> int: ...
+    @property
+    def on_play(self) -> bool | None: ...
+    @property
+    def result(self) -> GameResult | None: ...
+    @property
+    def player_mulligans(self) -> int | None: ...
+    @property
+    def opponent_mulligans(self) -> int | None: ...
+    @property
+    def player_misplays(self) -> int | None: ...
+    @property
+    def opponent_misplays(self) -> int | None: ...
+
+
 class MatchLike(Protocol):
     """Structural type satisfied by `TSMatch` and `sharing_merge.EffectiveMatch`.
 
@@ -28,13 +50,7 @@ class MatchLike(Protocol):
     @property
     def decklist_version_id(self) -> UUID | None: ...
     @property
-    def on_play(self) -> bool: ...
-    @property
-    def game1(self) -> GameResult | None: ...
-    @property
-    def game2(self) -> GameResult | None: ...
-    @property
-    def game3(self) -> GameResult | None: ...
+    def games(self) -> Sequence[GameLike]: ...
     @property
     def is_readonly(self) -> bool: ...
 
@@ -82,23 +98,70 @@ class MatchupRow(TypedDict):
 def _tally_games(
     matches: Sequence[MatchLike], *, on_play: bool | None = None
 ) -> tuple[int, int, int]:
-    """Count wins/losses/draws across games (game1/game2/game3).
+    """Count wins/losses/draws across every match's games.
 
     Winrate is computed at the game level, not the match level — cf.
     docs/tamiyo_scroll_tracker/00_plan_general.md, Option C.
+
+    `on_play` now filters per *game* (#123/#124's per-game `on_play`), not
+    per match — a historical (pre-#123/#124) game's `on_play` is `NULL`
+    for game 2/3 (only game 1 could be backfilled from the old
+    match-level column, see `TSMatchGame`'s docstring), so those games
+    simply never match either `on_play=True` or `on_play=False` here,
+    same as any other "not entered" field (D8).
     """
     wins = losses = draws = 0
     for match in matches:
-        if on_play is not None and match.on_play != on_play:
-            continue
-        for game in (match.game1, match.game2, match.game3):
-            if game == GameResult.win:
+        for game in match.games:
+            if on_play is not None and game.on_play != on_play:
+                continue
+            if game.result == GameResult.win:
                 wins += 1
-            elif game == GameResult.loss:
+            elif game.result == GameResult.loss:
                 losses += 1
-            elif game == GameResult.draw:
+            elif game.result == GameResult.draw:
                 draws += 1
     return wins, losses, draws
+
+
+def _average(values: Sequence[int | None]) -> float | None:
+    """Mean of the non-`None` values, or `None` if there are none.
+
+    `None` ("not entered") is excluded, never treated as `0` — D8.
+    """
+    present = [v for v in values if v is not None]
+    if not present:
+        return None
+    return round(sum(present) / len(present), 2)
+
+
+class HandSizeAndMisplayAverages(TypedDict):
+    avg_hand_size: float | None
+    avg_player_misplays: float | None
+    avg_opponent_misplays: float | None
+
+
+def compute_hand_size_and_misplay_averages(
+    matches: Sequence[MatchLike],
+) -> HandSizeAndMisplayAverages:
+    """Derived period metrics for #123 (`avg_hand_size`) and #124
+    (`avg_*_misplays`) — D4/D5/D6.
+
+    London mulligan (Duel Commander, D4): `hand_size = 7 - mulligans`, so
+    `avg_hand_size = 7 - avg(player_mulligans)`. Only the player's own
+    mulligans feed hand size (it's the player's own hand); misplays are
+    tracked, and averaged, per side.
+    """
+    games = [game for match in matches for game in match.games]
+    avg_player_mulligans = _average([g.player_mulligans for g in games])
+    avg_hand_size = (
+        None if avg_player_mulligans is None else round(7 - avg_player_mulligans, 2)
+    )
+    return {
+        "avg_hand_size": avg_hand_size,
+        "avg_player_misplays": _average([g.player_misplays for g in games]),
+        "avg_opponent_misplays": _average([g.opponent_misplays for g in games]),
+    }
 
 
 def _winrate(wins: int, losses: int) -> float | None:
@@ -237,6 +300,14 @@ class PeriodStats:
     current_losses: int
     baseline_wins: int
     baseline_losses: int
+    # #123/#124 (D5/D6) — derived period metrics, `None` when the period
+    # has no game with a non-null value to average (D8).
+    current_avg_hand_size: float | None
+    current_avg_player_misplays: float | None
+    current_avg_opponent_misplays: float | None
+    baseline_avg_hand_size: float | None
+    baseline_avg_player_misplays: float | None
+    baseline_avg_opponent_misplays: float | None
 
 
 def compute_period_stats(
@@ -286,6 +357,8 @@ def compute_period_stats(
     )
     current_wins, current_losses, _ = _tally_games(current_matches)
     baseline_wins, baseline_losses, _ = _tally_games(baseline_matches)
+    current_averages = compute_hand_size_and_misplay_averages(current_matches)
+    baseline_averages = compute_hand_size_and_misplay_averages(baseline_matches)
 
     return PeriodStats(
         current_matches,
@@ -300,4 +373,10 @@ def compute_period_stats(
         current_losses,
         baseline_wins,
         baseline_losses,
+        current_averages["avg_hand_size"],
+        current_averages["avg_player_misplays"],
+        current_averages["avg_opponent_misplays"],
+        baseline_averages["avg_hand_size"],
+        baseline_averages["avg_player_misplays"],
+        baseline_averages["avg_opponent_misplays"],
     )

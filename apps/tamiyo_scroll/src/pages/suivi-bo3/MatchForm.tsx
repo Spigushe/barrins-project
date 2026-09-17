@@ -1,13 +1,20 @@
 import { type FormEvent, useState } from 'react'
+import { useCurrentUser } from '@barrins/goblin-guide'
 import { resolveMetaDeckOption, useCreateMetaDeck } from '@/hooks/useMetaDecks'
 import { useCreateSession, useSessions } from '@/hooks/useSessions'
 import type {
   ArchetypeCategory,
+  GameResult,
   Match,
+  MatchGame,
+  MatchGameEvent,
+  MatchGameEventWrite,
+  MatchGameWrite,
   MatchWrite,
   SessionType,
 } from '@/schemas/tamiyoScroll'
 import { ARCHETYPE_LABELS, GAME_RESULT_LABELS } from '@/lib/mtg-format'
+import { roleMeetsFloor } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +26,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -41,18 +49,97 @@ const TIERS = [0, 0.5, 1, 1.5, 2, 2.5, 3]
 const ARCHETYPE_OPTIONS = Object.keys(ARCHETYPE_LABELS) as ArchetypeCategory[]
 const CREATE_ITEM_VALUE = 'create-new-opponent-deck'
 
+/**
+ * One logged mulligan/misplay event's draft state (D2's second amendment —
+ * per-event, not per-game×side, comments). `id` is only ever set for an
+ * event that's already round-tripped through a save (used as the React
+ * key); a brand-new event created client-side by "+1" has none yet, and
+ * the write side never sends one back (an edit is matched to its existing
+ * row by array position/sequence server-side, not by id).
+ */
+export interface MatchGameEventDraft {
+  id?: string
+  comment: string
+}
+
+/**
+ * One game's draft state (#123/#124 — see
+ * docs/project/issue-scoping/123-124-structured-match-log.md). `result`
+ * stays a string carrying either a `GameResult` or the `GAME_NOT_PLAYED`
+ * sentinel, same convention the old flat `game1/2/3` fields used.
+ *
+ * `playerMulligans`/`opponentMulligans`/`playerMisplays`/`opponentMisplays`
+ * are the D2 gated event lists — kept empty (`[]`) until a `moderator`+
+ * user actually clicks "+1", so an ordinary user's write payload never
+ * sends a non-empty list there and never trips the backend's field-level
+ * 403 backstop.
+ */
+export interface MatchGameDraft {
+  /** `null` = not known — no prior game to derive from yet (or the prior
+   * game was a draw, which has no loser to make the choice), and the user
+   * hasn't manually chosen one either. */
+  onPlay: boolean | null
+  /** Whether the user explicitly chose `onPlay` (via the Play/Draw select)
+   * rather than it being the derived default below — a manual choice is
+   * never silently overwritten by a later edit to the previous game's
+   * result. */
+  onPlayTouched: boolean
+  result: string
+  playerMulligans: MatchGameEventDraft[]
+  opponentMulligans: MatchGameEventDraft[]
+  playerMisplays: MatchGameEventDraft[]
+  opponentMisplays: MatchGameEventDraft[]
+}
+
+export type MatchGamesDraft = [MatchGameDraft, MatchGameDraft, MatchGameDraft]
+
+/** Game 2/3's Play/Draw defaults from the previous game's result, per the
+ * "loser chooses" convention (assumed to choose to play) — a default only,
+ * applied by `applyDerivedOnPlay` below, never overriding a value the user
+ * has explicitly set (`onPlayTouched`). No default when the previous game
+ * was a draw (no loser) or hasn't been played yet — stays `null`/unknown,
+ * same as a never-derived value. */
+function deriveOnPlay(previousResult: string): boolean | null {
+  if (previousResult === 'loss') return true
+  if (previousResult === 'win') return false
+  return null
+}
+
+/** Recomputes every untouched game's derived `onPlay` from the game before
+ * it. Safe to call after any single-field change — it only ever touches
+ * `onPlay` on a game whose `onPlayTouched` is still `false`. */
+export function applyDerivedOnPlay(games: MatchGamesDraft): MatchGamesDraft {
+  const next = [...games] as MatchGamesDraft
+  for (const index of [1, 2] as const) {
+    if (!next[index].onPlayTouched) {
+      next[index] = { ...next[index], onPlay: deriveOnPlay(next[index - 1].result) }
+    }
+  }
+  return next
+}
+
 export interface MatchDraft {
   personalDeckId: string
   opponentDeckId: string
   decklistVersionId: string | null
   sessionId: string | null
-  onPlay: boolean
-  game1: string
-  game2: string
-  game3: string
+  /** Index 0 = game 1, index 1 = game 2, index 2 = game 3. */
+  games: MatchGamesDraft
   openingHand: string
   turningPoint: string
   finalTurn: string
+}
+
+function emptyGameDraft(defaultOnPlay: boolean | null): MatchGameDraft {
+  return {
+    onPlay: defaultOnPlay,
+    onPlayTouched: false,
+    result: GAME_NOT_PLAYED,
+    playerMulligans: [],
+    opponentMulligans: [],
+    playerMisplays: [],
+    opponentMisplays: [],
+  }
 }
 
 export function emptyMatchDraft(defaultPersonalDeckId: string | null): MatchDraft {
@@ -61,42 +148,111 @@ export function emptyMatchDraft(defaultPersonalDeckId: string | null): MatchDraf
     opponentDeckId: '',
     decklistVersionId: null,
     sessionId: null,
-    onPlay: true,
-    game1: GAME_NOT_PLAYED,
-    game2: GAME_NOT_PLAYED,
-    game3: GAME_NOT_PLAYED,
+    // Game 1 has no previous game to derive from — it's the only one that
+    // still needs an explicit starting default (the pre-existing "On the
+    // Play" default). Games 2/3 start unknown until derived or chosen.
+    games: [emptyGameDraft(true), emptyGameDraft(null), emptyGameDraft(null)],
     openingHand: '',
     turningPoint: '',
     finalTurn: '',
   }
 }
 
+/** `null` means "not tracked" (a sub-`moderator`'s game, or a pre-migration
+ * historical row) — nothing to edit, same as an empty list. */
+function eventDraftsFromMatchGame(events: MatchGameEvent[] | null): MatchGameEventDraft[] {
+  if (!events) return []
+  return events.map((event) => ({ id: event.id, comment: event.comment ?? '' }))
+}
+
+function gameDraftFromMatchGame(
+  game: MatchGame | undefined,
+  defaultOnPlay: boolean | null,
+): MatchGameDraft {
+  if (!game) return emptyGameDraft(defaultOnPlay)
+  return {
+    onPlay: game.on_play,
+    // A concrete stored value is a fact the user (or a prior derivation
+    // that got saved) already settled — never silently recomputed out from
+    // under them. Only a genuinely unknown stored value stays open to the
+    // live derivation below.
+    onPlayTouched: game.on_play !== null,
+    result: game.result ?? GAME_NOT_PLAYED,
+    playerMulligans: eventDraftsFromMatchGame(game.player_mulligans),
+    opponentMulligans: eventDraftsFromMatchGame(game.opponent_mulligans),
+    playerMisplays: eventDraftsFromMatchGame(game.player_misplays),
+    opponentMisplays: eventDraftsFromMatchGame(game.opponent_misplays),
+  }
+}
+
 export function draftFromMatch(match: Match): MatchDraft {
+  const byNumber = new Map(match.games.map((game) => [game.game_number, game]))
+  const games = [1, 2, 3].map((gameNumber) =>
+    gameDraftFromMatchGame(byNumber.get(gameNumber), gameNumber === 1 ? true : null),
+  ) as MatchGamesDraft
   return {
     personalDeckId: match.personal_deck_id,
     opponentDeckId: match.opponent_deck_id,
     decklistVersionId: match.decklist_version_id,
     sessionId: match.session_id,
-    onPlay: match.on_play,
-    game1: match.game1 ?? GAME_NOT_PLAYED,
-    game2: match.game2 ?? GAME_NOT_PLAYED,
-    game3: match.game3 ?? GAME_NOT_PLAYED,
+    // Re-derive on load too — an existing match whose game 2/3 was never
+    // touched should already show the best default on open, not only after
+    // the user re-edits game 1 in this session.
+    games: applyDerivedOnPlay(games),
     openingHand: match.opening_hand ?? '',
     turningPoint: match.turning_point ?? '',
     finalTurn: match.final_turn ?? '',
   }
 }
 
+/** Whether this game has any data at all — used to decide whether it
+ * belongs in the write payload (D8: a `ts_match_games` row is only created
+ * once something is entered for that game). Game 1 is always included
+ * (mirrors the old flat schema, which always recorded a match-level
+ * `on_play` even before any game had a result), games 2/3 only once
+ * touched. A merely-derived `onPlay` doesn't count as "touched" here — it's
+ * a display default, not something the user actually entered. */
+function gameDraftIsEntered(game: MatchGameDraft): boolean {
+  return (
+    game.result !== GAME_NOT_PLAYED ||
+    game.onPlayTouched ||
+    game.playerMulligans.length > 0 ||
+    game.opponentMulligans.length > 0 ||
+    game.playerMisplays.length > 0 ||
+    game.opponentMisplays.length > 0
+  )
+}
+
+/** No `id` sent back (see `MatchGameEventDraft`) — array position is the
+ * event's sequence. */
+function eventsToWrite(events: MatchGameEventDraft[]): MatchGameEventWrite[] {
+  return events.map((event) => ({ comment: event.comment.trim() || null }))
+}
+
+function gameDraftToWrite(gameNumber: number, game: MatchGameDraft): MatchGameWrite {
+  return {
+    game_number: gameNumber,
+    on_play: game.onPlay,
+    result: game.result === GAME_NOT_PLAYED ? null : (game.result as GameResult),
+    player_mulligans: eventsToWrite(game.playerMulligans),
+    opponent_mulligans: eventsToWrite(game.opponentMulligans),
+    player_misplays: eventsToWrite(game.playerMisplays),
+    opponent_misplays: eventsToWrite(game.opponentMisplays),
+  }
+}
+
 export function matchDraftToWrite(draft: MatchDraft): MatchWrite {
+  const games = draft.games
+    .map((game, index) => ({ gameNumber: index + 1, game }))
+    .filter(({ gameNumber, game }) => gameNumber === 1 || gameDraftIsEntered(game))
+    .map(({ gameNumber, game }) => gameDraftToWrite(gameNumber, game))
+
   return {
     personal_deck_id: draft.personalDeckId,
     opponent_deck_id: draft.opponentDeckId,
     decklist_version_id: draft.decklistVersionId,
     session_id: draft.sessionId,
-    on_play: draft.onPlay,
-    game1: draft.game1 === GAME_NOT_PLAYED ? null : (draft.game1 as MatchWrite['game1']),
-    game2: draft.game2 === GAME_NOT_PLAYED ? null : (draft.game2 as MatchWrite['game2']),
-    game3: draft.game3 === GAME_NOT_PLAYED ? null : (draft.game3 as MatchWrite['game3']),
+    games,
     opening_hand: draft.openingHand.trim() || null,
     turning_point: draft.turningPoint.trim() || null,
     final_turn: draft.finalTurn.trim() || null,
@@ -132,6 +288,129 @@ function GameResultSelect({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  )
+}
+
+/**
+ * D2's live "+1" counter, purpose-built rather than copying
+ * `CardTestsSection.tsx`'s `<Select>` + pinned-add-row chrome (rejected —
+ * see D2's amendment: this is bounded, high-frequency, live-during-play
+ * entry, not an occasional unbounded list).
+ *
+ * Second amendment: "+1" doesn't just bump a number — it immediately
+ * *logs a new event* (a blank-comment entry appended to `events`); the
+ * visible count is simply `events.length`, so there is nothing else to
+ * keep in sync. Below the "+1" button, every logged event renders as its
+ * own numbered row ("Mulligan #1", "#2", …) with its own independently
+ * editable comment, and can be removed individually.
+ */
+function EventList({
+  label,
+  itemLabel,
+  events,
+  onChange,
+}: {
+  /** Plural group label, e.g. "Mulligans". */
+  label: string
+  /** Singular label for each numbered row, e.g. "Mulligan". */
+  itemLabel: string
+  events: MatchGameEventDraft[]
+  onChange: (next: MatchGameEventDraft[]) => void
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <Label>{label}</Label>
+        <span className="font-mono text-xs text-muted-foreground">
+          ({String(events.length)})
+        </span>
+        <Button
+          type="button"
+          size="icon"
+          aria-label={`Log a new ${itemLabel.toLowerCase()} (+1)`}
+          onClick={() => {
+            onChange([...events, { comment: '' }])
+          }}
+        >
+          +1
+        </Button>
+      </div>
+      {events.length > 0 && (
+        <ol className="flex flex-col gap-1.5">
+          {events.map((event, index) => (
+            <li
+              // Server-assigned ids are stable across renders; a brand-new,
+              // not-yet-saved event has none yet, so its position in this
+              // render pass is the only key available.
+              key={event.id ?? index}
+              className="flex items-center gap-2"
+            >
+              <span className="w-20 shrink-0 text-xs text-muted-foreground">
+                {itemLabel} #{index + 1}
+              </span>
+              <Input
+                aria-label={`${itemLabel} #${String(index + 1)} comment`}
+                value={event.comment}
+                onChange={(changeEvent) => {
+                  const next = [...events]
+                  next[index] = { ...event, comment: changeEvent.target.value }
+                  onChange(next)
+                }}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={`Remove ${itemLabel} #${String(index + 1)}`}
+                onClick={() => {
+                  onChange(events.filter((_candidate, i) => i !== index))
+                }}
+              >
+                ×
+              </Button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/** D2's per-game×side group: mulligan + misplay event lists, placed beside
+ * the game's other stepper controls and (by the caller) beside that same
+ * game's existing Notes textarea. Only rendered for a `moderator`+
+ * `currentUser` — see `MatchFormFields`. */
+function SideEventGroup({
+  sideLabel,
+  mulligans,
+  misplays,
+  onMulligansChange,
+  onMisplaysChange,
+}: {
+  sideLabel: string
+  mulligans: MatchGameEventDraft[]
+  misplays: MatchGameEventDraft[]
+  onMulligansChange: (next: MatchGameEventDraft[]) => void
+  onMisplaysChange: (next: MatchGameEventDraft[]) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold text-muted-foreground">{sideLabel}</span>
+      <div className="flex flex-wrap gap-4">
+        <EventList
+          label="Mulligans"
+          itemLabel="Mulligan"
+          events={mulligans}
+          onChange={onMulligansChange}
+        />
+        <EventList
+          label="Misplays"
+          itemLabel="Misplay"
+          events={misplays}
+          onChange={onMisplaysChange}
+        />
+      </div>
     </div>
   )
 }
@@ -588,6 +867,105 @@ function SessionField({
   )
 }
 
+/** One game's column: header + per-game "Play/Draw"/result selects
+ * (ungated — every user can already submit these, D7), that game's
+ * existing free-text Notes textarea (D3, unchanged), and — only for a
+ * `moderator`+ `currentUser` — the D2 mulligan/misplay stepper rows,
+ * placed directly beside the stepper's own comment input and beside this
+ * same game's Notes textarea, per game number (not a detached section). */
+function GameColumn({
+  gameNumber,
+  game,
+  onGameChange,
+  notesLabel,
+  notesId,
+  notesValue,
+  onNotesChange,
+  canEditGatedFields,
+}: {
+  gameNumber: number
+  game: MatchGameDraft
+  onGameChange: (next: MatchGameDraft) => void
+  notesLabel: string
+  notesId: string
+  notesValue: string
+  onNotesChange: (value: string) => void
+  canEditGatedFields: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-(--radius-input) border border-border p-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <GameResultSelect
+          label={`Game ${String(gameNumber)}`}
+          value={game.result}
+          onChange={(value) => {
+            onGameChange({ ...game, result: value })
+          }}
+        />
+        <div className="flex flex-col gap-1.5">
+          <Label>Play/Draw</Label>
+          <Select
+            value={game.onPlay === null ? undefined : game.onPlay ? 'otp' : 'otd'}
+            onValueChange={(value) => {
+              // A manual choice always wins — mark it touched so a later
+              // edit to the previous game's result never overwrites it
+              // (see `applyDerivedOnPlay`).
+              onGameChange({ ...game, onPlay: value === 'otp', onPlayTouched: true })
+            }}
+          >
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="— unknown —" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="otp">On the Play</SelectItem>
+              <SelectItem value="otd">On the Draw</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={notesId}>{notesLabel}</Label>
+        <Textarea
+          id={notesId}
+          rows={3}
+          value={notesValue}
+          onChange={(event) => {
+            onNotesChange(event.target.value)
+          }}
+        />
+      </div>
+
+      {canEditGatedFields && (
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <SideEventGroup
+            sideLabel="Player"
+            mulligans={game.playerMulligans}
+            misplays={game.playerMisplays}
+            onMulligansChange={(next) => {
+              onGameChange({ ...game, playerMulligans: next })
+            }}
+            onMisplaysChange={(next) => {
+              onGameChange({ ...game, playerMisplays: next })
+            }}
+          />
+          <SideEventGroup
+            sideLabel="Opponent"
+            mulligans={game.opponentMulligans}
+            misplays={game.opponentMisplays}
+            onMulligansChange={(next) => {
+              onGameChange({ ...game, opponentMulligans: next })
+            }}
+            onMisplaysChange={(next) => {
+              onGameChange({ ...game, opponentMisplays: next })
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MatchFormFields({
   draft,
   onChange,
@@ -603,6 +981,18 @@ export function MatchFormFields({
    * which always auto-stamps the deck's current version server-side. */
   decklistVersionOptions?: { id: string; version: number }[]
 }) {
+  // D7/D2: the stepper+comment rows are a static `moderator`+ floor,
+  // client-side UX convenience only — the backend's field-level 403 on
+  // `_apply_payload` is the real boundary. Below that floor, the form
+  // renders exactly as it did before this feature (D7).
+  const { data: currentUser } = useCurrentUser()
+  const canEditGatedFields = roleMeetsFloor(currentUser?.role, 'moderator')
+
+  function updateGame(index: 0 | 1 | 2, next: MatchGameDraft) {
+    const games = [...draft.games] as MatchGamesDraft
+    games[index] = next
+    onChange({ ...draft, games: applyDerivedOnPlay(games) })
+  }
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-3">
@@ -671,89 +1061,60 @@ export function MatchFormFields({
             }}
           />
         )}
-        <div className="flex flex-col gap-1.5">
-          <Label>Play/Draw</Label>
-          <Select
-            value={draft.onPlay ? 'otp' : 'otd'}
-            onValueChange={(value) => {
-              onChange({ ...draft, onPlay: value === 'otp' })
-            }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="otp">On the Play</SelectItem>
-              <SelectItem value="otd">On the Draw</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <GameResultSelect
-          label="Game 1"
-          value={draft.game1}
-          onChange={(value) => {
-            onChange({ ...draft, game1: value })
-          }}
-        />
-        <GameResultSelect
-          label="Game 2"
-          value={draft.game2}
-          onChange={(value) => {
-            onChange({ ...draft, game2: value })
-          }}
-        />
-        <GameResultSelect
-          label="Game 3"
-          value={draft.game3}
-          onChange={(value) => {
-            onChange({ ...draft, game3: value })
-          }}
-        />
-      </div>
-
+      {/* Per game: result + Play/Draw (now per-game, D1's "Full"
+          normalization — every user can set these, unchanged from before
+          except that Play/Draw is no longer one match-wide choice), that
+          game's existing free-text Notes (D3), and — moderator+ only —
+          the D2 mulligan/misplay steppers. */}
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="flex flex-col gap-1.5">
-          {/* S12 item 3: label-only rename ("Opening hand" → "Game 1
-              Notes") — `openingHand`/`opening_hand` are unchanged. */}
-          <Label htmlFor="opening-hand">Game 1 Notes</Label>
-          <Textarea
-            id="opening-hand"
-            rows={3}
-            value={draft.openingHand}
-            onChange={(event) => {
-              onChange({ ...draft, openingHand: event.target.value })
-            }}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {/* S12 item 3: label-only rename ("Turning point" → "Game 2
-              Notes") — `turningPoint`/`turning_point` are unchanged. */}
-          <Label htmlFor="turning-point">Game 2 Notes</Label>
-          <Textarea
-            id="turning-point"
-            rows={3}
-            value={draft.turningPoint}
-            onChange={(event) => {
-              onChange({ ...draft, turningPoint: event.target.value })
-            }}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {/* S12 item 3: label-only rename ("Final turn" → "Game 3
-              Notes") — `finalTurn`/`final_turn` are unchanged. */}
-          <Label htmlFor="final-turn">Game 3 Notes</Label>
-          <Textarea
-            id="final-turn"
-            rows={3}
-            value={draft.finalTurn}
-            onChange={(event) => {
-              onChange({ ...draft, finalTurn: event.target.value })
-            }}
-          />
-        </div>
+        {/* S12 item 3: the three labels below ("Game 1/2/3 Notes") are a
+            label-only rename of "Opening hand"/"Turning point"/"Final
+            turn" — `openingHand`/`turningPoint`/`finalTurn` and their
+            wire names are unchanged (D3). */}
+        <GameColumn
+          gameNumber={1}
+          game={draft.games[0]}
+          onGameChange={(next) => {
+            updateGame(0, next)
+          }}
+          notesLabel="Game 1 Notes"
+          notesId="opening-hand"
+          notesValue={draft.openingHand}
+          onNotesChange={(value) => {
+            onChange({ ...draft, openingHand: value })
+          }}
+          canEditGatedFields={canEditGatedFields}
+        />
+        <GameColumn
+          gameNumber={2}
+          game={draft.games[1]}
+          onGameChange={(next) => {
+            updateGame(1, next)
+          }}
+          notesLabel="Game 2 Notes"
+          notesId="turning-point"
+          notesValue={draft.turningPoint}
+          onNotesChange={(value) => {
+            onChange({ ...draft, turningPoint: value })
+          }}
+          canEditGatedFields={canEditGatedFields}
+        />
+        <GameColumn
+          gameNumber={3}
+          game={draft.games[2]}
+          onGameChange={(next) => {
+            updateGame(2, next)
+          }}
+          notesLabel="Game 3 Notes"
+          notesId="final-turn"
+          notesValue={draft.finalTurn}
+          onNotesChange={(value) => {
+            onChange({ ...draft, finalTurn: value })
+          }}
+          canEditGatedFields={canEditGatedFields}
+        />
       </div>
     </div>
   )

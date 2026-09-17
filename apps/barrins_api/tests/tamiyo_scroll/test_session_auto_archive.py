@@ -80,8 +80,7 @@ class TestSweepOnDecklistImport:
             json={
                 "personal_deck_id": personal_id,
                 "opponent_deck_id": meta_id,
-                "on_play": True,
-                "game1": "win",
+                "games": [{"game_number": 1, "on_play": True, "result": "win"}],
                 "session_id": session_id,
             },
             headers=headers,
@@ -129,8 +128,7 @@ class TestSweepOnDecklistImport:
             json={
                 "personal_deck_id": personal_id,
                 "opponent_deck_id": meta_id,
-                "on_play": True,
-                "game1": "win",
+                "games": [{"game_number": 1, "on_play": True, "result": "win"}],
                 "session_id": session_id,
             },
             headers=headers,
