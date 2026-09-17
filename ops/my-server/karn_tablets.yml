@@ -100,12 +100,12 @@
           - "role scoped to SELECT on bs_*/mj_* — NOT barrins_api's own"
           - "DATABASE_URL. Like the postgres superuser password"
           - "(postgresql_pgadmin.yml), this role is created manually. SSH"
-          - "in and run, as the postgres user against the barrins DB:"
+          - "in and run, as the postgres user against the barrins_api DB:"
           - "CREATE ROLE karn_tablets_ro LOGIN PASSWORD '<pw>';"
-          - "GRANT CONNECT ON DATABASE barrins TO karn_tablets_ro;"
+          - "GRANT CONNECT ON DATABASE barrins_api TO karn_tablets_ro;"
           - "GRANT USAGE ON SCHEMA public TO karn_tablets_ro;"
           - "GRANT SELECT ON ALL TABLES IN SCHEMA public TO karn_tablets_ro;"
-          - "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT TO karn_tablets_ro;"
+          - "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO karn_tablets_ro;"
           - "Full snippet also in secrets/karn_tablets/{{ deploy_env }}.env.example."
       tags: [karn, deploy]
 
