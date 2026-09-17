@@ -638,6 +638,9 @@ async def get_deck_period_report(
         baseline_matchup_rows=stats.baseline_matchup_rows,
         card_tests=period_card_tests,
         evaluations=period_evaluations,
+        period_avg_hand_size=stats.current_avg_hand_size,
+        period_avg_player_misplays=stats.current_avg_player_misplays,
+        period_avg_opponent_misplays=stats.current_avg_opponent_misplays,
     )
 
     filename = f"deck-report-{deck.id}.pdf"

@@ -63,6 +63,44 @@ mtgo.com blocking this VPS's IP; it does not apply here.
    and a daily `<app_name>.timer`.
 5. Enables and starts the timer (`daemon_reload: true`).
 
+## Backfilling historical windows
+
+The systemd timer always runs against "today" -- `<app_name>_run.sh` never
+passes `--date-to`. But `karn-tablets` itself supports an arbitrary
+reference date (`--date-to YYYY-MM-DD`), and the window math
+(`libs/dc_calendar/dc_calendar/windowing.py`) is pure date arithmetic off
+that date, nothing hardcoded to "now" beyond the CLI's own default -- so a
+historical window can be clustered manually at any time, e.g. once
+production has real multi-year tournament history to work with (staging's
+copy is pruned to a 90-day retention window, see
+`scripts/refresh_karn_tablets_data_staging.sh`, and can't backfill much on
+its own).
+
+To backfill one historical window, SSH in and run the CLI directly (not
+the wrapper script, since that never takes `--date-to`):
+
+```bash
+cd ~/projects/<app_name>/apps/karn_tablets
+set -a; source .env; set +a
+uv run karn-tablets --window banlist_period --date-to 2026-03-15
+```
+
+(`.env` already has `BARRINS_API_URL`/`KARN_INGEST_TOKEN`, so `--api-url`/
+`--token` don't need to be passed explicitly.)
+
+`generated_at` on the pushed run is always the real wall-clock time of
+the backfill, not the historical `--date-to` -- by design (`ingest_run`'s
+docstring: idempotent on an exact re-push, a re-run with a *later*
+`generated_at` becomes the one reads return). Only the window's date
+range is backdated, not when the run is recorded as having happened.
+
+There's no built-in loop over multiple historical periods -- each
+`--date-to` backfills one window. `dc_calendar.windowing.all_time_periods
+(earliest, date_to)` already computes the full list of historical
+banlist periods between two dates, so a wrapper script iterating that
+list and invoking the CLI once per period is the natural way to do a full
+sweep, if/when that's needed.
+
 ## Variables
 
 | Variable | Required | Default | Description |

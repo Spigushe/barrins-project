@@ -98,6 +98,53 @@ class ResponseMetaDeck(BaseResponse):
         return round(self.top8 / self.presence * 100, 2)
 
 
+class ResponseMatchGameEvent(BaseResponse):
+    """One logged mulligan or misplay (#123/#124, D2's second amendment).
+
+    `id` is stable across edits (upserted by position, never
+    delete-and-reinserted — see `TSMatchGameEvent`'s docstring) so the
+    frontend can key its rows and edit one comment without the rest
+    reordering.
+    """
+
+    id: uuid.UUID
+    comment: str | None
+
+
+class ResponseMatchGame(BaseResponse):
+    """One entry of `ResponseMatch.games` (#123/#124).
+
+    `player_mulligans`/`opponent_mulligans`/`player_misplays`/
+    `opponent_misplays` are event lists on the wire — same field name as
+    the write payload (`MatchGameWrite`), even though the underlying
+    object (`TSMatchGame`/`sharing_merge.EffectiveGame`) stores an
+    integer *count* under that exact attribute name, as a backend-only
+    derived cache for `stats.py` (see `TSMatchGame`'s docstring). Each
+    field's `validation_alias` points at that object's differently-named
+    event-list property instead, so the two same-named things (int cache
+    vs. event list) never collide — the wire contract stays symmetric
+    with the write side without exposing the count as a redundant
+    separate field (a response array's length already gives it).
+    """
+
+    id: uuid.UUID
+    game_number: int
+    on_play: bool | None
+    result: GameResult | None
+    player_mulligans: list[ResponseMatchGameEvent] = Field(
+        validation_alias="player_mulligan_events"
+    )
+    opponent_mulligans: list[ResponseMatchGameEvent] = Field(
+        validation_alias="opponent_mulligan_events"
+    )
+    player_misplays: list[ResponseMatchGameEvent] = Field(
+        validation_alias="player_misplay_events"
+    )
+    opponent_misplays: list[ResponseMatchGameEvent] = Field(
+        validation_alias="opponent_misplay_events"
+    )
+
+
 class ResponseMatch(BaseResponse):
     id: uuid.UUID
     date: date
@@ -105,10 +152,9 @@ class ResponseMatch(BaseResponse):
     opponent_deck_id: uuid.UUID
     decklist_version_id: uuid.UUID | None
     session_id: uuid.UUID | None
-    on_play: bool
-    game1: GameResult | None
-    game2: GameResult | None
-    game3: GameResult | None
+    # #123/#124: replaces the old flat `on_play`/`game1`/`game2`/`game3`
+    # fields — one entry per played game, ordered by `game_number`.
+    games: list[ResponseMatchGame]
     opening_hand: str | None
     turning_point: str | None
     final_turn: str | None
@@ -318,6 +364,15 @@ class ResponseSessionComparison(BaseResponse):
     session_losses: int
     baseline_wins: int
     baseline_losses: int
+    # #123/#124 (D5/D6): derived, period-level metrics — `None` when no
+    # game in the period has a non-null value to average (never treated as
+    # a `0` average, D8).
+    session_avg_hand_size: float | None
+    baseline_avg_hand_size: float | None
+    session_avg_player_misplays: float | None
+    baseline_avg_player_misplays: float | None
+    session_avg_opponent_misplays: float | None
+    baseline_avg_opponent_misplays: float | None
     session_archetype_summary: list[ResponseArchetypeSummary]
     baseline_archetype_summary: list[ResponseArchetypeSummary]
     session_matchup_summary: ResponseMatchupSummary

@@ -218,6 +218,20 @@ section of the docs site for details.
   anchor to unfold from. The choice is remembered per browser
   (`localStorage`, not synced to the account), and defaults to expanded
   for now.
+- Structured per-game match log (GitHub issues #123, #124): `MatchForm`'s
+  per-game data moves from flat `game1/2/3`/`on_play` fields to a
+  `games[]` array, each side's mulligans/misplays now an ordered list
+  of individually-commented events instead of a counter or a single
+  note. A new moderator+-gated stepper UI (`lib/roles.ts`'s
+  `roleMeetsFloor` ordinal check — a UX convenience only, the backend's
+  field-level `403` is the real boundary) logs each mulligan/misplay
+  live as it happens: "+1" immediately appends a blank-comment entry,
+  each entry gets its own independently editable inline comment.
+  Play/Draw for games 2/3 now defaults from the previous game's result
+  (loser-chooses-play convention), stays manually overridable, and is
+  never silently overwritten by a later edit to the earlier game. New
+  `avg_hand_size`/`avg_misplays` stat tiles on the session comparison
+  card.
 
 ### Changed
 

@@ -94,6 +94,13 @@ export function formatPercent(value: number | null): string {
   return `${String(Math.round(value))}%`
 }
 
+/** #123/#124's `avg_hand_size`/`avg_misplays` — one decimal place, `null`
+ * (no game has recorded the underlying gated counter yet) renders as "—". */
+export function formatAverage(value: number | null): string {
+  if (value === null) return '—'
+  return value.toFixed(1)
+}
+
 export function winrateTextClass(value: number | null): string {
   if (value === null) return 'text-muted-foreground'
   if (value >= 80) return 'text-winrate-80'

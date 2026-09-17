@@ -17,7 +17,6 @@
       "created_at": "2026-05-01T09:00:00+00:00"
     }
   ],
-
   "metaDecks": [
     {
       "id": "4259faaa-431d-4d0c-9b20-b70436558af4",
@@ -110,7 +109,6 @@
       "is_multi_share": false
     }
   ],
-
   "matches": [
     {
       "id": "c2ebb3a2-54bc-44f4-87ca-f51abd9f5587",
@@ -119,10 +117,46 @@
       "opponent_deck_id": "4259faaa-431d-4d0c-9b20-b70436558af4",
       "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
       "session_id": null,
-      "on_play": true,
-      "game1": "win",
-      "game2": "win",
-      "game3": null,
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": [],
+          "opponent_mulligans": [
+            {
+              "id": "47c3edb8-a4c0-4f39-90ea-08bf026a89d2",
+              "comment": "Kept a greedy one-lander"
+            }
+          ],
+          "player_misplays": [],
+          "opponent_misplays": [
+            {
+              "id": "75f851aa-853a-4992-9712-6c2892bc172b",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "game_number": 2,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": [
+            {
+              "id": "a73ddfa2-6a7c-46ce-a147-670aea2b55f5",
+              "comment": "Missed a combat trick on turn 4"
+            }
+          ],
+          "opponent_mulligans": [],
+          "player_misplays": [
+            {
+              "id": "521d9277-f140-4856-92f3-9202a31bbc23",
+              "comment": null
+            }
+          ],
+          "opponent_misplays": []
+        }
+      ],
       "opening_hand": "3 land, Boros Charm, Aurelia, Lightning Helix, Sacred Foundry.",
       "turning_point": "Aurelia on curve took over the game.",
       "final_turn": "Attacked for lethal on turn 7.",
@@ -137,10 +171,26 @@
       "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
       "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
       "session_id": null,
-      "on_play": false,
-      "game1": "loss",
-      "game2": "loss",
-      "game3": null,
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": false,
+          "result": "loss",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        },
+        {
+          "game_number": 2,
+          "on_play": false,
+          "result": "loss",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        }
+      ],
       "opening_hand": "2 land, three 3-drops, no removal.",
       "turning_point": "Got counterspelled twice back to back.",
       "final_turn": "Decked out on resources before finding a third land.",
@@ -155,10 +205,44 @@
       "opponent_deck_id": "c5f81885-ffb5-4eea-b934-e1d3b578b1e2",
       "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
       "session_id": null,
-      "on_play": true,
-      "game1": "win",
-      "game2": "loss",
-      "game3": "win",
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        },
+        {
+          "game_number": 2,
+          "on_play": false,
+          "result": "loss",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        },
+        {
+          "game_number": 3,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": [
+            {
+              "id": "12dc2684-0fe3-423c-9fa9-a12671f5ab8b",
+              "comment": null
+            },
+            {
+              "id": "dd610451-cb1e-4f9a-a647-55d76a64d16e",
+              "comment": "Mulliganed to 5, still found the win"
+            }
+          ],
+          "opponent_mulligans": [],
+          "player_misplays": [],
+          "opponent_misplays": []
+        }
+      ],
       "opening_hand": "Strong curve, kept a two-lander with a Helix.",
       "turning_point": "Wear // Tear on their anthem effect in game 3.",
       "final_turn": "Raced them down after stabilizing at 6 life.",
@@ -173,10 +257,40 @@
       "opponent_deck_id": "37c95738-f081-476b-a1ce-7a64e1549808",
       "decklist_version_id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
       "session_id": null,
-      "on_play": false,
-      "game1": "loss",
-      "game2": "win",
-      "game3": "loss",
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": false,
+          "result": "loss",
+          "player_mulligans": [
+            {
+              "id": "6ebd6060-2346-42c0-92d4-5b6be962ba56",
+              "comment": null
+            }
+          ],
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        },
+        {
+          "game_number": 2,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        },
+        {
+          "game_number": 3,
+          "on_play": false,
+          "result": "loss",
+          "player_mulligans": null,
+          "opponent_mulligans": null,
+          "player_misplays": null,
+          "opponent_misplays": null
+        }
+      ],
       "opening_hand": "One-lander, mulliganed to 6.",
       "turning_point": "They comboed off on turn 5 in games 1 and 3.",
       "final_turn": "Couldn't apply enough early pressure to race the combo.",
@@ -191,10 +305,40 @@
       "opponent_deck_id": "e4b68270-bf43-4348-b7a3-e121edf728f3",
       "decklist_version_id": "4d4baa2c-716f-42d9-ba1e-8eaf5b3f34a8",
       "session_id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
-      "on_play": true,
-      "game1": "win",
-      "game2": "win",
-      "game3": null,
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": [],
+          "opponent_mulligans": [],
+          "player_misplays": [],
+          "opponent_misplays": []
+        },
+        {
+          "game_number": 2,
+          "on_play": true,
+          "result": "win",
+          "player_mulligans": [],
+          "opponent_mulligans": [
+            {
+              "id": "86e9acc8-d5fb-453c-8455-66ed6ab7f4ea",
+              "comment": null
+            },
+            {
+              "id": "5ceb26b6-ad46-4c63-9b76-d79873d866ea",
+              "comment": "Double mulliganed, never recovered"
+            }
+          ],
+          "player_misplays": [],
+          "opponent_misplays": [
+            {
+              "id": "e8934b86-d626-4144-a12b-285eccc8fca4",
+              "comment": null
+            }
+          ]
+        }
+      ],
       "opening_hand": "Fast start, double one-drop into Helix.",
       "turning_point": "Killed their only blocker with Lightning Helix.",
       "final_turn": "Lethal swing on turn 5.",
@@ -209,10 +353,50 @@
       "opponent_deck_id": "81363237-8c56-436e-a0b0-61ef5b55dc20",
       "decklist_version_id": "4d4baa2c-716f-42d9-ba1e-8eaf5b3f34a8",
       "session_id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
-      "on_play": true,
-      "game1": "loss",
-      "game2": "win",
-      "game3": "draw",
+      "games": [
+        {
+          "game_number": 1,
+          "on_play": true,
+          "result": "loss",
+          "player_mulligans": [
+            {
+              "id": "b5518bda-6819-4f45-ae70-9e4f8721f953",
+              "comment": "Kept a slow hand on the play"
+            }
+          ],
+          "opponent_mulligans": [],
+          "player_misplays": [
+            {
+              "id": "fa5a2603-f7af-48cf-848a-8713c7c2540c",
+              "comment": null
+            }
+          ],
+          "opponent_misplays": []
+        },
+        {
+          "game_number": 2,
+          "on_play": false,
+          "result": "win",
+          "player_mulligans": [],
+          "opponent_mulligans": [
+            {
+              "id": "ac25e697-268e-434c-9d50-92b9d0df7705",
+              "comment": null
+            }
+          ],
+          "player_misplays": [],
+          "opponent_misplays": []
+        },
+        {
+          "game_number": 3,
+          "on_play": true,
+          "result": "draw",
+          "player_mulligans": [],
+          "opponent_mulligans": [],
+          "player_misplays": [],
+          "opponent_misplays": []
+        }
+      ],
       "opening_hand": "Slow hand, kept anyway on the play.",
       "turning_point": "Time was called mid-combat in game 3.",
       "final_turn": "Board stall at time limit.",
@@ -221,7 +405,6 @@
       "shared_by": null
     }
   ],
-
   "cardTests": [
     {
       "id": "695248b4-a96a-4466-a184-9a05b6d688e1",
@@ -287,7 +470,6 @@
       ]
     }
   ],
-
   "decklistVersions": [
     {
       "id": "a43a8b1a-ad67-42a5-a38d-32ae2d1579e8",
@@ -308,22 +490,50 @@
       "moxfield_deck_changed_since_last_import": null
     }
   ],
-
   "decklistLines": {
     "f36f82f5-5435-4053-b0ff-353bb4a5e293": [
-      { "line": "1 Aurelia, the Warleader", "status": "validated" },
-      { "line": "1 Lightning Helix", "status": "validated" },
-      { "line": "1 Wear // Tear", "status": "validated" },
-      { "line": "1 Boros Charm", "status": "in_test" },
-      { "line": "1 Sunset Pyramid", "status": "in_test" },
-      { "line": "1 Sulfuric Vortex", "status": "rejected" },
-      { "line": "1 Sacred Foundry", "status": "neutral" },
-      { "line": "1 Godless Shrine", "status": "neutral" },
-      { "line": "1 Clifftop Retreat", "status": "neutral" },
-      { "line": "1 Sunbaked Canyon", "status": "neutral" }
+      {
+        "line": "1 Aurelia, the Warleader",
+        "status": "validated"
+      },
+      {
+        "line": "1 Lightning Helix",
+        "status": "validated"
+      },
+      {
+        "line": "1 Wear // Tear",
+        "status": "validated"
+      },
+      {
+        "line": "1 Boros Charm",
+        "status": "in_test"
+      },
+      {
+        "line": "1 Sunset Pyramid",
+        "status": "in_test"
+      },
+      {
+        "line": "1 Sulfuric Vortex",
+        "status": "rejected"
+      },
+      {
+        "line": "1 Sacred Foundry",
+        "status": "neutral"
+      },
+      {
+        "line": "1 Godless Shrine",
+        "status": "neutral"
+      },
+      {
+        "line": "1 Clifftop Retreat",
+        "status": "neutral"
+      },
+      {
+        "line": "1 Sunbaked Canyon",
+        "status": "neutral"
+      }
     ]
   },
-
   "sessions": [
     {
       "id": "aa9a868c-c118-45e1-9ddd-c59616dd8f99",
@@ -341,13 +551,11 @@
       "hue": 210
     }
   ],
-
   "currentUser": {
     "id": "de762da2-af3b-42d4-8003-d70ca7968df4",
     "username": "you_demo",
     "display_name": "You (Demo)"
   },
-
   "teams": [
     {
       "id": "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
@@ -402,7 +610,10 @@
           "owner_display": "Naya"
         }
       ],
-      "flaggedNameKeys": ["boros aggro (demo)", "izzet spells"],
+      "flaggedNameKeys": [
+        "boros aggro (demo)",
+        "izzet spells"
+      ],
       "threads": {
         "izzet spells": [
           {

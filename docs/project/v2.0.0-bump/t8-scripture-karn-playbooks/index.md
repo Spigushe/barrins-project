@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **Target** | `ops/my-server/barrins_scripture.yml` (**already exists**, built during T1 — see note below), Karn Tablets playbook (shape depends on T6) | / |
 | **Initial date** | / | Not started |
-| **Status** | 🟢 **Both playbooks written (Karn Tablets 2026-08-28); neither deployed to the real VPS yet** — Barrin's Scripture half done 2026-08-08 (see below). Karn Tablets: `ops/my-server/karn_tablets.yml` + the `karn_tablets` role now run `apps/karn_tablets` as a daily `systemd`-timer job (03:00 UTC), same application-level scheduled-job shape as `scripture_scraper` minus the scraping/Chromium/archive/sweep. `deploy_env` staging/production side-by-side (default staging). `KARN_INGEST_TOKEN` via a new `karn_ingest_token` role (mirrors `scripture_ingest_token`); `KARN_TABLETS_DATABASE_URL_RO` is a hand-created read-only Postgres role (`CREATE ROLE … GRANT SELECT`, snippet in the `.env.example` + playbook reminder). `ansible-lint ops/my-server` clean (production profile). The three public read routes it feeds are `barrins_api`'s, already rate-limited by that vhost's `location /bff/tolaria-news` block — nothing to add. Remaining: a real staging deploy + UAT. — Barrin's Scripture detail: `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
+| **Status** | 🟢 **Both playbooks written and deployed to the real VPS — Karn Tablets fully cut over to production 2026-09-17.** Karn Tablets: `ops/my-server/karn_tablets.yml` + the `karn_tablets` role run `apps/karn_tablets` as a daily `systemd`-timer job (03:00 UTC), same application-level scheduled-job shape as `scripture_scraper` minus the scraping/Chromium/archive/sweep. `deploy_env` staging/production side-by-side (default staging). `KARN_INGEST_TOKEN` via a new `karn_ingest_token` role (mirrors `scripture_ingest_token`); `KARN_TABLETS_DATABASE_URL_RO` is a hand-created read-only Postgres role (`CREATE ROLE … GRANT SELECT`, snippet in the `.env.example` + playbook reminder). `ansible-lint ops/my-server` clean (production profile). The three public read routes it feeds are `barrins_api`'s, already rate-limited by that vhost's `location /bff/tolaria-news` block — nothing to add. **Staging UAT passed 2026-09-17** (real deck/archetype data pushed across several consecutive timer ticks, `/bff/tolaria-news/metagame` verified). **Production cutover 2026-09-17** via `ansible-playbook karn_tablets.yml -e deploy_env=production`, which stopped/disabled the staging timer and fired an immediate validation run — see the "Production cutover" note below for two real bugs found and fixed along the way. **Historical backfill completed 2026-09-17**: every completed banlist period since 2024-07-01 (13 periods) backfilled for both `rolling_30d` and `banlist_period` windows via the new `ops/my-server/scripts/backfill_karn_tablets_historical.sh`, confirmed live on `/bff/tolaria-news/trends`. — Barrin's Scripture detail: `barrins_scripture.yml`/`scripture_scraper` shipped during T1, ahead of D1. D1 is done (2026-08-03). T3 landed (2026-08-07), unblocking the two tasks this page had deferred on it: the sweep now runs on its own `barrins_scripture_sweep.service`/`.timer` (every 6h, independent of the daily scrape timer), and `SCRIPTURE_INGEST_TOKEN` is documented via the new `scripture_ingest_token` role (`secrets/scripture/{staging,production}_ingest_token.txt`, one value per environment shared by both `barrins_api.yml` and `barrins_scripture.yml` — supersedes this page's original per-app-file duplication decision, same day). `barrins_scripture.yml` also gained a `deploy_env` var (default `staging`) so the sweep can be validated against the staging `barrins_api` before a production cutover. Same day: T1's git-submodule wiring landed too (`scripture_scraper` clones/pushes `Spigushe/mtg_decklist_cache`) | / |
 | **Source** | Request item 4; `v2.0.0-bump/index.md` §1's Group D | / |
 | **Dependency** | T1 (done), T6 (open), D1 (✅ done 2026-08-03) | / |
 
@@ -68,8 +68,10 @@ That task is now tracked as
   role if T6 needs one). **Done (2026-08-28).** T6 resolved push-based /
   no inbound API (ADR-13), so no API role was needed: `karn_tablets.yml`
   and the `karn_tablets` role are a straight scheduled-job deploy
-  modelled on `scripture_scraper`. `ansible-lint` clean; a real staging
-  deploy plus UAT is the only remaining step.
+  modelled on `scripture_scraper`. `ansible-lint` clean. **Fully done
+  (2026-09-17)**: staging deploy + UAT passed, production cutover
+  complete, historical backfill since 2024-07-01 complete — see
+  "Production cutover" and "Historical backfill" below.
 
 ## Tasks
 
@@ -162,6 +164,72 @@ That task is now tracked as
       manual `CREATE ROLE … GRANT SELECT` step, like the `postgres`
       superuser password. `ansible-lint` clean (production profile).
 
+## Production cutover (2026-09-17)
+
+Two real bugs surfaced on the first production cutover attempt that
+staging's earlier validation hadn't caught (staging's own copies of these
+were either already correct or already fixed by hand before this):
+
+1. **Wrong database name in every documented `CREATE ROLE`/`GRANT`
+   snippet.** `roles/karn_tablets/README.md`'s reminder, `karn_tablets.yml`'s
+   post_tasks debug message, and both `secrets/karn_tablets/{staging,
+   production}.env.example` templates all said to run the read-only-role
+   setup against a database named `barrins` — that database doesn't
+   exist; the real one is `barrins_api` (`barrins_api_staging` for
+   staging). Fixed in all four places. The production `karn_tablets_ro`
+   role had in fact already been created against the right database by
+   hand, so this was a pure documentation bug once the role's grants were
+   fixed (next point) — but it's exactly what a future re-run of the
+   documented snippet verbatim would have failed on immediately (as
+   happened live during this cutover).
+2. **`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT TO
+   karn_tablets_ro;` is invalid SQL** — missing `ON TABLES` before `TO`.
+   Same four locations, same fix. Production's `karn_tablets_ro` role had
+   `CONNECT` but no actual `SELECT` grants on `bs_*`/`mj_*` until this was
+   run correctly, which is why the very first production clustering
+   attempt failed with `permission denied for table bs_deck_cards`.
+3. **Separately, `secrets/karn_tablets/production.env` (git-ignored,
+   not this fix's concern for other operators, but recorded here since
+   it caused the second failed attempt) had a hand-entered typo**:
+   `KARN_TABLETS_DATABASE_URL_RO=KARN_TABLETS_DATABASE_URL_RO=postgresql://…`
+   — the key name duplicated into the value, which `python-dotenv` set
+   verbatim, producing `sqlalchemy.exc.ArgumentError: Could not parse
+   SQLAlchemy URL from given URL string`. `staging.env` never had this
+   typo, which is why staging's runs never hit it. No template/doc bug to
+   fix here — just a one-off local mistake, corrected in place.
+
+`ansible-playbook karn_tablets.yml -e deploy_env=production` succeeded
+end-to-end once both were fixed: staging timer/service stopped and
+disabled, production timer/service deployed and enabled, immediate
+validation run pushed real data (190 decks/10 archetypes `rolling_30d`,
+335 decks/10 archetypes `banlist_period`), confirmed via
+`/bff/tolaria-news/metagame`.
+
+## Historical backfill (2026-09-17)
+
+`roles/karn_tablets/README.md`'s "Backfilling historical windows" section
+(added alongside this cutover) documents that the CLI itself has no
+built-in loop over multiple historical periods — only a single
+`--date-to` per invocation. `ops/my-server/scripts/
+backfill_karn_tablets_historical.sh` fills that gap: run manually on the
+target host inside the deployed checkout, it computes every *completed*
+banlist-period boundary between an `EARLIEST` date (default
+`2024-07-01`) and today via `dc_calendar.windowing.all_time_periods`,
+then runs `karn-tablets --window both --date-to <date>` once per
+boundary — pushing both window kinds per date since they share the same
+reference date, rather than backfilling `rolling_30d` on a separate,
+denser cadence. The still-in-progress current banlist period is
+deliberately excluded (incomplete data; the daily timer already covers
+it).
+
+Run once against production for `EARLIEST=2024-07-01`: all 13 completed
+periods since then backfilled successfully for both window kinds (deck
+counts growing plausibly period-over-period, from 553 decks in the
+earliest 2024-07-29 `rolling_30d` snapshot up to production's current
+live totals), confirmed via `/bff/tolaria-news/trends?window=
+banlist_period` returning a real multi-period trend line back to
+2024-07-30 instead of a single point.
+
 ## UAT (manual)
 
 - [ ] A scheduled run completes end-to-end on staging: scrape → JSON
@@ -175,9 +243,15 @@ That task is now tracked as
       and the next tick catches up). Only after that passes does cutting
       over to `secrets/barrins_scripture/production.env`
       (`-e deploy_branch=main -e deploy_env=production`) make sense.
-- [ ] Once written, Karn Tablets' scheduled clustering run completes
+- [x] Once written, Karn Tablets' scheduled clustering run completes
       end-to-end on staging and its output is reachable however T6
-      decided it should be consumed.
+      decided it should be consumed. **Done (2026-09-17)**: several
+      consecutive staging timer ticks pushed real, growing deck/archetype
+      data with no errors; `/bff/tolaria-news/metagame` confirmed
+      reachable and correct. Production cutover and a full historical
+      backfill (banlist periods since 2024-07-01, both window kinds)
+      followed the same day — see the "Production cutover" and
+      "Historical backfill" sections above.
 
 ## Non-regression tests
 

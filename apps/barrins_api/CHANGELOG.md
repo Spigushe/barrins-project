@@ -310,6 +310,25 @@ section of the docs site for details.
   hides a real card (and the filter is a no-op until the first re-import
   after the column landed). Tamiyo Scroll's Added-Card dropdown passes
   `duelcommander`.
+- Structured per-game match log (GitHub issues #123, #124): new
+  `ts_match_games` child table absorbs `ts_matches.game1/2/3`/`on_play`
+  (Migration 1 of 2 — the flat columns are backfilled and left in
+  place; a follow-up migration drops them after a production
+  verification window) and adds a per-game `on_play` (previously only
+  tracked once, match-level). New `ts_match_game_events` table logs
+  each individual mulligan/misplay as its own event with its own
+  optional comment; `ts_match_games` keeps a backend-only derived
+  integer count per side/kind (`NULL`, not `0`, for untracked history
+  or a sub-`moderator` caller, so `avg()` correctly excludes it rather
+  than reading a false zero). `MatchWrite`/`ResponseMatch` grow a
+  nested `games[]` array. New `avg_hand_size` (London mulligan:
+  `7 - avg(player_mulligans)`) and `avg_misplays` on the session
+  comparison endpoint and both PDF reports. The new fields are gated at
+  a static `moderator`+ floor, enforced field-level inside
+  `_apply_payload` (a `403` only when a sub-`moderator`'s payload has a
+  non-empty gated event list) rather than route-level, since the gated
+  fields share a payload with ordinary game-result fields every caller
+  can already submit.
 
 ### Changed
 
