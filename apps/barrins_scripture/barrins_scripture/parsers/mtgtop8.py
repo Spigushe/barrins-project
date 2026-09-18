@@ -230,8 +230,16 @@ def sanitize_cardname(card_name: str) -> str:
 def get_notes(deck_id: int) -> str | None:
     deck_url = f"https://mtgtop8.com/event?e=1&d={deck_id}&explain_deck=Y"
 
-    response = requests.get(deck_url, headers=HEADERS, timeout=10)
-    response.raise_for_status()
+    try:
+        response = requests.get(deck_url, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException:
+        # mtgtop8.com's AI "explain this deck" endpoint (explain_deck=Y) has
+        # been returning 500 for every deck since ~2026-09-01 (site-wide,
+        # not deck-specific). Notes are a cosmetic extra, not core deck
+        # data, so a failure here must not abort the whole deck/tournament
+        # the way an uncaught exception used to.
+        return ""
 
     soup = BeautifulSoup(response.text, "html.parser")
     notes_div = soup.find("div", class_="S16")

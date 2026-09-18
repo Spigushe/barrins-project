@@ -217,3 +217,32 @@ class TestMtgtop8TieBracketResults:
         # untied 5th/9th place. This asserts the ranges survive intact.
         assert {"1", "2", "3-4", "5-8", "9-16", "17-32", "33-64"} <= results
         assert all(isinstance(r, str) for r in results)
+
+
+class TestGetNotes:
+    """mtgtop8.com's explain_deck=Y endpoint has been returning 500 for
+    every deck site-wide since ~2026-09-01 — this must degrade to an empty
+    note, not abort the whole deck/tournament (see get_deck_from_top8's
+    unconditional call to get_notes)."""
+
+    def test_request_failure_returns_empty_string_not_raises(self) -> None:
+        with patch.object(mtgtop8.requests, "get") as mock_get:
+            mock_get.return_value.raise_for_status.side_effect = (
+                mtgtop8.requests.exceptions.HTTPError("500 Server Error")
+            )
+            notes = mtgtop8.get_notes(874003)
+
+        assert notes == ""
+
+    def test_successful_response_still_parses_notes(self) -> None:
+        html = (
+            '<html><body><div class="S16">'
+            '<span><a href="#">Sample Card</a></span> is a good include.'
+            "</div></body></html>"
+        )
+        with patch.object(mtgtop8.requests, "get") as mock_get:
+            mock_get.return_value.raise_for_status.return_value = None
+            mock_get.return_value.text = html
+            notes = mtgtop8.get_notes(874003)
+
+        assert notes == "Sample Card is a good include."
