@@ -3,6 +3,22 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Fixed
+
+- `parsers.mtgtop8.get_notes`: mtgtop8.com's `explain_deck=Y` "explain
+  this deck" endpoint has been returning `500` for every deck since
+  ~2026-09-01, and the resulting `HTTPError` was aborting the entire
+  deck (and tournament) build — silently, since the per-tournament
+  exception handler in `services.mtgtop8.consumer` logs and moves on
+  rather than failing the run. Zero MTGTop8 tournaments were archived
+  for ~17 days as a result. Notes are cosmetic, not core deck data, so a
+  failed notes fetch now degrades to `""` instead of failing the scrape.
+  After 5 consecutive failures in a run the notes endpoint is skipped
+  for the rest of that run (circuit breaker, reset per run).
+  See `docs/content/service/barrins_scripture/incidents/2026-09-18-mtgtop8-explain-deck-500.md`.
+
 ## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
