@@ -41,6 +41,27 @@ re-running with `scripture_scraper_teardown: false` (or omitted)
 redeploys the full VPS-scheduled stack from scratch, unchanged, if
 GitHub Actions ever needs to be rolled back from.
 
+**Teardown actually applied to production 2026-09-18.** This var had
+been set since the ADR-12 rollout began (2026-08-10), but the playbook
+wasn't re-run against the live host until 2026-09-18 — the VPS ran a
+full duplicate scrape+push, side by side with GitHub Actions, for that
+entire window (see
+`docs/content/service/barrins_scripture/incidents/2026-09-18-mtgtop8-explain-deck-500.md`
+for how this surfaced). Confirmed post-teardown: no `barrins_scripture*`
+systemd units, wrapper scripts, archive clone, or app checkout remain on
+the host. If this role's config is ever changed again, don't assume the
+live host matches it — verify directly (`systemctl list-unit-files |
+grep barrins_scripture`).
+
+Note: `tasks/teardown.yml`'s first task (`Stop and disable the scrape
+timer/service`) is not idempotent against an already-torn-down host — it
+fails with "Could not find the requested service" rather than treating
+missing units as a no-op. Confirmed by re-running the playbook
+immediately after a successful teardown. Harmless (nothing left to tear
+down, so a failure here just means the job is already done), but don't
+read a failed re-run as the first run having failed — check the actual
+host state instead of the playbook's exit code.
+
 ## What it does
 
 0. Installs `chromium` and `chromium-driver` from Debian's own apt repos —

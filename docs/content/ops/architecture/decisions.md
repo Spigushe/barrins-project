@@ -986,6 +986,18 @@ the var unset," not "resurrect the role from git history."
   would need revisiting — nothing here rules that out, it's just not
   what the evidence in the 2026-08-10 incident shows.
 - This resolves the 2026-08-10 incident.
+- **Rollout note (2026-09-18):** `scripture_scraper_teardown: true` had been
+  set in `barrins_scripture.yml` since this ADR was written, but the
+  playbook was not actually run against the production host until
+  2026-09-18. In the interim the VPS's `barrins_scripture` and
+  `barrins_scripture_sweep` timers kept running a full duplicate
+  scrape+push alongside GitHub Actions, against the same archive branch
+  (one manual merge commit resulted on 2026-08-23). The teardown was
+  applied that day and verified directly on the host. Lesson: a decision
+  recorded as "torn down" in config is not the same as torn down on the
+  host — verify the live state (`systemctl list-unit-files | grep
+  barrins_scripture`) when closing out a rollout. See
+  `docs/content/service/barrins_scripture/incidents/2026-09-18-mtgtop8-explain-deck-500.md`.
 
 ## ADR-13: Karn Tablets output — data flow, scope, and consumption surface
 
