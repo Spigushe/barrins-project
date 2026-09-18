@@ -22,6 +22,8 @@ def scrape_mtgtop8(
     output_dir: Path | None = None,
     id_from: int | None = None,
 ) -> None:
+    parser.reset_notes_circuit()
+
     if output_dir is not None:
         # Overrides the module-level default (apps/barrins_scripture/scraped/
         # mtgtop8.com) — lets a deployment point at wherever it manages the

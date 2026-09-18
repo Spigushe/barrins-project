@@ -1,11 +1,19 @@
+import logging
 import re
 import time
 from datetime import date, datetime
+from threading import Lock
 
 import requests
 from bs4 import BeautifulSoup, Tag
 
 from barrins_scripture.schemas import FORMATS, CardEntry, Deck, Tournament
+
+logger = logging.getLogger(__name__)
+
+NOTES_FAILURE_LIMIT = 5
+_notes_consecutive_failures = 0
+_notes_lock = Lock()
 
 HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -227,7 +235,19 @@ def sanitize_cardname(card_name: str) -> str:
     return card_name.replace("&amp;", "&")
 
 
+def reset_notes_circuit() -> None:
+    global _notes_consecutive_failures
+    with _notes_lock:
+        _notes_consecutive_failures = 0
+
+
 def get_notes(deck_id: int) -> str | None:
+    global _notes_consecutive_failures
+
+    with _notes_lock:
+        if _notes_consecutive_failures >= NOTES_FAILURE_LIMIT:
+            return ""
+
     deck_url = f"https://mtgtop8.com/event?e=1&d={deck_id}&explain_deck=Y"
 
     try:
@@ -238,8 +258,22 @@ def get_notes(deck_id: int) -> str | None:
         # been returning 500 for every deck since ~2026-09-01 (site-wide,
         # not deck-specific). Notes are a cosmetic extra, not core deck
         # data, so a failure here must not abort the whole deck/tournament
-        # the way an uncaught exception used to.
+        # the way an uncaught exception used to. After NOTES_FAILURE_LIMIT
+        # consecutive failures the endpoint is skipped for the rest of the
+        # run (until reset_notes_circuit()) instead of costing one doomed
+        # request per deck.
+        with _notes_lock:
+            _notes_consecutive_failures += 1
+            if _notes_consecutive_failures == NOTES_FAILURE_LIMIT:
+                logger.warning(
+                    "explain_deck endpoint failed %d times in a row, "
+                    "skipping notes for the rest of this run",
+                    NOTES_FAILURE_LIMIT,
+                )
         return ""
+
+    with _notes_lock:
+        _notes_consecutive_failures = 0
 
     soup = BeautifulSoup(response.text, "html.parser")
     notes_div = soup.find("div", class_="S16")

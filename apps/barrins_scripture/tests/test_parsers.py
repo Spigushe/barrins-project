@@ -225,6 +225,58 @@ class TestGetNotes:
     note, not abort the whole deck/tournament (see get_deck_from_top8's
     unconditional call to get_notes)."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_circuit(self) -> None:
+        mtgtop8.reset_notes_circuit()
+
+    def test_circuit_opens_after_consecutive_failures_and_skips_requests(
+        self,
+    ) -> None:
+        with patch.object(mtgtop8.requests, "get") as mock_get:
+            mock_get.return_value.raise_for_status.side_effect = (
+                mtgtop8.requests.exceptions.HTTPError("500 Server Error")
+            )
+            for deck_id in range(mtgtop8.NOTES_FAILURE_LIMIT + 3):
+                assert mtgtop8.get_notes(deck_id) == ""
+
+        assert mock_get.call_count == mtgtop8.NOTES_FAILURE_LIMIT
+
+    def test_success_resets_the_failure_count(self) -> None:
+        ok_html = "<html><body></body></html>"
+        with patch.object(mtgtop8.requests, "get") as mock_get:
+            mock_get.return_value.raise_for_status.side_effect = (
+                mtgtop8.requests.exceptions.HTTPError("500 Server Error")
+            )
+            for deck_id in range(mtgtop8.NOTES_FAILURE_LIMIT - 1):
+                mtgtop8.get_notes(deck_id)
+
+            mock_get.return_value.raise_for_status.side_effect = None
+            mock_get.return_value.text = ok_html
+            assert mtgtop8.get_notes(1) is None
+
+            mock_get.return_value.raise_for_status.side_effect = (
+                mtgtop8.requests.exceptions.HTTPError("500 Server Error")
+            )
+            for deck_id in range(mtgtop8.NOTES_FAILURE_LIMIT - 1):
+                mtgtop8.get_notes(deck_id)
+            mock_get.reset_mock()
+            mtgtop8.get_notes(2)
+
+        assert mock_get.call_count == 1
+
+    def test_reset_reopens_the_circuit(self) -> None:
+        with patch.object(mtgtop8.requests, "get") as mock_get:
+            mock_get.return_value.raise_for_status.side_effect = (
+                mtgtop8.requests.exceptions.HTTPError("500 Server Error")
+            )
+            for deck_id in range(mtgtop8.NOTES_FAILURE_LIMIT):
+                mtgtop8.get_notes(deck_id)
+            mtgtop8.reset_notes_circuit()
+            mock_get.reset_mock()
+            mtgtop8.get_notes(99)
+
+        assert mock_get.call_count == 1
+
     def test_request_failure_returns_empty_string_not_raises(self) -> None:
         with patch.object(mtgtop8.requests, "get") as mock_get:
             mock_get.return_value.raise_for_status.side_effect = (
