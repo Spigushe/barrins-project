@@ -108,7 +108,7 @@ archives every format even though the sweep only ingests Duel Commander
 (319 of the files above were filtered out at ingest). Nightly runs should
 return to roughly the old duration plus one day of decks.
 
-## Related finding: the VPS was still running a duplicate scraper that should have been retired
+## Related finding: the VPS still ran a duplicate scraper
 
 While auditing why nothing was being pushed, a second, independent issue
 surfaced: `barrins_scripture.timer`/`.service` and
