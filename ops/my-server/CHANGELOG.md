@@ -48,6 +48,17 @@ section of the docs site for details.
 
 ### Changed
 
+- `roles/scripture_scraper/` (ADR-12): the teardown path
+  (`scripture_scraper_teardown: true`, already set in
+  `barrins_scripture.yml`) was applied to the production host on
+  2026-09-18 via `ansible-playbook barrins_scripture.yml -e
+  deploy_env=production`. The `barrins_scripture`/`barrins_scripture_sweep`
+  timers, wrapper scripts, archive clone and app checkout are gone
+  (verified on the host); scraping and the sweep now run only from
+  `.github/workflows/scripture-scrape.yml`. Known quirk: `teardown.yml`
+  is not idempotent against an already-torn-down host (the first
+  stop/disable task fails on missing units) — documented in the role's
+  README, not fixed.
 - `.github/workflows/CI.yml` (F9): added `"proj/**"` to both
   `pull_request` and `push` branch triggers. `proj/*` release-integration
   branches previously ran no CI at all — every `proj/v2.0.0-bump` PR

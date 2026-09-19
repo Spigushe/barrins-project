@@ -4,10 +4,10 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Mitigated — fix decided and implemented (ADR-12: move scraping+sweep to GitHub Actions); rollout (secrets, smoke test, VPS teardown) pending |
+| Status | Resolved — ADR-12 rollout fully complete (secrets set, workflow smoke-tested, VPS teardown applied to production) |
 | Severity | High if confirmed on production — MTGO ingestion would be silently returning 0 tournaments, not erroring |
 | Reported | 2026-08-10 |
-| Resolved | — |
+| Resolved | 2026-09-18 |
 | Area | Barrin's Scripture — MTGO scraper, and possibly the VPS's outbound network path in general |
 | Blocking | Any MTGO scrape (backfill or scheduled) from this VPS |
 | Owner | Infrastructure (Agent 3) — this is not fixable in application code |
@@ -152,16 +152,26 @@ same var — see the role's README for the rollback story.
 - [x] Fix decided (ADR-12).
 - [x] `.github/workflows/scripture-scrape.yml` written.
 - [x] `scripture_scraper_teardown` var + `tasks/teardown.yml` written.
-- [ ] `ARCHIVE_PUSH_TOKEN`/`SCRIPTURE_INGEST_TOKEN` set as GitHub Actions
+- [x] `ARCHIVE_PUSH_TOKEN`/`SCRIPTURE_INGEST_TOKEN` set as GitHub Actions
       repository secrets.
-- [ ] Workflow smoke-tested via `workflow_dispatch` — MTGO step
-      succeeds, archive commit lands on `Spigushe/mtg_decklist_cache`,
-      sweep logs `0 failed`.
-- [ ] VPS teardown applied (`ansible-playbook barrins_scripture.yml -e
-      deploy_env=staging`) — only after the smoke test above passes.
-- [ ] Status flipped to Resolved once the above are all checked and the
-      new schedule has completed at least one unattended (non-manual)
-      run.
+- [x] Workflow smoke-tested via `workflow_dispatch` — nightly scheduled
+      runs had already been green since ~2026-08-24 (see `gh run list
+      --workflow=scripture-scrape.yml`); a further manual dispatch on
+      2026-09-18 (run 35392159651, alongside the unrelated
+      `explain_deck=Y` fix — see that incident doc) reconfirmed the MTGO
+      step, archive commit, and sweep all succeed.
+- [x] VPS teardown applied — `ansible-playbook barrins_scripture.yml -e
+      deploy_env=production`, run 2026-09-18. Confirmed directly on the
+      host afterward: no `barrins_scripture*` systemd units, wrapper
+      scripts, archive clone, or app checkout remain. This had been
+      declared in config (`scripture_scraper_teardown: true`) since this
+      ADR was written, but never actually executed against the live
+      host until now — the VPS had been running a full duplicate
+      scrape+push in parallel with GitHub Actions the whole time (see
+      `2026-09-18-mtgtop8-explain-deck-500.md` for how that surfaced and
+      why it hadn't caused visible conflicts yet).
+- [x] Status flipped to Resolved — all of the above are checked and the
+      schedule has been running unattended nightly since ~2026-08-24.
 
 ## See also
 
