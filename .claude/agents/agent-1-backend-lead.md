@@ -73,4 +73,7 @@ use.
 Before considering any backend task complete, verify against
 constitution §49 (Backend checklist): API contracts documented, schemas
 defined, business rules stay backend-owned, migrations reviewed, tests
-pass, typing passes, lint passes, formatting passes.
+pass, typing passes, lint passes, formatting passes. If the task touched
+Markdown under `docs/` or an app `CHANGELOG.md`/`README.md`, also run
+`npm run lint && npm run spellcheck` from `docs/` (the same markdownlint +
+cspell checks CI's `docs` job runs) before committing.

@@ -79,4 +79,7 @@ Before considering any Karn Tablets task complete, verify against
 constitution §49: architecture reviewed, no duplicated business logic,
 tests pass, typing passes (`ty`), lint/formatting pass (`ruff`),
 documentation updated (dataset/model provenance, ADR if the change is
-architectural), and future compatibility considered.
+architectural), and future compatibility considered. If the task touched
+Markdown under `docs/` or an app `CHANGELOG.md`/`README.md`, also run
+`npm run lint && npm run spellcheck` from `docs/` (the same markdownlint +
+cspell checks CI's `docs` job runs) before committing.

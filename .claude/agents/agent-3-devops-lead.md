@@ -105,4 +105,8 @@ Before considering any infrastructure task complete, verify against
 constitution §49 (Infrastructure checklist): deployment impact
 reviewed, security reviewed, configuration documented, rollback
 considered, monitoring considered — and confirm `ansible-lint
-ops/my-server` passes clean from the repo root.
+ops/my-server` passes clean from the repo root. If the task touched
+Markdown under `docs/` (runbooks, incident docs, ADRs) or an ops
+`CHANGELOG.md`/`README.md`, also run `npm run lint && npm run spellcheck`
+from `docs/` (the same markdownlint + cspell checks CI's `docs` job runs)
+before committing.
