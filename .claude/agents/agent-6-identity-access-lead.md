@@ -79,3 +79,7 @@ duplicated business logic, tests pass, typing passes (`ty`),
 lint/formatting pass (`ruff`), documentation updated
 (`docs/content/back/barrins_identity/platform.md` and any affected ADR),
 and backward compatibility considered for every consuming application.
+If the task touched Markdown under `docs/` or an app
+`CHANGELOG.md`/`README.md`, also run `npm run lint && npm run spellcheck`
+from `docs/` (the same markdownlint + cspell checks CI's `docs` job runs)
+before committing.

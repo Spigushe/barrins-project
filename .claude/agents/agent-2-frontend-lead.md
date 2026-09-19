@@ -67,7 +67,10 @@ Before considering any frontend task complete, verify against
 constitution §49 (Frontend checklist): components are reusable, no
 business logic duplication, API contracts respected, accessibility
 considered, TypeScript compiles, lint passes, formatting passes, tests
-pass. Per the project's general UI-testing expectation, start the dev
+pass. If the task touched Markdown under `docs/` or an app
+`CHANGELOG.md`/`README.md`, also run `npm run lint && npm run spellcheck`
+from `docs/` (the same markdownlint + cspell checks CI's `docs` job runs)
+before committing. Per the project's general UI-testing expectation, start the dev
 server and exercise the feature in a browser before reporting success —
 type checking and tests verify correctness, not that the feature actually
 works end to end.
