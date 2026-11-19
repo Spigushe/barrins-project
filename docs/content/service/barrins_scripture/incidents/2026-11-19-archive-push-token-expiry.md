@@ -279,12 +279,14 @@ echo "[3/3] Sweeping the last $DAYS days into $BARRINS_API_URL..."
 
 - [x] New PAT generated, `ARCHIVE_PUSH_TOKEN` updated (2026-11-19)
 - [x] `scripture-scrape.yml` recovery inputs + `replay_scripture_sweep.sh` written
-- [ ] Workflow change merged to `staging`
-- [ ] Step 3a run green (normal run with the new secret)
+- [x] Workflow change merged to `staging` (#176, `320b025b`)
+- [x] Step 3a run green (normal run with the new secret, run `44525759780`)
 - [ ] Step 3b repeated until MTGTop8 reaches today
-- [ ] Step 3c run green (October MTGO + 40-day sweep)
-- [ ] Karn Tablets re-run on the VPS
-- [ ] Verified: latest `bs_tournaments.date` in production is within the
+- [x] Step 3c run green (October MTGO + 40-day sweep). Run `44552319323`
+      actually used `mtgo_date_to=2026-11` and `sweep_mode=full`: 9714
+      ingested, 0 failed
+- [X] Karn Tablets re-run on the VPS
+- [X] Verified: latest `bs_tournaments.date` in production is within the
       last few days, and Tolaria News `/metagame` shows recent tournaments
 
 ## Follow-ups
