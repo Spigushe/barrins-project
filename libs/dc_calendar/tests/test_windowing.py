@@ -71,12 +71,12 @@ class TestBanlistPeriodContaining:
             (date(2026, 3, 30), date(2026, 1, 27), date(2026, 3, 30)),
             # Exactly on the start boundary of Mar->May.
             (date(2026, 3, 31), date(2026, 3, 31), date(2026, 5, 25)),
-            # Squarely inside Sep->Nov. End is Nov 23, not "last Monday of
-            # Nov" (Nov 30) -- Nov 2026's last day is itself a Monday, so
-            # the naive "last Monday" reading would fall *after* the next
-            # period's start (last Tuesday of Nov = Nov 24), overlapping
-            # it. The end is derived from the next period's start instead.
-            (date(2026, 10, 1), date(2026, 9, 29), date(2026, 11, 23)),
+            # Squarely inside Sep->Nov. End is the last Monday of Nov
+            # (Nov 30), which is also Nov 2026's last calendar day.
+            (date(2026, 10, 1), date(2026, 9, 29), date(2026, 11, 30)),
+            # Between "last Tuesday of Nov" (Nov 24) and the real anchor
+            # (Nov 30): still the Sep->Nov period.
+            (date(2026, 11, 24), date(2026, 9, 29), date(2026, 11, 30)),
         ],
     )
     def test_matches_reference_computation(
@@ -84,27 +84,27 @@ class TestBanlistPeriodContaining:
     ):
         assert banlist_period_containing(reference) == (expected_start, expected_end)
 
-    def test_transition_month_ending_on_monday_does_not_overlap_the_next_period(self):
-        # Nov 2026's last day is a Monday (Nov 30), so "last Monday of
-        # Nov" (Nov 30) would fall after "last Tuesday of Nov" (Nov 24,
-        # the next period's start) -- a real overlap if computed
-        # independently. The Sep->Nov period must end before Nov 24.
+    def test_odd_month_ending_on_monday_pushes_next_start_into_even_month(self):
+        # Nov 2026's last day is a Monday (Nov 30). The period anchors on
+        # that Monday, so the next one starts Dec 1 -- not on "last
+        # Tuesday of Nov" (Nov 24), which would announce the banlist a
+        # week early.
         _start, end = banlist_period_containing(date(2026, 10, 1))
-        assert end == date(2026, 11, 23)
-        next_start, _next_end = banlist_period_containing(date(2026, 11, 24))
-        assert next_start == date(2026, 11, 24)
-        assert end < next_start
+        assert end == date(2026, 11, 30)
+        next_start, _next_end = banlist_period_containing(date(2026, 12, 1))
+        assert next_start == date(2026, 12, 1)
+        assert next_start == end + timedelta(days=1)
 
     def test_year_rollover_november_to_january(self):
         # December 15 falls inside the Nov(2026)->Jan(2027) period.
         start, end = banlist_period_containing(date(2026, 12, 15))
-        assert start == date(2026, 11, 24)
+        assert start == date(2026, 12, 1)
         assert end == date(2027, 1, 25)
 
     def test_year_rollover_end_of_period_is_in_following_year(self):
         # The last day of the Nov->Jan period is itself in January.
         start, end = banlist_period_containing(date(2027, 1, 25))
-        assert start == date(2026, 11, 24)
+        assert start == date(2026, 12, 1)
         assert end == date(2027, 1, 25)
 
     def test_day_after_year_rollover_period_starts_a_new_one(self):
@@ -112,6 +112,16 @@ class TestBanlistPeriodContaining:
         # starts here, immediately after the Nov->Jan one ends.
         start, _end = banlist_period_containing(date(2027, 1, 26))
         assert start == date(2027, 1, 26)
+
+    @pytest.mark.parametrize("year", range(2024, 2032))
+    def test_every_period_ends_on_the_last_monday_of_an_odd_month(self, year):
+        day = date(year, 1, 1)
+        while day.year == year:
+            _start, end = banlist_period_containing(day)
+            assert end.weekday() == 0
+            assert end.month % 2 == 1
+            assert end == last_weekday_of_month(end.year, end.month, 0)
+            day += timedelta(days=1)
 
     def test_every_day_of_a_full_year_resolves_with_no_gap_or_overlap(self):
         # Regression guard: walk a full calendar year day by day (including
@@ -226,42 +236,52 @@ class TestAllTimePeriods:
 
 
 class TestEffectiveBanlistPeriod:
-    """The May(26)->Jul(27) 2026 period is the transition under test here:
-    the previous period (Mar 31 -> May 25) ends May 25, so May 26 2026 is
-    where a real transition day's date-vs-time subtlety shows up."""
+    """The banlist is announced at 20:00 Paris on the last Monday of an
+    odd month -- May 25 2026 for the Mar(31)->May(25) period, which is
+    where the date-vs-time subtlety shows up: the calendar period is still
+    the outgoing one until midnight, the effective one flips at 20:00."""
 
     def test_mid_period_now_matches_the_raw_calendar_period(self):
         now = datetime(2026, 4, 15, 12, 0, tzinfo=BANLIST_TIMEZONE)
         effective, next_at = effective_banlist_period(now)
         assert effective.date_from == date(2026, 3, 31)
         assert effective.date_to == date(2026, 5, 25)
-        assert next_at == datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+        assert next_at == datetime(2026, 5, 25, 20, 0, tzinfo=BANLIST_TIMEZONE)
 
-    def test_transition_day_before_2000_paris_still_reports_the_previous_period(self):
-        now = datetime(2026, 5, 26, 10, 0, tzinfo=BANLIST_TIMEZONE)
+    def test_announcement_day_before_2000_paris_still_reports_the_current_period(self):
+        now = datetime(2026, 5, 25, 10, 0, tzinfo=BANLIST_TIMEZONE)
         effective, next_at = effective_banlist_period(now)
         assert effective.date_from == date(2026, 3, 31)
         assert effective.date_to == date(2026, 5, 25)
-        assert next_at == datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+        assert next_at == datetime(2026, 5, 25, 20, 0, tzinfo=BANLIST_TIMEZONE)
 
-    def test_transition_day_at_2000_paris_flips_to_the_new_period(self):
-        now = datetime(2026, 5, 26, 20, 0, tzinfo=BANLIST_TIMEZONE)
+    def test_announcement_day_at_2000_paris_flips_to_the_new_period(self):
+        now = datetime(2026, 5, 25, 20, 0, tzinfo=BANLIST_TIMEZONE)
         effective, next_at = effective_banlist_period(now)
         assert effective.date_from == date(2026, 5, 26)
         assert effective.date_to == date(2026, 7, 27)
-        assert next_at == datetime(2026, 7, 28, 20, 0, tzinfo=BANLIST_TIMEZONE)
+        assert next_at == datetime(2026, 7, 27, 20, 0, tzinfo=BANLIST_TIMEZONE)
 
-    def test_transition_day_after_2000_paris_reports_the_new_period(self):
-        now = datetime(2026, 5, 26, 21, 30, tzinfo=BANLIST_TIMEZONE)
+    def test_announcement_day_after_2000_paris_reports_the_new_period(self):
+        now = datetime(2026, 5, 25, 21, 30, tzinfo=BANLIST_TIMEZONE)
         effective, _next_at = effective_banlist_period(now)
         assert effective.date_from == date(2026, 5, 26)
         assert effective.date_to == date(2026, 7, 27)
 
     def test_accepts_a_non_paris_timezone_and_converts_internally(self):
-        # 2026-05-26 21:30 Paris (UTC+2, summer) == 19:30 UTC same day.
-        now_utc = datetime(2026, 5, 26, 19, 30, tzinfo=ZoneInfo("UTC"))
+        # 2026-05-25 21:30 Paris (UTC+2, summer) == 19:30 UTC same day.
+        now_utc = datetime(2026, 5, 25, 19, 30, tzinfo=ZoneInfo("UTC"))
         effective, _next_at = effective_banlist_period(now_utc)
         assert effective.date_from == date(2026, 5, 26)  # already past 20:00 Paris
+
+    def test_november_2026_next_banlist_is_monday_the_30th(self):
+        # Regression: Nov 2026 ends on a Monday; the next banlist is Nov 30
+        # at 20:00 Paris, not "last Tuesday of Nov" (Nov 24).
+        now = datetime(2026, 11, 19, 12, 0, tzinfo=BANLIST_TIMEZONE)
+        effective, next_at = effective_banlist_period(now)
+        assert effective.date_from == date(2026, 9, 29)
+        assert effective.date_to == date(2026, 11, 30)
+        assert next_at == datetime(2026, 11, 30, 20, 0, tzinfo=BANLIST_TIMEZONE)
 
 
 class TestBanlistPeriodNumber:
@@ -272,12 +292,12 @@ class TestBanlistPeriodNumber:
 
     def test_november_anchored_period_is_number_six(self):
         window = banlist_period_window(date(2026, 12, 15))
-        assert window.date_from == date(2026, 11, 24)
+        assert window.date_from == date(2026, 12, 1)  # spills into December
         assert banlist_period_number(window) == (2026, 6)
 
     def test_numbers_off_date_from_year_even_when_date_to_rolls_into_january(self):
         window = banlist_period_window(date(2027, 1, 10))
-        assert window.date_from == date(2026, 11, 24)
+        assert window.date_from == date(2026, 12, 1)
         assert window.date_to == date(2027, 1, 25)
         assert banlist_period_number(window) == (2026, 6)
 

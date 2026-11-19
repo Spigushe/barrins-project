@@ -13,10 +13,12 @@ rather than duplicating it (Constitution §4.2).
 
 - **Rolling 30-day windows**: the most recent 30 days as of a reference
   date.
-- **Banlist-period windows**: non-overlapping periods aligned to Magic's
-  Banned & Restricted announcement rhythm — last Tuesday of an
-  odd-numbered month through the last Monday of the following
-  odd-numbered month. The boundary math (year rollover, month-length
+- **Banlist-period windows**: non-overlapping periods aligned to the
+  Duel Commander banlist rhythm. Each banlist is announced on the last
+  Monday of an odd-numbered month at 20:00 Europe/Paris; a period runs
+  from the day after one such Monday through the next one. That start
+  is usually the last Tuesday of the odd month, but not when the month
+  ends on a Monday (Nov 30 2026 → the next period starts Dec 1). The boundary math (year rollover, month-length
   edge cases) is the highest-risk part of this package and is
   independently, exhaustively tested (`tests/test_windowing.py`).
 - **All-time period listing**: every banlist period spanning an

@@ -9,10 +9,12 @@ one owner for the calendar rules, imported by both instead of duplicated.
 Two windowing strategies:
 
 - Rolling 30-day: always the most recent 30 days as of the run date.
-- Banlist-period: non-overlapping periods aligned to Magic's Banned &
-  Restricted announcement rhythm -- from the last Tuesday of an
+- Banlist-period: non-overlapping periods aligned to the Duel Commander
+  banlist announcement rhythm -- from the day after the last Monday of an
   odd-numbered month to the last Monday of the following odd-numbered
-  month (e.g. last Tuesday of March -> last Monday of May).
+  month (e.g. Mar 31 -> May 25 2026). That start is usually the last
+  Tuesday of the odd month, but not when the month ends on a Monday
+  (Nov 30 2026 -> the next period starts Dec 1).
 
 The banlist-period boundary math is the trickiest part of this whole
 pipeline (T6's own doc flags it explicitly) -- year rollover (Nov -> Jan)
@@ -29,13 +31,13 @@ from zoneinfo import ZoneInfo
 #: of these and ends on the next one in this cycle (wrapping Nov -> Jan).
 _ODD_MONTHS: tuple[int, ...] = (1, 3, 5, 7, 9, 11)
 
-_TUESDAY = 1
+_MONDAY = 0
 
 ROLLING_WINDOW_DAYS = 30
 
-#: A Duel Commander banlist change is calendar-date-effective per
-#: `banlist_period_window`, but *actually* takes effect at this time on its
-#: period's first day -- see `effective_banlist_period`.
+#: A Duel Commander banlist change is announced (and takes effect) at this
+#: time on the *last day* of the outgoing period -- the last Monday of an
+#: odd month -- see `effective_banlist_period`.
 BANLIST_EFFECTIVE_TIME = time(20, 0)
 BANLIST_TIMEZONE = ZoneInfo("Europe/Paris")
 
@@ -79,56 +81,50 @@ def last_weekday_of_month(year: int, month: int, weekday: int) -> date:
     return last_day_of_month - timedelta(days=offset)
 
 
-def _next_odd_month(month: int) -> tuple[int, int]:
-    """The next odd month after `month`, and the year offset to add (0 or 1)."""
-    idx = _ODD_MONTHS.index(month)
-    next_idx = (idx + 1) % len(_ODD_MONTHS)
-    year_offset = 1 if _ODD_MONTHS[next_idx] < month else 0
-    return _ODD_MONTHS[next_idx], year_offset
+def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
+    """(year, month) `delta` calendar months away from `year`-`month`."""
+    year_offset, month0 = divmod((month - 1) + delta, 12)
+    return year + year_offset, month0 + 1
 
 
 def banlist_period_containing(reference_date: date) -> tuple[date, date]:
     """The (start, end) banlist period that `reference_date` falls within.
 
-    Searches backward from `reference_date`'s month for the most recent
-    odd-month anchor whose resulting period actually contains the date --
-    at most 6 months back, since periods are 2 calendar months wide and
-    odd months repeat every other month.
+    The *anchor* of every period is its end: the last Monday of an odd
+    month, the day the next banlist is announced. A period runs from the
+    day after the previous anchor through its own anchor, inclusive.
 
-    A period's end is the day *before* the next period's start (`last
-    Tuesday of the following odd month`), not that month's independently
-    computed `last Monday` -- those two disagree whenever the following
-    odd month's last calendar day is itself a Monday (e.g. November
-    2026: last Monday = Nov 30, but last Tuesday = Nov 24, six days
-    *earlier* -- computing the end independently would make this
-    period's end fall after the next period's own start, a real overlap
-    caught by `test_every_day_of_a_full_year_resolves_with_no_gap_or_overlap`).
-    Deriving `end` from the next period's `start` instead guarantees
-    "non-overlapping periods" (T6's own requirement) holds unconditionally,
-    at the cost of occasionally ending a period a few days earlier than a
-    literal "last Monday" reading would.
+    The start is derived from the previous anchor (`last Monday + 1`), not
+    computed independently as "last Tuesday of the odd month" -- those two
+    disagree whenever the odd month's last calendar day is itself a
+    Monday (e.g. November 2026: last Monday = Nov 30, but last Tuesday =
+    Nov 24, six days *earlier*). Anchoring on the Tuesday made the Sep ->
+    Nov 2026 period end on Nov 23 and announced the next banlist a week
+    early; anchoring on the Monday keeps the announcement date right and
+    lets the following period start in the even month instead (Dec 1).
+
+    The anchor is the first odd-month last Monday on or after
+    `reference_date` -- at most 2 months ahead, since odd months repeat
+    every other calendar month.
     """
-    for months_back in range(7):
-        total_month_index = (reference_date.month - 1) - months_back
-        year_offset, month0 = divmod(total_month_index, 12)
-        year = reference_date.year + year_offset
-        month = month0 + 1
+    for months_ahead in range(3):
+        year, month = _shift_month(
+            reference_date.year, reference_date.month, months_ahead
+        )
         if month not in _ODD_MONTHS:
             continue
-
-        start = last_weekday_of_month(year, month, _TUESDAY)
-        end_month, end_year_offset = _next_odd_month(month)
-        next_period_start = last_weekday_of_month(
-            year + end_year_offset, end_month, _TUESDAY
+        end = last_weekday_of_month(year, month, _MONDAY)
+        if end < reference_date:
+            continue
+        prev_year, prev_month = _shift_month(year, month, -2)
+        start = last_weekday_of_month(prev_year, prev_month, _MONDAY) + timedelta(
+            days=1
         )
-        end = next_period_start - timedelta(days=1)
+        return start, end
 
-        if start <= reference_date <= end:
-            return start, end
-
-    # Unreachable: every date falls in exactly one period within 6 months
-    # of searching backward from its own month (odd months repeat every
-    # other calendar month) -- kept as a defensive guard, not a real path.
+    # Unreachable: the reference month or one of the next two is odd and
+    # its last Monday is on or after the reference date -- kept as a
+    # defensive guard, not a real path.
     raise ValueError(
         f"could not resolve a banlist period for {reference_date}"
     )  # pragma: no cover
@@ -151,32 +147,29 @@ def banlist_period_window(date_to: date) -> Window:
 
 def effective_banlist_period(now: datetime) -> tuple[Window, datetime]:
     """The banlist period actually in effect at `now`, and the datetime
-    the *next* period takes effect (20:00 Europe/Paris on its first day).
+    the *next* banlist takes effect (20:00 Europe/Paris on the current
+    period's last day -- the last Monday of an odd month).
 
     `banlist_period_window` only knows calendar-date boundaries -- a
-    period's first day already "belongs" to it from midnight, even though
-    the banlist doesn't *actually* take effect until `BANLIST_EFFECTIVE_TIME`
-    that same day. On a transition day itself, before that time, the
-    *calendar* period has already flipped to the new one while the
-    *effective* (real-world) period is still the previous one. This
-    reconciles the two so "current season" and "next banlist" don't jump
-    ahead a whole period too early.
+    period's last day still "belongs" to it until midnight, even though
+    the next banlist is announced at `BANLIST_EFFECTIVE_TIME` that same
+    day. From that moment until midnight the *calendar* period is still
+    the outgoing one while the *effective* (real-world) period is already
+    the next one. This reconciles the two so "current season" flips and
+    "next banlist" moves on as soon as the announcement lands.
     """
     now_paris = now.astimezone(BANLIST_TIMEZONE)
     raw = banlist_period_window(now_paris.date())
-    transition = datetime.combine(
-        raw.date_from, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
+    announcement = datetime.combine(
+        raw.date_to, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
     )
-    if now_paris < transition:
-        effective = banlist_period_window(raw.date_from - timedelta(days=1))
-        next_at = transition
-    else:
-        after = banlist_period_window(raw.date_to + timedelta(days=1))
-        effective = raw
-        next_at = datetime.combine(
-            after.date_from, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
-        )
-    return effective, next_at
+    if now_paris < announcement:
+        return raw, announcement
+    following = banlist_period_window(raw.date_to + timedelta(days=1))
+    next_at = datetime.combine(
+        following.date_to, BANLIST_EFFECTIVE_TIME, tzinfo=BANLIST_TIMEZONE
+    )
+    return following, next_at
 
 
 def banlist_period_number(window: Window) -> tuple[int, int]:
@@ -185,17 +178,19 @@ def banlist_period_number(window: Window) -> tuple[int, int]:
     Resets every January; the year alone already disambiguates across year
     boundaries, so the index doesn't climb forever.
 
-    Reads directly off `date_from`, which always falls *in* one of
-    `_ODD_MONTHS` itself (only `date_to` can roll into the following year,
-    e.g. a Nov-anchored period ending in January) -- no need to re-derive
-    the period.
+    Reads off the day before `date_from` -- the previous period's anchor,
+    always the last Monday of one of `_ODD_MONTHS`. `date_from` itself
+    can spill into the following even month (Nov 30 2026 is a Monday, so
+    that period starts Dec 1) and `date_to` can roll into the following
+    year, so neither can be read directly.
     """
     if window.kind is not WindowKind.banlist_period:
         raise ValueError(
             "banlist_period_number only applies to banlist_period windows, "
             f"got {window.kind}"
         )
-    return window.date_from.year, _ODD_MONTHS.index(window.date_from.month) + 1
+    anchor = window.date_from - timedelta(days=1)
+    return anchor.year, _ODD_MONTHS.index(anchor.month) + 1
 
 
 def resolve_windows(date_to: date, kinds: tuple[WindowKind, ...]) -> list[Window]:

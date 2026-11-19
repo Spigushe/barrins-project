@@ -32,7 +32,9 @@ class TestGetTelemetry:
 
         next_banlist_at = data["next_banlist_at"]
         assert "+" in next_banlist_at or next_banlist_at.endswith("Z")  # UTC offset
-        assert date.fromisoformat(next_banlist_at[:10]) > date.fromisoformat(
+        # Announced at 20:00 Paris on the season's last day (last Monday
+        # of an odd month) -- same calendar date as `date_to`.
+        assert date.fromisoformat(next_banlist_at[:10]) == date.fromisoformat(
             season["date_to"]
         )
 
