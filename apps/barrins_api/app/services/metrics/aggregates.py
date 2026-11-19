@@ -52,7 +52,7 @@ class PlatformMetrics:
     total_matches: AggregateMetric
 
 
-def _count_statement(model: type) -> Select[tuple[int]]:
+def _count_statement(model: type) -> Select[int]:
     """`SELECT count(*) FROM <model>` — never a row-fetching `SELECT *`."""
     return select(func.count()).select_from(model)
 

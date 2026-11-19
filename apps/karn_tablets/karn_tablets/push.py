@@ -6,6 +6,7 @@ timeout, no retry -- a failed push just waits for the next scheduled run).
 """
 
 import logging
+from typing import Any
 
 import requests
 
@@ -16,7 +17,10 @@ logger = logging.getLogger(__name__)
 _INGEST_PATH = "/internal/karn/ingest"
 
 
-def _payload(result: ClusteringRunResult) -> dict[str, object]:
+def _payload(result: ClusteringRunResult) -> dict[str, Any]:
+    # `Any`, not `object`: requests' `json=` parameter is typed as its
+    # recursive `JsonType` alias, which `object` values don't satisfy
+    # (ty >= 0.0.9x checks this). Every value below is JSON-serializable.
     return {
         "window": {
             "kind": result.window.kind.value,
