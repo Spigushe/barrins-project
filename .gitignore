@@ -83,3 +83,6 @@ docs/content/changelog/ops.md
 # personal collection data, never checked in.
 apps/barrins_api/scripts/input/
 apps/barrins_api/scripts/outputs/
+# commander_report.py (personal analysis script) -- generated per-commander
+# reports (Markdown/CSV/Moxfield lists), never checked in.
+apps/karn_tablets/scripts/outputs/
