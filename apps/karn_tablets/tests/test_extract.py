@@ -113,3 +113,22 @@ class TestEngine:
         with pytest.raises(RuntimeError, match="KARN_TABLETS_DATABASE_URL_RO"):
             extract._engine()
         extract._engine.cache_clear()
+
+    def test_bare_postgresql_url_gets_the_psycopg2_driver(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # The deployed .env files use a bare postgresql:// URL; SQLAlchemy
+        # 2.1 would otherwise default it to psycopg (v3), not installed here.
+        extract._engine.cache_clear()
+        monkeypatch.setattr(
+            extract, "database_url", lambda: "postgresql://ro:pw@localhost:5432/db"
+        )
+        engine = extract._engine()
+        assert engine.url.drivername == "postgresql+psycopg2"
+        assert engine.url.database == "db"
+        engine.dispose()
+        extract._engine.cache_clear()
+
+    def test_explicit_driver_is_left_untouched(self):
+        url = extract._with_sync_driver("postgresql+psycopg2://ro@host/db")
+        assert url.drivername == "postgresql+psycopg2"

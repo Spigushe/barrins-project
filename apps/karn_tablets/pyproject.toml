@@ -21,9 +21,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    # <2.1: kept on the same SQLAlchemy line as barrins_api/barrins_identity
-    # until their 2.1 migration (Dependabot PR #170, 2026-11-19).
-    "sqlalchemy>=2.0,<2.1",
+    "sqlalchemy>=2.1.6",
     "psycopg2-binary", # sync driver -- this is a scheduled batch job, not a web server (no asyncpg needed)
     "pandas",
     "numpy",

@@ -46,7 +46,9 @@ _TEST_DB_URL: str = os.environ.get("TEST_DATABASE_URL") or (
     str(settings.base.database_url).rstrip("/") + "_test"
 )
 # Sync URL for psycopg2-based engine (used to create tables once per session).
-_TEST_DB_SYNC_URL: str = _TEST_DB_URL.replace("+asyncpg", "")
+# Explicit +psycopg2: since SQLAlchemy 2.1 a driverless postgresql:// URL
+# defaults to psycopg (v3), which is not installed.
+_TEST_DB_SYNC_URL: str = _TEST_DB_URL.replace("+asyncpg", "+psycopg2")
 
 
 @pytest.fixture(scope="session")

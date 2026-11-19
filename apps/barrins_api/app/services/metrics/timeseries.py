@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -65,13 +65,15 @@ class PlatformMetricsTimeseries:
 
 def _bucket_count_statement(
     column: InstrumentedAttribute[datetime], granularity: Granularity, since: datetime
-) -> Select[tuple[datetime, int]]:
+) -> Select[datetime, int]:
     """`SELECT date_trunc(granularity, column), count(*) ... GROUP BY ...`
 
     Never a row-fetching `SELECT *` — only the truncated timestamp and a
     `count(*)` are selected, aggregated server-side.
     """
-    bucket = func.date_trunc(granularity, column)
+    # `func.date_trunc` is untyped (`Function[Any]`); the annotation tells
+    # the type checker what PostgreSQL returns, without changing the SQL.
+    bucket: ColumnElement[datetime] = func.date_trunc(granularity, column)
     # Labeled "value" rather than "count" — `Row` already exposes a
     # `count()` method, which would shadow a same-named attribute access
     # below (`row.count` would resolve to the method, not the column).

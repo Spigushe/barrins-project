@@ -394,7 +394,13 @@ _TARGET_INSERT = text(
 
 
 def _normalise_url(url: str) -> str:
-    """Force a synchronous psycopg2 driver — this script is plain sync SQL."""
+    """Force a synchronous psycopg2 driver — this script is plain sync SQL.
+
+    Also pins it on a bare `postgresql://` URL (the usage example above):
+    since SQLAlchemy 2.1 that form defaults to psycopg (v3), not installed.
+    """
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url.removeprefix("postgresql://")
     return url.replace("+asyncpg", "+psycopg2")
 
 
