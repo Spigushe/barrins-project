@@ -617,8 +617,14 @@ class TestSearchCardsByNamePrefixExcludeBanned:
     """`?exclude_banned_in=duelcommander` drops only cards MTGJSON marks
     `duel: "Banned"` -- Legal, Restricted, and untracked cards all stay."""
 
-    async def _import(self, db_session, name: str, legalities: dict[str, str] | None):
-        set_code = name.upper().replace(" ", "")[:8]
+    async def _import(
+        self,
+        db_session,
+        name: str,
+        legalities: dict[str, str] | None,
+        set_code: str | None = None,
+    ):
+        set_code = set_code or name.upper().replace(" ", "")[:8]
         await import_all_printings(
             db_session,
             _FakeScryfallDerivedClient(
@@ -661,6 +667,26 @@ class TestSearchCardsByNamePrefixExcludeBanned:
             "Edgy Restricted",
             "Edgy Untracked",
         ]
+
+    async def test_drops_banned_card_even_if_another_printing_is_untracked(
+        self, client: AsyncClient, db_session
+    ):
+        # Regression (2026-11-19): MTGJSON leaves `legalities` empty on
+        # non-tournament-legal reprints (30A, CED/CEI, WC decks...). Filtering
+        # per printing let e.g. Black Lotus through via its 30A row; legality
+        # is per card, so one Banned printing must hide the name.
+        await self._import(db_session, "Lotus Probe", {"duel": "Banned"}, "LEAP")
+        await self._import(db_session, "Lotus Probe", {}, "30AP")
+        await self._import(db_session, "Lotus Probe", None, "CEDP")
+        await self._import(db_session, "Lotus Legal", {"duel": "Legal"}, "LEAP2")
+
+        resp = await client.get(
+            f"{_BASE}/cards/search-by-name-prefix?q=lotus"
+            "&exclude_banned_in=duelcommander"
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == ["Lotus Legal"]
 
     async def test_without_the_param_a_banned_card_still_shows(
         self, client: AsyncClient, db_session
