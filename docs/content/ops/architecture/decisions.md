@@ -476,8 +476,8 @@ outside Karn Tablets' code entirely.
   month). *Clarified 2026-11-19:* the anchor is the last Monday (the
   banlist is announced at 20:00 Europe/Paris that day); a period starts
   the day after, which is not always a Tuesday in the odd month (see
-  `libs/dc_calendar`'s CHANGELOG). Whether v2.0.0 needs both modes or just one default is a task
-  for T6, not decided here.
+  `libs/dc_calendar`'s CHANGELOG). Whether v2.0.0 needs both modes or
+  just one default is a task for T6, not decided here.
 - **Aggregation**: aggregate clustering output specifically to visualize
   deck-type distribution (archetype share of the metagame within the
   chosen window), not raw per-deck predictions.
