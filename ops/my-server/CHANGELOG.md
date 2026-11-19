@@ -7,6 +7,15 @@ section of the docs site for details.
 
 ### Added
 
+- `ops/my-server/scripts/replay_scripture_sweep.sh`: replays Barrin's
+  Scripture's sweep (archive to `POST /internal/scripture/ingest`) over
+  the last `DAYS` days from any host with git + uv, typically the VPS.
+  Fallback for when the `scripture-scrape` workflow cannot run the sweep
+  itself. Sparse read-only clones in a temp dir, no GitHub token, token
+  prompted without echo, idempotent. Does not scrape (mtgo.com blocks the
+  VPS IP, ADR-12). See
+  `docs/content/service/barrins_scripture/incidents/2026-11-19-archive-push-token-expiry.md`.
+
 - `ops/my-server/barrins_scripture.yml` + a new
   `ops/my-server/roles/scripture_scraper/` role (T1): a `systemd`
   `.service`/`.timer` pair (patterned on `roles/postgres_backup/`)
