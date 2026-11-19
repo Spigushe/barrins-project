@@ -262,6 +262,12 @@ async def search_cards_by_name_prefix(
     stale `legalities` map never silently hides a real card. Every row's
     map is empty until the first MTGJSON re-import after this column was
     added, which makes the filter a no-op until then.
+
+    The ban is decided per card name, not per printing: legality belongs
+    to the card, and MTGJSON leaves `legalities` empty on
+    non-tournament-legal reprints (30A, CED/CEI, World Championship
+    decks...). Filtering row by row let a banned card through via any
+    such printing -- e.g. Black Lotus via its 30A row (2026-11-19).
     """
     stmt = (
         select(Card.name)
@@ -272,9 +278,10 @@ async def search_cards_by_name_prefix(
     )
     if exclude_banned_in is not None:
         legality_key = _MTGJSON_LEGALITY_KEY[exclude_banned_in]
-        stmt = stmt.where(
-            Card.legalities[legality_key].astext.is_distinct_from("Banned")
+        banned_names = select(Card.name).where(
+            Card.legalities[legality_key].astext == "Banned"
         )
+        stmt = stmt.where(Card.name.not_in(banned_names))
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

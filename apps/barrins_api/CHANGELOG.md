@@ -3,6 +3,18 @@
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
+## [Unreleased]
+
+### Fixed
+
+- `GET /cards/search-by-name-prefix?exclude_banned_in=duelcommander` now
+  decides the ban per card name instead of per printing. MTGJSON leaves
+  `legalities` empty on non-tournament-legal reprints (30A, CED/CEI,
+  World Championship decks…), so any such printing let a banned card
+  through — 38 Duel Commander bans, the Power 9 included, were still
+  returned in production after the 2026-11-19 MTGJSON re-import. No
+  contract change.
+
 ## [2.0.0] "Morningtide" - 2026-09-06
 
 ### Added
