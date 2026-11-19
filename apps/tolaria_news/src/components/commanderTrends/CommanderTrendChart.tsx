@@ -118,7 +118,9 @@ export function CommanderTrendChart({
       // missing bucket (null) so `connectNulls={false}` breaks the line
       // instead of drawing it, leaving only the commander's actual active
       // window visible.
-      row[`series_${seriesIndex.toString()}`] = point?.deck_count ? point.deck_count : null
+      row[`series_${seriesIndex.toString()}`] = point?.deck_count
+        ? point.deck_count
+        : null
     })
     return row
   })

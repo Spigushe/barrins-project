@@ -34,7 +34,9 @@ dependencies = [
     "pyjwt>=2.10.1",
     "python-multipart>=0.0.32",
     "slowapi>=0.1.9",
-    "sqlalchemy>=2.0.51",
+    # [asyncio] pulls in greenlet, which the async engine (asyncpg) needs:
+    # since 2.1, plain `sqlalchemy` no longer installs it by default.
+    "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.51.0",
 ]
 

@@ -27,7 +27,7 @@ from functools import lru_cache
 
 import pandas as pd
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import URL, Engine, make_url
 
 from karn_tablets.config import database_url
 from karn_tablets.schemas import Decklist
@@ -35,6 +35,21 @@ from karn_tablets.schemas import Decklist
 logger = logging.getLogger(__name__)
 
 DUEL_COMMANDER_FORMAT = "Duel Commander"
+
+
+def _with_sync_driver(url: str) -> URL:
+    """Pin psycopg2 on a driverless `postgresql://` URL.
+
+    SQLAlchemy 2.1 made psycopg (v3) the default driver for a bare
+    `postgresql://` URL, while Karn Tablets ships psycopg2 (see
+    pyproject.toml) and the deployed `.env` files use the bare form
+    (ops/my-server/secrets/karn_tablets/*.env.example). A URL that already
+    names its driver is left untouched.
+    """
+    parsed = make_url(url)
+    if parsed.drivername == "postgresql":
+        return parsed.set(drivername="postgresql+psycopg2")
+    return parsed
 
 
 @lru_cache(maxsize=1)
@@ -45,7 +60,7 @@ def _engine() -> Engine:
             "KARN_TABLETS_DATABASE_URL_RO is not set -- Karn Tablets needs a "
             "read-only credential scoped to bs_*/mj_cards to extract anything."
         )
-    return create_engine(url, pool_pre_ping=True)
+    return create_engine(_with_sync_driver(url), pool_pre_ping=True)
 
 
 def read_sql(query: str, params: dict[str, object] | None = None) -> pd.DataFrame:

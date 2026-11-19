@@ -21,7 +21,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "sqlalchemy>=2.0",
+    "sqlalchemy>=2.1.6",
     "psycopg2-binary", # sync driver -- this is a scheduled batch job, not a web server (no asyncpg needed)
     "pandas",
     "numpy",

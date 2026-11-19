@@ -55,7 +55,13 @@ function makeRng(seed: number) {
   }
 }
 
-export function NodeGraph({ accent, accentSoft }: { accent: string; accentSoft: string }) {
+export function NodeGraph({
+  accent,
+  accentSoft,
+}: {
+  accent: string
+  accentSoft: string
+}) {
   const svgRef = useRef<SVGSVGElement>(null)
   const rafRef = useRef(0)
   const tRef = useRef(0)
@@ -162,7 +168,8 @@ export function NodeGraph({ accent, accentSoft }: { accent: string; accentSoft: 
         }
 
         const outer = svg.querySelector<SVGGElement>('[data-rotate]')
-        if (outer) outer.setAttribute('transform', `rotate(${(t * 1.6).toFixed(2)} 300 300)`)
+        if (outer)
+          outer.setAttribute('transform', `rotate(${(t * 1.6).toFixed(2)} 300 300)`)
 
         svg.querySelectorAll<SVGLineElement>('[data-edge]').forEach((el) => {
           const ni = nodes[Number(el.getAttribute('data-i'))]
@@ -250,7 +257,14 @@ export function NodeGraph({ accent, accentSoft }: { accent: string; accentSoft: 
         ))}
       </g>
 
-      <circle cx="300" cy="300" r="22" fill="url(#node-glow)" data-halo="" opacity="0.9" />
+      <circle
+        cx="300"
+        cy="300"
+        r="22"
+        fill="url(#node-glow)"
+        data-halo=""
+        opacity="0.9"
+      />
 
       <g>
         {nodes.map((n, i) => (

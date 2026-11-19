@@ -268,6 +268,17 @@ class TestUrlResolution:
         assert mig.main([]) == 1
         assert "required" in capsys.readouterr().err
 
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("postgresql+asyncpg://u@h/db", "postgresql+psycopg2://u@h/db"),
+            ("postgresql://u@h/db", "postgresql+psycopg2://u@h/db"),
+            ("postgresql+psycopg2://u@h/db", "postgresql+psycopg2://u@h/db"),
+        ],
+    )
+    def test_normalise_url_always_pins_psycopg2(self, url: str, expected: str):
+        assert mig._normalise_url(url) == expected
+
 
 @pytest.mark.usefixtures("clean_dbs")
 class TestMigrate:
