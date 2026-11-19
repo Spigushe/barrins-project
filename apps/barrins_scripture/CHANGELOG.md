@@ -1,9 +1,23 @@
 # Changelog
 
+<!-- cspell:ignore empy -->
+
 Format: Keep a Changelog + Semantic Versioning — see the Changelog
 section of the docs site for details.
 
 ## [Unreleased]
+
+### Added
+
+- `scripture-scrape.yml` `workflow_dispatch` inputs for incident
+  recovery: each leg (MTGO, MTGTop8, gap-check, sweep) can be switched
+  off on its own, and its CLI arguments set from the run form or `gh`
+  (`mtgo_date_from`/`mtgo_date_to`, `mtgo_force`, `mtgtop8_id_from`,
+  `mtgtop8_span`, `gap_check`, `sweep_mode`, `sweep_days`,
+  `sweep_fast_forward`). Inputs are validated before any checkout and the
+  resolved parameters are written to the run summary. Scheduled runs are
+  unchanged. See
+  `docs/content/service/barrins_scripture/incidents/2026-11-19-archive-push-token-expiry.md`.
 
 ### Fixed
 

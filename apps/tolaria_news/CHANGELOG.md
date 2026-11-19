@@ -10,7 +10,7 @@ section of the docs site for details.
 - A hidden, unlisted page (`/west`, "Tolaria West") — a client-side Monte
   Carlo mana-source calculator ported from an old standalone HTML toy of
   the author's: given a deck's land count and a spell's "colority", it
-  reports how many colour sources it takes to cast that spell on curve
+  reports how many color sources it takes to cast that spell on curve
   with 90% reliability. Runs in a Web Worker; no backend, no nav link, no
   feature flag. A deliberate, documented exception to constitution §4.1
   (generic MTG probability toy, no ecosystem data — see

@@ -12,8 +12,38 @@ name: scripture-scrape
 #
 # No Persistent=true-style catch-up for a missed scheduled run (GitHub
 # Actions `schedule` triggers are best-effort) — accepted, since scrape's
-# MTGO default window (5 days back) and the sweep's default lookback (7
-# days) both self-heal a single missed run on the next one.
+# MTGO default window (the month of "5 days ago" through the current
+# month — month granularity, not days) and the sweep's default lookback
+# (7 days) both self-heal a single missed run on the next one. A longer
+# outage does NOT self-heal: use the manual inputs below to recover it.
+#
+# Manual runs / incident recovery (workflow_dispatch inputs):
+#   Every input is optional; a manual run with no input changed behaves
+#   exactly like the scheduled run. A scheduled run ignores all of them
+#   (inputs are empty on `schedule`, and every empty input falls back to
+#   the scheduled default). Each leg can be switched off independently,
+#   and each leg's CLI arguments can be overridden:
+#     mtgo / mtgtop8 / sweep  - run (true) or skip (false) that leg
+#     mtgo_date_from/_to      - YYYY-MM month range for MTGO (scrape's
+#                               --date-from/--date-to)
+#     mtgo_force              - re-scrape already-archived MTGO tournaments
+#     mtgtop8_id_from         - first MTGTop8 tournament id (default:
+#                               resume after the last archived id)
+#     mtgtop8_span            - number of MTGTop8 ids to inspect (1000)
+#     gap_check               - auto (Sunday parity, as scheduled), skip,
+#                               top8_check_gaps or mtgo_empty_decks
+#     sweep_mode              - recent (last sweep_days days) or full
+#     sweep_days              - sweep lookback for sweep_mode=recent (7)
+#     sweep_fast_forward      - skip already-ingested URLs (full only)
+#   Inputs are validated in the "Resolve run parameters" step before
+#   anything is checked out, so a typo fails the run in seconds.
+#
+#   Example — recover October's MTGO tournaments only, then ingest the
+#   last 40 days:
+#     gh workflow run scripture-scrape.yml \
+#       -f mtgtop8=false -f mtgo_date_from=2026-10 -f mtgo_date_to=2026-10 \
+#       -f gap_check=skip -f sweep_days=40
+#   See docs/content/service/barrins_scripture/incidents/2026-11-19-archive-push-token-expiry.md.
 #
 # No failure-email step (mtg_scraper's old dawidd6/action-send-mail): a
 # scheduled workflow's failure already emails the repo owner by default,
@@ -26,15 +56,83 @@ name: scripture-scrape
 #                            Spigushe/mtg_decklist_cache (same PAT already
 #                            used by the VPS's github_token role, which
 #                            needs the same push access — see
-#                            ops/my-server/secrets/github/token.txt)
+#                            ops/my-server/secrets/github/token.txt).
+#                            A PAT expires: when it does, the archive
+#                            checkout fails with "Bad credentials" and the
+#                            whole pipeline stops (2026-11-19 incident).
 #   SCRIPTURE_INGEST_TOKEN - shared ingestion secret barrins_api checks on
-#                            POST /internal/scripture/ingest (see
-#                            ops/my-server/secrets/scripture/staging_ingest_token.txt)
+#                            POST /internal/scripture/ingest — production
+#                            value, since BARRINS_API_URL below is
+#                            production (see
+#                            ops/my-server/secrets/scripture/production_ingest_token.txt)
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('scripture-scrape (manual: mtgo={0}, mtgtop8={1}, sweep={2})',
+  inputs.mtgo, inputs.mtgtop8, inputs.sweep)
+  || 'scripture-scrape' }}
 
 on:
   schedule:
     - cron: "0 22 * * *"
   workflow_dispatch:
+    inputs:
+      mtgo:
+        description: "Scrape MTGO"
+        type: boolean
+        default: true
+      mtgo_date_from:
+        description: "MTGO start month, YYYY-MM (empty = scheduled default)"
+        type: string
+        default: ""
+      mtgo_date_to:
+        description: "MTGO end month, YYYY-MM (empty = current month)"
+        type: string
+        default: ""
+      mtgo_force:
+        description: "Re-scrape already-archived MTGO tournaments"
+        type: boolean
+        default: false
+      mtgtop8:
+        description: "Scrape MTGTop8"
+        type: boolean
+        default: true
+      mtgtop8_id_from:
+        description: "MTGTop8 first tournament id (empty = resume after last archived)"
+        type: string
+        default: ""
+      mtgtop8_span:
+        description: "MTGTop8 number of ids to inspect (empty = 1000)"
+        type: string
+        default: ""
+      gap_check:
+        description: "Gap-check script to run"
+        type: choice
+        options:
+          - auto
+          - skip
+          - top8_check_gaps
+          - mtgo_empty_decks
+        default: auto
+      sweep:
+        description: "Ingest the archive into barrins_api (sweep)"
+        type: boolean
+        default: true
+      sweep_mode:
+        description: "Sweep mode"
+        type: choice
+        options:
+          - recent
+          - full
+        default: recent
+      sweep_days:
+        description: "Sweep lookback in days, recent mode only (empty = 7)"
+        type: string
+        default: ""
+      sweep_fast_forward:
+        description: "Skip already-ingested tournament URLs (full mode only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,6 +151,136 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
+      # Inputs reach the shell through env vars only, never through
+      # ${{ }} interpolation inside `run:` (script-injection hardening);
+      # every value is validated against a strict pattern before it is
+      # turned into a CLI argument, so the argument strings emitted below
+      # contain no whitespace or shell metacharacters.
+      - name: Resolve run parameters
+        id: params
+        env:
+          IN_MTGO: ${{ inputs.mtgo }}
+          IN_MTGO_DATE_FROM: ${{ inputs.mtgo_date_from }}
+          IN_MTGO_DATE_TO: ${{ inputs.mtgo_date_to }}
+          IN_MTGO_FORCE: ${{ inputs.mtgo_force }}
+          IN_MTGTOP8: ${{ inputs.mtgtop8 }}
+          IN_MTGTOP8_ID_FROM: ${{ inputs.mtgtop8_id_from }}
+          IN_MTGTOP8_SPAN: ${{ inputs.mtgtop8_span }}
+          IN_GAP_CHECK: ${{ inputs.gap_check }}
+          IN_SWEEP: ${{ inputs.sweep }}
+          IN_SWEEP_MODE: ${{ inputs.sweep_mode }}
+          IN_SWEEP_DAYS: ${{ inputs.sweep_days }}
+          IN_SWEEP_FAST_FORWARD: ${{ inputs.sweep_fast_forward }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error title=Invalid input::$1"; exit 1; }
+          month_re='^[0-9]{4}-(0[1-9]|1[0-2])$'
+          int_re='^[1-9][0-9]*$'
+
+          # Empty on `schedule` -> scheduled defaults.
+          run_mtgo="${IN_MTGO:-true}"
+          run_mtgtop8="${IN_MTGTOP8:-true}"
+          run_sweep="${IN_SWEEP:-true}"
+          gap_check="${IN_GAP_CHECK:-auto}"
+          sweep_mode="${IN_SWEEP_MODE:-recent}"
+
+          mtgo_args=()
+          if [ -n "$IN_MTGO_DATE_FROM" ]; then
+            [[ "$IN_MTGO_DATE_FROM" =~ $month_re ]] || fail "mtgo_date_from must be YYYY-MM, got '$IN_MTGO_DATE_FROM'"
+            mtgo_args+=(--date-from "$IN_MTGO_DATE_FROM")
+          fi
+          if [ -n "$IN_MTGO_DATE_TO" ]; then
+            [[ "$IN_MTGO_DATE_TO" =~ $month_re ]] || fail "mtgo_date_to must be YYYY-MM, got '$IN_MTGO_DATE_TO'"
+            mtgo_args+=(--date-to "$IN_MTGO_DATE_TO")
+          fi
+          if [ -n "$IN_MTGO_DATE_FROM" ] && [ -n "$IN_MTGO_DATE_TO" ] \
+             && [[ "$IN_MTGO_DATE_FROM" > "$IN_MTGO_DATE_TO" ]]; then
+            fail "mtgo_date_from ($IN_MTGO_DATE_FROM) is after mtgo_date_to ($IN_MTGO_DATE_TO)"
+          fi
+          if [ "${IN_MTGO_FORCE:-false}" = "true" ]; then
+            mtgo_args+=(--force-mtgo)
+          fi
+
+          mtgtop8_args=()
+          if [ -n "$IN_MTGTOP8_ID_FROM" ]; then
+            [[ "$IN_MTGTOP8_ID_FROM" =~ $int_re ]] || fail "mtgtop8_id_from must be a positive integer, got '$IN_MTGTOP8_ID_FROM'"
+            mtgtop8_args+=(--id-from "$IN_MTGTOP8_ID_FROM")
+          fi
+          if [ -n "$IN_MTGTOP8_SPAN" ]; then
+            [[ "$IN_MTGTOP8_SPAN" =~ $int_re ]] || fail "mtgtop8_span must be a positive integer, got '$IN_MTGTOP8_SPAN'"
+            mtgtop8_args+=(--span "$IN_MTGTOP8_SPAN")
+          fi
+
+          case "$gap_check" in
+            auto)
+              gap_check=skip
+              if [ "$(date -u +%u)" = "7" ]; then
+                WEEK="$(date -u +%V)"
+                # 10#$WEEK forces base-10: weeks 08/09 would otherwise be
+                # parsed as invalid octal literals by bash's arithmetic
+                # evaluator.
+                if [ $(( 10#$WEEK % 2 )) -eq 0 ]; then
+                  gap_check=top8_check_gaps
+                else
+                  gap_check=mtgo_empty_decks
+                fi
+              fi
+              ;;
+            skip | top8_check_gaps | mtgo_empty_decks) ;;
+            *) fail "unknown gap_check '$gap_check'" ;;
+          esac
+
+          sweep_args=(--mode "$sweep_mode")
+          case "$sweep_mode" in
+            recent)
+              sweep_days="${IN_SWEEP_DAYS:-7}"
+              [[ "$sweep_days" =~ $int_re ]] || fail "sweep_days must be a positive integer, got '$sweep_days'"
+              sweep_args+=(--days "$sweep_days")
+              if [ "${IN_SWEEP_FAST_FORWARD:-false}" = "true" ]; then
+                fail "sweep_fast_forward requires sweep_mode=full"
+              fi
+              ;;
+            full)
+              if [ -n "$IN_SWEEP_DAYS" ]; then
+                fail "sweep_days only applies to sweep_mode=recent"
+              fi
+              if [ "${IN_SWEEP_FAST_FORWARD:-false}" = "true" ]; then
+                sweep_args+=(--fast-forward)
+              fi
+              ;;
+            *) fail "unknown sweep_mode '$sweep_mode'" ;;
+          esac
+
+          # Overrides on a disabled leg are almost certainly a mistake in
+          # the dispatch form — surface them instead of silently ignoring.
+          if [ "$run_mtgo" != "true" ] && [ "${#mtgo_args[@]}" -gt 0 ]; then
+            echo "::warning::MTGO is disabled; its overrides (${mtgo_args[*]}) are ignored"
+          fi
+          if [ "$run_mtgtop8" != "true" ] && [ "${#mtgtop8_args[@]}" -gt 0 ]; then
+            echo "::warning::MTGTop8 is disabled; its overrides (${mtgtop8_args[*]}) are ignored"
+          fi
+
+          {
+            echo "run_mtgo=$run_mtgo"
+            echo "mtgo_args=${mtgo_args[*]}"
+            echo "run_mtgtop8=$run_mtgtop8"
+            echo "mtgtop8_args=${mtgtop8_args[*]}"
+            echo "gap_check=$gap_check"
+            echo "run_sweep=$run_sweep"
+            echo "sweep_args=${sweep_args[*]}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Run parameters (${GITHUB_EVENT_NAME})"
+            echo
+            echo "| Leg | Runs | Arguments |"
+            echo "| --- | --- | --- |"
+            echo "| MTGO | $run_mtgo | \`${mtgo_args[*]:-(defaults)}\` |"
+            echo "| MTGTop8 | $run_mtgtop8 | \`${mtgtop8_args[*]:-(defaults)}\` |"
+            echo "| Gap-check | $([ "$gap_check" = skip ] && echo false || echo true) | \`$gap_check\` |"
+            echo "| Sweep | $run_sweep | \`${sweep_args[*]}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout barrins-project
         uses: actions/checkout@v7
         with:
@@ -81,28 +309,29 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Scrape MTGO
+        if: steps.params.outputs.run_mtgo == 'true'
         working-directory: barrins-project/apps/barrins_scripture
-        run: uv run scrape --source mtgo --output-dir "$GITHUB_WORKSPACE/archive"
+        env:
+          MTGO_ARGS: ${{ steps.params.outputs.mtgo_args }}
+        run: |
+          read -ra args <<< "$MTGO_ARGS"
+          uv run scrape --source mtgo "${args[@]}" --output-dir "$GITHUB_WORKSPACE/archive"
 
       - name: Scrape MTGTop8
+        if: steps.params.outputs.run_mtgtop8 == 'true'
         working-directory: barrins-project/apps/barrins_scripture
-        run: uv run scrape --source mtgtop8 --output-dir "$GITHUB_WORKSPACE/archive"
-
-      - name: Sunday gap-check (alternates by ISO week parity)
-        working-directory: barrins-project/apps/barrins_scripture
+        env:
+          MTGTOP8_ARGS: ${{ steps.params.outputs.mtgtop8_args }}
         run: |
-          set -euo pipefail
-          if [ "$(date -u +%u)" = "7" ]; then
-            WEEK="$(date -u +%V)"
-            # 10#$WEEK forces base-10: weeks 08/09 would otherwise be
-            # parsed as invalid octal literals by bash's arithmetic
-            # evaluator.
-            if [ $(( 10#$WEEK % 2 )) -eq 0 ]; then
-              uv run python -m barrins_scripture.scripts.top8_check_gaps
-            else
-              uv run python -m barrins_scripture.scripts.mtgo_empty_decks
-            fi
-          fi
+          read -ra args <<< "$MTGTOP8_ARGS"
+          uv run scrape --source mtgtop8 "${args[@]}" --output-dir "$GITHUB_WORKSPACE/archive"
+
+      - name: Gap-check
+        if: steps.params.outputs.gap_check != 'skip'
+        working-directory: barrins-project/apps/barrins_scripture
+        env:
+          GAP_CHECK: ${{ steps.params.outputs.gap_check }}
+        run: uv run python -m "barrins_scripture.scripts.$GAP_CHECK"
 
       - name: Commit and push archive changes
         working-directory: archive
@@ -114,8 +343,12 @@ jobs:
             git push origin main
           fi
 
-      - name: Sweep (ingest recent archive changes into barrins_api)
+      - name: Sweep (ingest archive changes into barrins_api)
+        if: steps.params.outputs.run_sweep == 'true'
         working-directory: barrins-project/apps/barrins_scripture
         env:
           SCRIPTURE_INGEST_TOKEN: ${{ secrets.SCRIPTURE_INGEST_TOKEN }}
-        run: uv run sweep --mode recent --days 7 --archive-dir "$GITHUB_WORKSPACE/archive"
+          SWEEP_ARGS: ${{ steps.params.outputs.sweep_args }}
+        run: |
+          read -ra args <<< "$SWEEP_ARGS"
+          uv run sweep "${args[@]}" --archive-dir "$GITHUB_WORKSPACE/archive"
