@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
+from app.services.karn.read import _card_counts
 from tests.karn.conftest import BFF, INGEST_URL, archetype, headers, payload
 
 _METAGAME_KEYS = {
@@ -516,3 +517,22 @@ class TestWindowNavigation:
                 params={"window": "banlist_period", "at": "banlist_period:nope"},
             )
             assert resp.status_code == 404
+
+
+class TestCardCounts:
+    """`_card_counts` narrows the stored JSON decklist to `dict[str, int]`."""
+
+    def test_keeps_a_well_formed_decklist(self):
+        assert _card_counts({"Sol Ring": 1, "Island": 12}) == {
+            "Sol Ring": 1,
+            "Island": 12,
+        }
+
+    def test_drops_entries_whose_quantity_is_not_an_int(self):
+        assert _card_counts({"Sol Ring": 1, "Broken": "x", "Null": None}) == {
+            "Sol Ring": 1
+        }
+
+    @pytest.mark.parametrize("value", [None, [], ["Sol Ring"], "Sol Ring", 3])
+    def test_non_object_json_reads_as_an_empty_decklist(self, value: object):
+        assert _card_counts(value) == {}

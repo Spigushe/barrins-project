@@ -33,10 +33,9 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.10.1",
-    # <2.1 until a dedicated migration: 2.1 no longer installs greenlet by
-    # default (the async engine then needs sqlalchemy[asyncio]) and retypes
-    # Select; see Dependabot PR #170 (2026-11-19).
-    "sqlalchemy>=2.0.51,<2.1",
+    # [asyncio] pulls in greenlet, which the async engine (asyncpg) needs:
+    # since 2.1, plain `sqlalchemy` no longer installs it by default.
+    "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.51.0",
     # >=69.0: includes fixes for both CVE-2025-68616 and CVE-2026-49452 (see S5 ADR/I8).
     "weasyprint>=69.0",

@@ -275,6 +275,17 @@ def _commander_names(value: object) -> list[str]:
     return []
 
 
+def _card_counts(value: object) -> dict[str, int]:
+    """`KTRunArchetype.representative_mainboard` is stored as a JSON object
+    of card name -> quantity (written by `ingester.py` from a
+    `dict[str, int]`). Anything else reads as an empty decklist."""
+    if isinstance(value, dict):
+        return {
+            str(name): count for name, count in value.items() if isinstance(count, int)
+        }
+    return {}
+
+
 def _signature_check(
     total_archetypes: int, land_prevalence: dict[str, int]
 ) -> Callable[[str, _CardFact], bool]:
@@ -374,20 +385,22 @@ async def metagame_snapshot(
     for run_archetype, _, commanders in rows:
         names_to_resolve.update(_commander_names(commanders))
         if with_card_details:
-            names_to_resolve.update(run_archetype.representative_mainboard or {})
+            names_to_resolve.update(
+                _card_counts(run_archetype.representative_mainboard)
+            )
     facts = await _card_facts(session, names_to_resolve)
 
     land_prevalence: dict[str, int] = {}
     if with_card_details:
         for run_archetype, _, _ in rows:
-            for card_name in run_archetype.representative_mainboard or {}:
+            for card_name in _card_counts(run_archetype.representative_mainboard):
                 if facts.get(card_name, _NO_FACT).is_land:
                     land_prevalence[card_name] = land_prevalence.get(card_name, 0) + 1
     is_signature = _signature_check(len(rows), land_prevalence)
 
     archetypes = []
     for run_archetype, name, commanders in rows:
-        mainboard = dict(run_archetype.representative_mainboard or {})
+        mainboard = _card_counts(run_archetype.representative_mainboard)
         commander_refs = [
             CardRefRow(name=cmd, scryfall_id=facts.get(cmd, _NO_FACT).scryfall_id)
             for cmd in _commander_names(commanders)
