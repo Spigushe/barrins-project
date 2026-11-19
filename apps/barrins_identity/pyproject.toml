@@ -34,7 +34,10 @@ dependencies = [
     "pyjwt>=2.10.1",
     "python-multipart>=0.0.32",
     "slowapi>=0.1.9",
-    "sqlalchemy>=2.0.51",
+    # <2.1 until a dedicated migration: 2.1 no longer installs greenlet by
+    # default (the async engine then needs sqlalchemy[asyncio]) and retypes
+    # Select; see Dependabot PR #170 (2026-11-19).
+    "sqlalchemy>=2.0.51,<2.1",
     "uvicorn>=0.51.0",
 ]
 

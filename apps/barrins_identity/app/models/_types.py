@@ -8,7 +8,7 @@ affect the one app it lives in.
 """
 
 import json
-from typing import Literal, cast, overload
+from typing import Literal, overload
 
 from sqlalchemy import JSON, TypeDecorator
 from sqlalchemy.dialects import postgresql
@@ -32,11 +32,8 @@ class JSONBCompat(TypeDecorator[JsonValue]):
 
     def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[JsonValue]:
         if dialect.name == "postgresql":
-            return cast(
-                TypeEngine[JsonValue],
-                dialect.type_descriptor(postgresql.JSONB(astext_type=JSON())),
-            )
-        return cast(TypeEngine[JsonValue], dialect.type_descriptor(JSON()))
+            return dialect.type_descriptor(postgresql.JSONB(astext_type=JSON()))
+        return dialect.type_descriptor(JSON())
 
     def process_bind_param(
         self, value: JsonValue | None, dialect: Dialect
